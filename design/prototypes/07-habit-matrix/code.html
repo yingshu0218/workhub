@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet"/><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config={darkMode:"class",theme:{extend:{colors:{"surface-bright":"#f8f9ff","on-surface-variant":"#434655","background":"#f8f9ff","primary-container":"#2563eb","secondary-fixed-dim":"#4edea3","on-primary-fixed":"#00174b","tertiary-fixed-dim":"#ffb596","inverse-primary":"#b4c5ff","surface-container-high":"#dce9ff","on-surface":"#0b1c30","on-secondary-container":"#00714d","surface":"#f8f9ff","on-tertiary-fixed":"#360f00","error":"#ba1a1a","outline":"#737686","surface-tint":"#0053db","inverse-surface":"#213145","error-container":"#ffdad6","primary-fixed-dim":"#b4c5ff","surface-dim":"#cbdbf5","on-secondary":"#ffffff","surface-container-highest":"#d3e4fe","on-secondary-fixed":"#002113","on-primary-fixed-variant":"#003ea8","tertiary-fixed":"#ffdbcd","on-primary":"#ffffff","primary-fixed":"#dbe1ff","primary":"#004ac6","secondary-fixed":"#6ffbbe","secondary":"#006c49","outline-variant":"#c3c6d7","surface-container-lowest":"#ffffff","on-tertiary-container":"#ffede6","on-error":"#ffffff","surface-container-low":"#eff4ff","secondary-container":"#6cf8bb","on-primary-container":"#eeefff","surface-variant":"#d3e4fe","on-tertiary-fixed-variant":"#7d2d00","on-error-container":"#93000a","tertiary":"#943700","tertiary-container":"#bc4800","surface-container":"#e5eeff","inverse-on-surface":"#eaf1ff","on-secondary-fixed-variant":"#005236","on-tertiary":"#ffffff","on-background":"#0b1c30"},borderRadius:{DEFAULT:"0.125rem",lg:"0.25rem",xl:"0.5rem",full:"0.75rem"},spacing:{"container-margin-desktop":"40px",sm:"8px",xl:"32px",xs:"4px",gutter:"16px","container-margin-mobile":"16px",md:"16px",lg:"24px",base:"4px"},fontFamily:{"label-caps":["Inter"],"body-sm":["Inter"],"headline-lg":["Inter"],"headline-md":["Inter"],"headline-lg-mobile":["Inter"],"body-lg":["Inter"],button:["Inter"]},fontSize:{"label-caps":["12px",{lineHeight:"16px",letterSpacing:"0.05em",fontWeight:"600"}],"body-sm":["14px",{lineHeight:"20px",fontWeight:"400"}],"headline-lg":["30px",{lineHeight:"38px",letterSpacing:"-0.02em",fontWeight:"700"}],"headline-md":["20px",{lineHeight:"28px",fontWeight:"600"}],"headline-lg-mobile":["24px",{lineHeight:"32px",letterSpacing:"-0.01em",fontWeight:"700"}],"body-lg":["16px",{lineHeight:"24px",fontWeight:"400"}],button:["14px",{lineHeight:"20px",fontWeight:"500"}]}}}}</script></head><body class="bg-surface font-body-sm text-body-sm text-on-surface"><aside class="fixed left-0 top-0 h-full w-64 bg-surface-container-lowest shadow-[0_1px_8px_rgba(0,0,0,0.04)] z-50 flex flex-col justify-between select-none"><div class="flex flex-col"><div class="h-16 flex items-center gap-3 px-6"><div class="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-on-primary"><span class="material-symbols-outlined text-[20px]">send</span></div><div class="flex flex-col"><span class="font-headline-md text-body-lg font-semibold tracking-tight text-on-surface leading-tight">寻鸽工作台</span><span class="font-label-caps text-label-caps text-on-surface-variant">Nexus Workspace</span></div></div><div class="px-4 pt-2 pb-3"><button class="w-full flex items-center justify-between px-3 py-2.5 rounded-lg bg-primary hover:bg-primary-container text-on-primary font-button text-button transition-all shadow-[0_1px_3px_rgba(0,0,0,0.1)]" type="button"><div class="flex items-center gap-2"><span class="material-symbols-outlined text-[18px]">bolt</span><span>灵感闪现</span></div><span class="font-label-caps text-label-caps bg-on-primary/20 text-on-primary px-1.5 py-0.5 rounded">⌘J</span></button></div><nav class="px-3 flex flex-col gap-1" data-active-classes="bg-primary-container text-on-primary-container font-semibold"><a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface font-button text-button transition-colors" data-path="workbench" href="#"><span class="material-symbols-outlined text-[20px]">grid_view</span><span>工作台</span></a><a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface font-button text-button transition-colors" data-path="crm" href="#"><span class="material-symbols-outlined text-[20px]">groups</span><span>客户管理</span></a><a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface font-button text-button transition-colors" data-path="finance" href="#"><span class="material-symbols-outlined text-[20px]">account_balance_wallet</span><span>财务中心</span></a><a aria-current="page" class="flex items-center gap-3 px-3 py-2 rounded-lg transition-colors bg-primary-container text-on-primary-container font-semibold" data-path="tasks" href="#"><span class="material-symbols-outlined text-[20px]">check_circle</span><span>待办事项</span></a><a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface font-button text-button transition-colors" data-path="notes" href="#"><span class="material-symbols-outlined text-[20px]">edit_note</span><span>团队笔记</span></a><a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface font-button text-button transition-colors" data-path="habits" href="#"><span class="material-symbols-outlined text-[20px]">event_repeat</span><span>打卡·习惯</span></a><a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface font-button text-button transition-colors" data-path="trophies" href="#"><span class="material-symbols-outlined text-[20px]">emoji_events</span><span>成就奖杯</span></a><a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface font-button text-button transition-colors" data-path="settings" href="#"><span class="material-symbols-outlined text-[20px]">settings</span><span>系统设置</span></a></nav></div><div class="p-3"><div class="flex items-center justify-between p-2 rounded-lg bg-surface-container-low hover:bg-surface-container transition-colors"><div class="flex items-center gap-2.5 min-w-0"><div class="relative flex-shrink-0"><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div><span class="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-secondary ring-2 ring-surface-container-lowest"></span></div><div class="flex flex-col min-w-0"><span class="font-button text-button text-on-surface truncate">陈致远</span><span class="font-label-caps text-label-caps text-on-surface-variant truncate">Core Team</span></div></div><button aria-label="切换用户" class="text-on-surface-variant hover:text-on-surface p-1 rounded transition-colors" type="button"><span class="material-symbols-outlined text-[18px]">unfold_more</span></button></div></div></aside><div class="pl-64"><header class="fixed top-0 left-64 right-0 h-16 bg-surface/80 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)] z-40 flex items-center justify-between px-8"><div class="flex items-center gap-2 font-body-sm text-body-sm"><span class="text-on-surface-variant">Nexus</span><span class="material-symbols-outlined text-outline text-[16px]">chevron_right</span><span class="font-button text-button text-on-surface font-medium">待办事项</span></div><div class="flex items-center gap-4"><div class="flex items-center gap-2 bg-surface-container-lowest px-3 py-1.5 rounded-lg text-on-surface-variant shadow-[0_1px_3px_rgba(0,0,0,0.05)]"><span class="material-symbols-outlined text-[18px] text-outline">search</span><span class="text-on-surface-variant font-body-sm text-body-sm pr-4">搜索工作区、任务或文档...</span><kbd class="font-label-caps text-label-caps bg-surface-container-high text-on-surface px-1.5 py-0.5 rounded">⌘K</kbd></div><div class="flex items-center gap-1.5 text-on-secondary-container bg-secondary-container/30 px-2.5 py-1 rounded-full font-label-caps text-label-caps"><span class="w-1.5 h-1.5 rounded-full bg-secondary animate-pulse"></span><span>云端已实时同步</span></div><div class="flex items-center gap-1 text-on-surface-variant"><button aria-label="帮助中心" class="p-1.5 rounded-lg hover:bg-surface-container-high hover:text-on-surface transition-colors" type="button"><span class="material-symbols-outlined text-[20px]">help</span></button><button aria-label="通知" class="relative p-1.5 rounded-lg hover:bg-surface-container-high hover:text-on-surface transition-colors" type="button"><span class="material-symbols-outlined text-[20px]">notifications</span><span class="absolute top-1 right-1 w-2 h-2 rounded-full bg-primary"></span></button></div><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div></div></header><main class="relative pt-16 bg-surface min-h-screen w-full px-8 py-6"><div class="flex flex-col w-full">
+<script>
+    (function () {
+      const links = document.querySelectorAll('aside nav a[data-path]');
+      links.forEach(link => {
+        if (link.getAttribute('data-path') === 'habits') {
+          link.className = 'flex items-center gap-3 px-3 py-2 rounded-lg bg-primary-container text-on-primary-container font-semibold font-button text-button transition-colors shadow-sm';
+        } else {
+          link.className = 'flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface font-button text-button transition-colors';
+        }
+      });
+      const headerBreadcrumb = document.querySelector('header .text-on-surface');
+      if (headerBreadcrumb) {
+        headerBreadcrumb.textContent = '打卡·习惯';
+      }
+    })();
+  </script>
+<!-- Top Action & Title Bar -->
+<div class="flex flex-col gap-6 mb-8">
+<div class="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
+<div class="flex flex-col gap-1.5">
+<div class="flex items-center gap-3 flex-wrap">
+<h1 class="font-headline-lg text-headline-lg text-on-surface tracking-tight">习惯矩阵与稳态追踪</h1>
+<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-secondary-container/40 text-on-secondary-container font-label-caps text-label-caps">
+<span class="w-2 h-2 rounded-full bg-secondary animate-ping"></span>
+<span>持续践行中 · 第 42 天</span>
+</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant">基于 21 天神经塑性稳态模型，可视化追踪每日习惯律动与自律复利，构建高抗熵自驱体系。</p>
+</div>
+<div class="flex items-center gap-2.5 flex-wrap">
+<div class="inline-flex p-1 bg-surface-container rounded-xl shadow-inner">
+<button class="px-3 py-1.5 rounded-lg bg-surface-container-lowest text-primary font-button text-button shadow-sm" type="button">本月 (2024年10月)</button>
+<button class="px-3 py-1.5 rounded-lg text-on-surface-variant hover:text-on-surface font-button text-button transition-colors" type="button">上月</button>
+<button class="px-3 py-1.5 rounded-lg text-on-surface-variant hover:text-on-surface font-button text-button transition-colors" type="button">全年热力</button>
+</div>
+<button class="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-surface-container-lowest hover:bg-surface-container text-on-surface-variant hover:text-on-surface font-button text-button transition-all shadow-sm" type="button">
+<span class="material-symbols-outlined text-[18px]">download</span>
+<span>导出周报</span>
+</button>
+<button class="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary hover:bg-primary-container text-on-primary font-button text-button transition-all shadow-md active:scale-95" id="btn-create-habit" type="button">
+<span class="material-symbols-outlined text-[18px]">add_circle</span>
+<span>新建习惯</span>
+<kbd class="font-label-caps text-label-caps bg-on-primary/20 text-on-primary px-1.5 py-0.5 rounded ml-1">⌘N</kbd>
+</button>
+</div>
+</div>
+</div>
+<!-- 4 Metrics Grid -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+<!-- Metric 1 -->
+<div class="bg-surface-container-lowest rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
+<div class="flex items-start justify-between">
+<span class="font-label-caps text-label-caps text-on-surface-variant tracking-wider uppercase">今日打卡进度</span>
+<div class="w-8 h-8 rounded-lg bg-primary-fixed flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[20px]">fact_check</span>
+</div>
+</div>
+<div class="my-3 flex items-baseline gap-2">
+<span class="font-headline-lg text-headline-lg font-bold text-on-surface">80%</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">4 / 5 已打卡</span>
+</div>
+<div>
+<div class="w-full bg-surface-container-high rounded-full h-2 overflow-hidden mb-2">
+<div class="bg-primary h-2 rounded-full transition-all duration-500" style="width: 80%"></div>
+</div>
+<div class="flex items-center gap-1 text-tertiary font-label-caps text-label-caps truncate">
+<span class="material-symbols-outlined text-[14px]">schedule</span>
+<span>剩余傍晚慢跑 30 分钟未完成</span>
+</div>
+</div>
+</div>
+<!-- Metric 2 -->
+<div class="bg-surface-container-lowest rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
+<div class="flex items-start justify-between">
+<span class="font-label-caps text-label-caps text-on-surface-variant tracking-wider uppercase">当前持续连击</span>
+<div class="w-8 h-8 rounded-lg bg-tertiary-fixed flex items-center justify-center text-tertiary">
+<span class="material-symbols-outlined text-[20px]">local_fire_department</span>
+</div>
+</div>
+<div class="my-3 flex items-baseline gap-2">
+<span class="font-headline-lg text-headline-lg font-bold text-on-surface">45</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">天连续保持</span>
+</div>
+<div class="flex items-center justify-between text-on-surface-variant font-label-caps text-label-caps pt-2">
+<span class="inline-flex items-center gap-1 text-secondary font-semibold">
+<span class="material-symbols-outlined text-[14px]">trending_up</span>
+          创个人纪录
+        </span>
+<span class="text-outline">上一纪录: 32 天</span>
+</div>
+</div>
+<!-- Metric 3 -->
+<div class="bg-surface-container-lowest rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
+<div class="flex items-start justify-between">
+<span class="font-label-caps text-label-caps text-on-surface-variant tracking-wider uppercase">本月稳态达成率</span>
+<div class="w-8 h-8 rounded-lg bg-secondary-fixed flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined text-[20px]">verified</span>
+</div>
+</div>
+<div class="my-3 flex items-baseline gap-2">
+<span class="font-headline-lg text-headline-lg font-bold text-on-surface">91.4%</span>
+<span class="font-label-caps text-label-caps text-secondary font-semibold">+6.2% 环比</span>
+</div>
+<div class="flex items-center justify-between text-on-surface-variant font-label-caps text-label-caps pt-2">
+<span class="px-2 py-0.5 rounded bg-secondary-container/40 text-on-secondary-container">稳态期形成 (Consolidated)</span>
+<span class="text-outline">目标: ≥85%</span>
+</div>
+</div>
+<!-- Metric 4 -->
+<div class="bg-surface-container-lowest rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
+<div class="flex items-start justify-between">
+<span class="font-label-caps text-label-caps text-on-surface-variant tracking-wider uppercase">累计注入专注工时</span>
+<div class="w-8 h-8 rounded-lg bg-surface-container-high flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[20px]">timer</span>
+</div>
+</div>
+<div class="my-3 flex items-baseline gap-2">
+<span class="font-headline-lg text-headline-lg font-bold text-on-surface">128.5</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">小时深度聚焦</span>
+</div>
+<div class="flex items-center justify-between text-on-surface-variant font-label-caps text-label-caps pt-2">
+<span class="text-on-surface-variant">联动番茄钟 · 154 次</span>
+<span class="text-primary font-medium">效率指数 9.4</span>
+</div>
+</div>
+</div>
+<!-- Heatmap Matrix Section -->
+<div class="bg-surface-container-lowest rounded-xl p-6 shadow-sm mb-8">
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+<div class="flex items-center gap-3">
+<div class="p-2 rounded-lg bg-surface-container-low text-primary">
+<span class="material-symbols-outlined text-[22px]">calendar_apps_script</span>
+</div>
+<div>
+<h2 class="font-headline-md text-headline-md text-on-surface">21天稳态模型与全景习惯热力图</h2>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-0.5">神经回路强化矩阵 · 2024年10月度执行热度密度分布</p>
+</div>
+</div>
+<div class="flex items-center gap-4 text-on-surface-variant font-label-caps text-label-caps">
+<div class="flex items-center gap-1.5">
+<span>少</span>
+<div class="w-3.5 h-3.5 rounded bg-surface-container"></div>
+<div class="w-3.5 h-3.5 rounded bg-primary-fixed"></div>
+<div class="w-3.5 h-3.5 rounded bg-primary-container/80"></div>
+<div class="w-3.5 h-3.5 rounded bg-primary"></div>
+<span>多 (5项全满)</span>
+</div>
+</div>
+</div>
+<!-- Heatmap Grid -->
+<div class="overflow-x-auto pb-2">
+<div class="min-w-[720px] flex flex-col gap-2">
+<!-- Weekday Headers -->
+<div class="grid grid-cols-7 gap-2 text-center font-label-caps text-label-caps text-outline mb-1">
+<span>周一</span>
+<span>周二</span>
+<span>周三</span>
+<span>周四</span>
+<span>周五</span>
+<span class="text-primary font-semibold">周六</span>
+<span class="text-primary font-semibold">周日</span>
+</div>
+<!-- 5-Week Grid for 31 Days in October 2024 (Oct 1 is Tue) -->
+<div class="grid grid-cols-7 gap-2">
+<!-- Day 0 (Sept 30 filler) -->
+<div class="h-16 rounded-lg bg-surface-container-low/40 p-2 flex flex-col justify-between opacity-30 cursor-not-allowed">
+<span class="font-label-caps text-label-caps text-outline">30</span>
+</div>
+<!-- Oct 1 -->
+<div class="h-16 rounded-lg bg-primary-container text-on-primary-container p-2 flex flex-col justify-between hover:scale-105 transition-transform cursor-pointer group shadow-sm">
+<div class="flex justify-between items-center"><span class="font-label-caps text-label-caps font-bold">1</span><span class="text-[10px] opacity-80">4/5</span></div>
+<span class="font-label-caps text-[10px] truncate">国庆专注</span>
+</div>
+<!-- Oct 2 -->
+<div class="h-16 rounded-lg bg-primary text-on-primary p-2 flex flex-col justify-between hover:scale-105 transition-transform cursor-pointer group shadow-sm">
+<div class="flex justify-between items-center"><span class="font-label-caps text-label-caps font-bold">2</span><span class="text-[10px] opacity-80">5/5</span></div>
+<span class="font-label-caps text-[10px] truncate">极佳稳态</span>
+</div>
+<!-- Oct 3 -->
+<div class="h-16 rounded-lg bg-primary text-on-primary p-2 flex flex-col justify-between hover:scale-105 transition-transform cursor-pointer group shadow-sm">
+<div class="flex justify-between items-center"><span class="font-label-caps text-label-caps font-bold">3</span><span class="text-[10px] opacity-80">5/5</span></div>
+<span class="font-label-caps text-[10px] truncate">极佳稳态</span>
+</div>
+<!-- Oct 4 -->
+<div class="h-16 rounded-lg bg-primary-fixed text-on-primary-fixed p-2 flex flex-col justify-between hover:scale-105 transition-transform cursor-pointer group shadow-sm">
+<div class="flex justify-between items-center"><span class="font-label-caps text-label-caps font-bold">4</span><span class="text-[10px] opacity-80">2/5</span></div>
+<span class="font-label-caps text-[10px] truncate">长假差旅</span>
+</div>
+<!-- Oct 5 -->
+<div class="h-16 rounded-lg bg-primary-container text-on-primary-container p-2 flex flex-col justify-between hover:scale-105 transition-transform cursor-pointer group shadow-sm">
+<div class="flex justify-between items-center"><span class="font-label-caps text-label-caps font-bold">5</span><span class="text-[10px] opacity-80">4/5</span></div>
+<span class="font-label-caps text-[10px] truncate">回归节律</span>
+</div>
+<!-- Oct 6 -->
+<div class="h-16 rounded-lg bg-primary-container text-on-primary-container p-2 flex flex-col justify-between hover:scale-105 transition-transform cursor-pointer group shadow-sm">
+<div class="flex justify-between items-center"><span class="font-label-caps text-label-caps font-bold">6</span><span class="text-[10px] opacity-80">3/5</span></div>
+<span class="font-label-caps text-[10px] truncate">周日整顿</span>
+</div>
+<!-- Week 2: Oct 7-13 -->
+<div class="h-16 rounded-lg bg-primary text-on-primary p-2 flex flex-col justify-between hover:scale-105 transition-transform cursor-pointer group shadow-sm">
+<div class="flex justify-between items-center"><span class="font-label-caps text-label-caps font-bold">7</span><span class="text-[10px] opacity-80">5/5</span></div>
+<span class="font-label-caps text-[10px] truncate">全勤达标</span>
+</div>
+<div class="h-16 rounded-lg bg-primary text-on-primary p-2 flex flex-col justify-between hover:scale-105 transition-transform cursor-pointer group shadow-sm">
+<div class="flex justify-between items-center"><span class="font-label-caps text-label-caps font-bold">8</span><span class="text-[10px] opacity-80">5/5</span></div>
+<span class="font-label-caps text-[10px] truncate">高效协同</span>
+</div>
+<div class="h-16 rounded-lg bg-primary text-on-primary p-2 flex flex-col justify-between hover:scale-105 transition-transform cursor-pointer group shadow-sm">
+<div class="flex justify-between items-center"><span class="font-label-caps text-label-caps font-bold">9</span><span class="text-[10px] opacity-80">5/5</span></div>
+<span class="font-label-caps text-[10px] truncate">周三突破</span>
+</div>
+<div class="h-16 rounded-lg bg-primary text-on-primary p-2 flex flex-col justify-between hover:scale-105 transition-transform cursor-pointer group shadow-sm">
+<div class="flex justify-between items-center"><span class="font-label-caps text-label-caps font-bold">10</span><span class="text-[10px] opacity-80">5/5</span></div>
+<span class="font-label-caps text-[10px] truncate">深度心流</span>
+</div>
+<div class="h-16 rounded-lg bg-primary-container text-on-primary-container p-2 flex flex-col justify-between hover:scale-105 transition-transform cursor-pointer group shadow-sm">
+<div class="flex justify-between items-center"><span class="font-label-caps text-label-caps font-bold">11</span><span class="text-[10px] opacity-80">4/5</span></div>
+<span class="font-label-caps text-[10px] truncate">周五核账</span>
+</div>
+<div class="h-16 rounded-lg bg-primary-container text-on-primary-container p-2 flex flex-col justify-between hover:scale-105 transition-transform cursor-pointer group shadow-sm">
+<div class="flex justify-between items-center"><span class="font-label-caps text-label-caps font-bold">12</span><span class="text-[10px] opacity-80">3/5</span></div>
+<span class="font-label-caps text-[10px] truncate">有氧恢复</span>
+</div>
+<div class="h-16 rounded-lg bg-primary-container text-on-primary-container p-2 flex flex-col justify-between hover:scale-105 transition-transform cursor-pointer group shadow-sm">
+<div class="flex justify-between items-center"><span class="font-label-caps text-label-caps font-bold">13</span><span class="text-[10px] opacity-80">4/5</span></div>
+<span class="font-label-caps text-[10px] truncate">定靶复盘</span>
+</div>
+<!-- Week 3: Oct 14-20 -->
+<div class="h-16 rounded-lg bg-primary text-on-primary p-2 flex flex-col justify-between hover:scale-105 transition-transform cursor-pointer group shadow-sm">
+<div class="flex justify-between items-center"><span class="font-label-caps text-label-caps font-bold">14</span><span class="text-[10px] opacity-80">5/5</span></div>
+<span class="font-label-caps text-[10px] truncate">晨间研读</span>
+</div>
+<div class="h-16 rounded-lg bg-primary text-on-primary p-2 flex flex-col justify-between hover:scale-105 transition-transform cursor-pointer group shadow-sm">
+<div class="flex justify-between items-center"><span class="font-label-caps text-label-caps font-bold">15</span><span class="text-[10px] opacity-80">5/5</span></div>
+<span class="font-label-caps text-[10px] truncate">架构复盘</span>
+</div>
+<div class="h-16 rounded-lg bg-primary text-on-primary p-2 flex flex-col justify-between hover:scale-105 transition-transform cursor-pointer group shadow-sm">
+<div class="flex justify-between items-center"><span class="font-label-caps text-label-caps font-bold">16</span><span class="text-[10px] opacity-80">5/5</span></div>
+<span class="font-label-caps text-[10px] truncate">满格践行</span>
+</div>
+<div class="h-16 rounded-lg bg-primary text-on-primary p-2 flex flex-col justify-between hover:scale-105 transition-transform cursor-pointer group shadow-sm">
+<div class="flex justify-between items-center"><span class="font-label-caps text-label-caps font-bold">17</span><span class="text-[10px] opacity-80">5/5</span></div>
+<span class="font-label-caps text-[10px] truncate">峰值自律</span>
+</div>
+<div class="h-16 rounded-lg bg-primary text-on-primary p-2 flex flex-col justify-between hover:scale-105 transition-transform cursor-pointer group shadow-sm">
+<div class="flex justify-between items-center"><span class="font-label-caps text-label-caps font-bold">18</span><span class="text-[10px] opacity-80">5/5</span></div>
+<span class="font-label-caps text-[10px] truncate">连胜维持</span>
+</div>
+<div class="h-16 rounded-lg bg-primary-container text-on-primary-container p-2 flex flex-col justify-between hover:scale-105 transition-transform cursor-pointer group shadow-sm">
+<div class="flex justify-between items-center"><span class="font-label-caps text-label-caps font-bold">19</span><span class="text-[10px] opacity-80">4/5</span></div>
+<span class="font-label-caps text-[10px] truncate">跑步与阅读</span>
+</div>
+<div class="h-16 rounded-lg bg-primary-container text-on-primary-container p-2 flex flex-col justify-between hover:scale-105 transition-transform cursor-pointer group shadow-sm">
+<div class="flex justify-between items-center"><span class="font-label-caps text-label-caps font-bold">20</span><span class="text-[10px] opacity-80">4/5</span></div>
+<span class="font-label-caps text-[10px] truncate">稳步前行</span>
+</div>
+<!-- Week 4: Oct 21-27 (21st marks consolidated point) -->
+<div class="h-16 rounded-lg bg-primary text-on-primary p-2 flex flex-col justify-between hover:scale-105 transition-transform cursor-pointer group shadow-sm">
+<div class="flex justify-between items-center"><span class="font-label-caps text-label-caps font-bold">21</span><span class="text-[10px] opacity-80">5/5</span></div>
+<span class="font-label-caps text-[10px] truncate">稳态里程碑</span>
+</div>
+<div class="h-16 rounded-lg bg-primary text-on-primary p-2 flex flex-col justify-between hover:scale-105 transition-transform cursor-pointer group shadow-sm">
+<div class="flex justify-between items-center"><span class="font-label-caps text-label-caps font-bold">22</span><span class="text-[10px] opacity-80">5/5</span></div>
+<span class="font-label-caps text-[10px] truncate">自主执行</span>
+</div>
+<div class="h-16 rounded-lg bg-primary text-on-primary p-2 flex flex-col justify-between hover:scale-105 transition-transform cursor-pointer group shadow-sm">
+<div class="flex justify-between items-center"><span class="font-label-caps text-label-caps font-bold">23</span><span class="text-[10px] opacity-80">5/5</span></div>
+<span class="font-label-caps text-[10px] truncate">无阻力习惯</span>
+</div>
+<div class="h-16 rounded-lg bg-primary text-on-primary p-2 flex flex-col justify-between hover:scale-105 transition-transform cursor-pointer group shadow-sm">
+<div class="flex justify-between items-center"><span class="font-label-caps text-label-caps font-bold">24</span><span class="text-[10px] opacity-80">5/5</span></div>
+<span class="font-label-caps text-[10px] truncate">专注加持</span>
+</div>
+<div class="h-16 rounded-lg bg-primary text-on-primary p-2 flex flex-col justify-between hover:scale-105 transition-transform cursor-pointer group shadow-sm">
+<div class="flex justify-between items-center"><span class="font-label-caps text-label-caps font-bold">25</span><span class="text-[10px] opacity-80">5/5</span></div>
+<span class="font-label-caps text-[10px] truncate">周结归档</span>
+</div>
+<div class="h-16 rounded-lg bg-primary-container text-on-primary-container p-2 flex flex-col justify-between hover:scale-105 transition-transform cursor-pointer group shadow-sm">
+<div class="flex justify-between items-center"><span class="font-label-caps text-label-caps font-bold">26</span><span class="text-[10px] opacity-80">4/5</span></div>
+<span class="font-label-caps text-[10px] truncate">体能充沛</span>
+</div>
+<div class="h-16 rounded-lg bg-primary-container text-on-primary-container p-2 flex flex-col justify-between hover:scale-105 transition-transform cursor-pointer group shadow-sm">
+<div class="flex justify-between items-center"><span class="font-label-caps text-label-caps font-bold">27</span><span class="text-[10px] opacity-80">4/5</span></div>
+<span class="font-label-caps text-[10px] truncate">节奏平稳</span>
+</div>
+<!-- Week 5: Oct 28-31 -->
+<div class="h-16 rounded-lg bg-primary text-on-primary p-2 flex flex-col justify-between hover:scale-105 transition-transform cursor-pointer group shadow-sm">
+<div class="flex justify-between items-center"><span class="font-label-caps text-label-caps font-bold">28</span><span class="text-[10px] opacity-80">5/5</span></div>
+<span class="font-label-caps text-[10px] truncate">全打卡</span>
+</div>
+<div class="h-16 rounded-lg bg-primary text-on-primary p-2 flex flex-col justify-between hover:scale-105 transition-transform cursor-pointer group shadow-sm">
+<div class="flex justify-between items-center"><span class="font-label-caps text-label-caps font-bold">29</span><span class="text-[10px] opacity-80">5/5</span></div>
+<span class="font-label-caps text-[10px] truncate">深度闭环</span>
+</div>
+<!-- Today: 30 -->
+<div class="h-16 rounded-lg bg-primary-container text-on-primary-container p-2 flex flex-col justify-between hover:scale-105 transition-transform cursor-pointer group shadow-md relative overflow-hidden">
+<div class="absolute top-0 right-0 w-2.5 h-2.5 bg-secondary rounded-bl-lg"></div>
+<div class="flex justify-between items-center"><span class="font-label-caps text-label-caps font-bold text-on-primary">今日 30</span><span class="text-[10px] opacity-90">4/5</span></div>
+<span class="font-label-caps text-[10px] truncate">进行中...</span>
+</div>
+<!-- Tomorrow: 31 -->
+<div class="h-16 rounded-lg bg-surface-container-low p-2 flex flex-col justify-between text-on-surface-variant cursor-pointer group hover:bg-surface-container transition-colors">
+<div class="flex justify-between items-center"><span class="font-label-caps text-label-caps font-bold text-outline">31</span><span class="text-[10px] text-outline">待打卡</span></div>
+<span class="font-label-caps text-[10px] text-outline truncate">明日计划</span>
+</div>
+<!-- Fillers Nov 1-3 -->
+<div class="h-16 rounded-lg bg-surface-container-low/40 p-2 flex flex-col justify-between opacity-30 cursor-not-allowed">
+<span class="font-label-caps text-label-caps text-outline">1</span>
+</div>
+<div class="h-16 rounded-lg bg-surface-container-low/40 p-2 flex flex-col justify-between opacity-30 cursor-not-allowed">
+<span class="font-label-caps text-label-caps text-outline">2</span>
+</div>
+<div class="h-16 rounded-lg bg-surface-container-low/40 p-2 flex flex-col justify-between opacity-30 cursor-not-allowed">
+<span class="font-label-caps text-label-caps text-outline">3</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Heatmap Analytics Insight Bar -->
+<div class="mt-4 pt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-surface-container-low px-4 py-3 rounded-xl">
+<div class="flex items-center gap-2 text-on-surface">
+<span class="material-symbols-outlined text-[20px] text-secondary">insights</span>
+<span class="font-body-sm text-body-sm font-medium">稳态分析洞察：</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">本月周三与周四打卡完成率高达 <span class="text-primary font-semibold">98%</span>，周末执行力稳定维持在 <span class="text-primary font-semibold">82%</span> 以上，大脑已建立稳固的条件反射路径。</span>
+</div>
+<span class="font-label-caps text-label-caps text-outline shrink-0">模型验证：置信度 96.8%</span>
+</div>
+</div>
+<!-- Active Habits Tracker Table / List Section -->
+<div class="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden mb-8">
+<div class="px-6 py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+<div class="flex items-center gap-3">
+<h2 class="font-headline-md text-headline-md text-on-surface">活跃习惯清单与即时打卡</h2>
+<span class="px-2.5 py-0.5 rounded-full bg-primary-fixed text-primary font-label-caps text-label-caps">5 项正在执行</span>
+</div>
+<div class="flex items-center gap-3">
+<div class="flex items-center gap-1.5 text-on-surface-variant font-label-caps text-label-caps">
+<span class="w-2 h-2 rounded-full bg-secondary"></span>
+<span>今日已打卡 4 项</span>
+</div>
+<div class="flex items-center gap-1.5 text-on-surface-variant font-label-caps text-label-caps">
+<span class="w-2 h-2 rounded-full bg-tertiary"></span>
+<span>待打卡 1 项</span>
+</div>
+</div>
+</div>
+<!-- Habit Cards Container -->
+<div class="flex flex-col">
+<!-- Habit 1 -->
+<div class="p-6 hover:bg-surface-container-low/60 transition-colors flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+<div class="flex items-start sm:items-center gap-4 min-w-0">
+<div class="w-12 h-12 rounded-xl bg-primary-fixed flex items-center justify-center text-primary shrink-0 shadow-sm">
+<span class="material-symbols-outlined text-[24px]">auto_stories</span>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-2.5 flex-wrap">
+<span class="font-headline-md text-body-lg font-semibold text-on-surface truncate">晨间经典行业研读 25 分钟</span>
+<span class="px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-label-caps text-label-caps">#认知提升</span>
+<span class="font-label-caps text-label-caps text-outline">每日 · 08:30</span>
+</div>
+<div class="flex items-center gap-4 mt-1.5 text-on-surface-variant font-body-sm text-body-sm flex-wrap">
+<span class="flex items-center gap-1 text-tertiary font-medium">
+<span class="material-symbols-outlined text-[16px]">local_fire_department</span>
+                45 天连胜
+              </span>
+<span class="text-outline">·</span>
+<span>累计打卡 112 次</span>
+<span class="text-outline">·</span>
+<span>前置条件：完成一杯温水</span>
+</div>
+</div>
+</div>
+<div class="flex items-center justify-between sm:justify-end gap-6 shrink-0">
+<!-- 7-Day Mini Dots -->
+<div class="flex flex-col items-end gap-1">
+<span class="font-label-caps text-[11px] text-outline">本周完成节律</span>
+<div class="flex items-center gap-1.5">
+<span class="w-5 h-5 rounded-full bg-secondary-container text-on-secondary-container font-label-caps text-[10px] flex items-center justify-center font-bold" title="周一">一</span>
+<span class="w-5 h-5 rounded-full bg-secondary-container text-on-secondary-container font-label-caps text-[10px] flex items-center justify-center font-bold" title="周二">二</span>
+<span class="w-5 h-5 rounded-full bg-secondary-container text-on-secondary-container font-label-caps text-[10px] flex items-center justify-center font-bold" title="周三">三</span>
+<span class="w-5 h-5 rounded-full bg-secondary-container text-on-secondary-container font-label-caps text-[10px] flex items-center justify-center font-bold" title="周四">四</span>
+<span class="w-5 h-5 rounded-full bg-secondary-container text-on-secondary-container font-label-caps text-[10px] flex items-center justify-center font-bold" title="周五">五</span>
+<span class="w-5 h-5 rounded-full bg-secondary-container text-on-secondary-container font-label-caps text-[10px] flex items-center justify-center font-bold" title="周六">六</span>
+<span class="w-5 h-5 rounded-full bg-secondary-container text-on-secondary-container font-label-caps text-[10px] flex items-center justify-center font-bold" title="周日">日</span>
+</div>
+</div>
+<!-- Status Action -->
+<div class="flex items-center gap-2">
+<span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-secondary-container text-on-secondary-container font-button text-button shadow-sm">
+<span class="material-symbols-outlined text-[18px]">check_circle</span>
+<span>已打卡 08:30</span>
+</span>
+</div>
+</div>
+</div>
+<!-- Habit 2 -->
+<div class="p-6 bg-surface-container-low/30 hover:bg-surface-container-low/60 transition-colors flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+<div class="flex items-start sm:items-center gap-4 min-w-0">
+<div class="w-12 h-12 rounded-xl bg-surface-container-high flex items-center justify-center text-primary shrink-0 shadow-sm">
+<span class="material-symbols-outlined text-[24px]">terminal</span>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-2.5 flex-wrap">
+<span class="font-headline-md text-body-lg font-semibold text-on-surface truncate">核心业务代码架构复盘</span>
+<span class="px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-label-caps text-label-caps">#深度工作</span>
+<span class="font-label-caps text-label-caps text-outline">工作日 · 10:30</span>
+</div>
+<div class="flex items-center gap-4 mt-1.5 text-on-surface-variant font-body-sm text-body-sm flex-wrap">
+<span class="flex items-center gap-1 text-tertiary font-medium">
+<span class="material-symbols-outlined text-[16px]">local_fire_department</span>
+                28 天连胜
+              </span>
+<span class="text-outline">·</span>
+<span>累计打卡 86 次</span>
+<span class="text-outline">·</span>
+<span>已联动研发 Git PR 追踪</span>
+</div>
+</div>
+</div>
+<div class="flex items-center justify-between sm:justify-end gap-6 shrink-0">
+<div class="flex flex-col items-end gap-1">
+<span class="font-label-caps text-[11px] text-outline">本周完成节律</span>
+<div class="flex items-center gap-1.5">
+<span class="w-5 h-5 rounded-full bg-secondary-container text-on-secondary-container font-label-caps text-[10px] flex items-center justify-center font-bold">一</span>
+<span class="w-5 h-5 rounded-full bg-secondary-container text-on-secondary-container font-label-caps text-[10px] flex items-center justify-center font-bold">二</span>
+<span class="w-5 h-5 rounded-full bg-secondary-container text-on-secondary-container font-label-caps text-[10px] flex items-center justify-center font-bold">三</span>
+<span class="w-5 h-5 rounded-full bg-surface-container-high text-outline font-label-caps text-[10px] flex items-center justify-center">四</span>
+<span class="w-5 h-5 rounded-full bg-surface-container-high text-outline font-label-caps text-[10px] flex items-center justify-center">五</span>
+<span class="w-5 h-5 rounded-full bg-surface-container text-outline font-label-caps text-[10px] flex items-center justify-center opacity-40">六</span>
+<span class="w-5 h-5 rounded-full bg-surface-container text-outline font-label-caps text-[10px] flex items-center justify-center opacity-40">日</span>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-secondary-container text-on-secondary-container font-button text-button shadow-sm">
+<span class="material-symbols-outlined text-[18px]">check_circle</span>
+<span>已打卡 10:45</span>
+</span>
+</div>
+</div>
+</div>
+<!-- Habit 3 -->
+<div class="p-6 hover:bg-surface-container-low/60 transition-colors flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+<div class="flex items-start sm:items-center gap-4 min-w-0">
+<div class="w-12 h-12 rounded-xl bg-secondary-fixed flex items-center justify-center text-secondary shrink-0 shadow-sm">
+<span class="material-symbols-outlined text-[24px]">account_balance</span>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-2.5 flex-wrap">
+<span class="font-headline-md text-body-lg font-semibold text-on-surface truncate">每日流水与团队报账账目核算</span>
+<span class="px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-label-caps text-label-caps">#财务自律</span>
+<span class="font-label-caps text-label-caps text-outline">每日 · 14:00</span>
+</div>
+<div class="flex items-center gap-4 mt-1.5 text-on-surface-variant font-body-sm text-body-sm flex-wrap">
+<span class="flex items-center gap-1 text-tertiary font-medium">
+<span class="material-symbols-outlined text-[16px]">local_fire_department</span>
+                34 天连胜
+              </span>
+<span class="text-outline">·</span>
+<span>累计核准 142 笔明细</span>
+<span class="text-outline">·</span>
+<span>与财务中心自动勾稽</span>
+</div>
+</div>
+</div>
+<div class="flex items-center justify-between sm:justify-end gap-6 shrink-0">
+<div class="flex flex-col items-end gap-1">
+<span class="font-label-caps text-[11px] text-outline">本周完成节律</span>
+<div class="flex items-center gap-1.5">
+<span class="w-5 h-5 rounded-full bg-secondary-container text-on-secondary-container font-label-caps text-[10px] flex items-center justify-center font-bold">一</span>
+<span class="w-5 h-5 rounded-full bg-secondary-container text-on-secondary-container font-label-caps text-[10px] flex items-center justify-center font-bold">二</span>
+<span class="w-5 h-5 rounded-full bg-secondary-container text-on-secondary-container font-label-caps text-[10px] flex items-center justify-center font-bold">三</span>
+<span class="w-5 h-5 rounded-full bg-surface-container-high text-outline font-label-caps text-[10px] flex items-center justify-center">四</span>
+<span class="w-5 h-5 rounded-full bg-surface-container-high text-outline font-label-caps text-[10px] flex items-center justify-center">五</span>
+<span class="w-5 h-5 rounded-full bg-surface-container-high text-outline font-label-caps text-[10px] flex items-center justify-center">六</span>
+<span class="w-5 h-5 rounded-full bg-surface-container-high text-outline font-label-caps text-[10px] flex items-center justify-center">日</span>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-secondary-container text-on-secondary-container font-button text-button shadow-sm">
+<span class="material-symbols-outlined text-[18px]">check_circle</span>
+<span>已打卡 14:15</span>
+</span>
+</div>
+</div>
+</div>
+<!-- Habit 4 (Uncompleted Actionable) -->
+<div class="p-6 bg-surface-container-low/50 hover:bg-surface-container-low/80 transition-colors flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+<div class="flex items-start sm:items-center gap-4 min-w-0">
+<div class="w-12 h-12 rounded-xl bg-tertiary-fixed flex items-center justify-center text-tertiary shrink-0 shadow-sm animate-pulse">
+<span class="material-symbols-outlined text-[24px]">directions_run</span>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-2.5 flex-wrap">
+<span class="font-headline-md text-body-lg font-semibold text-on-surface truncate">傍晚体能训练与慢跑 30 分钟</span>
+<span class="px-2 py-0.5 rounded-full bg-tertiary-fixed-dim/40 text-tertiary font-label-caps text-label-caps">#健康体魄</span>
+<span class="font-label-caps text-label-caps text-tertiary font-semibold">今日待完成 · 18:30 提醒</span>
+</div>
+<div class="flex items-center gap-4 mt-1.5 text-on-surface-variant font-body-sm text-body-sm flex-wrap">
+<span class="flex items-center gap-1 text-tertiary font-medium">
+<span class="material-symbols-outlined text-[16px]">local_fire_department</span>
+                19 天连胜中
+              </span>
+<span class="text-outline">·</span>
+<span>目标配速 5'40" / 5km</span>
+<span class="text-outline">·</span>
+<span>完成可维持 46 天全局稳态纪录</span>
+</div>
+</div>
+</div>
+<div class="flex items-center justify-between sm:justify-end gap-6 shrink-0">
+<div class="flex flex-col items-end gap-1">
+<span class="font-label-caps text-[11px] text-outline">本周完成节律</span>
+<div class="flex items-center gap-1.5">
+<span class="w-5 h-5 rounded-full bg-secondary-container text-on-secondary-container font-label-caps text-[10px] flex items-center justify-center font-bold">一</span>
+<span class="w-5 h-5 rounded-full bg-secondary-container text-on-secondary-container font-label-caps text-[10px] flex items-center justify-center font-bold">二</span>
+<span class="w-5 h-5 rounded-full bg-tertiary-fixed text-tertiary font-label-caps text-[10px] flex items-center justify-center font-bold animate-bounce">三</span>
+<span class="w-5 h-5 rounded-full bg-surface-container-high text-outline font-label-caps text-[10px] flex items-center justify-center">四</span>
+<span class="w-5 h-5 rounded-full bg-surface-container-high text-outline font-label-caps text-[10px] flex items-center justify-center">五</span>
+<span class="w-5 h-5 rounded-full bg-surface-container-high text-outline font-label-caps text-[10px] flex items-center justify-center">六</span>
+<span class="w-5 h-5 rounded-full bg-surface-container-high text-outline font-label-caps text-[10px] flex items-center justify-center">日</span>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<button class="flex items-center gap-2 px-5 py-2 rounded-xl bg-primary hover:bg-primary-container text-on-primary font-button text-button shadow-md hover:shadow-lg transition-all active:scale-95 group" id="btn-checkin-running" type="button">
+<span class="material-symbols-outlined text-[20px] group-hover:rotate-12 transition-transform">check</span>
+<span>点击打卡</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Habit 5 -->
+<div class="p-6 hover:bg-surface-container-low/60 transition-colors flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+<div class="flex items-start sm:items-center gap-4 min-w-0">
+<div class="w-12 h-12 rounded-xl bg-primary-fixed flex items-center justify-center text-primary shrink-0 shadow-sm">
+<span class="material-symbols-outlined text-[24px]">checklist_rtl</span>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-2.5 flex-wrap">
+<span class="font-headline-md text-body-lg font-semibold text-on-surface truncate">晚间工作台归档与明日三件事定靶</span>
+<span class="px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-label-caps text-label-caps">#深度工作</span>
+<span class="font-label-caps text-label-caps text-outline">工作日 · 21:00</span>
+</div>
+<div class="flex items-center gap-4 mt-1.5 text-on-surface-variant font-body-sm text-body-sm flex-wrap">
+<span class="flex items-center gap-1 text-tertiary font-medium">
+<span class="material-symbols-outlined text-[16px]">local_fire_department</span>
+                42 天连胜
+              </span>
+<span class="text-outline">·</span>
+<span>累计定靶 120+ 组核心任务</span>
+<span class="text-outline">·</span>
+<span>自动沉淀为待办卡片</span>
+</div>
+</div>
+</div>
+<div class="flex items-center justify-between sm:justify-end gap-6 shrink-0">
+<div class="flex flex-col items-end gap-1">
+<span class="font-label-caps text-[11px] text-outline">本周完成节律</span>
+<div class="flex items-center gap-1.5">
+<span class="w-5 h-5 rounded-full bg-secondary-container text-on-secondary-container font-label-caps text-[10px] flex items-center justify-center font-bold">一</span>
+<span class="w-5 h-5 rounded-full bg-secondary-container text-on-secondary-container font-label-caps text-[10px] flex items-center justify-center font-bold">二</span>
+<span class="w-5 h-5 rounded-full bg-secondary-container text-on-secondary-container font-label-caps text-[10px] flex items-center justify-center font-bold">三</span>
+<span class="w-5 h-5 rounded-full bg-surface-container-high text-outline font-label-caps text-[10px] flex items-center justify-center">四</span>
+<span class="w-5 h-5 rounded-full bg-surface-container-high text-outline font-label-caps text-[10px] flex items-center justify-center">五</span>
+<span class="w-5 h-5 rounded-full bg-surface-container text-outline font-label-caps text-[10px] flex items-center justify-center opacity-40">六</span>
+<span class="w-5 h-5 rounded-full bg-surface-container text-outline font-label-caps text-[10px] flex items-center justify-center opacity-40">日</span>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-secondary-container text-on-secondary-container font-button text-button shadow-sm">
+<span class="material-symbols-outlined text-[18px]">check_circle</span>
+<span>已打卡 (提前完成)</span>
+</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Habit System Integration Banner -->
+<div class="rounded-xl bg-gradient-to-r from-surface-container-lowest via-surface-container-low to-surface-container p-6 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-xl bg-primary flex items-center justify-center text-on-primary shadow-sm shrink-0">
+<span class="material-symbols-outlined text-[24px]">hub</span>
+</div>
+<div>
+<h3 class="font-headline-md text-body-lg font-semibold text-on-surface">习惯与业务模块全向穿透联动</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-1">
+          本打卡记录将与「待办事项」的每日完成度、「番茄专注」当下时长实现底层互通。持续践行 60 天将自动沉淀至「成就奖杯」系统，解锁专属白金自律勋章并同步至团队协同看板。
+        </p>
+</div>
+</div>
+<div class="flex items-center gap-3 shrink-0">
+<a class="px-4 py-2 rounded-xl bg-surface-container-highest hover:bg-surface-container-high text-on-surface font-button text-button transition-colors" href="#">
+        查看关联成就
+      </a>
+<a class="px-4 py-2 rounded-xl bg-primary text-on-primary hover:bg-primary-container font-button text-button transition-colors shadow-sm" href="#">
+        前往专注计时器
+      </a>
+</div>
+</div>
+<!-- Client-side Interactive Behavior -->
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const runningCheckinBtn = document.getElementById('btn-checkin-running');
+      if (runningCheckinBtn) {
+        runningCheckinBtn.addEventListener('click', function () {
+          this.className = 'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-secondary-container text-on-secondary-container font-button text-button shadow-sm transition-all scale-100';
+          this.innerHTML = '<span class="material-symbols-outlined text-[18px]">check_circle</span><span>已打卡 刚刚</span>';
+          this.disabled = true;
+
+          // Update metrics preview
+          const metricTitle = document.querySelector('.text-headline-lg.font-bold');
+          if (metricTitle && metricTitle.textContent === '80%') {
+            metricTitle.textContent = '100%';
+            const sub = metricTitle.nextElementSibling;
+            if (sub) sub.textContent = '5 / 5 全满完成';
+            const progress = document.querySelector('.bg-primary.h-2');
+            if (progress) progress.style.width = '100%';
+            const reminder = progress.parentElement.nextElementSibling;
+            if (reminder) {
+              reminder.className = 'flex items-center gap-1 text-secondary font-label-caps text-label-caps truncate';
+              reminder.innerHTML = '<span class="material-symbols-outlined text-[14px]">verified</span><span>今日习惯全部达成！</span>';
+            }
+          }
+        });
+      }
+
+      // Keyboard shortcut CMD+N
+      document.addEventListener('keydown', (e) => {
+        if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
+          e.preventDefault();
+          const createBtn = document.getElementById('btn-create-habit');
+          if (createBtn) {
+            createBtn.classList.add('ring-2', 'ring-primary');
+            setTimeout(() => createBtn.classList.remove('ring-2', 'ring-primary'), 300);
+            alert('唤起「新建习惯」神经模型配置窗口');
+          }
+        }
+      });
+    });
+  </script>
+</div></main></div></body></html>

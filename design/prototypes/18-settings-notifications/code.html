@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config={darkMode:"class",theme:{extend:{"colors":{"on-surface":"#0b1c30","tertiary-container":"#bc4800","secondary":"#006c49","background":"#f8f9ff","surface-tint":"#0053db","tertiary":"#943700","surface-container-highest":"#d3e4fe","on-secondary-container":"#00714d","surface-dim":"#cbdbf5","secondary-fixed-dim":"#4edea3","on-primary":"#ffffff","on-tertiary":"#ffffff","outline-variant":"#c3c6d7","on-primary-container":"#eeefff","surface-container-low":"#eff4ff","on-secondary":"#ffffff","secondary-container":"#6cf8bb","on-error-container":"#93000a","on-background":"#0b1c30","secondary-fixed":"#6ffbbe","primary-fixed-dim":"#b4c5ff","surface":"#f8f9ff","on-tertiary-fixed":"#360f00","on-tertiary-fixed-variant":"#7d2d00","primary":"#004ac6","surface-container":"#e5eeff","on-primary-fixed-variant":"#003ea8","on-primary-fixed":"#00174b","surface-variant":"#d3e4fe","outline":"#737686","on-surface-variant":"#434655","inverse-primary":"#b4c5ff","surface-container-high":"#dce9ff","surface-bright":"#f8f9ff","on-secondary-fixed-variant":"#005236","tertiary-fixed-dim":"#ffb596","primary-container":"#2563eb","inverse-surface":"#213145","on-tertiary-container":"#ffede6","tertiary-fixed":"#ffdbcd","error":"#ba1a1a","error-container":"#ffdad6","inverse-on-surface":"#eaf1ff","primary-fixed":"#dbe1ff","surface-container-lowest":"#ffffff","on-secondary-fixed":"#002113","on-error":"#ffffff"},"borderRadius":{"DEFAULT":"0.125rem","lg":"0.25rem","xl":"0.5rem","full":"0.75rem"},"spacing":{"md":"16px","gutter":"16px","xs":"4px","sm":"8px","base":"4px","container-margin-mobile":"16px","container-margin-desktop":"40px","xl":"32px","lg":"24px"},"fontFamily":{"headline-md":["Inter"],"button":["Inter"],"body-sm":["Inter"],"headline-lg-mobile":["Inter"],"body-lg":["Inter"],"headline-lg":["Inter"],"label-caps":["Inter"]},"fontSize":{"headline-md":["20px",{"lineHeight":"28px","fontWeight":"600"}],"button":["14px",{"lineHeight":"20px","fontWeight":"500"}],"body-sm":["14px",{"lineHeight":"20px","fontWeight":"400"}],"headline-lg-mobile":["24px",{"lineHeight":"32px","letterSpacing":"-0.01em","fontWeight":"700"}],"body-lg":["16px",{"lineHeight":"24px","fontWeight":"400"}],"headline-lg":["30px",{"lineHeight":"38px","letterSpacing":"-0.02em","fontWeight":"700"}],"label-caps":["12px",{"lineHeight":"16px","letterSpacing":"0.05em","fontWeight":"600"}]}}}}</script></head><body class="bg-background font-body-sm text-on-surface antialiased"><aside class="fixed left-0 top-0 h-full w-64 bg-surface-container-lowest shadow-[0_1px_8px_rgba(0,0,0,0.04)] z-50 flex flex-col justify-between select-none"><div class="flex flex-col p-md"><div class="flex items-center gap-sm px-xs pb-md"><div class="w-8 h-8 rounded-xl bg-primary-container flex items-center justify-center text-on-primary shadow-sm"><span class="material-symbols-outlined text-[20px]">send</span></div><div class="flex flex-col"><span class="font-headline-md text-[16px] leading-[20px] font-bold text-on-surface tracking-tight">寻鸽工作台</span><span class="font-label-caps text-[10px] uppercase text-outline tracking-wider">Nexus Workspace</span></div></div><div class="my-xs"><button class="w-full flex items-center justify-between px-md py-sm bg-primary-container text-on-primary rounded-xl shadow-[0_2px_8px_rgba(37,99,235,0.25)] hover:bg-primary transition-all" type="button"><div class="flex items-center gap-sm"><span class="material-symbols-outlined text-[18px]">bolt</span><span class="font-button text-button">灵感闪现</span></div><kbd class="px-xs py-0.5 rounded bg-on-primary/20 text-on-primary font-label-caps text-[11px]">⌘J</kbd></button></div><nav class="flex flex-col gap-xs mt-md" data-active-classes="bg-primary-container text-on-primary font-medium rounded-xl shadow-sm"><a class="flex items-center gap-sm px-md py-sm rounded-xl text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-colors" data-path="workbench" href="#"><span class="material-symbols-outlined text-[20px]">grid_view</span><span class="font-button text-button">工作台</span></a><a class="flex items-center gap-sm px-md py-sm rounded-xl text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-colors" data-path="tasks" href="#"><span class="material-symbols-outlined text-[20px]">check_circle</span><span class="font-button text-button">待办事项</span></a><a class="flex items-center gap-sm px-md py-sm rounded-xl text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-colors" data-path="crm" href="#"><span class="material-symbols-outlined text-[20px]">group</span><span class="font-button text-button">CRM 客户</span></a><a class="flex items-center gap-sm px-md py-sm rounded-xl text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-colors" data-path="finance" href="#"><span class="material-symbols-outlined text-[20px]">account_balance_wallet</span><span class="font-button text-button">财务中心</span></a><a class="flex items-center gap-sm px-md py-sm rounded-xl text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-colors" data-path="notes" href="#"><span class="material-symbols-outlined text-[20px]">description</span><span class="font-button text-button">团队笔记</span></a><a class="flex items-center gap-sm px-md py-sm rounded-xl text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-colors" data-path="habits" href="#"><span class="material-symbols-outlined text-[20px]">event_repeat</span><span class="font-button text-button">打卡·习惯</span></a><a class="flex items-center gap-sm px-md py-sm rounded-xl text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-colors" data-path="trophies" href="#"><span class="material-symbols-outlined text-[20px]">emoji_events</span><span class="font-button text-button">成就奖杯</span></a><a aria-current="page" class="flex items-center gap-sm px-md py-sm transition-colors bg-primary-container text-on-primary font-medium rounded-xl shadow-sm" data-path="system-settings" href="#"><span class="material-symbols-outlined text-[20px]">settings</span><span class="font-button text-button">系统设置</span></a></nav></div><div class="p-md"><div class="flex items-center justify-between p-sm rounded-xl bg-surface-container-low"><div class="flex items-center gap-sm min-w-0"><div class="relative flex-shrink-0"><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div><span class="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-secondary ring-2 ring-surface-container-lowest"></span></div><div class="flex flex-col min-w-0"><span class="font-button text-button text-on-surface truncate">陈致远</span><span class="font-label-caps text-[11px] text-outline truncate">Core Team</span></div></div><button class="text-outline hover:text-on-surface transition-colors" type="button"><span class="material-symbols-outlined text-[18px]">unfold_more</span></button></div></div></aside><div class="pl-64 flex flex-col min-h-screen"><header class="fixed top-0 left-64 right-0 h-16 bg-surface/80 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)] z-40 flex items-center justify-between px-xl"><div class="flex items-center gap-md"><nav class="flex items-center gap-xs font-body-sm text-body-sm text-on-surface-variant"><span class="hover:text-on-surface cursor-pointer transition-colors">Nexus</span><span class="material-symbols-outlined text-[14px] text-outline">chevron_right</span><span class="text-on-surface font-button font-medium">系统设置</span></nav><div class="hidden lg:flex items-center gap-xs px-sm py-1 bg-surface-container-low rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-secondary"></span><span class="font-label-caps text-[11px] text-secondary font-medium">云端已实时同步</span></div></div><div class="flex items-center gap-md"><div class="relative w-64 md:w-80"><span class="material-symbols-outlined absolute left-sm top-1/2 -translate-y-1/2 text-outline text-[18px]">search</span><input class="w-full pl-9 pr-12 py-1.5 bg-surface-container-low rounded-xl text-body-sm font-body-sm text-on-surface placeholder:text-outline focus:outline-none focus:bg-surface-container-lowest focus:ring-1 focus:ring-primary-container transition-all" placeholder="搜索设置项、功能与成员..." type="text"/><kbd class="absolute right-sm top-1/2 -translate-y-1/2 px-xs py-0.5 rounded bg-surface-container text-outline font-label-caps text-[10px]">⌘K</kbd></div><div class="flex items-center gap-xs"><button class="w-8 h-8 flex items-center justify-center rounded-xl text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors" type="button"><span class="material-symbols-outlined text-[20px]">help_outline</span></button><button class="relative w-8 h-8 flex items-center justify-center rounded-xl text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors" type="button"><span class="material-symbols-outlined text-[20px]">notifications</span><span class="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-tertiary-container"></span></button></div><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div></div></header><main class="w-full pt-16 bg-background min-h-screen"><div class="flex flex-col w-full">
+<div class="px-container-desktop py-lg max-w-[1240px] mx-auto w-full flex flex-col gap-xl">
+<!-- Header Block -->
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-md relative">
+<div class="flex flex-col gap-xs">
+<div class="flex items-center gap-xs">
+<span class="font-label-caps text-label-caps uppercase tracking-wider text-primary font-semibold">Nexus Configuration</span>
+<span class="w-1 h-1 rounded-full bg-outline-variant"></span>
+<span class="font-label-caps text-label-caps text-outline">v2.4.0 Live</span>
+</div>
+<h1 class="font-headline-lg text-headline-lg text-on-surface tracking-tight">系统设置</h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant">定制您的专属工作台界面风格、工作流偏好与数据安全策略</p>
+</div>
+<!-- Actions -->
+<div class="flex items-center gap-sm self-start md:self-auto">
+<button class="px-md py-sm rounded-xl font-button text-button text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-all flex items-center gap-xs" id="reset-btn" type="button">
+<span class="material-symbols-outlined text-[18px]">restart_alt</span>
+<span>重置为默认</span>
+</button>
+<button class="px-md py-sm rounded-xl font-button text-button bg-primary-container text-on-primary shadow-sm hover:bg-primary transition-all flex items-center gap-xs" id="save-btn" type="button">
+<span class="material-symbols-outlined text-[18px]">done_all</span>
+<span>保存更改</span>
+</button>
+</div>
+</div>
+<!-- Secondary Category Navigation Tabs -->
+<div class="w-full bg-surface-container-low rounded-xl p-1.5 shadow-sm">
+<nav class="flex items-center gap-1 overflow-x-auto select-none no-scrollbar">
+<button class="px-md py-sm rounded-xl font-button text-button text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors whitespace-nowrap flex items-center gap-xs" type="button">
+<span class="material-symbols-outlined text-[18px]">palette</span>
+<span>外观与主题</span>
+</button>
+<button class="px-md py-sm rounded-xl font-button text-button text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors whitespace-nowrap flex items-center gap-xs" type="button">
+<span class="material-symbols-outlined text-[18px]">contrast</span>
+<span>色彩与密度</span>
+</button>
+<button class="px-md py-sm rounded-xl font-button text-button text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors whitespace-nowrap flex items-center gap-xs" type="button">
+<span class="material-symbols-outlined text-[18px]">text_fields</span>
+<span>字体与排版</span>
+</button>
+<button class="px-md py-sm rounded-xl font-button text-button text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors whitespace-nowrap flex items-center gap-xs" type="button">
+<span class="material-symbols-outlined text-[18px]">keyboard</span>
+<span>通用与快捷键</span>
+</button>
+<button class="relative px-md py-sm rounded-xl font-button text-button bg-surface-container-lowest text-primary shadow-sm whitespace-nowrap flex items-center gap-xs font-semibold" type="button">
+<span class="material-symbols-outlined text-[18px] text-primary" style="font-variation-settings: 'FILL' 1;">notifications_active</span>
+<span>提醒与协同</span>
+<span class="absolute bottom-0 left-4 right-4 h-0.5 bg-primary-container rounded-full"></span>
+</button>
+<button class="px-md py-sm rounded-xl font-button text-button text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors whitespace-nowrap flex items-center gap-xs" type="button">
+<span class="material-symbols-outlined text-[18px]">security</span>
+<span>数据与安全</span>
+</button>
+</nav>
+</div>
+<!-- Main Content Area: Bento Layout -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-lg items-start">
+<!-- Left Column (8 cols): Primary notification & alert rules -->
+<div class="lg:col-span-8 flex flex-col gap-lg">
+<!-- Card 1: Notification Channels -->
+<div class="bg-surface-container-lowest rounded-xl p-lg shadow-sm flex flex-col gap-md">
+<div class="flex items-center justify-between pb-xs">
+<div class="flex items-center gap-sm">
+<div class="w-9 h-9 rounded-xl bg-surface-container flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[20px]">cell_tower</span>
+</div>
+<div class="flex flex-col">
+<h2 class="font-headline-md text-headline-md text-on-surface">通知推送通道</h2>
+<span class="font-label-caps text-label-caps text-outline">Notification Channels</span>
+</div>
+</div>
+<div class="flex items-center gap-xs px-sm py-1 rounded-full bg-secondary/10 text-secondary">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary"></span>
+<span class="font-label-caps text-label-caps font-medium">通道正常运行中</span>
+</div>
+</div>
+<!-- Channel 1: Desktop notifications -->
+<div class="flex items-start justify-between gap-md p-md rounded-xl bg-surface-container-low/60 hover:bg-surface-container-low transition-colors">
+<div class="flex gap-sm">
+<span class="material-symbols-outlined text-primary text-[22px] mt-0.5">desktop_windows</span>
+<div class="flex flex-col">
+<span class="font-button text-button text-on-surface">系统桌面弹窗通知 (Desktop Notifications)</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant">当工作台处于后台或最小化时，支持通过系统原生 Notification API 发送横幅提示卡片</p>
+</div>
+</div>
+<label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
+<input checked="" class="sr-only peer" type="checkbox"/>
+<div class="w-11 h-6 bg-surface-container-high peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-surface-container-lowest after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-surface-container-lowest after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-container"></div>
+</label>
+</div>
+<!-- Channel 2: Sound alerts -->
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-md p-md rounded-xl bg-surface-container-low/60 hover:bg-surface-container-low transition-colors">
+<div class="flex gap-sm">
+<span class="material-symbols-outlined text-primary text-[22px] mt-0.5">volume_up</span>
+<div class="flex flex-col">
+<span class="font-button text-button text-on-surface">声音提示 (Sound Alerts)</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant">新消息、到期任务与紧急审批到达时播放轻量音频信号</p>
+</div>
+</div>
+<div class="flex items-center gap-sm flex-shrink-0 self-end md:self-auto">
+<div class="relative">
+<select class="appearance-none bg-surface-container-lowest text-on-surface font-body-sm text-body-sm py-1.5 pl-3 pr-8 rounded-xl focus:outline-none focus:bg-surface-container cursor-pointer shadow-sm">
+<option value="chime">柔和清脆叮咚声 (Nexus Chime)</option>
+<option value="marimba">马林巴木琴音 (Marimba Breeze)</option>
+<option value="minimal">微极简敲击声 (Subtle Tap)</option>
+</select>
+<span class="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-outline text-[16px] pointer-events-none">expand_more</span>
+</div>
+<button class="w-8 h-8 rounded-xl bg-surface-container hover:bg-surface-container-high flex items-center justify-center text-on-surface-variant transition-colors" title="试听提示音" type="button">
+<span class="material-symbols-outlined text-[18px]">play_arrow</span>
+</button>
+<label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
+<input checked="" class="sr-only peer" type="checkbox"/>
+<div class="w-11 h-6 bg-surface-container-high peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-surface-container-lowest after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-surface-container-lowest after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-container"></div>
+</label>
+</div>
+</div>
+<!-- Channel 3: Enterprise Webhook -->
+<div class="flex flex-col gap-sm p-md rounded-xl bg-surface-container-low/60">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-primary text-[22px]">hub</span>
+<div class="flex flex-col">
+<span class="font-button text-button text-on-surface">企业微信 / 钉钉 Webhook 协同同步</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant">向团队群机器人自动广播高优先级看板事件及里程碑完成通告</p>
+</div>
+</div>
+<label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
+<input checked="" class="sr-only peer" type="checkbox"/>
+<div class="w-11 h-6 bg-surface-container-high peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-surface-container-lowest after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-surface-container-lowest after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-container"></div>
+</label>
+</div>
+<div class="flex flex-col sm:flex-row gap-xs mt-xs">
+<div class="relative flex-1">
+<span class="material-symbols-outlined absolute left-sm top-1/2 -translate-y-1/2 text-outline text-[18px]">link</span>
+<input class="w-full pl-9 pr-sm py-2 bg-surface-container-lowest rounded-xl font-body-sm text-body-sm text-on-surface font-mono select-all focus:outline-none shadow-sm cursor-text" readonly="" type="text" value="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=8ab497fc-10d9-482a-966e-e67c9d9bf20a"/>
+</div>
+<button class="px-md py-2 bg-surface-container-lowest text-primary font-button text-button rounded-xl hover:bg-surface-container flex items-center justify-center gap-xs shadow-sm transition-all whitespace-nowrap" id="test-webhook-btn" type="button">
+<span class="material-symbols-outlined text-[16px]">outgoing_mail</span>
+<span>测试发送通知</span>
+</button>
+</div>
+<div class="flex items-center gap-xs font-label-caps text-label-caps text-outline px-xs">
+<span class="material-symbols-outlined text-[14px]">info</span>
+<span>支持 Markdown 与卡片消息格式，每日限制并发上限 2000 次</span>
+</div>
+</div>
+</div>
+<!-- Card 2: Task & Schedule Reminders -->
+<div class="bg-surface-container-lowest rounded-xl p-lg shadow-sm flex flex-col gap-md">
+<div class="flex items-center justify-between pb-xs">
+<div class="flex items-center gap-sm">
+<div class="w-9 h-9 rounded-xl bg-surface-container flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[20px]">alarm_on</span>
+</div>
+<div class="flex flex-col">
+<h2 class="font-headline-md text-headline-md text-on-surface">待办与日程提醒</h2>
+<span class="font-label-caps text-label-caps text-outline">Task &amp; Schedule Reminders</span>
+</div>
+</div>
+<span class="font-label-caps text-label-caps text-outline">CRON: ACTIVE</span>
+</div>
+<!-- Morning Briefing -->
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-md p-md rounded-xl bg-surface-container-low/60 hover:bg-surface-container-low transition-colors">
+<div class="flex gap-sm">
+<div class="w-8 h-8 rounded-xl bg-surface-container-high flex items-center justify-center text-on-surface-variant mt-0.5">
+<span class="material-symbols-outlined text-[18px]">wb_twilight</span>
+</div>
+<div class="flex flex-col">
+<div class="flex items-center gap-xs">
+<span class="font-button text-button text-on-surface">每日待办晨报提醒</span>
+<span class="px-1.5 py-0.5 rounded bg-primary/10 text-primary font-label-caps text-[11px]">智能排期</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant">推送今日必须完成事项清单、待开会议与高优先级交付节点</p>
+</div>
+</div>
+<div class="flex items-center gap-sm flex-shrink-0 self-end md:self-auto">
+<div class="flex items-center gap-xs bg-surface-container-lowest px-sm py-1.5 rounded-xl shadow-sm">
+<span class="material-symbols-outlined text-outline text-[16px]">schedule</span>
+<input class="w-20 font-body-sm text-body-sm text-on-surface bg-transparent focus:outline-none font-mono" type="text" value="09:00 AM"/>
+</div>
+<label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
+<input checked="" class="sr-only peer" type="checkbox"/>
+<div class="w-11 h-6 bg-surface-container-high peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-surface-container-lowest after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-surface-container-lowest after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-container"></div>
+</label>
+</div>
+</div>
+<!-- Deadline Early Warning -->
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-md p-md rounded-xl bg-surface-container-low/60 hover:bg-surface-container-low transition-colors">
+<div class="flex gap-sm">
+<div class="w-8 h-8 rounded-xl bg-surface-container-high flex items-center justify-center text-on-surface-variant mt-0.5">
+<span class="material-symbols-outlined text-[18px]">hourglass_top</span>
+</div>
+<div class="flex flex-col">
+<span class="font-button text-button text-on-surface">任务即将逾期预警</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant">在待办事项临近截止前递进式警告，避免项目节点延期风险</p>
+</div>
+</div>
+<div class="flex items-center gap-sm flex-shrink-0 self-end md:self-auto">
+<div class="flex items-center gap-1 bg-surface-container-lowest p-1 rounded-xl shadow-sm">
+<button class="px-sm py-1 rounded-lg text-primary font-button text-[12px] bg-surface-container" type="button">提前 30 分钟</button>
+<button class="px-sm py-1 rounded-lg text-on-surface-variant hover:text-on-surface font-button text-[12px]" type="button">提前 2 小时</button>
+</div>
+<label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
+<input checked="" class="sr-only peer" type="checkbox"/>
+<div class="w-11 h-6 bg-surface-container-high peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-surface-container-lowest after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-surface-container-lowest after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-container"></div>
+</label>
+</div>
+</div>
+<!-- Habits Check-in Prompt -->
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-md p-md rounded-xl bg-surface-container-low/60 hover:bg-surface-container-low transition-colors">
+<div class="flex gap-sm">
+<div class="w-8 h-8 rounded-xl bg-surface-container-high flex items-center justify-center text-on-surface-variant mt-0.5">
+<span class="material-symbols-outlined text-[18px]">self_improvement</span>
+</div>
+<div class="flex flex-col">
+<span class="font-button text-button text-on-surface">打卡习惯晚间督促</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant">入夜前温和提示当日自律习惯（如阅读、代码复盘、健身）打卡</p>
+</div>
+</div>
+<div class="flex items-center gap-sm flex-shrink-0 self-end md:self-auto">
+<div class="flex items-center gap-xs bg-surface-container-lowest px-sm py-1.5 rounded-xl shadow-sm">
+<span class="material-symbols-outlined text-outline text-[16px]">bedtime</span>
+<input class="w-20 font-body-sm text-body-sm text-on-surface bg-transparent focus:outline-none font-mono" type="text" value="21:30 PM"/>
+</div>
+<label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
+<input checked="" class="sr-only peer" type="checkbox"/>
+<div class="w-11 h-6 bg-surface-container-high peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-surface-container-lowest after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-surface-container-lowest after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-container"></div>
+</label>
+</div>
+</div>
+</div>
+<!-- Card 3: Business Cycle Alerts (Finance & CRM) -->
+<div class="bg-surface-container-lowest rounded-xl p-lg shadow-sm flex flex-col gap-md">
+<div class="flex items-center justify-between pb-xs">
+<div class="flex items-center gap-sm">
+<div class="w-9 h-9 rounded-xl bg-surface-container flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[20px]">sync_alt</span>
+</div>
+<div class="flex flex-col">
+<h2 class="font-headline-md text-headline-md text-on-surface">财务与 CRM 业务联动提醒</h2>
+<span class="font-label-caps text-label-caps text-outline">Business Cycle Alerts</span>
+</div>
+</div>
+<span class="px-sm py-0.5 rounded-full bg-surface-container text-on-surface-variant font-label-caps text-[11px]">2 项规则已绑定</span>
+</div>
+<!-- Alert 1: Accounting Closure -->
+<div class="p-md rounded-xl bg-surface-container-low/60 hover:bg-surface-container-low transition-colors flex flex-col gap-sm">
+<div class="flex items-start justify-between gap-md">
+<div class="flex gap-sm">
+<div class="w-8 h-8 rounded-xl bg-surface-container-high flex items-center justify-center text-primary mt-0.5">
+<span class="material-symbols-outlined text-[18px]">account_balance_wallet</span>
+</div>
+<div class="flex flex-col">
+<span class="font-button text-button text-on-surface">月度账本封账与结算提醒</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant">每月最后一日 18:00 自动提醒核对当月流水与进销税，生成损益简报</p>
+</div>
+</div>
+<label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
+<input checked="" class="sr-only peer" type="checkbox"/>
+<div class="w-11 h-6 bg-surface-container-high peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-surface-container-lowest after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-surface-container-lowest after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-container"></div>
+</label>
+</div>
+<div class="flex items-center gap-md pl-10 pt-xs">
+<div class="flex items-center gap-xs font-label-caps text-label-caps text-outline">
+<span class="material-symbols-outlined text-[15px]">event_repeat</span>
+<span>频率：每月月末最后 1 日</span>
+</div>
+<div class="flex items-center gap-xs font-label-caps text-label-caps text-outline">
+<span class="material-symbols-outlined text-[15px]">schedule</span>
+<span>时间：18:00 (UTC+8)</span>
+</div>
+</div>
+</div>
+<!-- Alert 2: CRM Customer Care -->
+<div class="p-md rounded-xl bg-surface-container-low/60 hover:bg-surface-container-low transition-colors flex flex-col gap-sm">
+<div class="flex items-start justify-between gap-md">
+<div class="flex gap-sm">
+<div class="w-8 h-8 rounded-xl bg-surface-container-high flex items-center justify-center text-secondary mt-0.5">
+<span class="material-symbols-outlined text-[18px]">favorite</span>
+</div>
+<div class="flex flex-col">
+<span class="font-button text-button text-on-surface">客户久未联络关怀提醒</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant">当重要 VIP 客户超过 14 天无跟进记录时，在工作台主页打上轻度提示标并加入待办流</p>
+</div>
+</div>
+<label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
+<input checked="" class="sr-only peer" type="checkbox"/>
+<div class="w-11 h-6 bg-surface-container-high peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-surface-container-lowest after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-surface-container-lowest after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-container"></div>
+</label>
+</div>
+<div class="flex items-center gap-md pl-10 pt-xs">
+<div class="flex items-center gap-xs font-label-caps text-label-caps text-secondary font-medium">
+<span class="material-symbols-outlined text-[15px]">timer</span>
+<span>阈值：超过 14 天</span>
+</div>
+<div class="flex items-center gap-xs font-label-caps text-label-caps text-outline">
+<span class="material-symbols-outlined text-[15px]">badge</span>
+<span>适用客户分组：战略合作伙伴 / S级 VIP</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Column (4 cols): Quick Status, Cron Monitor & Visual Insights -->
+<div class="lg:col-span-4 flex flex-col gap-lg">
+<!-- Live Dispatcher Status Card -->
+<div class="bg-surface-container-lowest rounded-xl p-lg shadow-sm flex flex-col gap-md">
+<div class="flex items-center justify-between">
+<span class="font-button text-button text-on-surface font-semibold">协同调度引擎</span>
+<span class="flex h-2 w-2 relative">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-secondary opacity-75"></span>
+<span class="relative inline-flex rounded-full h-2 w-2 bg-secondary"></span>
+</span>
+</div>
+<!-- Inline SVG Progress & Health Indicator -->
+<div class="flex items-center justify-between p-md bg-surface-container-low rounded-xl">
+<div class="flex flex-col">
+<span class="font-headline-lg text-headline-lg text-primary tracking-tight">99.98%</span>
+<span class="font-label-caps text-label-caps text-outline">CRON 调度准点率</span>
+</div>
+<!-- Progress Ring (currentColor) -->
+<div class="w-14 h-14 relative flex items-center justify-center">
+<svg class="w-full h-full transform -rotate-90" viewbox="0 0 36 36">
+<path class="text-surface-container-highest" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-width="3.5"></path>
+<path class="text-primary-container" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-dasharray="98, 100" stroke-linecap="round" stroke-width="3.5"></path>
+</svg>
+<span class="material-symbols-outlined absolute text-primary text-[18px]">verified</span>
+</div>
+</div>
+<!-- Activity Stats -->
+<div class="grid grid-cols-2 gap-sm">
+<div class="p-sm bg-surface-container-low/70 rounded-xl flex flex-col">
+<span class="font-label-caps text-label-caps text-outline">今日触发提醒</span>
+<span class="font-headline-md text-headline-md text-on-surface">38 次</span>
+</div>
+<div class="p-sm bg-surface-container-low/70 rounded-xl flex flex-col">
+<span class="font-label-caps text-label-caps text-outline">机器人触达</span>
+<span class="font-headline-md text-headline-md text-on-surface">124 条</span>
+</div>
+</div>
+<!-- Upcoming Scheduled Triggers -->
+<div class="flex flex-col gap-xs pt-xs">
+<span class="font-label-caps text-label-caps text-outline uppercase">后续计划执行 (Next Triggers)</span>
+<div class="flex items-center justify-between py-2 border-b-0 text-body-sm">
+<div class="flex items-center gap-xs min-w-0">
+<span class="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0"></span>
+<span class="truncate text-on-surface">待办逾期扫描</span>
+</div>
+<span class="font-mono text-outline font-label-caps text-[11px] flex-shrink-0">15:00:00</span>
+</div>
+<div class="flex items-center justify-between py-2 text-body-sm">
+<div class="flex items-center gap-xs min-w-0">
+<span class="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0"></span>
+<span class="truncate text-on-surface">晚间打卡提醒</span>
+</div>
+<span class="font-mono text-outline font-label-caps text-[11px] flex-shrink-0">21:30:00</span>
+</div>
+<div class="flex items-center justify-between py-2 text-body-sm">
+<div class="flex items-center gap-xs min-w-0">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary flex-shrink-0"></span>
+<span class="truncate text-on-surface">客户 14 天失联预警</span>
+</div>
+<span class="font-mono text-outline font-label-caps text-[11px] flex-shrink-0">明天 09:00</span>
+</div>
+</div>
+</div>
+<!-- Team Focus Scrim Card -->
+<div class="relative rounded-xl overflow-hidden shadow-sm bg-surface-container-lowest p-md flex flex-col justify-between h-48">
+<div class="absolute inset-0 bg-cover bg-center" data-alt="A modern collaborative open-plan architecture studio workspace bathed in soft daylight, clean wooden desk with laptop displaying sleek UI charts, green indoor plants and minimal aesthetics, warm dependable professional tone with high clarity" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDumxCmv0q97IWNYmdM-w2eyAJcido8OQfHCkrJBLrgXRUrvV_jn8OC6pAndRpYyr_uhtj1pP2ooPQsHDGZuQJcR0vGZrcTRNohB9gCUyGpKc6mNWSebwIDKCkvnSMYFM5JAu_QDN9UU8Sh2aTr4J6iDGEWkVOWS0OJxx2-C2lD4zh2w_c9uUbpVIYltbQ5elaFBOwsJ68us-K1Zej75LKGxtYBMzLL4jKJTV24ZfMCAP2tohzRf6pQog')"></div>
+<div class="absolute inset-0 bg-gradient-to-t from-inverse-surface via-inverse-surface/60 to-transparent"></div>
+<div class="relative z-10 flex justify-between items-start">
+<span class="px-2 py-0.5 rounded bg-surface-container-lowest/80 backdrop-blur-md text-on-surface font-label-caps text-[10px] font-semibold tracking-wider uppercase">协同效率保障</span>
+<span class="material-symbols-outlined text-surface-container-lowest text-[18px]">group_work</span>
+</div>
+<div class="relative z-10 flex flex-col text-inverse-on-surface">
+<span class="font-button text-button font-medium text-white">通知降噪与免打扰</span>
+<p class="font-body-sm text-[12px] leading-tight text-inverse-on-surface/80">专注模式开启时将自动静音除紧急预警外的所有普通提示</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Bottom Step Navigation Flow -->
+<div class="flex items-center justify-between pt-lg pb-xl">
+<button class="group flex items-center gap-xs font-button text-button text-on-surface-variant hover:text-primary transition-colors" type="button">
+<span class="material-symbols-outlined text-[20px] group-hover:-translate-x-1 transition-transform">arrow_back</span>
+<div class="flex flex-col text-left">
+<span class="font-label-caps text-[10px] uppercase text-outline">Previous</span>
+<span>通用与快捷键</span>
+</div>
+</button>
+<div class="hidden sm:flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-outline-variant"></span>
+<span class="w-2 h-2 rounded-full bg-outline-variant"></span>
+<span class="w-2 h-2 rounded-full bg-outline-variant"></span>
+<span class="w-2 h-2 rounded-full bg-outline-variant"></span>
+<span class="w-6 h-2 rounded-full bg-primary-container"></span>
+<span class="w-2 h-2 rounded-full bg-outline-variant"></span>
+</div>
+<button class="group flex items-center gap-xs font-button text-button text-on-surface-variant hover:text-primary transition-colors" type="button">
+<div class="flex flex-col text-right">
+<span class="font-label-caps text-[10px] uppercase text-outline">Next Step</span>
+<span>数据与安全</span>
+</div>
+<span class="material-symbols-outlined text-[20px] group-hover:translate-x-1 transition-transform">arrow_forward</span>
+</button>
+</div>
+</div>
+<!-- Micro-interaction feedback notification toast -->
+<div class="fixed bottom-6 right-6 z-50 transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none flex items-center gap-sm px-md py-sm bg-inverse-surface text-inverse-on-surface rounded-xl shadow-xl" id="toast">
+<span class="material-symbols-outlined text-secondary text-[20px]">check_circle</span>
+<span class="font-button text-button" id="toast-text">设置已同步更新至云端</span>
+</div>
+</div>
+<script>
+  (function() {
+    const saveBtn = document.getElementById('save-btn');
+    const resetBtn = document.getElementById('reset-btn');
+    const testWebhookBtn = document.getElementById('test-webhook-btn');
+    const toast = document.getElementById('toast');
+    const toastText = document.getElementById('toast-text');
+
+    function showToast(msg) {
+      if (!toast) return;
+      toastText.textContent = msg;
+      toast.classList.remove('translate-y-20', 'opacity-0', 'pointer-events-none');
+      toast.classList.add('translate-y-0', 'opacity-100');
+      setTimeout(() => {
+        toast.classList.remove('translate-y-0', 'opacity-100');
+        toast.classList.add('translate-y-20', 'opacity-0', 'pointer-events-none');
+      }, 2500);
+    }
+
+    if (saveBtn) {
+      saveBtn.addEventListener('click', () => {
+        showToast('所有提醒与协同配置已成功保存！');
+      });
+    }
+
+    if (resetBtn) {
+      resetBtn.addEventListener('click', () => {
+        showToast('已恢复为系统推荐协同规则。');
+      });
+    }
+
+    if (testWebhookBtn) {
+      testWebhookBtn.addEventListener('click', () => {
+        testWebhookBtn.disabled = true;
+        const origContent = testWebhookBtn.innerHTML;
+        testWebhookBtn.innerHTML = '<span class="material-symbols-outlined text-[16px] animate-spin">progress_activity</span><span>正在推送...</span>';
+        setTimeout(() => {
+          testWebhookBtn.disabled = false;
+          testWebhookBtn.innerHTML = origContent;
+          showToast('测试消息已成功发送至绑定的企业微信机器人！');
+        }, 1000);
+      });
+    }
+  })();
+</script></main></div></body></html>

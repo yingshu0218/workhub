@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config={darkMode:"class",theme:{extend:{"colors":{"on-surface":"#0b1c30","tertiary-container":"#bc4800","secondary":"#006c49","background":"#f8f9ff","surface-tint":"#0053db","tertiary":"#943700","surface-container-highest":"#d3e4fe","on-secondary-container":"#00714d","surface-dim":"#cbdbf5","secondary-fixed-dim":"#4edea3","on-primary":"#ffffff","on-tertiary":"#ffffff","outline-variant":"#c3c6d7","on-primary-container":"#eeefff","surface-container-low":"#eff4ff","on-secondary":"#ffffff","secondary-container":"#6cf8bb","on-error-container":"#93000a","on-background":"#0b1c30","secondary-fixed":"#6ffbbe","primary-fixed-dim":"#b4c5ff","surface":"#f8f9ff","on-tertiary-fixed":"#360f00","on-tertiary-fixed-variant":"#7d2d00","primary":"#004ac6","surface-container":"#e5eeff","on-primary-fixed-variant":"#003ea8","on-primary-fixed":"#00174b","surface-variant":"#d3e4fe","outline":"#737686","on-surface-variant":"#434655","inverse-primary":"#b4c5ff","surface-container-high":"#dce9ff","surface-bright":"#f8f9ff","on-secondary-fixed-variant":"#005236","tertiary-fixed-dim":"#ffb596","primary-container":"#2563eb","inverse-surface":"#213145","on-tertiary-container":"#ffede6","tertiary-fixed":"#ffdbcd","error":"#ba1a1a","error-container":"#ffdad6","inverse-on-surface":"#eaf1ff","primary-fixed":"#dbe1ff","surface-container-lowest":"#ffffff","on-secondary-fixed":"#002113","on-error":"#ffffff"},"borderRadius":{"DEFAULT":"0.125rem","lg":"0.25rem","xl":"0.5rem","full":"0.75rem"},"spacing":{"md":"16px","gutter":"16px","xs":"4px","sm":"8px","base":"4px","container-margin-mobile":"16px","container-margin-desktop":"40px","xl":"32px","lg":"24px"},"fontFamily":{"headline-md":["Inter"],"button":["Inter"],"body-sm":["Inter"],"headline-lg-mobile":["Inter"],"body-lg":["Inter"],"headline-lg":["Inter"],"label-caps":["Inter"]},"fontSize":{"headline-md":["20px",{"lineHeight":"28px","fontWeight":"600"}],"button":["14px",{"lineHeight":"20px","fontWeight":"500"}],"body-sm":["14px",{"lineHeight":"20px","fontWeight":"400"}],"headline-lg-mobile":["24px",{"lineHeight":"32px","letterSpacing":"-0.01em","fontWeight":"700"}],"body-lg":["16px",{"lineHeight":"24px","fontWeight":"400"}],"headline-lg":["30px",{"lineHeight":"38px","letterSpacing":"-0.02em","fontWeight":"700"}],"label-caps":["12px",{"lineHeight":"16px","letterSpacing":"0.05em","fontWeight":"600"}]}}}}</script></head><body class="bg-background font-body-sm text-on-surface antialiased"><aside class="fixed left-0 top-0 h-full w-64 bg-surface-container-lowest shadow-[0_1px_8px_rgba(0,0,0,0.04)] z-50 flex flex-col justify-between select-none"><div class="flex flex-col p-md"><div class="flex items-center gap-sm px-xs pb-md"><div class="w-8 h-8 rounded-xl bg-primary-container flex items-center justify-center text-on-primary shadow-sm"><span class="material-symbols-outlined text-[20px]">send</span></div><div class="flex flex-col"><span class="font-headline-md text-[16px] leading-[20px] font-bold text-on-surface tracking-tight">寻鸽工作台</span><span class="font-label-caps text-[10px] uppercase text-outline tracking-wider">Nexus Workspace</span></div></div><div class="my-xs"><button class="w-full flex items-center justify-between px-md py-sm bg-primary-container text-on-primary rounded-xl shadow-[0_2px_8px_rgba(37,99,235,0.25)] hover:bg-primary transition-all" type="button"><div class="flex items-center gap-sm"><span class="material-symbols-outlined text-[18px]">bolt</span><span class="font-button text-button">灵感闪现</span></div><kbd class="px-xs py-0.5 rounded bg-on-primary/20 text-on-primary font-label-caps text-[11px]">⌘J</kbd></button></div><nav class="flex flex-col gap-xs mt-md" data-active-classes="bg-primary-container text-on-primary font-medium rounded-xl shadow-sm"><a class="flex items-center gap-sm px-md py-sm rounded-xl text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-colors" data-path="workbench" href="#"><span class="material-symbols-outlined text-[20px]">grid_view</span><span class="font-button text-button">工作台</span></a><a class="flex items-center gap-sm px-md py-sm rounded-xl text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-colors" data-path="tasks" href="#"><span class="material-symbols-outlined text-[20px]">check_circle</span><span class="font-button text-button">待办事项</span></a><a class="flex items-center gap-sm px-md py-sm rounded-xl text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-colors" data-path="crm" href="#"><span class="material-symbols-outlined text-[20px]">group</span><span class="font-button text-button">CRM 客户</span></a><a class="flex items-center gap-sm px-md py-sm rounded-xl text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-colors" data-path="finance" href="#"><span class="material-symbols-outlined text-[20px]">account_balance_wallet</span><span class="font-button text-button">财务中心</span></a><a class="flex items-center gap-sm px-md py-sm rounded-xl text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-colors" data-path="notes" href="#"><span class="material-symbols-outlined text-[20px]">description</span><span class="font-button text-button">团队笔记</span></a><a class="flex items-center gap-sm px-md py-sm rounded-xl text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-colors" data-path="habits" href="#"><span class="material-symbols-outlined text-[20px]">event_repeat</span><span class="font-button text-button">打卡·习惯</span></a><a class="flex items-center gap-sm px-md py-sm rounded-xl text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-colors" data-path="trophies" href="#"><span class="material-symbols-outlined text-[20px]">emoji_events</span><span class="font-button text-button">成就奖杯</span></a><a aria-current="page" class="flex items-center gap-sm px-md py-sm transition-colors bg-primary-container text-on-primary font-medium rounded-xl shadow-sm" data-path="system-settings" href="#"><span class="material-symbols-outlined text-[20px]">settings</span><span class="font-button text-button">系统设置</span></a></nav></div><div class="p-md"><div class="flex items-center justify-between p-sm rounded-xl bg-surface-container-low"><div class="flex items-center gap-sm min-w-0"><div class="relative flex-shrink-0"><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div><span class="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-secondary ring-2 ring-surface-container-lowest"></span></div><div class="flex flex-col min-w-0"><span class="font-button text-button text-on-surface truncate">陈致远</span><span class="font-label-caps text-[11px] text-outline truncate">Core Team</span></div></div><button class="text-outline hover:text-on-surface transition-colors" type="button"><span class="material-symbols-outlined text-[18px]">unfold_more</span></button></div></div></aside><div class="pl-64 flex flex-col min-h-screen"><header class="fixed top-0 left-64 right-0 h-16 bg-surface/80 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)] z-40 flex items-center justify-between px-xl"><div class="flex items-center gap-md"><nav class="flex items-center gap-xs font-body-sm text-body-sm text-on-surface-variant"><span class="hover:text-on-surface cursor-pointer transition-colors">Nexus</span><span class="material-symbols-outlined text-[14px] text-outline">chevron_right</span><span class="text-on-surface font-button font-medium">系统设置</span></nav><div class="hidden lg:flex items-center gap-xs px-sm py-1 bg-surface-container-low rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-secondary"></span><span class="font-label-caps text-[11px] text-secondary font-medium">云端已实时同步</span></div></div><div class="flex items-center gap-md"><div class="relative w-64 md:w-80"><span class="material-symbols-outlined absolute left-sm top-1/2 -translate-y-1/2 text-outline text-[18px]">search</span><input class="w-full pl-9 pr-12 py-1.5 bg-surface-container-low rounded-xl text-body-sm font-body-sm text-on-surface placeholder:text-outline focus:outline-none focus:bg-surface-container-lowest focus:ring-1 focus:ring-primary-container transition-all" placeholder="搜索设置项、功能与成员..." type="text"/><kbd class="absolute right-sm top-1/2 -translate-y-1/2 px-xs py-0.5 rounded bg-surface-container text-outline font-label-caps text-[10px]">⌘K</kbd></div><div class="flex items-center gap-xs"><button class="w-8 h-8 flex items-center justify-center rounded-xl text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors" type="button"><span class="material-symbols-outlined text-[20px]">help_outline</span></button><button class="relative w-8 h-8 flex items-center justify-center rounded-xl text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors" type="button"><span class="material-symbols-outlined text-[20px]">notifications</span><span class="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-tertiary-container"></span></button></div><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div></div></header><main class="w-full pt-16 bg-background min-h-screen"><div class="flex flex-col w-full">
+<!-- Page Header & Action Bar -->
+<div class="px-container-desktop pt-xl pb-lg flex flex-col md:flex-row md:items-end justify-between gap-md">
+<div class="flex flex-col gap-xs">
+<div class="flex items-center gap-xs">
+<span class="px-xs py-0.5 rounded bg-primary-fixed text-on-primary-fixed font-label-caps text-label-caps tracking-wider uppercase">System Preferences</span>
+<span class="w-1 h-1 rounded-full bg-outline-variant"></span>
+<span class="text-secondary font-label-caps text-label-caps font-semibold flex items-center gap-0.5">
+<span class="material-symbols-outlined text-[14px]">lock</span> 端对端加密保护中
+        </span>
+</div>
+<h1 class="font-headline-lg text-headline-lg text-on-surface tracking-tight">系统设置</h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant max-w-2xl">
+        定制您的专属工作台界面风格、工作流偏好与数据安全策略，保障小团队高效运转与数据绝对主权。
+      </p>
+</div>
+<div class="flex items-center gap-sm self-start md:self-auto">
+<button class="px-md py-sm rounded-xl font-button text-button text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all" id="discardBtn" type="button">
+        放弃更改
+      </button>
+<button class="flex items-center gap-xs px-lg py-sm bg-primary-container hover:bg-primary text-on-primary rounded-xl font-button text-button shadow-sm hover:shadow transition-all" id="saveAllBtn" type="button">
+<span class="material-symbols-outlined text-[18px]">verified</span>
+<span>保存更改</span>
+</button>
+</div>
+</div>
+<!-- Category Navigation Tabs -->
+<div class="px-container-desktop">
+<div class="flex items-center gap-xs border-b border-surface-container-high overflow-x-auto select-none">
+<a class="px-md py-sm text-on-surface-variant hover:text-on-surface font-button text-button transition-colors whitespace-nowrap" href="#">外观与主题</a>
+<a class="px-md py-sm text-on-surface-variant hover:text-on-surface font-button text-button transition-colors whitespace-nowrap" href="#">色彩与密度</a>
+<a class="px-md py-sm text-on-surface-variant hover:text-on-surface font-button text-button transition-colors whitespace-nowrap" href="#">字体与排版</a>
+<a class="px-md py-sm text-on-surface-variant hover:text-on-surface font-button text-button transition-colors whitespace-nowrap" href="#">通用与快捷键</a>
+<a class="px-md py-sm text-on-surface-variant hover:text-on-surface font-button text-button transition-colors whitespace-nowrap" href="#">提醒与协同</a>
+<!-- Active Tab -->
+<a class="relative px-md py-sm text-primary font-button text-button whitespace-nowrap flex items-center gap-1.5" href="#">
+<span class="material-symbols-outlined text-[18px]">security</span>
+<span>数据与安全</span>
+<span class="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-t-full"></span>
+</a>
+</div>
+</div>
+<!-- Main Settings Body -->
+<div class="px-container-desktop py-xl flex flex-col gap-xl max-w-[1240px]">
+<!-- Header Notification Banner -->
+<div class="p-md rounded-xl bg-surface-container-low shadow-sm flex items-start gap-md">
+<div class="w-10 h-10 rounded-xl bg-secondary-container text-on-secondary-container flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-[22px]">shield</span>
+</div>
+<div class="flex flex-col min-w-0 flex-1">
+<div class="flex items-center gap-sm flex-wrap">
+<span class="font-button text-button text-on-surface font-semibold">数据主权保障已就绪 (Sovereignty Protocol v2.4)</span>
+<span class="px-xs py-0.5 rounded bg-secondary/10 text-secondary font-label-caps text-[11px] font-medium">离线可读写</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-0.5">
+          寻鸽工作台遵循本地第一（Local-First）原则。全部文档与往来账本优先保存在您受控的本地浏览器加密沙盒中，无论离线亦或迁移，无厂商数据锁定。
+        </p>
+</div>
+</div>
+<!-- Section 1: Data Export & Backup -->
+<section class="flex flex-col gap-md">
+<div class="flex flex-col sm:flex-row sm:items-baseline justify-between gap-xs">
+<div>
+<h2 class="font-headline-md text-headline-md text-on-surface">数据导出与多格式打包 (Data Export &amp; Backup)</h2>
+<p class="font-body-sm text-body-sm text-on-surface-variant">
+            您的所有数据归您所有，可随时打包导出或无缝迁移至其他工具生态。
+          </p>
+</div>
+<span class="font-label-caps text-label-caps text-outline uppercase tracking-wider">最近自动镜像: 今日 09:41</span>
+</div>
+<!-- 3-Column Export Cards -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-md">
+<!-- Card A: JSON -->
+<div class="p-lg rounded-xl bg-surface-container-lowest shadow-sm hover:shadow transition-all flex flex-col justify-between group">
+<div class="flex flex-col gap-md">
+<div class="flex items-center justify-between">
+<div class="w-10 h-10 rounded-xl bg-primary-fixed text-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-[22px]">data_object</span>
+</div>
+<span class="px-xs py-0.5 rounded bg-surface-container font-label-caps text-[11px] text-outline font-semibold">SNAPSHOT</span>
+</div>
+<div class="flex flex-col gap-xs">
+<span class="font-button text-button text-on-surface font-semibold group-hover:text-primary transition-colors">JSON 全量结构化存档</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant">
+                包含待办清单、CRM 客户档案、财务收支流水明细与 Markdown 关联节点，附带精准到微秒的审计元数据。
+              </p>
+</div>
+<!-- Mini Spec Pill -->
+<div class="flex items-center gap-xs py-1 px-sm rounded bg-surface-container-low font-label-caps text-[11px] text-on-surface-variant">
+<span class="material-symbols-outlined text-[14px] text-outline">storage</span>
+<span>1,420 条目 · 约 4.2 MB · 附签名摘要</span>
+</div>
+</div>
+<button class="mt-lg w-full flex items-center justify-center gap-xs px-md py-sm rounded-xl bg-primary-container hover:bg-primary text-on-primary font-button text-button transition-all shadow-sm" onclick="triggerToast('开始构建全量 JSON 离线快照，下载即将开始...')" type="button">
+<span class="material-symbols-outlined text-[18px]">download</span>
+<span>导出全量 JSON 备份 (4.2 MB)</span>
+</button>
+</div>
+<!-- Card B: CSV -->
+<div class="p-lg rounded-xl bg-surface-container-lowest shadow-sm hover:shadow transition-all flex flex-col justify-between group">
+<div class="flex flex-col gap-md">
+<div class="flex items-center justify-between">
+<div class="w-10 h-10 rounded-xl bg-secondary-fixed text-secondary flex items-center justify-center">
+<span class="material-symbols-outlined text-[22px]">table_chart</span>
+</div>
+<span class="px-xs py-0.5 rounded bg-surface-container font-label-caps text-[11px] text-outline font-semibold">SPREADSHEET</span>
+</div>
+<div class="flex flex-col gap-xs">
+<span class="font-button text-button text-on-surface font-semibold group-hover:text-secondary transition-colors">CSV 电子表格格式包</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant">
+                财务流水记录、合同金额与商机阶段适配 Microsoft Excel、Apple Numbers 与飞书表格，UTF-8 字符集防乱码。
+              </p>
+</div>
+<div class="flex items-center gap-xs py-1 px-sm rounded bg-surface-container-low font-label-caps text-[11px] text-on-surface-variant">
+<span class="material-symbols-outlined text-[14px] text-outline">grid_on</span>
+<span>2 个核心表 (Transactions / Leads) · 680 KB</span>
+</div>
+</div>
+<button class="mt-lg w-full flex items-center justify-center gap-xs px-md py-sm rounded-xl bg-surface-container-low hover:bg-surface-container text-on-surface font-button text-button transition-all" onclick="triggerToast('已生成 UTF-8 CSV 压缩归档文件')" type="button">
+<span class="material-symbols-outlined text-[18px]">download</span>
+<span>导出 CSV 表格包</span>
+</button>
+</div>
+<!-- Card C: Markdown ZIP -->
+<div class="p-lg rounded-xl bg-surface-container-lowest shadow-sm hover:shadow transition-all flex flex-col justify-between group">
+<div class="flex flex-col gap-md">
+<div class="flex items-center justify-between">
+<div class="w-10 h-10 rounded-xl bg-surface-container-high text-on-surface-variant flex items-center justify-center">
+<span class="material-symbols-outlined text-[22px]">folder_zip</span>
+</div>
+<span class="px-xs py-0.5 rounded bg-surface-container font-label-caps text-[11px] text-outline font-semibold">MARKDOWN</span>
+</div>
+<div class="flex flex-col gap-xs">
+<span class="font-button text-button text-on-surface font-semibold group-hover:text-primary transition-colors">Markdown 纯文本笔记包</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant">
+                所有团队工作笔记与周报知识库导出为 .zip。完美保留双链 WikiLinks 结构及内嵌图片资源，兼容 Obsidian 与 Logseq。
+              </p>
+</div>
+<div class="flex items-center gap-xs py-1 px-sm rounded bg-surface-container-low font-label-caps text-[11px] text-on-surface-variant">
+<span class="material-symbols-outlined text-[14px] text-outline">description</span>
+<span>86 篇 Markdown 文档 · 完整层级目录</span>
+</div>
+</div>
+<button class="mt-lg w-full flex items-center justify-center gap-xs px-md py-sm rounded-xl bg-surface-container-low hover:bg-surface-container text-on-surface font-button text-button transition-all" onclick="triggerToast('正在打包 Markdown 文档及媒体资源...')" type="button">
+<span class="material-symbols-outlined text-[18px]">download</span>
+<span>导出笔记文档库 (.zip)</span>
+</button>
+</div>
+</div>
+</section>
+<!-- Section 2: Data Import & Migration -->
+<section class="flex flex-col gap-md">
+<div class="flex flex-col">
+<h2 class="font-headline-md text-headline-md text-on-surface">数据导入与第三方迁移 (Data Import)</h2>
+<p class="font-body-sm text-body-sm text-on-surface-variant">
+          从主流协同工具或离线快照平滑迁入，寻鸽将自动识别字段映射与标签属性。
+        </p>
+</div>
+<!-- Drag & Drop Upload Zone -->
+<div class="relative p-xl rounded-xl bg-surface-container-lowest shadow-sm flex flex-col items-center justify-center text-center group cursor-pointer transition-all hover:bg-surface-container-low/60" id="dropZone">
+<input accept=".json,.csv,.zip,.md" class="absolute inset-0 opacity-0 cursor-pointer" id="fileInput" type="file"/>
+<div class="w-14 h-14 rounded-2xl bg-surface-container-low group-hover:bg-primary-fixed text-primary flex items-center justify-center mb-md transition-all">
+<span class="material-symbols-outlined text-[28px]">cloud_upload</span>
+</div>
+<span class="font-headline-md text-[17px] leading-[24px] font-semibold text-on-surface mb-xs">
+          拖拽备份文件至此处，或点击浏览上传
+        </span>
+<p class="font-body-sm text-body-sm text-on-surface-variant max-w-md mb-md">
+          原生支持 <strong class="text-on-surface font-medium">Notion 导出包</strong>、<strong class="text-on-surface font-medium">TickTick (滴答清单) 备份</strong>、<strong class="text-on-surface font-medium">Linear CSV</strong> 与标准 JSON 文件，单次最大支持 50MB。
+        </p>
+<div class="flex items-center gap-sm flex-wrap justify-center">
+<span class="px-sm py-1 rounded-full bg-surface-container font-label-caps text-[11px] text-on-surface-variant flex items-center gap-1">
+<span class="material-symbols-outlined text-[13px]">check_circle</span> 自动去重校验
+          </span>
+<span class="px-sm py-1 rounded-full bg-surface-container font-label-caps text-[11px] text-on-surface-variant flex items-center gap-1">
+<span class="material-symbols-outlined text-[13px]">check_circle</span> 字段预演预览
+          </span>
+<span class="px-sm py-1 rounded-full bg-surface-container font-label-caps text-[11px] text-on-surface-variant flex items-center gap-1">
+<span class="material-symbols-outlined text-[13px]">check_circle</span> 不覆盖现有 ID
+          </span>
+</div>
+</div>
+</section>
+<!-- Section 3: Local Encryption & Privacy -->
+<section class="flex flex-col gap-md">
+<div class="flex flex-col">
+<h2 class="font-headline-md text-headline-md text-on-surface">本地数据加密与隐私安全 (Encryption &amp; Privacy)</h2>
+<p class="font-body-sm text-body-sm text-on-surface-variant">
+          为小型高敏团队提供金融级的多层防御。静态落盘数据与离线缓存均经强算法保护。
+        </p>
+</div>
+<div class="p-lg rounded-xl bg-surface-container-lowest shadow-sm flex flex-col gap-lg">
+<!-- Setting Item 1: AES-256 -->
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-md pb-md border-b border-surface-container-low">
+<div class="flex items-start gap-md">
+<div class="w-10 h-10 rounded-xl bg-secondary-container text-secondary flex items-center justify-center flex-shrink-0 mt-0.5">
+<span class="material-symbols-outlined text-[22px]">verified_user</span>
+</div>
+<div class="flex flex-col">
+<div class="flex items-center gap-xs">
+<span class="font-button text-button text-on-surface font-semibold">端到端本地数据缓存加密 (AES-256-GCM)</span>
+<span class="px-xs py-0.5 rounded bg-secondary/15 text-secondary font-label-caps text-[11px] font-semibold">已开启 (Active)</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-0.5 max-w-xl">
+                基于 Web Cryptography API，密匙由团队本地派生并驻留在受保护内存中，任何第三方即使取得客户端存储也无法明文解析。
+              </p>
+</div>
+</div>
+<div class="flex items-center gap-xs self-end md:self-auto">
+<button class="px-md py-sm rounded-xl bg-surface-container-low hover:bg-surface-container text-on-surface font-button text-button transition-colors" onclick="triggerToast('主密匙状态良好，指纹检验成功')" type="button">
+              检验密钥指纹
+            </button>
+</div>
+</div>
+<!-- Setting Item 2: Sync Snapshot Frequency -->
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-md pb-md border-b border-surface-container-low">
+<div class="flex items-start gap-md">
+<div class="w-10 h-10 rounded-xl bg-primary-fixed text-primary flex items-center justify-center flex-shrink-0 mt-0.5">
+<span class="material-symbols-outlined text-[22px]">sync_saved_locally</span>
+</div>
+<div class="flex flex-col">
+<span class="font-button text-button text-on-surface font-semibold">自动云端同步与快照频率</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-0.5 max-w-xl">
+                控制增量变更推送到安全私有云频次。断网期间自动转入队列等待合并。
+              </p>
+</div>
+</div>
+<div class="w-full md:w-64">
+<div class="relative">
+<select class="w-full pl-md pr-10 py-sm bg-surface-container-low rounded-xl font-body-sm text-body-sm text-on-surface appearance-none focus:outline-none focus:bg-surface-container-lowest transition-colors cursor-pointer">
+<option selected="">实时增量同步 (推荐)</option>
+<option>每 5 分钟聚合快照</option>
+<option>仅在工作区关闭时同步</option>
+<option>纯离线单机模式 (暂停云端)</option>
+</select>
+<span class="material-symbols-outlined absolute right-sm top-1/2 -translate-y-1/2 text-outline pointer-events-none text-[18px]">expand_more</span>
+</div>
+</div>
+</div>
+<!-- Setting Item 3: Local Persistence Switch -->
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-md">
+<div class="flex items-start gap-md">
+<div class="w-10 h-10 rounded-xl bg-surface-container text-on-surface-variant flex items-center justify-center flex-shrink-0 mt-0.5">
+<span class="material-symbols-outlined text-[22px]">database</span>
+</div>
+<div class="flex flex-col">
+<div class="flex items-center gap-xs">
+<span class="font-button text-button text-on-surface font-semibold">离线本地持久化存储 (IndexedDB)</span>
+<span class="px-xs py-0.5 rounded bg-surface-container text-outline font-label-caps text-[10px]">98.4 MB 已用</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-0.5 max-w-xl">
+                断网时亦可照常录入日程、账单与客户记录。重新联网后系统将通过 CRDT 冲突自动调解机制无缝合并。
+              </p>
+</div>
+</div>
+<!-- Toggle Switch -->
+<label class="relative inline-flex items-center cursor-pointer self-end md:self-auto">
+<input checked="" class="sr-only peer" id="persistenceToggle" type="checkbox"/>
+<div class="w-12 h-6 bg-surface-container-high peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[3px] after:bg-surface-container-lowest after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-container"></div>
+</label>
+</div>
+</div>
+</section>
+<!-- Section 4: Danger Zone -->
+<section class="flex flex-col gap-md">
+<div class="flex items-center gap-xs text-error">
+<span class="material-symbols-outlined text-[20px]">warning</span>
+<h2 class="font-headline-md text-headline-md text-error">危险区域 (Danger Zone)</h2>
+</div>
+<div class="p-lg rounded-xl bg-error-container/20 shadow-sm flex flex-col gap-md">
+<!-- Danger Row 1: Clear Local Cache -->
+<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-md pb-md border-b border-error/10">
+<div class="flex flex-col">
+<span class="font-button text-button text-on-surface font-semibold">清空本地缓存 (Clear Local Cache)</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-0.5 max-w-xl">
+              清空当前设备上的 IndexedDB 离线缓存、临时缩略图与草稿。云端核心资产不受任何影响，下次登录时重新按需下载。
+            </p>
+</div>
+<button class="px-md py-sm rounded-xl bg-surface-container-lowest text-error hover:bg-error-container font-button text-button transition-colors whitespace-nowrap self-start sm:self-auto" onclick="triggerToast('本地离线缓存已全部清空，工作区已恢复初始状态')" type="button">
+            清除缓存
+          </button>
+</div>
+<!-- Danger Row 2: Hard Reset Data -->
+<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-md">
+<div class="flex flex-col">
+<span class="font-button text-button text-error font-semibold">重置所有业务数据 (Destroy All Workspace Data)</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-0.5 max-w-xl">
+              该操作将彻底抹除当前团队名下的全部任务待办、CRM 档案、财务账目与笔记归档。此行为不可逆，请先完成上方的数据全量导出备份。
+            </p>
+</div>
+<button class="px-md py-sm rounded-xl bg-error text-on-error hover:bg-error/90 font-button text-button shadow-sm hover:shadow transition-all whitespace-nowrap self-start sm:self-auto" onclick="showDangerModal()" type="button">
+            清空所有数据
+          </button>
+</div>
+</div>
+</section>
+<!-- Bottom Navigation Footer Guide -->
+<div class="pt-lg pb-xl flex flex-col sm:flex-row items-center justify-between gap-md border-t border-surface-container-high">
+<a class="flex items-center gap-xs font-button text-button text-on-surface-variant hover:text-on-surface transition-colors" href="#">
+<span class="material-symbols-outlined text-[18px]">arrow_back</span>
+<span>上一步：提醒与协同</span>
+</a>
+<div class="flex items-center gap-sm">
+<span class="font-label-caps text-label-caps text-outline hidden sm:inline">已到达最后一项目录</span>
+<button class="flex items-center gap-xs px-lg py-sm rounded-xl bg-primary text-on-primary font-button text-button shadow-sm hover:bg-primary-container transition-all" onclick="triggerToast('配置已应用！正在返回工作台主页...')" type="button">
+<span>完成设置：返回工作台主页</span>
+<span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Modal for Danger Confirmation -->
+<div class="fixed inset-0 bg-inverse-surface/40 backdrop-blur-sm z-50 flex items-center justify-center p-md hidden" id="dangerModal">
+<div class="w-full max-w-md p-lg rounded-xl bg-surface-container-lowest shadow-xl flex flex-col gap-md animate-fade-in">
+<div class="flex items-center gap-sm text-error">
+<div class="w-10 h-10 rounded-xl bg-error-container text-on-error-container flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-[24px]">report</span>
+</div>
+<div class="flex flex-col">
+<span class="font-headline-md text-[18px] leading-[24px] font-bold text-on-surface">确认抹除所有团队数据？</span>
+<span class="font-label-caps text-[11px] text-error">此操作不可恢复，已锁定的快照也会被移除</span>
+</div>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant">
+        请输入团队名称 <strong class="text-on-surface font-semibold">“Core Team”</strong> 以确认彻底注销并重置工作区数据库：
+      </p>
+<input class="w-full px-md py-sm rounded-xl bg-surface-container-low font-body-sm text-body-sm text-on-surface placeholder:text-outline focus:outline-none focus:bg-surface-container-lowest" id="confirmInput" placeholder="输入 Core Team" type="text"/>
+<div class="flex items-center justify-end gap-sm mt-xs">
+<button class="px-md py-sm rounded-xl font-button text-button text-on-surface-variant hover:bg-surface-container-high transition-colors" onclick="closeDangerModal()" type="button">
+          取消
+        </button>
+<button class="px-md py-sm rounded-xl bg-error/40 text-on-error font-button text-button cursor-not-allowed transition-all" disabled="" id="confirmDeleteBtn" type="button">
+          永久重置
+        </button>
+</div>
+</div>
+</div>
+<!-- Toast Element -->
+<div class="fixed bottom-6 right-6 px-md py-sm rounded-xl bg-inverse-surface text-inverse-on-surface shadow-xl flex items-center gap-sm transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none z-50" id="toast">
+<span class="material-symbols-outlined text-[18px] text-secondary-fixed">check_circle</span>
+<span class="font-body-sm text-body-sm font-medium" id="toastMessage">配置已保存</span>
+</div>
+</div>
+<script>
+  // Toast Helper
+  function triggerToast(msg) {
+    const toast = document.getElementById('toast');
+    const toastMessage = document.getElementById('toastMessage');
+    if (!toast || !toastMessage) return;
+    toastMessage.textContent = msg;
+    toast.classList.remove('translate-y-20', 'opacity-0');
+    toast.classList.add('translate-y-0', 'opacity-100');
+    setTimeout(() => {
+      toast.classList.remove('translate-y-0', 'opacity-100');
+      toast.classList.add('translate-y-20', 'opacity-0');
+    }, 2800);
+  }
+
+  // Danger Modal Logic
+  const dangerModal = document.getElementById('dangerModal');
+  const confirmInput = document.getElementById('confirmInput');
+  const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+
+  function showDangerModal() {
+    if (dangerModal) {
+      dangerModal.classList.remove('hidden');
+      if (confirmInput) {
+        confirmInput.value = '';
+        confirmInput.focus();
+      }
+      updateConfirmBtn();
+    }
+  }
+
+  function closeDangerModal() {
+    if (dangerModal) {
+      dangerModal.classList.add('hidden');
+    }
+  }
+
+  function updateConfirmBtn() {
+    if (!confirmInput || !confirmDeleteBtn) return;
+    if (confirmInput.value.trim() === 'Core Team') {
+      confirmDeleteBtn.disabled = false;
+      confirmDeleteBtn.classList.remove('bg-error/40', 'cursor-not-allowed');
+      confirmDeleteBtn.classList.add('bg-error', 'hover:bg-error/90', 'cursor-pointer');
+    } else {
+      confirmDeleteBtn.disabled = true;
+      confirmDeleteBtn.classList.remove('bg-error', 'hover:bg-error/90', 'cursor-pointer');
+      confirmDeleteBtn.classList.add('bg-error/40', 'cursor-not-allowed');
+    }
+  }
+
+  if (confirmInput) {
+    confirmInput.addEventListener('input', updateConfirmBtn);
+  }
+
+  if (confirmDeleteBtn) {
+    confirmDeleteBtn.addEventListener('click', () => {
+      closeDangerModal();
+      triggerToast('所有数据已安全重置，即将载入空状态工作区...');
+    });
+  }
+
+  // Save changes feedback
+  const saveAllBtn = document.getElementById('saveAllBtn');
+  if (saveAllBtn) {
+    saveAllBtn.addEventListener('click', () => {
+      triggerToast('系统数据与安全策略已实时保存生效');
+    });
+  }
+
+  const discardBtn = document.getElementById('discardBtn');
+  if (discardBtn) {
+    discardBtn.addEventListener('click', () => {
+      triggerToast('已还原为上一次保存的状态');
+    });
+  }
+
+  // Drag & drop file feedback
+  const fileInput = document.getElementById('fileInput');
+  const dropZone = document.getElementById('dropZone');
+  if (fileInput && dropZone) {
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files && e.target.files.length > 0) {
+        triggerToast(`成功解析文件: ${e.target.files[0].name}，准备导入数据预览...`);
+      }
+    });
+  }
+</script></main></div></body></html>

@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet"/><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config={darkMode:"class",theme:{extend:{colors:{"surface-bright":"#f8f9ff","on-surface-variant":"#434655","background":"#f8f9ff","primary-container":"#2563eb","secondary-fixed-dim":"#4edea3","on-primary-fixed":"#00174b","tertiary-fixed-dim":"#ffb596","inverse-primary":"#b4c5ff","surface-container-high":"#dce9ff","on-surface":"#0b1c30","on-secondary-container":"#00714d","surface":"#f8f9ff","on-tertiary-fixed":"#360f00","error":"#ba1a1a","outline":"#737686","surface-tint":"#0053db","inverse-surface":"#213145","error-container":"#ffdad6","primary-fixed-dim":"#b4c5ff","surface-dim":"#cbdbf5","on-secondary":"#ffffff","surface-container-highest":"#d3e4fe","on-secondary-fixed":"#002113","on-primary-fixed-variant":"#003ea8","tertiary-fixed":"#ffdbcd","on-primary":"#ffffff","primary-fixed":"#dbe1ff","primary":"#004ac6","secondary-fixed":"#6ffbbe","secondary":"#006c49","outline-variant":"#c3c6d7","surface-container-lowest":"#ffffff","on-tertiary-container":"#ffede6","on-error":"#ffffff","surface-container-low":"#eff4ff","secondary-container":"#6cf8bb","on-primary-container":"#eeefff","surface-variant":"#d3e4fe","on-tertiary-fixed-variant":"#7d2d00","on-error-container":"#93000a","tertiary":"#943700","tertiary-container":"#bc4800","surface-container":"#e5eeff","inverse-on-surface":"#eaf1ff","on-secondary-fixed-variant":"#005236","on-tertiary":"#ffffff","on-background":"#0b1c30"},borderRadius:{DEFAULT:"0.125rem",lg:"0.25rem",xl:"0.5rem",full:"0.75rem"},spacing:{"container-margin-desktop":"40px",sm:"8px",xl:"32px",xs:"4px",gutter:"16px","container-margin-mobile":"16px",md:"16px",lg:"24px",base:"4px"},fontFamily:{"label-caps":["Inter"],"body-sm":["Inter"],"headline-lg":["Inter"],"headline-md":["Inter"],"headline-lg-mobile":["Inter"],"body-lg":["Inter"],button:["Inter"]},fontSize:{"label-caps":["12px",{lineHeight:"16px",letterSpacing:"0.05em",fontWeight:"600"}],"body-sm":["14px",{lineHeight:"20px",fontWeight:"400"}],"headline-lg":["30px",{lineHeight:"38px",letterSpacing:"-0.02em",fontWeight:"700"}],"headline-md":["20px",{lineHeight:"28px",fontWeight:"600"}],"headline-lg-mobile":["24px",{lineHeight:"32px",letterSpacing:"-0.01em",fontWeight:"700"}],"body-lg":["16px",{lineHeight:"24px",fontWeight:"400"}],button:["14px",{lineHeight:"20px",fontWeight:"500"}]}}}}</script></head><body class="bg-surface font-body-sm text-body-sm text-on-surface"><aside class="fixed left-0 top-0 h-full w-64 bg-surface-container-lowest shadow-[0_1px_8px_rgba(0,0,0,0.04)] z-50 flex flex-col justify-between select-none"><div class="flex flex-col"><div class="h-16 flex items-center gap-3 px-6"><div class="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-on-primary"><span class="material-symbols-outlined text-[20px]">send</span></div><div class="flex flex-col"><span class="font-headline-md text-body-lg font-semibold tracking-tight text-on-surface leading-tight">寻鸽工作台</span><span class="font-label-caps text-label-caps text-on-surface-variant">Nexus Workspace</span></div></div><div class="px-4 pt-2 pb-3"><button class="w-full flex items-center justify-between px-3 py-2.5 rounded-lg bg-primary hover:bg-primary-container text-on-primary font-button text-button transition-all shadow-[0_1px_3px_rgba(0,0,0,0.1)]" type="button"><div class="flex items-center gap-2"><span class="material-symbols-outlined text-[18px]">bolt</span><span>灵感闪现</span></div><span class="font-label-caps text-label-caps bg-on-primary/20 text-on-primary px-1.5 py-0.5 rounded">⌘J</span></button></div><nav class="px-3 flex flex-col gap-1" data-active-classes="bg-primary-container text-on-primary-container font-semibold"><a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface font-button text-button transition-colors" data-path="workbench" href="#"><span class="material-symbols-outlined text-[20px]">grid_view</span><span>工作台</span></a><a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface font-button text-button transition-colors" data-path="crm" href="#"><span class="material-symbols-outlined text-[20px]">groups</span><span>客户管理</span></a><a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface font-button text-button transition-colors" data-path="finance" href="#"><span class="material-symbols-outlined text-[20px]">account_balance_wallet</span><span>财务中心</span></a><a aria-current="page" class="flex items-center gap-3 px-3 py-2 rounded-lg transition-colors bg-primary-container text-on-primary-container font-semibold" data-path="tasks" href="#"><span class="material-symbols-outlined text-[20px]">check_circle</span><span>待办事项</span></a><a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface font-button text-button transition-colors" data-path="notes" href="#"><span class="material-symbols-outlined text-[20px]">edit_note</span><span>团队笔记</span></a><a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface font-button text-button transition-colors" data-path="habits" href="#"><span class="material-symbols-outlined text-[20px]">event_repeat</span><span>打卡·习惯</span></a><a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface font-button text-button transition-colors" data-path="trophies" href="#"><span class="material-symbols-outlined text-[20px]">emoji_events</span><span>成就奖杯</span></a><a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface font-button text-button transition-colors" data-path="settings" href="#"><span class="material-symbols-outlined text-[20px]">settings</span><span>系统设置</span></a></nav></div><div class="p-3"><div class="flex items-center justify-between p-2 rounded-lg bg-surface-container-low hover:bg-surface-container transition-colors"><div class="flex items-center gap-2.5 min-w-0"><div class="relative flex-shrink-0"><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div><span class="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-secondary ring-2 ring-surface-container-lowest"></span></div><div class="flex flex-col min-w-0"><span class="font-button text-button text-on-surface truncate">陈致远</span><span class="font-label-caps text-label-caps text-on-surface-variant truncate">Core Team</span></div></div><button aria-label="切换用户" class="text-on-surface-variant hover:text-on-surface p-1 rounded transition-colors" type="button"><span class="material-symbols-outlined text-[18px]">unfold_more</span></button></div></div></aside><div class="pl-64"><header class="fixed top-0 left-64 right-0 h-16 bg-surface/80 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)] z-40 flex items-center justify-between px-8"><div class="flex items-center gap-2 font-body-sm text-body-sm"><span class="text-on-surface-variant">Nexus</span><span class="material-symbols-outlined text-outline text-[16px]">chevron_right</span><span class="font-button text-button text-on-surface font-medium">待办事项</span></div><div class="flex items-center gap-4"><div class="flex items-center gap-2 bg-surface-container-lowest px-3 py-1.5 rounded-lg text-on-surface-variant shadow-[0_1px_3px_rgba(0,0,0,0.05)]"><span class="material-symbols-outlined text-[18px] text-outline">search</span><span class="text-on-surface-variant font-body-sm text-body-sm pr-4">搜索工作区、任务或文档...</span><kbd class="font-label-caps text-label-caps bg-surface-container-high text-on-surface px-1.5 py-0.5 rounded">⌘K</kbd></div><div class="flex items-center gap-1.5 text-on-secondary-container bg-secondary-container/30 px-2.5 py-1 rounded-full font-label-caps text-label-caps"><span class="w-1.5 h-1.5 rounded-full bg-secondary animate-pulse"></span><span>云端已实时同步</span></div><div class="flex items-center gap-1 text-on-surface-variant"><button aria-label="帮助中心" class="p-1.5 rounded-lg hover:bg-surface-container-high hover:text-on-surface transition-colors" type="button"><span class="material-symbols-outlined text-[20px]">help</span></button><button aria-label="通知" class="relative p-1.5 rounded-lg hover:bg-surface-container-high hover:text-on-surface transition-colors" type="button"><span class="material-symbols-outlined text-[20px]">notifications</span><span class="absolute top-1 right-1 w-2 h-2 rounded-full bg-primary"></span></button></div><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div></div></header><main class="relative pt-16 bg-surface min-h-screen w-full px-8 py-6"><div class="flex flex-col w-full">
+<!-- Dynamic Sidebar & Header sync script -->
+<script>
+    (function () {
+      const asideNav = document.querySelector('aside nav');
+      if (asideNav) {
+        asideNav.querySelectorAll('a').forEach((link) => {
+          link.classList.remove('bg-primary-container', 'text-on-primary-container', 'font-semibold');
+          link.classList.add('text-on-surface-variant');
+        });
+        const crmLink = asideNav.querySelector('a[data-path="crm"]');
+        if (crmLink) {
+          crmLink.classList.remove('text-on-surface-variant');
+          crmLink.classList.add('bg-primary-container', 'text-on-primary-container', 'font-semibold');
+        }
+      }
+      const headerTitle = document.querySelector('header .font-button.text-button.text-on-surface');
+      if (headerTitle) {
+        headerTitle.textContent = '客户管理 CRM';
+      }
+    })();
+  </script>
+<!-- Top Metrics & Quick Operations Row -->
+<div class="grid grid-cols-12 gap-lg mb-xl">
+<div class="col-span-12 lg:col-span-8 flex flex-col justify-between p-lg bg-surface-container-lowest rounded-xl shadow-sm relative overflow-hidden">
+<div class="flex items-center justify-between z-10">
+<div>
+<span class="font-label-caps text-label-caps text-primary tracking-wider uppercase">Pipeline Overview</span>
+<h1 class="font-headline-lg text-headline-lg text-on-surface tracking-tight mt-xs">活跃客户与线索总览</h1>
+</div>
+<div class="flex items-center gap-sm">
+<button class="flex items-center gap-xs px-3 py-1.5 rounded-lg bg-surface-container-low text-on-surface font-button text-button hover:bg-surface-container transition-colors" type="button">
+<span class="material-symbols-outlined text-[18px]">tune</span>
+<span>筛选视图</span>
+</button>
+<button class="flex items-center gap-xs px-3.5 py-1.5 rounded-lg bg-primary text-on-primary font-button text-button shadow-sm hover:bg-primary-container transition-all" onclick="openDrawer()" type="button">
+<span class="material-symbols-outlined text-[18px]">person_add</span>
+<span>录入新客户</span>
+</button>
+</div>
+</div>
+<div class="grid grid-cols-4 gap-md mt-lg z-10">
+<div class="bg-surface-container-low p-md rounded-lg">
+<div class="flex items-center justify-between text-on-surface-variant">
+<span class="font-label-caps text-label-caps">战略合作 (S级)</span>
+<span class="material-symbols-outlined text-[16px] text-primary">verified</span>
+</div>
+<p class="font-headline-md text-headline-md text-on-surface mt-xs">48 <span class="font-body-sm text-body-sm text-secondary font-normal">+4 新增</span></p>
+</div>
+<div class="bg-surface-container-low p-md rounded-lg">
+<div class="flex items-center justify-between text-on-surface-variant">
+<span class="font-label-caps text-label-caps">重点跟进 (A级)</span>
+<span class="material-symbols-outlined text-[16px] text-tertiary">moving</span>
+</div>
+<p class="font-headline-md text-headline-md text-on-surface mt-xs">126 <span class="font-body-sm text-body-sm text-on-surface-variant font-normal">活跃中</span></p>
+</div>
+<div class="bg-surface-container-low p-md rounded-lg">
+<div class="flex items-center justify-between text-on-surface-variant">
+<span class="font-label-caps text-label-caps">近期签约率</span>
+<span class="material-symbols-outlined text-[16px] text-secondary">trending_up</span>
+</div>
+<p class="font-headline-md text-headline-md text-on-surface mt-xs">34.8%</p>
+</div>
+<div class="bg-surface-container-low p-md rounded-lg">
+<div class="flex items-center justify-between text-on-surface-variant">
+<span class="font-label-caps text-label-caps">未跟进提醒</span>
+<span class="material-symbols-outlined text-[16px] text-error">priority_high</span>
+</div>
+<p class="font-headline-md text-headline-md text-error mt-xs">3 家</p>
+</div>
+</div>
+<!-- Ambient vector chart pattern -->
+<svg class="absolute right-0 bottom-0 text-surface-container w-72 h-28 pointer-events-none opacity-60" fill="none" viewbox="0 0 288 112" xmlns="http://www.w3.org/2000/svg">
+<path d="M0 80C40 60 70 95 110 50C150 5 190 60 230 30C260 8 275 18 288 12V112H0V80Z" fill="currentColor"></path>
+</svg>
+</div>
+<!-- Quick Team Pulse / Lead Quality -->
+<div class="col-span-12 lg:col-span-4 bg-surface-container-lowest p-lg rounded-xl shadow-sm flex flex-col justify-between">
+<div class="flex items-center justify-between">
+<div class="flex flex-col">
+<span class="font-label-caps text-label-caps text-on-surface-variant uppercase">Pipeline Health</span>
+<span class="font-headline-md text-headline-md text-on-surface mt-xs">线索漏斗分布</span>
+</div>
+<span class="px-2.5 py-1 bg-secondary-container/40 text-on-secondary-container font-label-caps text-label-caps rounded-full">转化稳定</span>
+</div>
+<div class="flex items-center gap-md py-sm">
+<div class="relative w-24 h-24 flex-shrink-0 flex items-center justify-center">
+<svg class="w-full h-full transform -rotate-90" viewbox="0 0 36 36">
+<path class="text-surface-container" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-width="3.5"></path>
+<path class="text-primary" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-dasharray="45, 100" stroke-linecap="round" stroke-width="3.5"></path>
+<path class="text-secondary" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-dasharray="30, 100" stroke-dashoffset="-45" stroke-linecap="round" stroke-width="3.5"></path>
+<path class="text-tertiary" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-dasharray="15, 100" stroke-dashoffset="-75" stroke-linecap="round" stroke-width="3.5"></path>
+</svg>
+<div class="absolute flex flex-col items-center">
+<span class="font-headline-md text-headline-md text-on-surface leading-tight">328</span>
+<span class="font-label-caps text-[10px] text-on-surface-variant">总量</span>
+</div>
+</div>
+<div class="flex flex-col gap-xs flex-grow min-w-0 font-body-sm text-body-sm">
+<div class="flex items-center justify-between">
+<span class="flex items-center gap-1.5 text-on-surface-variant truncate"><span class="w-2 h-2 rounded-full bg-primary flex-shrink-0"></span>签约推进 (45%)</span>
+<span class="font-button text-button text-on-surface">148</span>
+</div>
+<div class="flex items-center justify-between">
+<span class="flex items-center gap-1.5 text-on-surface-variant truncate"><span class="w-2 h-2 rounded-full bg-secondary flex-shrink-0"></span>意向初筛 (30%)</span>
+<span class="font-button text-button text-on-surface">98</span>
+</div>
+<div class="flex items-center justify-between">
+<span class="flex items-center gap-1.5 text-on-surface-variant truncate"><span class="w-2 h-2 rounded-full bg-tertiary flex-shrink-0"></span>潜在培育 (15%)</span>
+<span class="font-button text-button text-on-surface">50</span>
+</div>
+</div>
+</div>
+<div class="flex items-center justify-between pt-2 border-none">
+<span class="font-label-caps text-label-caps text-on-surface-variant">本周已完成商务对齐 19 次</span>
+<a class="font-button text-button text-primary hover:underline" href="#">导出分析</a>
+</div>
+</div>
+</div>
+<!-- Background Customer List / Main Workspace Table -->
+<div class="w-full bg-surface-container-lowest rounded-xl shadow-sm p-lg flex flex-col">
+<!-- Filters and Table Controls -->
+<div class="flex items-center justify-between mb-md pb-md bg-surface-container-low/40 p-3 rounded-lg">
+<div class="flex items-center gap-md">
+<div class="relative">
+<span class="material-symbols-outlined absolute left-2.5 top-2 text-[18px] text-outline">search</span>
+<input class="w-72 bg-surface-container-lowest pl-9 pr-3 py-1.5 rounded-lg font-body-sm text-body-sm text-on-surface placeholder:text-outline focus:outline-none focus:ring-1 focus:ring-primary shadow-xs" placeholder="按客户姓名、企业、标签模糊搜索..." type="text"/>
+</div>
+<div class="flex items-center gap-xs">
+<button class="px-3 py-1.5 rounded-lg bg-surface-container-lowest text-on-surface font-button text-button shadow-xs flex items-center gap-1 hover:bg-surface-container-low transition-colors">
+<span>等级: 全部</span>
+<span class="material-symbols-outlined text-[16px]">expand_more</span>
+</button>
+<button class="px-3 py-1.5 rounded-lg bg-surface-container-lowest text-on-surface font-button text-button shadow-xs flex items-center gap-1 hover:bg-surface-container-low transition-colors">
+<span>所属行业: 全部</span>
+<span class="material-symbols-outlined text-[16px]">expand_more</span>
+</button>
+</div>
+</div>
+<div class="flex items-center gap-xs">
+<span class="font-label-caps text-label-caps text-on-surface-variant mr-1">共 249 位客户</span>
+<button class="p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container-lowest transition-colors" title="批量导出">
+<span class="material-symbols-outlined text-[20px]">download</span>
+</button>
+<button class="p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container-lowest transition-colors" title="列表设置">
+<span class="material-symbols-outlined text-[20px]">view_column</span>
+</button>
+</div>
+</div>
+<!-- Data Table -->
+<div class="overflow-x-auto w-full">
+<table class="w-full text-left font-body-sm text-body-sm">
+<thead>
+<tr class="text-on-surface-variant font-label-caps text-label-caps bg-surface-container-low/60 rounded-lg">
+<th class="py-3 px-4 rounded-l-lg font-semibold">客户主体</th>
+<th class="py-3 px-4 font-semibold">公司 / 行业</th>
+<th class="py-3 px-4 font-semibold">联络方式</th>
+<th class="py-3 px-4 font-semibold">层级 / 状态</th>
+<th class="py-3 px-4 font-semibold">业务标签</th>
+<th class="py-3 px-4 font-semibold">关联项目 / 财务</th>
+<th class="py-3 px-4 rounded-r-lg font-semibold text-right">快捷操作</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-transparent">
+<!-- Row 1 -->
+<tr class="hover:bg-surface-container-low/50 transition-colors group cursor-pointer" onclick="openDrawer()">
+<td class="py-3.5 px-4 flex items-center gap-3">
+<div class="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-on-primary font-headline-md text-[15px] font-semibold flex-shrink-0">
+                陆
+              </div>
+<div class="flex flex-col min-w-0">
+<span class="font-button text-button text-on-surface group-hover:text-primary transition-colors truncate">陆思明</span>
+<span class="font-label-caps text-label-caps text-on-surface-variant truncate">技术副总裁 · 决策人</span>
+</div>
+</td>
+<td class="py-3.5 px-4">
+<div class="flex flex-col min-w-0">
+<span class="text-on-surface font-medium truncate">云峰智能科技</span>
+<span class="font-label-caps text-label-caps text-on-surface-variant">SaaS / 工业软件</span>
+</div>
+</td>
+<td class="py-3.5 px-4">
+<div class="flex flex-col text-on-surface-variant font-body-sm text-body-sm">
+<span>139 1882 9901</span>
+<span class="text-[12px] opacity-80">siming.lu@yunfeng.ai</span>
+</div>
+</td>
+<td class="py-3.5 px-4">
+<div class="flex items-center gap-1.5">
+<span class="px-2 py-0.5 rounded-full bg-primary-fixed text-on-primary-fixed-variant font-label-caps text-label-caps font-semibold">S级客户</span>
+<span class="px-2 py-0.5 rounded-full bg-secondary-container/40 text-on-secondary-container font-label-caps text-label-caps">方案评审中</span>
+</div>
+</td>
+<td class="py-3.5 px-4">
+<div class="flex items-center gap-1 flex-wrap">
+<span class="px-2 py-0.5 rounded-md bg-surface-container text-on-surface-variant text-[11px]">高复购潜力</span>
+<span class="px-2 py-0.5 rounded-md bg-secondary-container/30 text-on-secondary-container text-[11px]">长三角基地</span>
+</div>
+</td>
+<td class="py-3.5 px-4">
+<div class="flex flex-col gap-0.5">
+<span class="text-[12px] text-primary hover:underline truncate">Nexus V2 智造交付</span>
+<span class="text-[11px] text-on-surface-variant">账本: 智能云制造专项 (¥420,000)</span>
+</div>
+</td>
+<td class="py-3.5 px-4 text-right">
+<button class="p-1 rounded hover:bg-surface-container text-on-surface-variant hover:text-on-surface" title="编辑客户" type="button">
+<span class="material-symbols-outlined text-[18px]">edit</span>
+</button>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-surface-container-low/50 transition-colors group cursor-pointer" onclick="openDrawer()">
+<td class="py-3.5 px-4 flex items-center gap-3">
+<div class="w-9 h-9 rounded-full bg-secondary flex items-center justify-center text-on-secondary font-headline-md text-[15px] font-semibold flex-shrink-0">
+                宋
+              </div>
+<div class="flex flex-col min-w-0">
+<span class="font-button text-button text-on-surface group-hover:text-primary transition-colors truncate">宋羽然</span>
+<span class="font-label-caps text-label-caps text-on-surface-variant truncate">商务总监 · 商务接口人</span>
+</div>
+</td>
+<td class="py-3.5 px-4">
+<div class="flex flex-col min-w-0">
+<span class="text-on-surface font-medium truncate">星瀚生命科学</span>
+<span class="font-label-caps text-label-caps text-on-surface-variant">生物医疗 / 医药研发</span>
+</div>
+</td>
+<td class="py-3.5 px-4">
+<div class="flex flex-col text-on-surface-variant font-body-sm text-body-sm">
+<span>186 2103 4488</span>
+<span class="text-[12px] opacity-80">yuran.song@starbio.cn</span>
+</div>
+</td>
+<td class="py-3.5 px-4">
+<div class="flex items-center gap-1.5">
+<span class="px-2 py-0.5 rounded-full bg-secondary-container text-on-secondary-container font-label-caps text-label-caps font-semibold">A级客户</span>
+<span class="px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant font-label-caps text-label-caps">合同签署期</span>
+</div>
+</td>
+<td class="py-3.5 px-4">
+<div class="flex items-center gap-1 flex-wrap">
+<span class="px-2 py-0.5 rounded-md bg-surface-container text-on-surface-variant text-[11px]">季度结清</span>
+<span class="px-2 py-0.5 rounded-md bg-tertiary-fixed text-on-tertiary-fixed-variant text-[11px]">出海扩展</span>
+</div>
+</td>
+<td class="py-3.5 px-4">
+<div class="flex flex-col gap-0.5">
+<span class="text-[12px] text-primary hover:underline truncate">实验室信息平台部署</span>
+<span class="text-[11px] text-on-surface-variant">账本: 医药研发常年顾问</span>
+</div>
+</td>
+<td class="py-3.5 px-4 text-right">
+<button class="p-1 rounded hover:bg-surface-container text-on-surface-variant hover:text-on-surface" title="编辑客户" type="button">
+<span class="material-symbols-outlined text-[18px]">edit</span>
+</button>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-surface-container-low/50 transition-colors group cursor-pointer" onclick="openDrawer()">
+<td class="py-3.5 px-4 flex items-center gap-3">
+<div class="w-9 h-9 rounded-full bg-tertiary-container flex items-center justify-center text-on-tertiary-container font-headline-md text-[15px] font-semibold flex-shrink-0">
+                周
+              </div>
+<div class="flex flex-col min-w-0">
+<span class="font-button text-button text-on-surface group-hover:text-primary transition-colors truncate">周恺文</span>
+<span class="font-label-caps text-label-caps text-on-surface-variant truncate">创始合伙人 · 实际控制人</span>
+</div>
+</td>
+<td class="py-3.5 px-4">
+<div class="flex flex-col min-w-0">
+<span class="text-on-surface font-medium truncate">极客维度资本</span>
+<span class="font-label-caps text-label-caps text-on-surface-variant">风险投资 / 金融</span>
+</div>
+</td>
+<td class="py-3.5 px-4">
+<div class="flex flex-col text-on-surface-variant font-body-sm text-body-sm">
+<span>133 9920 1883</span>
+<span class="text-[12px] opacity-80">kaiwen@geekvc.fund</span>
+</div>
+</td>
+<td class="py-3.5 px-4">
+<div class="flex items-center gap-1.5">
+<span class="px-2 py-0.5 rounded-full bg-surface-container-highest text-on-surface-variant font-label-caps text-label-caps font-semibold">潜在客户</span>
+<span class="px-2 py-0.5 rounded-full bg-tertiary-fixed text-on-tertiary-fixed-variant font-label-caps text-label-caps">首轮交流完毕</span>
+</div>
+</td>
+<td class="py-3.5 px-4">
+<div class="flex items-center gap-1 flex-wrap">
+<span class="px-2 py-0.5 rounded-md bg-surface-container text-on-surface-variant text-[11px]">被投企业协同</span>
+</div>
+</td>
+<td class="py-3.5 px-4">
+<div class="flex flex-col gap-0.5">
+<span class="text-[12px] text-outline truncate">未关联待办</span>
+<span class="text-[11px] text-on-surface-variant">账本: 待建账</span>
+</div>
+</td>
+<td class="py-3.5 px-4 text-right">
+<button class="p-1 rounded hover:bg-surface-container text-on-surface-variant hover:text-on-surface" title="编辑客户" type="button">
+<span class="material-symbols-outlined text-[18px]">edit</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Pagination / Footer Info -->
+<div class="flex items-center justify-between pt-md mt-md text-on-surface-variant font-body-sm text-body-sm">
+<span>显示第 1 至 3 条，共 249 位客户记录</span>
+<div class="flex items-center gap-1">
+<button class="px-2.5 py-1 rounded bg-surface-container-low hover:bg-surface-container text-on-surface transition-colors disabled:opacity-50">上一页</button>
+<button class="px-3 py-1 rounded bg-primary text-on-primary font-medium">1</button>
+<button class="px-3 py-1 rounded bg-surface-container-low hover:bg-surface-container text-on-surface transition-colors">2</button>
+<button class="px-3 py-1 rounded bg-surface-container-low hover:bg-surface-container text-on-surface transition-colors">3</button>
+<span class="px-1 text-outline">...</span>
+<button class="px-3 py-1 rounded bg-surface-container-low hover:bg-surface-container text-on-surface transition-colors">25</button>
+<button class="px-2.5 py-1 rounded bg-surface-container-low hover:bg-surface-container text-on-surface transition-colors">下一页</button>
+</div>
+</div>
+</div>
+<!-- DRAWER OVERLAY & CONTAINER -->
+<div class="fixed inset-0 bg-on-surface/20 backdrop-blur-[2px] z-50 transition-opacity duration-300" id="drawerOverlay" onclick="closeDrawer(event)">
+<!-- DRAWER SLIDE PANEL -->
+<div class="absolute right-0 top-0 bottom-0 w-[550px] max-w-full bg-surface-container-lowest shadow-2xl flex flex-col z-50 transform transition-transform duration-300 ease-out translate-x-0" id="customerDrawer" onclick="event.stopPropagation()">
+<!-- Drawer Header -->
+<div class="h-16 px-6 bg-surface-container-lowest flex items-center justify-between flex-shrink-0 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-lg bg-primary-container/20 text-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-[20px]">person_add</span>
+</div>
+<div class="flex flex-col">
+<div class="flex items-center gap-2">
+<span class="font-headline-md text-[18px] text-on-surface font-semibold">新建客户档案</span>
+<span class="font-label-caps text-label-caps text-on-surface-variant">New Customer</span>
+</div>
+<span class="font-label-caps text-[11px] text-on-surface-variant">完善档案以同步进入组织销售协同链</span>
+</div>
+</div>
+<div class="flex items-center gap-1">
+<button class="p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-colors" id="expandToggleBtn" onclick="toggleDrawerExpand()" title="全屏扩展" type="button">
+<span class="material-symbols-outlined text-[20px]">open_in_full</span>
+</button>
+<button class="flex items-center gap-1 px-2 py-1 rounded-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-colors" onclick="closeDrawer()" title="关闭 (Esc)" type="button">
+<kbd class="font-label-caps text-[11px] bg-surface-container text-on-surface-variant px-1.5 py-0.5 rounded">Esc</kbd>
+<span class="material-symbols-outlined text-[20px]">close</span>
+</button>
+</div>
+</div>
+<!-- Drawer Scrollable Form Content -->
+<div class="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+<!-- Module 1: 基础画像 -->
+<section class="bg-surface-container-low/70 p-4 rounded-xl space-y-4">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="w-1.5 h-3.5 bg-primary rounded-full"></span>
+<h3 class="font-button text-button text-on-surface font-semibold">1. 基础画像</h3>
+</div>
+<span class="font-label-caps text-label-caps text-error">* 必填字段</span>
+</div>
+<!-- Name & Dynamic Avatar Preview Row -->
+<div class="flex items-center gap-4 bg-surface-container-lowest p-3 rounded-lg shadow-xs">
+<div class="w-12 h-12 rounded-full bg-primary text-on-primary font-headline-md text-[20px] flex items-center justify-center flex-shrink-0 shadow-sm transition-all" id="avatarPreviewBox">
+              客
+            </div>
+<div class="flex-grow min-w-0">
+<label class="block font-label-caps text-label-caps text-on-surface-variant mb-1">客户姓名 <span class="text-error">*</span></label>
+<input class="w-full bg-surface-container-low px-3 py-1.5 rounded-md font-body-sm text-body-sm text-on-surface placeholder:text-outline focus:outline-none focus:ring-1 focus:ring-primary" id="custNameInput" oninput="updateAvatarName(this.value)" placeholder="输入客户姓名 (如：陆思明)" required="" type="text"/>
+</div>
+</div>
+<!-- Company & Industry -->
+<div class="grid grid-cols-2 gap-3">
+<div>
+<label class="block font-label-caps text-label-caps text-on-surface-variant mb-1">公司全称 / 组织机构</label>
+<input class="w-full bg-surface-container-lowest px-3 py-2 rounded-md font-body-sm text-body-sm text-on-surface placeholder:text-outline focus:outline-none focus:ring-1 focus:ring-primary shadow-xs" placeholder="例如：云峰智能科技有限公司" type="text"/>
+</div>
+<div>
+<label class="block font-label-caps text-label-caps text-on-surface-variant mb-1">所属行业领域</label>
+<select class="w-full bg-surface-container-lowest px-3 py-2 rounded-md font-body-sm text-body-sm text-on-surface focus:outline-none focus:ring-1 focus:ring-primary shadow-xs">
+<option value="">选择行业</option>
+<option selected="" value="saas">企业软件 / SaaS / 工业软件</option>
+<option value="bio">生物医药 / 生命科学</option>
+<option value="finance">金融资本 / 风险投资</option>
+<option value="manufacturing">智能高端制造</option>
+<option value="retail">新零售与跨境出海</option>
+</select>
+</div>
+</div>
+<!-- Job Title & Role Weight -->
+<div>
+<label class="block font-label-caps text-label-caps text-on-surface-variant mb-1">职务 / 业务头衔与决策层级</label>
+<div class="relative">
+<input class="w-full bg-surface-container-lowest px-3 py-2 rounded-md font-body-sm text-body-sm text-on-surface placeholder:text-outline focus:outline-none focus:ring-1 focus:ring-primary shadow-xs" placeholder="如：技术副总裁 / 关键决策人 (VP)" type="text"/>
+<div class="absolute right-2 top-2 flex items-center gap-1">
+<span class="px-2 py-0.5 rounded bg-surface-container text-on-surface-variant font-label-caps text-[10px]">签字人</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Module 2: 联络通道 -->
+<section class="bg-surface-container-low/70 p-4 rounded-xl space-y-3">
+<div class="flex items-center gap-2">
+<span class="w-1.5 h-3.5 bg-secondary rounded-full"></span>
+<h3 class="font-button text-button text-on-surface font-semibold">2. 联络通道</h3>
+</div>
+<div class="grid grid-cols-2 gap-3">
+<div>
+<label class="block font-label-caps text-label-caps text-on-surface-variant mb-1">手机号码</label>
+<div class="relative flex items-center">
+<span class="material-symbols-outlined absolute left-2.5 text-[16px] text-outline">call</span>
+<input class="w-full bg-surface-container-lowest pl-8 pr-3 py-2 rounded-md font-body-sm text-body-sm text-on-surface placeholder:text-outline focus:outline-none focus:ring-1 focus:ring-primary shadow-xs" placeholder="+86 138-0000-0000" type="tel"/>
+</div>
+</div>
+<div>
+<label class="block font-label-caps text-label-caps text-on-surface-variant mb-1">微信号 (WeChat ID)</label>
+<div class="relative flex items-center">
+<span class="material-symbols-outlined absolute left-2.5 text-[16px] text-outline">chat</span>
+<input class="w-full bg-surface-container-lowest pl-8 pr-3 py-2 rounded-md font-body-sm text-body-sm text-on-surface placeholder:text-outline focus:outline-none focus:ring-1 focus:ring-primary shadow-xs" placeholder="个人或企业微信" type="text"/>
+</div>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-3">
+<div>
+<label class="block font-label-caps text-label-caps text-on-surface-variant mb-1">商务电子邮箱</label>
+<div class="relative flex items-center">
+<span class="material-symbols-outlined absolute left-2.5 text-[16px] text-outline">mail</span>
+<input class="w-full bg-surface-container-lowest pl-8 pr-3 py-2 rounded-md font-body-sm text-body-sm text-on-surface placeholder:text-outline focus:outline-none focus:ring-1 focus:ring-primary shadow-xs" placeholder="name@company.com" type="email"/>
+</div>
+</div>
+<div>
+<label class="block font-label-caps text-label-caps text-on-surface-variant mb-1">常驻办公地点</label>
+<div class="relative flex items-center">
+<span class="material-symbols-outlined absolute left-2.5 text-[16px] text-outline">location_on</span>
+<input class="w-full bg-surface-container-lowest pl-8 pr-3 py-2 rounded-md font-body-sm text-body-sm text-on-surface placeholder:text-outline focus:outline-none focus:ring-1 focus:ring-primary shadow-xs" placeholder="例如：上海浦东·张江科创园" type="text"/>
+</div>
+</div>
+</div>
+</section>
+<!-- Module 3: 业务属性与单行彩色标签 -->
+<section class="bg-surface-container-low/70 p-4 rounded-xl space-y-3">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="w-1.5 h-3.5 bg-tertiary rounded-full"></span>
+<h3 class="font-button text-button text-on-surface font-semibold">3. 业务属性与单行彩色标签</h3>
+</div>
+<span class="font-label-caps text-[11px] text-on-surface-variant">回车快速生成标签</span>
+</div>
+<!-- Customer Level & Pipeline Stage -->
+<div class="grid grid-cols-2 gap-3">
+<div>
+<label class="block font-label-caps text-label-caps text-on-surface-variant mb-1">客户层级</label>
+<div class="flex items-center gap-1.5 bg-surface-container-lowest p-1 rounded-lg shadow-xs">
+<label class="flex-1 text-center cursor-pointer">
+<input checked="" class="hidden peer" name="cust_grade" type="radio" value="S"/>
+<span class="block py-1 rounded text-[12px] font-medium peer-checked:bg-primary-container peer-checked:text-on-primary-container text-on-surface-variant hover:bg-surface-container transition-all">S级·战略</span>
+</label>
+<label class="flex-1 text-center cursor-pointer">
+<input class="hidden peer" name="cust_grade" type="radio" value="A"/>
+<span class="block py-1 rounded text-[12px] font-medium peer-checked:bg-secondary peer-checked:text-on-secondary text-on-surface-variant hover:bg-surface-container transition-all">A级·重点</span>
+</label>
+<label class="flex-1 text-center cursor-pointer">
+<input class="hidden peer" name="cust_grade" type="radio" value="Lead"/>
+<span class="block py-1 rounded text-[12px] font-medium peer-checked:bg-surface-container-highest peer-checked:text-on-surface text-on-surface-variant hover:bg-surface-container transition-all">潜在培育</span>
+</label>
+</div>
+</div>
+<div>
+<label class="block font-label-caps text-label-caps text-on-surface-variant mb-1">跟进推进状态</label>
+<select class="w-full bg-surface-container-lowest px-3 py-2 rounded-md font-body-sm text-body-sm text-on-surface focus:outline-none focus:ring-1 focus:ring-primary shadow-xs">
+<option>首轮需求调研沟通</option>
+<option selected="">方案评审与报价对齐</option>
+<option>商务法务合同签约中</option>
+<option>已签发并启动交付</option>
+</select>
+</div>
+</div>
+<!-- Single-line Capsule Tag Input Container -->
+<div>
+<label class="block font-label-caps text-label-caps text-on-surface-variant mb-1.5">标签 (单行输入，按回车添加 / 点击库推荐)</label>
+<div class="flex items-center gap-1.5 overflow-x-auto whitespace-nowrap bg-surface-container-lowest p-1.5 rounded-lg shadow-xs min-h-[42px]" id="tagContainer">
+<!-- Active Tags -->
+<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-secondary-container/50 text-on-secondary-container font-label-caps text-[11px] font-medium flex-shrink-0">
+<span>高复购潜力</span>
+<span class="material-symbols-outlined text-[14px] cursor-pointer hover:opacity-75" onclick="this.parentElement.remove()">close</span>
+</span>
+<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary-fixed text-on-primary-fixed-variant font-label-caps text-[11px] font-medium flex-shrink-0">
+<span>长三角决策圈</span>
+<span class="material-symbols-outlined text-[14px] cursor-pointer hover:opacity-75" onclick="this.parentElement.remove()">close</span>
+</span>
+<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-tertiary-fixed text-on-tertiary-fixed-variant font-label-caps text-[11px] font-medium flex-shrink-0">
+<span>行业KOL</span>
+<span class="material-symbols-outlined text-[14px] cursor-pointer hover:opacity-75" onclick="this.parentElement.remove()">close</span>
+</span>
+<!-- Tag Input Field -->
+<input class="flex-1 min-w-[120px] bg-transparent px-2 py-1 font-body-sm text-body-sm text-on-surface placeholder:text-outline focus:outline-none" id="newTagInput" onkeydown="handleTagKeydown(event)" placeholder="+ 回车键新增标签..." type="text"/>
+</div>
+<!-- Pre-defined Tag Suggestions -->
+<div class="flex items-center gap-1.5 mt-2 flex-wrap text-[11px]">
+<span class="font-label-caps text-on-surface-variant text-[10px]">推荐快捷标签:</span>
+<button class="px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant hover:bg-surface-container-high transition-colors" onclick="addTagFromPreset('直客签约', 'bg-secondary-container/50', 'text-on-secondary-container')" type="button">+ 直客签约</button>
+<button class="px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant hover:bg-surface-container-high transition-colors" onclick="addTagFromPreset('年度大客户', 'bg-primary-fixed', 'text-on-primary-fixed-variant')" type="button">+ 年度大客户</button>
+<button class="px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant hover:bg-surface-container-high transition-colors" onclick="addTagFromPreset('技术驱动', 'bg-tertiary-fixed', 'text-on-tertiary-fixed-variant')" type="button">+ 技术驱动</button>
+<button class="px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant hover:bg-surface-container-high transition-colors" onclick="addTagFromPreset('急需POC', 'bg-error-container', 'text-on-error-container')" type="button">+ 急需POC</button>
+</div>
+</div>
+</section>
+<!-- Module 4: 跨模块关联初始化（整行独立展示） -->
+<section class="bg-surface-container-low/70 p-4 rounded-xl space-y-3">
+<div class="flex items-center gap-2">
+<span class="w-1.5 h-3.5 bg-primary-container rounded-full"></span>
+<h3 class="font-button text-button text-on-surface font-semibold">4. 跨模块关联初始化</h3>
+</div>
+<!-- Cross-Module Item 1: Tasks / Project -->
+<div class="flex items-center justify-between p-3 rounded-lg bg-surface-container-lowest shadow-xs">
+<div class="flex items-center gap-2.5 min-w-0 flex-1">
+<div class="w-7 h-7 rounded-md bg-primary-container/20 text-primary flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-[18px]">check_circle</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-label-caps text-label-caps text-on-surface-variant">关联项目 / 待办事项</span>
+<div class="flex items-center gap-1.5 mt-0.5">
+<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-surface-container-high text-on-surface font-label-caps text-[11px]">
+<span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
+<span>Q2 企业级客户交付与接入评审</span>
+</span>
+</div>
+</div>
+</div>
+<a class="flex items-center gap-1 text-primary hover:underline font-label-caps text-label-caps flex-shrink-0 ml-2" href="#">
+<span>去待办中心维护</span>
+<span class="material-symbols-outlined text-[14px]">arrow_outward</span>
+</a>
+</div>
+<!-- Cross-Module Item 2: Finance Ledger -->
+<div class="flex items-center justify-between p-3 rounded-lg bg-surface-container-lowest shadow-xs">
+<div class="flex items-center gap-2.5 min-w-0 flex-1">
+<div class="w-7 h-7 rounded-md bg-secondary-container/40 text-secondary flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-[18px]">account_balance_wallet</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-label-caps text-label-caps text-on-surface-variant">关联初始财务账本</span>
+<div class="flex items-center gap-1.5 mt-0.5">
+<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-secondary-container/40 text-on-secondary-container font-label-caps text-[11px]">
+<span>2025年度 智能企业交付主科目 (¥500,000)</span>
+</span>
+</div>
+</div>
+</div>
+<a class="flex items-center gap-1 text-primary hover:underline font-label-caps text-label-caps flex-shrink-0 ml-2" href="#">
+<span>去财务中心维护</span>
+<span class="material-symbols-outlined text-[14px]">arrow_outward</span>
+</a>
+</div>
+</section>
+<!-- Module 5: 初次联系备忘与沟通记录 -->
+<section class="bg-surface-container-low/70 p-4 rounded-xl space-y-2.5">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="w-1.5 h-3.5 bg-outline rounded-full"></span>
+<h3 class="font-button text-button text-on-surface font-semibold">5. 初次联系备忘与关键需求</h3>
+</div>
+<div class="flex items-center gap-1 text-on-surface-variant text-[11px]">
+<span class="material-symbols-outlined text-[14px]">markdown</span>
+<span>支持 Markdown</span>
+</div>
+</div>
+<div class="relative bg-surface-container-lowest rounded-lg p-2.5 shadow-xs">
+<!-- Mini Markdown Toolbar -->
+<div class="flex items-center gap-2 pb-2 mb-2 border-b border-transparent bg-surface-container-low/50 px-2 py-1 rounded">
+<button class="text-on-surface-variant hover:text-on-surface text-[12px] font-bold" title="加粗" type="button">B</button>
+<button class="text-on-surface-variant hover:text-on-surface text-[12px] italic" title="斜体" type="button">I</button>
+<span class="w-px h-3 bg-outline-variant"></span>
+<button class="material-symbols-outlined text-[16px] text-on-surface-variant hover:text-on-surface" title="无序列表" type="button">format_list_bulleted</button>
+<button class="material-symbols-outlined text-[16px] text-on-surface-variant hover:text-on-surface" title="任务清单" type="button">checklist</button>
+<button class="material-symbols-outlined text-[16px] text-on-surface-variant hover:text-on-surface" title="插入引用" type="button">format_quote</button>
+</div>
+<textarea class="w-full bg-transparent p-1 font-body-sm text-body-sm text-on-surface placeholder:text-outline focus:outline-none resize-none" placeholder="- 初次沟通触点：线上高管闭门会
+- 核心关注痛点：跨部门多端同步延时、私有化部署合规
+- 下一步计划：本周五前输出定制化解决方案方案草案" rows="4"></textarea>
+</div>
+</section>
+</div>
+<!-- Drawer Fixed Bottom Operation Bar -->
+<div class="h-20 px-6 bg-surface-container-lowest flex items-center justify-between flex-shrink-0 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
+<label class="flex items-center gap-2 cursor-pointer select-none">
+<input class="w-4 h-4 rounded text-primary focus:ring-primary accent-primary" id="continueNextCheckbox" type="checkbox"/>
+<span class="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors">创建后继续录入下一个</span>
+</label>
+<div class="flex items-center gap-3">
+<button class="px-4 py-2 rounded-lg bg-surface-container-low text-on-surface font-button text-button hover:bg-surface-container transition-colors" onclick="closeDrawer()" type="button">
+            取消
+          </button>
+<button class="flex items-center gap-2 px-5 py-2 rounded-lg bg-primary text-on-primary font-button text-button shadow-md hover:bg-primary-container transition-all" onclick="submitCreateCustomer()" type="button">
+<span>立即创建客户</span>
+<kbd class="font-label-caps text-[11px] bg-on-primary/20 text-on-primary px-1.5 py-0.5 rounded">⌘ ↵</kbd>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Interactive Logic for Drawer and Tag Pills -->
+<script>
+    let isExpanded = false;
+
+    function openDrawer() {
+      const drawer = document.getElementById('customerDrawer');
+      const overlay = document.getElementById('drawerOverlay');
+      overlay.classList.remove('hidden', 'pointer-events-none', 'opacity-0');
+      overlay.classList.add('opacity-100');
+      drawer.classList.remove('translate-x-full');
+      drawer.classList.add('translate-x-0');
+      document.getElementById('custNameInput').focus();
+    }
+
+    function closeDrawer() {
+      const drawer = document.getElementById('customerDrawer');
+      const overlay = document.getElementById('drawerOverlay');
+      drawer.classList.remove('translate-x-0');
+      drawer.classList.add('translate-x-full');
+      overlay.classList.remove('opacity-100');
+      overlay.classList.add('opacity-0', 'pointer-events-none');
+    }
+
+    function toggleDrawerExpand() {
+      const drawer = document.getElementById('customerDrawer');
+      const icon = document.querySelector('#expandToggleBtn span');
+      isExpanded = !isExpanded;
+      if (isExpanded) {
+        drawer.classList.remove('w-[550px]');
+        drawer.classList.add('w-[820px]');
+        icon.textContent = 'close_fullscreen';
+      } else {
+        drawer.classList.remove('w-[820px]');
+        drawer.classList.add('w-[550px]');
+        icon.textContent = 'open_in_full';
+      }
+    }
+
+    function updateAvatarName(val) {
+      const avatar = document.getElementById('avatarPreviewBox');
+      const cleanVal = val.trim();
+      if (cleanVal.length > 0) {
+        avatar.textContent = cleanVal.charAt(0);
+      } else {
+        avatar.textContent = '客';
+      }
+    }
+
+    function handleTagKeydown(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const input = document.getElementById('newTagInput');
+        const val = input.value.trim();
+        if (val) {
+          createTagElement(val, 'bg-surface-container-high', 'text-on-surface');
+          input.value = '';
+        }
+      }
+    }
+
+    function addTagFromPreset(tagName, bgClass, textClass) {
+      createTagElement(tagName, bgClass, textClass);
+    }
+
+    function createTagElement(tagName, bgClass, textClass) {
+      const container = document.getElementById('tagContainer');
+      const input = document.getElementById('newTagInput');
+      
+      const tag = document.createElement('span');
+      tag.className = `inline-flex items-center gap-1 px-2.5 py-1 rounded-full ${bgClass} ${textClass} font-label-caps text-[11px] font-medium flex-shrink-0 animate-fade-in`;
+      tag.innerHTML = `
+        <span>${tagName}</span>
+        <span class="material-symbols-outlined text-[14px] cursor-pointer hover:opacity-75" onclick="this.parentElement.remove()">close</span>
+      `;
+      container.insertBefore(tag, input);
+    }
+
+    function submitCreateCustomer() {
+      const nameInput = document.getElementById('custNameInput');
+      if (!nameInput.value.trim()) {
+        nameInput.focus();
+        nameInput.classList.add('ring-2', 'ring-error');
+        setTimeout(() => nameInput.classList.remove('ring-2', 'ring-error'), 1200);
+        return;
+      }
+      
+      const continueNext = document.getElementById('continueNextCheckbox').checked;
+      if (continueNext) {
+        nameInput.value = '';
+        updateAvatarName('');
+        nameInput.focus();
+      } else {
+        closeDrawer();
+      }
+    }
+
+    // Global keyboard listener for Esc and Command+Enter
+    document.addEventListener('keydown', function(event) {
+      if (event.key === 'Escape') {
+        closeDrawer();
+      }
+      if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+        submitCreateCustomer();
+      }
+    });
+  </script>
+</div></main></div></body></html>

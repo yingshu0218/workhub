@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet"/><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config={darkMode:"class",theme:{extend:{colors:{"surface-bright":"#f8f9ff","on-surface-variant":"#434655","background":"#f8f9ff","primary-container":"#2563eb","secondary-fixed-dim":"#4edea3","on-primary-fixed":"#00174b","tertiary-fixed-dim":"#ffb596","inverse-primary":"#b4c5ff","surface-container-high":"#dce9ff","on-surface":"#0b1c30","on-secondary-container":"#00714d","surface":"#f8f9ff","on-tertiary-fixed":"#360f00","error":"#ba1a1a","outline":"#737686","surface-tint":"#0053db","inverse-surface":"#213145","error-container":"#ffdad6","primary-fixed-dim":"#b4c5ff","surface-dim":"#cbdbf5","on-secondary":"#ffffff","surface-container-highest":"#d3e4fe","on-secondary-fixed":"#002113","on-primary-fixed-variant":"#003ea8","tertiary-fixed":"#ffdbcd","on-primary":"#ffffff","primary-fixed":"#dbe1ff","primary":"#004ac6","secondary-fixed":"#6ffbbe","secondary":"#006c49","outline-variant":"#c3c6d7","surface-container-lowest":"#ffffff","on-tertiary-container":"#ffede6","on-error":"#ffffff","surface-container-low":"#eff4ff","secondary-container":"#6cf8bb","on-primary-container":"#eeefff","surface-variant":"#d3e4fe","on-tertiary-fixed-variant":"#7d2d00","on-error-container":"#93000a","tertiary":"#943700","tertiary-container":"#bc4800","surface-container":"#e5eeff","inverse-on-surface":"#eaf1ff","on-secondary-fixed-variant":"#005236","on-tertiary":"#ffffff","on-background":"#0b1c30"},borderRadius:{DEFAULT:"0.125rem",lg:"0.25rem",xl:"0.5rem",full:"0.75rem"},spacing:{"container-margin-desktop":"40px",sm:"8px",xl:"32px",xs:"4px",gutter:"16px","container-margin-mobile":"16px",md:"16px",lg:"24px",base:"4px"},fontFamily:{"label-caps":["Inter"],"body-sm":["Inter"],"headline-lg":["Inter"],"headline-md":["Inter"],"headline-lg-mobile":["Inter"],"body-lg":["Inter"],button:["Inter"]},fontSize:{"label-caps":["12px",{lineHeight:"16px",letterSpacing:"0.05em",fontWeight:"600"}],"body-sm":["14px",{lineHeight:"20px",fontWeight:"400"}],"headline-lg":["30px",{lineHeight:"38px",letterSpacing:"-0.02em",fontWeight:"700"}],"headline-md":["20px",{lineHeight:"28px",fontWeight:"600"}],"headline-lg-mobile":["24px",{lineHeight:"32px",letterSpacing:"-0.01em",fontWeight:"700"}],"body-lg":["16px",{lineHeight:"24px",fontWeight:"400"}],button:["14px",{lineHeight:"20px",fontWeight:"500"}]}}}}</script></head><body class="bg-surface font-body-sm text-body-sm text-on-surface"><aside class="fixed left-0 top-0 h-full w-64 bg-surface-container-lowest shadow-[0_1px_8px_rgba(0,0,0,0.04)] z-50 flex flex-col justify-between select-none"><div class="flex flex-col"><div class="h-16 flex items-center gap-3 px-6"><div class="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-on-primary"><span class="material-symbols-outlined text-[20px]">send</span></div><div class="flex flex-col"><span class="font-headline-md text-body-lg font-semibold tracking-tight text-on-surface leading-tight">寻鸽工作台</span><span class="font-label-caps text-label-caps text-on-surface-variant">Nexus Workspace</span></div></div><div class="px-4 pt-2 pb-3"><button class="w-full flex items-center justify-between px-3 py-2.5 rounded-lg bg-primary hover:bg-primary-container text-on-primary font-button text-button transition-all shadow-[0_1px_3px_rgba(0,0,0,0.1)]" type="button"><div class="flex items-center gap-2"><span class="material-symbols-outlined text-[18px]">bolt</span><span>灵感闪现</span></div><span class="font-label-caps text-label-caps bg-on-primary/20 text-on-primary px-1.5 py-0.5 rounded">⌘J</span></button></div><nav class="px-3 flex flex-col gap-1" data-active-classes="bg-primary-container text-on-primary-container font-semibold"><a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface font-button text-button transition-colors" data-path="workbench" href="#"><span class="material-symbols-outlined text-[20px]">grid_view</span><span>工作台</span></a><a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface font-button text-button transition-colors" data-path="crm" href="#"><span class="material-symbols-outlined text-[20px]">groups</span><span>客户管理</span></a><a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface font-button text-button transition-colors" data-path="finance" href="#"><span class="material-symbols-outlined text-[20px]">account_balance_wallet</span><span>财务中心</span></a><a aria-current="page" class="flex items-center gap-3 px-3 py-2 rounded-lg transition-colors bg-primary-container text-on-primary-container font-semibold" data-path="tasks" href="#"><span class="material-symbols-outlined text-[20px]">check_circle</span><span>待办事项</span></a><a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface font-button text-button transition-colors" data-path="notes" href="#"><span class="material-symbols-outlined text-[20px]">edit_note</span><span>团队笔记</span></a><a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface font-button text-button transition-colors" data-path="habits" href="#"><span class="material-symbols-outlined text-[20px]">event_repeat</span><span>打卡·习惯</span></a><a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface font-button text-button transition-colors" data-path="trophies" href="#"><span class="material-symbols-outlined text-[20px]">emoji_events</span><span>成就奖杯</span></a><a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface font-button text-button transition-colors" data-path="settings" href="#"><span class="material-symbols-outlined text-[20px]">settings</span><span>系统设置</span></a></nav></div><div class="p-3"><div class="flex items-center justify-between p-2 rounded-lg bg-surface-container-low hover:bg-surface-container transition-colors"><div class="flex items-center gap-2.5 min-w-0"><div class="relative flex-shrink-0"><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div><span class="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-secondary ring-2 ring-surface-container-lowest"></span></div><div class="flex flex-col min-w-0"><span class="font-button text-button text-on-surface truncate">陈致远</span><span class="font-label-caps text-label-caps text-on-surface-variant truncate">Core Team</span></div></div><button aria-label="切换用户" class="text-on-surface-variant hover:text-on-surface p-1 rounded transition-colors" type="button"><span class="material-symbols-outlined text-[18px]">unfold_more</span></button></div></div></aside><div class="pl-64"><header class="fixed top-0 left-64 right-0 h-16 bg-surface/80 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)] z-40 flex items-center justify-between px-8"><div class="flex items-center gap-2 font-body-sm text-body-sm"><span class="text-on-surface-variant">Nexus</span><span class="material-symbols-outlined text-outline text-[16px]">chevron_right</span><span class="font-button text-button text-on-surface font-medium">待办事项</span></div><div class="flex items-center gap-4"><div class="flex items-center gap-2 bg-surface-container-lowest px-3 py-1.5 rounded-lg text-on-surface-variant shadow-[0_1px_3px_rgba(0,0,0,0.05)]"><span class="material-symbols-outlined text-[18px] text-outline">search</span><span class="text-on-surface-variant font-body-sm text-body-sm pr-4">搜索工作区、任务或文档...</span><kbd class="font-label-caps text-label-caps bg-surface-container-high text-on-surface px-1.5 py-0.5 rounded">⌘K</kbd></div><div class="flex items-center gap-1.5 text-on-secondary-container bg-secondary-container/30 px-2.5 py-1 rounded-full font-label-caps text-label-caps"><span class="w-1.5 h-1.5 rounded-full bg-secondary animate-pulse"></span><span>云端已实时同步</span></div><div class="flex items-center gap-1 text-on-surface-variant"><button aria-label="帮助中心" class="p-1.5 rounded-lg hover:bg-surface-container-high hover:text-on-surface transition-colors" type="button"><span class="material-symbols-outlined text-[20px]">help</span></button><button aria-label="通知" class="relative p-1.5 rounded-lg hover:bg-surface-container-high hover:text-on-surface transition-colors" type="button"><span class="material-symbols-outlined text-[20px]">notifications</span><span class="absolute top-1 right-1 w-2 h-2 rounded-full bg-primary"></span></button></div><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div></div></header><main class="relative pt-16 bg-surface min-h-screen w-full px-8 py-6"><div class="flex flex-col w-full gap-8">
+<div class="relative w-full rounded-xl bg-surface-container-lowest p-8 shadow-[0_10px_25px_-5px_rgba(0,0,0,0.04)] overflow-hidden">
+<div class="absolute -right-20 -top-24 w-96 h-96 rounded-full bg-gradient-to-br from-primary/10 via-surface-container-high/40 to-transparent blur-3xl pointer-events-none"></div>
+<div class="absolute left-1/3 -bottom-20 w-64 h-64 rounded-full bg-secondary/5 blur-2xl pointer-events-none"></div>
+<div class="relative flex flex-col lg:flex-row lg:items-center justify-between gap-8 z-10">
+<div class="flex items-center gap-6 min-w-0">
+<div class="relative flex-shrink-0">
+<div class="w-24 h-24 rounded-2xl bg-gradient-to-br from-primary to-primary-container p-0.5 shadow-lg flex items-center justify-center">
+<div class="w-full h-full bg-surface-container-lowest rounded-[14px] flex flex-col items-center justify-center p-2 text-center">
+<span class="font-label-caps text-label-caps text-primary tracking-wider uppercase">Trophy</span>
+<span class="font-headline-lg text-headline-lg font-bold text-on-surface leading-tight tracking-tight">248</span>
+<span class="font-label-caps text-label-caps text-on-surface-variant font-medium">LEVEL</span>
+</div>
+</div>
+<div class="absolute -bottom-2 -right-2 px-2 py-0.5 rounded-full bg-primary text-on-primary font-label-caps text-label-caps flex items-center gap-0.5 shadow-sm">
+<span class="material-symbols-outlined text-[12px]">verified</span>
+<span>PRO</span>
+</div>
+</div>
+<div class="flex flex-col gap-2 min-w-0">
+<div class="flex items-center gap-3 flex-wrap">
+<h1 class="font-headline-md text-headline-md font-bold text-on-surface">敏捷大师阶 (Lv.248)</h1>
+<span class="px-2.5 py-0.5 rounded-full bg-surface-container-high text-primary font-label-caps text-label-caps">TOP 3.2% 全局领跑</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant line-clamp-1">
+            践行全周期工作流闭环，在各业务枢纽保持超高同步质效。
+          </p>
+<div class="w-full max-w-md flex flex-col gap-1.5 pt-1">
+<div class="flex items-center justify-between text-label-caps font-label-caps">
+<span class="text-on-surface-variant">升级进度 78%</span>
+<span class="text-primary font-semibold">距 Lv.249 需 320 EXP</span>
+</div>
+<div class="h-2 w-full bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-gradient-to-r from-primary to-primary-container rounded-full transition-all duration-700" style="width: 78%"></div>
+</div>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-3 flex-wrap lg:flex-nowrap bg-surface-container-low p-4 rounded-xl">
+<div class="flex items-center gap-3 px-4 py-2 rounded-lg bg-surface-container-lowest shadow-sm min-w-[124px]">
+<div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-600 via-sky-300 to-indigo-200 flex items-center justify-center text-white shadow-[0_0_12px_rgba(56,189,248,0.45)]">
+<span class="material-symbols-outlined text-[22px]" style="font-variation-settings: 'FILL' 1;">military_tech</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-caps text-label-caps text-on-surface-variant">白金奖杯</span>
+<div class="flex items-baseline gap-1">
+<span class="font-headline-md text-headline-md font-bold text-on-surface">3</span>
+<span class="font-label-caps text-label-caps text-on-surface-variant">/3</span>
+</div>
+<span class="font-label-caps text-label-caps text-secondary font-semibold">100% 满贯</span>
+</div>
+</div>
+<div class="flex items-center gap-3 px-4 py-2 rounded-lg bg-surface-container-lowest shadow-sm min-w-[124px]">
+<div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-600 via-yellow-400 to-amber-100 flex items-center justify-center text-amber-950 shadow-[0_0_10px_rgba(251,191,36,0.35)]">
+<span class="material-symbols-outlined text-[22px]" style="font-variation-settings: 'FILL' 1;">workspace_premium</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-caps text-label-caps text-on-surface-variant">金杯</span>
+<div class="flex items-baseline gap-1">
+<span class="font-headline-md text-headline-md font-bold text-on-surface">7</span>
+<span class="font-label-caps text-label-caps text-on-surface-variant">/10</span>
+</div>
+<span class="font-label-caps text-label-caps text-on-surface-variant">70% 获得</span>
+</div>
+</div>
+<div class="flex items-center gap-3 px-4 py-2 rounded-lg bg-surface-container-lowest shadow-sm min-w-[124px]">
+<div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-slate-500 via-slate-300 to-slate-100 flex items-center justify-center text-slate-800 shadow-[0_0_8px_rgba(148,163,184,0.3)]">
+<span class="material-symbols-outlined text-[22px]" style="font-variation-settings: 'FILL' 1;">emoji_events</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-caps text-label-caps text-on-surface-variant">银杯</span>
+<div class="flex items-baseline gap-1">
+<span class="font-headline-md text-headline-md font-bold text-on-surface">5</span>
+<span class="font-label-caps text-label-caps text-on-surface-variant">/11</span>
+</div>
+<span class="font-label-caps text-label-caps text-on-surface-variant">45% 获得</span>
+</div>
+</div>
+<div class="flex items-center gap-3 px-4 py-2 rounded-lg bg-surface-container-lowest shadow-sm min-w-[124px]">
+<div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-900 via-orange-700 to-orange-300 flex items-center justify-center text-orange-50 shadow-[0_0_8px_rgba(180,83,9,0.25)]">
+<span class="material-symbols-outlined text-[22px]" style="font-variation-settings: 'FILL' 1;">stars</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-caps text-label-caps text-on-surface-variant">铜杯</span>
+<div class="flex items-baseline gap-1">
+<span class="font-headline-md text-headline-md font-bold text-on-surface">3</span>
+<span class="font-label-caps text-label-caps text-on-surface-variant">/12</span>
+</div>
+<span class="font-label-caps text-label-caps text-on-surface-variant">25% 获得</span>
+</div>
+</div>
+<div class="flex flex-col items-center justify-center px-4 py-2 min-w-[100px]">
+<span class="font-label-caps text-label-caps text-on-surface-variant">总奖杯</span>
+<span class="font-headline-md text-headline-md font-bold text-primary">18/36</span>
+<span class="font-label-caps text-label-caps text-secondary font-medium">达成率 50%</span>
+</div>
+</div>
+</div>
+</div>
+<div class="flex flex-col gap-4">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-primary animate-ping"></span>
+<h2 class="font-headline-md text-headline-md font-bold text-on-surface">下一里程碑·即将突破</h2>
+</div>
+<span class="font-label-caps text-label-caps text-on-surface-variant">聚焦临界成就，快速斩获等级 EXP</span>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+<div class="p-5 rounded-xl bg-surface-container-lowest shadow-[0_1px_3px_rgba(0,0,0,0.05)] hover:shadow-[0_10px_20px_-5px_rgba(0,0,0,0.08)] transition-all flex flex-col justify-between gap-4">
+<div class="flex flex-col gap-2">
+<div class="flex items-center justify-between">
+<span class="px-2 py-0.5 rounded bg-surface-container text-on-surface-variant font-label-caps text-label-caps">财务记账</span>
+<span class="text-tertiary font-label-caps text-label-caps font-semibold">+180 EXP</span>
+</div>
+<div class="flex items-center gap-3 pt-1">
+<div class="w-9 h-9 rounded-lg bg-gradient-to-tr from-amber-600 to-yellow-300 text-amber-950 flex items-center justify-center shadow-sm flex-shrink-0">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">workspace_premium</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-button text-button font-bold text-on-surface truncate">现金舵手 II</span>
+<span class="font-label-caps text-label-caps text-on-surface-variant truncate">累计记录与对账财务收支达到 50 笔</span>
+</div>
+</div>
+</div>
+<div class="flex flex-col gap-1.5">
+<div class="flex items-center justify-between text-label-caps font-label-caps">
+<span class="text-on-surface-variant">48 / 50 笔</span>
+<span class="text-primary font-bold">96%</span>
+</div>
+<div class="h-1.5 w-full bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-primary rounded-full transition-all" style="width: 96%"></div>
+</div>
+</div>
+</div>
+<div class="p-5 rounded-xl bg-surface-container-lowest shadow-[0_1px_3px_rgba(0,0,0,0.05)] hover:shadow-[0_10px_20px_-5px_rgba(0,0,0,0.08)] transition-all flex flex-col justify-between gap-4">
+<div class="flex flex-col gap-2">
+<div class="flex items-center justify-between">
+<span class="px-2 py-0.5 rounded bg-surface-container text-on-surface-variant font-label-caps text-label-caps">CRM 协同</span>
+<span class="text-tertiary font-label-caps text-label-caps font-semibold">+220 EXP</span>
+</div>
+<div class="flex items-center gap-3 pt-1">
+<div class="w-9 h-9 rounded-lg bg-gradient-to-tr from-amber-600 to-yellow-300 text-amber-950 flex items-center justify-center shadow-sm flex-shrink-0">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">workspace_premium</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-button text-button font-bold text-on-surface truncate">深度链接者</span>
+<span class="font-label-caps text-label-caps text-on-surface-variant truncate">核心客户同时关联任务与财务往来</span>
+</div>
+</div>
+</div>
+<div class="flex flex-col gap-1.5">
+<div class="flex items-center justify-between text-label-caps font-label-caps">
+<span class="text-on-surface-variant">4 / 5 项</span>
+<span class="text-primary font-bold">80%</span>
+</div>
+<div class="h-1.5 w-full bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-primary rounded-full transition-all" style="width: 80%"></div>
+</div>
+</div>
+</div>
+<div class="p-5 rounded-xl bg-surface-container-lowest shadow-[0_1px_3px_rgba(0,0,0,0.05)] hover:shadow-[0_10px_20px_-5px_rgba(0,0,0,0.08)] transition-all flex flex-col justify-between gap-4">
+<div class="flex flex-col gap-2">
+<div class="flex items-center justify-between">
+<span class="px-2 py-0.5 rounded bg-surface-container text-on-surface-variant font-label-caps text-label-caps">习惯打卡</span>
+<span class="text-tertiary font-label-caps text-label-caps font-semibold">+260 EXP</span>
+</div>
+<div class="flex items-center gap-3 pt-1">
+<div class="w-9 h-9 rounded-lg bg-gradient-to-tr from-amber-600 to-yellow-300 text-amber-950 flex items-center justify-center shadow-sm flex-shrink-0">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">workspace_premium</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-button text-button font-bold text-on-surface truncate">终身践行者</span>
+<span class="font-label-caps text-label-caps text-on-surface-variant truncate">连续每日打卡习惯达成 45 天</span>
+</div>
+</div>
+</div>
+<div class="flex flex-col gap-1.5">
+<div class="flex items-center justify-between text-label-caps font-label-caps">
+<span class="text-on-surface-variant">32 / 45 天</span>
+<span class="text-primary font-bold">71%</span>
+</div>
+<div class="h-1.5 w-full bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-primary rounded-full transition-all" style="width: 71%"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="flex flex-col gap-6">
+<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-surface-container-lowest p-3 rounded-xl shadow-sm">
+<div class="flex items-center gap-1.5 bg-surface-container-low p-1 rounded-lg">
+<button class="trophy-tab-btn px-4 py-1.5 rounded-lg bg-surface-container-lowest text-primary font-button text-button font-medium shadow-sm transition-all" id="filter-all" onclick="filterTrophies('all')">
+          全部奖杯 (36)
+        </button>
+<button class="trophy-tab-btn px-4 py-1.5 rounded-lg text-on-surface-variant hover:text-on-surface font-button text-button transition-all" id="filter-unlocked" onclick="filterTrophies('unlocked')">
+          已获得 (18)
+        </button>
+<button class="trophy-tab-btn px-4 py-1.5 rounded-lg text-on-surface-variant hover:text-on-surface font-button text-button transition-all" id="filter-locked" onclick="filterTrophies('locked')">
+          未解锁 (18)
+        </button>
+</div>
+<div class="flex items-center gap-3">
+<div class="flex items-center gap-2 text-on-surface-variant bg-surface-container-low px-3 py-1.5 rounded-lg">
+<span class="material-symbols-outlined text-[18px]">sort</span>
+<span class="font-button text-button">按奖杯等级 (白金 > 金 > 银 > 铜)</span>
+</div>
+<button class="flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-surface-container-high hover:bg-surface-container-highest text-primary font-button text-button transition-colors" type="button">
+<span class="material-symbols-outlined text-[18px]">share_windows</span>
+<span>奖杯墙海报</span>
+</button>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5" id="trophy-grid">
+<div class="trophy-card p-5 rounded-xl bg-surface-container-lowest shadow-[0_1px_3px_rgba(0,0,0,0.05)] hover:shadow-md transition-all flex flex-col justify-between gap-4 relative overflow-hidden" data-status="unlocked">
+<div class="flex items-start gap-4">
+<div class="w-14 h-14 rounded-2xl bg-gradient-to-tr from-cyan-600 via-sky-300 to-indigo-200 flex items-center justify-center text-white shadow-[0_0_15px_rgba(56,189,248,0.5)] flex-shrink-0">
+<span class="material-symbols-outlined text-[28px]" style="font-variation-settings: 'FILL' 1;">military_tech</span>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-2">
+<span class="font-button text-button font-bold text-on-surface truncate">全境主宰 (Grand Nexus)</span>
+</div>
+<div class="flex items-center gap-2 pt-0.5">
+<span class="font-label-caps text-label-caps text-sky-700 font-semibold">白金奖杯</span>
+<span class="text-on-surface-variant font-label-caps text-label-caps">· 超稀有 0.9%</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant pt-2 leading-snug">
+              主导搭建并贯通待办、财务、CRM、笔记与打卡全链路闭环。
+            </p>
+</div>
+</div>
+<div class="flex items-center justify-between pt-2 border-t border-transparent text-label-caps font-label-caps bg-surface-container-low px-3 py-1.5 rounded-lg">
+<span class="text-secondary font-semibold flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">check_circle</span> 已获得
+          </span>
+<span class="text-on-surface-variant">2025-05-01 获得</span>
+</div>
+</div>
+<div class="trophy-card p-5 rounded-xl bg-surface-container-lowest shadow-[0_1px_3px_rgba(0,0,0,0.05)] hover:shadow-md transition-all flex flex-col justify-between gap-4 relative overflow-hidden" data-status="unlocked">
+<div class="flex items-start gap-4">
+<div class="w-14 h-14 rounded-2xl bg-gradient-to-tr from-cyan-600 via-sky-300 to-indigo-200 flex items-center justify-center text-white shadow-[0_0_15px_rgba(56,189,248,0.5)] flex-shrink-0">
+<span class="material-symbols-outlined text-[28px]" style="font-variation-settings: 'FILL' 1;">military_tech</span>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-2">
+<span class="font-button text-button font-bold text-on-surface truncate">人脉枢纽 (Hub of Nexus)</span>
+</div>
+<div class="flex items-center gap-2 pt-0.5">
+<span class="font-label-caps text-label-caps text-sky-700 font-semibold">白金奖杯</span>
+<span class="text-on-surface-variant font-label-caps text-label-caps">· 超稀有 1.2%</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant pt-2 leading-snug">
+              在拓扑关系中实现 15 个核心商业节点的深度网络穿透。
+            </p>
+</div>
+</div>
+<div class="flex items-center justify-between pt-2 text-label-caps font-label-caps bg-surface-container-low px-3 py-1.5 rounded-lg">
+<span class="text-secondary font-semibold flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">check_circle</span> 已获得
+          </span>
+<span class="text-on-surface-variant">2025-04-18 获得</span>
+</div>
+</div>
+<div class="trophy-card p-5 rounded-xl bg-surface-container-lowest shadow-[0_1px_3px_rgba(0,0,0,0.05)] hover:shadow-md transition-all flex flex-col justify-between gap-4 relative overflow-hidden" data-status="unlocked">
+<div class="flex items-start gap-4">
+<div class="w-14 h-14 rounded-2xl bg-gradient-to-tr from-cyan-600 via-sky-300 to-indigo-200 flex items-center justify-center text-white shadow-[0_0_15px_rgba(56,189,248,0.5)] flex-shrink-0">
+<span class="material-symbols-outlined text-[28px]" style="font-variation-settings: 'FILL' 1;">military_tech</span>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-2">
+<span class="font-button text-button font-bold text-on-surface truncate">长期主义使者 (Long-termist)</span>
+</div>
+<div class="flex items-center gap-2 pt-0.5">
+<span class="font-label-caps text-label-caps text-sky-700 font-semibold">白金奖杯</span>
+<span class="text-on-surface-variant font-label-caps text-label-caps">· 稀有 2.5%</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant pt-2 leading-snug">
+              在平台持续高价值活跃打卡与协作沉淀超过 100 天。
+            </p>
+</div>
+</div>
+<div class="flex items-center justify-between pt-2 text-label-caps font-label-caps bg-surface-container-low px-3 py-1.5 rounded-lg">
+<span class="text-secondary font-semibold flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">check_circle</span> 已获得
+          </span>
+<span class="text-on-surface-variant">2025-03-22 获得</span>
+</div>
+</div>
+<div class="trophy-card p-5 rounded-xl bg-surface-container-lowest shadow-[0_1px_3px_rgba(0,0,0,0.05)] hover:shadow-md transition-all flex flex-col justify-between gap-4" data-status="unlocked">
+<div class="flex items-start gap-4">
+<div class="w-14 h-14 rounded-2xl bg-gradient-to-tr from-amber-600 via-yellow-400 to-amber-100 flex items-center justify-center text-amber-950 shadow-sm flex-shrink-0">
+<span class="material-symbols-outlined text-[28px]" style="font-variation-settings: 'FILL' 1;">workspace_premium</span>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-2">
+<span class="font-button text-button font-bold text-on-surface truncate">雷厉风行 III</span>
+</div>
+<div class="flex items-center gap-2 pt-0.5">
+<span class="font-label-caps text-label-caps text-amber-700 font-semibold">金杯</span>
+<span class="text-on-surface-variant font-label-caps text-label-caps">· 稀有 14.2%</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant pt-2 leading-snug">
+              当日敏捷清空全部紧急待办事项，实现零延宕的高效流转。
+            </p>
+</div>
+</div>
+<div class="flex items-center justify-between pt-2 text-label-caps font-label-caps bg-surface-container-low px-3 py-1.5 rounded-lg">
+<span class="text-secondary font-semibold flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">check_circle</span> 已获得
+          </span>
+<span class="text-on-surface-variant">2025-05-08 获得</span>
+</div>
+</div>
+<div class="trophy-card p-5 rounded-xl bg-surface-container-lowest shadow-[0_1px_3px_rgba(0,0,0,0.05)] hover:shadow-md transition-all flex flex-col justify-between gap-4" data-status="unlocked">
+<div class="flex items-start gap-4">
+<div class="w-14 h-14 rounded-2xl bg-gradient-to-tr from-amber-600 via-yellow-400 to-amber-100 flex items-center justify-center text-amber-950 shadow-sm flex-shrink-0">
+<span class="material-symbols-outlined text-[28px]" style="font-variation-settings: 'FILL' 1;">workspace_premium</span>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-2">
+<span class="font-button text-button font-bold text-on-surface truncate">账目分明</span>
+</div>
+<div class="flex items-center gap-2 pt-0.5">
+<span class="font-label-caps text-label-caps text-amber-700 font-semibold">金杯</span>
+<span class="text-on-surface-variant font-label-caps text-label-caps">· 稀有 28.5%</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant pt-2 leading-snug">
+              精细化建立 3 个独立专业分类核算账本，资产流向条分缕析。
+            </p>
+</div>
+</div>
+<div class="flex items-center justify-between pt-2 text-label-caps font-label-caps bg-surface-container-low px-3 py-1.5 rounded-lg">
+<span class="text-secondary font-semibold flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">check_circle</span> 已获得
+          </span>
+<span class="text-on-surface-variant">2025-04-12 获得</span>
+</div>
+</div>
+<div class="trophy-card p-5 rounded-xl bg-surface-container-lowest shadow-[0_1px_3px_rgba(0,0,0,0.05)] hover:shadow-md transition-all flex flex-col justify-between gap-4" data-status="unlocked">
+<div class="flex items-start gap-4">
+<div class="w-14 h-14 rounded-2xl bg-gradient-to-tr from-amber-600 via-yellow-400 to-amber-100 flex items-center justify-center text-amber-950 shadow-sm flex-shrink-0">
+<span class="material-symbols-outlined text-[28px]" style="font-variation-settings: 'FILL' 1;">workspace_premium</span>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-2">
+<span class="font-button text-button font-bold text-on-surface truncate">金牌跟进</span>
+</div>
+<div class="flex items-center gap-2 pt-0.5">
+<span class="font-label-caps text-label-caps text-amber-700 font-semibold">金杯</span>
+<span class="text-on-surface-variant font-label-caps text-label-caps">· 稀有 18.0%</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant pt-2 leading-snug">
+              沉淀 10 位决策人客户立体画像、履约关键节点与跟进纪要。
+            </p>
+</div>
+</div>
+<div class="flex items-center justify-between pt-2 text-label-caps font-label-caps bg-surface-container-low px-3 py-1.5 rounded-lg">
+<span class="text-secondary font-semibold flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">check_circle</span> 已获得
+          </span>
+<span class="text-on-surface-variant">2025-03-30 获得</span>
+</div>
+</div>
+<div class="trophy-card p-5 rounded-xl bg-surface-container-lowest shadow-[0_1px_3px_rgba(0,0,0,0.05)] hover:shadow-md transition-all flex flex-col justify-between gap-4 opacity-90" data-status="locked">
+<div class="flex items-start gap-4">
+<div class="w-14 h-14 rounded-2xl bg-surface-container-high flex items-center justify-center text-outline flex-shrink-0">
+<span class="material-symbols-outlined text-[28px]">lock</span>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-2">
+<span class="font-button text-button font-bold text-on-surface truncate">全景透视 (Locked)</span>
+</div>
+<div class="flex items-center gap-2 pt-0.5">
+<span class="font-label-caps text-label-caps text-amber-800 font-semibold">金杯</span>
+<span class="text-on-surface-variant font-label-caps text-label-caps">· 稀有 6.8%</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant pt-2 leading-snug">
+              记账流水深度关联 CRM 客户与待办交付事件达到 20 笔。
+            </p>
+</div>
+</div>
+<div class="flex flex-col gap-1.5 pt-2">
+<div class="flex items-center justify-between text-label-caps font-label-caps">
+<span class="text-on-surface-variant">解锁进度 16 / 20</span>
+<span class="text-primary font-bold">80%</span>
+</div>
+<div class="h-1.5 w-full bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-primary rounded-full" style="width: 80%"></div>
+</div>
+</div>
+</div>
+<div class="trophy-card p-5 rounded-xl bg-surface-container-lowest shadow-[0_1px_3px_rgba(0,0,0,0.05)] hover:shadow-md transition-all flex flex-col justify-between gap-4" data-status="unlocked">
+<div class="flex items-start gap-4">
+<div class="w-14 h-14 rounded-2xl bg-gradient-to-tr from-slate-500 via-slate-300 to-slate-100 flex items-center justify-center text-slate-800 shadow-sm flex-shrink-0">
+<span class="material-symbols-outlined text-[28px]" style="font-variation-settings: 'FILL' 1;">emoji_events</span>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-2">
+<span class="font-button text-button font-bold text-on-surface truncate">收支平衡官</span>
+</div>
+<div class="flex items-center gap-2 pt-0.5">
+<span class="font-label-caps text-label-caps text-slate-700 font-semibold">银杯</span>
+<span class="text-on-surface-variant font-label-caps text-label-caps">· 常用 36.2%</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant pt-2 leading-snug">
+              连续 3 个月稳健月度记账盘点零遗漏，现金流稳步向好。
+            </p>
+</div>
+</div>
+<div class="flex items-center justify-between pt-2 text-label-caps font-label-caps bg-surface-container-low px-3 py-1.5 rounded-lg">
+<span class="text-secondary font-semibold flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">check_circle</span> 已获得
+          </span>
+<span class="text-on-surface-variant">2025-04-02 获得</span>
+</div>
+</div>
+<div class="trophy-card p-5 rounded-xl bg-surface-container-lowest shadow-[0_1px_3px_rgba(0,0,0,0.05)] hover:shadow-md transition-all flex flex-col justify-between gap-4 opacity-90" data-status="locked">
+<div class="flex items-start gap-4">
+<div class="w-14 h-14 rounded-2xl bg-surface-container-high flex items-center justify-center text-outline flex-shrink-0">
+<span class="material-symbols-outlined text-[28px]">lock</span>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-2">
+<span class="font-button text-button font-bold text-on-surface truncate">闭环大师 (Locked)</span>
+</div>
+<div class="flex items-center gap-2 pt-0.5">
+<span class="font-label-caps text-label-caps text-slate-700 font-semibold">银杯</span>
+<span class="text-on-surface-variant font-label-caps text-label-caps">· 普通 41.5%</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant pt-2 leading-snug">
+              累计完成 100 项带截止时间的精细化日程闭环。
+            </p>
+</div>
+</div>
+<div class="flex flex-col gap-1.5 pt-2">
+<div class="flex items-center justify-between text-label-caps font-label-caps">
+<span class="text-on-surface-variant">解锁进度 82 / 100</span>
+<span class="text-primary font-bold">82%</span>
+</div>
+<div class="h-1.5 w-full bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-primary rounded-full" style="width: 82%"></div>
+</div>
+</div>
+</div>
+<div class="trophy-card p-5 rounded-xl bg-surface-container-lowest shadow-[0_1px_3px_rgba(0,0,0,0.05)] hover:shadow-md transition-all flex flex-col justify-between gap-4 opacity-90" data-status="locked">
+<div class="flex items-start gap-4">
+<div class="w-14 h-14 rounded-2xl bg-surface-container-high flex items-center justify-center text-outline flex-shrink-0">
+<span class="material-symbols-outlined text-[28px]">lock</span>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-2">
+<span class="font-button text-button font-bold text-on-surface truncate">多维看板控 (Locked)</span>
+</div>
+<div class="flex items-center gap-2 pt-0.5">
+<span class="font-label-caps text-label-caps text-orange-800 font-semibold">铜杯</span>
+<span class="text-on-surface-variant font-label-caps text-label-caps">· 普及 52.8%</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant pt-2 leading-snug">
+              在看板视图与多层级结构列表间灵活流转与归档任务。
+            </p>
+</div>
+</div>
+<div class="flex flex-col gap-1.5 pt-2">
+<div class="flex items-center justify-between text-label-caps font-label-caps">
+<span class="text-on-surface-variant">解锁进度 18 / 30</span>
+<span class="text-primary font-bold">60%</span>
+</div>
+<div class="h-1.5 w-full bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-primary rounded-full" style="width: 60%"></div>
+</div>
+</div>
+</div>
+<div class="trophy-card p-5 rounded-xl bg-surface-container-lowest shadow-[0_1px_3px_rgba(0,0,0,0.05)] hover:shadow-md transition-all flex flex-col justify-between gap-4" data-status="unlocked">
+<div class="flex items-start gap-4">
+<div class="w-14 h-14 rounded-2xl bg-gradient-to-tr from-amber-600 via-yellow-400 to-amber-100 flex items-center justify-center text-amber-950 shadow-sm flex-shrink-0">
+<span class="material-symbols-outlined text-[28px]" style="font-variation-settings: 'FILL' 1;">workspace_premium</span>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-2">
+<span class="font-button text-button font-bold text-on-surface truncate">微习惯的力量</span>
+</div>
+<div class="flex items-center gap-2 pt-0.5">
+<span class="font-label-caps text-label-caps text-amber-700 font-semibold">金杯</span>
+<span class="text-on-surface-variant font-label-caps text-label-caps">· 稀有 15.6%</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant pt-2 leading-snug">
+              打破行为惯性阻力，每日核心微习惯连续稳态践行达成 21 天。
+            </p>
+</div>
+</div>
+<div class="flex items-center justify-between pt-2 text-label-caps font-label-caps bg-surface-container-low px-3 py-1.5 rounded-lg">
+<span class="text-secondary font-semibold flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">check_circle</span> 已获得
+          </span>
+<span class="text-on-surface-variant">2025-05-04 获得</span>
+</div>
+</div>
+<div class="trophy-card p-5 rounded-xl bg-surface-container-lowest shadow-[0_1px_3px_rgba(0,0,0,0.05)] hover:shadow-md transition-all flex flex-col justify-between gap-4 opacity-90" data-status="locked">
+<div class="flex items-start gap-4">
+<div class="w-14 h-14 rounded-2xl bg-surface-container-high flex items-center justify-center text-outline flex-shrink-0">
+<span class="material-symbols-outlined text-[28px]">lock</span>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-2">
+<span class="font-button text-button font-bold text-on-surface truncate">晨昏定省 (Locked)</span>
+</div>
+<div class="flex items-center gap-2 pt-0.5">
+<span class="font-label-caps text-label-caps text-orange-800 font-semibold">铜杯</span>
+<span class="text-on-surface-variant font-label-caps text-label-caps">· 普及 48.9%</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant pt-2 leading-snug">
+              晨间专注计划制定与夜间当日复盘连续达成 30 天。
+            </p>
+</div>
+</div>
+<div class="flex flex-col gap-1.5 pt-2">
+<div class="flex items-center justify-between text-label-caps font-label-caps">
+<span class="text-on-surface-variant">解锁进度 24 / 30</span>
+<span class="text-primary font-bold">80%</span>
+</div>
+<div class="h-1.5 w-full bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-primary rounded-full" style="width: 80%"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<script>
+    (function initNavHighlight() {
+      const trophyNav = document.querySelector('aside nav a[data-path="trophies"]');
+      if (trophyNav) {
+        document.querySelectorAll('aside nav a').forEach(el => {
+          el.classList.remove('bg-primary-container', 'text-on-primary-container', 'font-semibold');
+          el.classList.add('text-on-surface-variant');
+        });
+        trophyNav.classList.add('bg-primary-container', 'text-on-primary-container', 'font-semibold');
+        trophyNav.classList.remove('text-on-surface-variant');
+      }
+    })();
+
+    function filterTrophies(type) {
+      const cards = document.querySelectorAll('.trophy-card');
+      const buttons = {
+        all: document.getElementById('filter-all'),
+        unlocked: document.getElementById('filter-unlocked'),
+        locked: document.getElementById('filter-locked')
+      };
+
+      Object.values(buttons).forEach(btn => {
+        if (btn) {
+          btn.classList.remove('bg-surface-container-lowest', 'text-primary', 'font-medium', 'shadow-sm');
+          btn.classList.add('text-on-surface-variant');
+        }
+      });
+
+      if (buttons[type]) {
+        buttons[type].classList.remove('text-on-surface-variant');
+        buttons[type].classList.add('bg-surface-container-lowest', 'text-primary', 'font-medium', 'shadow-sm');
+      }
+
+      cards.forEach(card => {
+        const status = card.getAttribute('data-status');
+        if (type === 'all' || status === type) {
+          card.style.display = 'flex';
+        } else {
+          card.style.display = 'none';
+        }
+      });
+    }
+  </script>
+</div></main></div></body></html>

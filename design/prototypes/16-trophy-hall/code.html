@@ -1,0 +1,499 @@
+<!DOCTYPE html><html lang="zh-CN"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+    @layer base {
+      html, body { margin: 0; padding: 0; }
+      body { overscroll-behavior: none; }
+    }
+    ::-webkit-scrollbar { display: none; }
+  </style>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "surface-bright": "#f8f9ff",
+            "on-surface-variant": "#434655",
+            "background": "#f8f9ff",
+            "primary-container": "#2563eb",
+            "secondary-fixed-dim": "#4edea3",
+            "on-primary-fixed": "#00174b",
+            "tertiary-fixed-dim": "#ffb596",
+            "inverse-primary": "#b4c5ff",
+            "surface-container-high": "#dce9ff",
+            "on-surface": "#0b1c30",
+            "on-secondary-container": "#00714d",
+            "surface": "#f8f9ff",
+            "on-tertiary-fixed": "#360f00",
+            "error": "#ba1a1a",
+            "outline": "#737686",
+            "surface-tint": "#0053db",
+            "inverse-surface": "#213145",
+            "error-container": "#ffdad6",
+            "primary-fixed-dim": "#b4c5ff",
+            "surface-dim": "#cbdbf5",
+            "on-secondary": "#ffffff",
+            "surface-container-highest": "#d3e4fe",
+            "on-secondary-fixed": "#002113",
+            "on-primary-fixed-variant": "#003ea8",
+            "tertiary-fixed": "#ffdbcd",
+            "on-primary": "#ffffff",
+            "primary-fixed": "#dbe1ff",
+            "primary": "#004ac6",
+            "secondary-fixed": "#6ffbbe",
+            "secondary": "#006c49",
+            "outline-variant": "#c3c6d7",
+            "surface-container-lowest": "#ffffff",
+            "on-tertiary-container": "#ffede6",
+            "on-error": "#ffffff",
+            "surface-container-low": "#eff4ff",
+            "secondary-container": "#6cf8bb",
+            "on-primary-container": "#eeefff",
+            "surface-variant": "#d3e4fe",
+            "on-tertiary-fixed-variant": "#7d2d00",
+            "on-error-container": "#93000a",
+            "tertiary": "#943700",
+            "tertiary-container": "#bc4800",
+            "surface-container": "#e5eeff",
+            "inverse-on-surface": "#eaf1ff",
+            "on-secondary-fixed-variant": "#005236",
+            "on-tertiary": "#ffffff",
+            "on-background": "#0b1c30"
+          },
+          fontFamily: {
+            "headline-lg": ["Inter", "sans-serif"],
+            "headline-md": ["Inter", "sans-serif"],
+            "body-lg": ["Inter", "sans-serif"],
+            "body-sm": ["Inter", "sans-serif"],
+            "button": ["Inter", "sans-serif"],
+            "label-caps": ["Inter", "sans-serif"]
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-surface font-body-sm text-body-sm text-on-surface antialiased">
+<!-- Left Sidebar -->
+<aside class="fixed left-0 top-0 h-full w-64 bg-surface-container-lowest shadow-[0_1px_8px_rgba(0,0,0,0.04)] z-30 flex flex-col justify-between select-none">
+<div class="flex flex-col">
+<div class="h-16 flex items-center gap-3 px-6">
+<div class="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-on-primary">
+<span class="material-symbols-outlined text-[20px]">send</span>
+</div>
+<div class="flex flex-col">
+<span class="font-headline-md text-base font-semibold tracking-tight text-on-surface leading-tight">寻鸽工作台</span>
+<span class="text-xs text-on-surface-variant">Nexus Workspace</span>
+</div>
+</div>
+<div class="px-4 pt-2 pb-3">
+<button class="w-full flex items-center justify-between px-3 py-2.5 rounded-lg bg-primary hover:bg-primary-container text-on-primary font-medium text-sm transition-all shadow-sm" type="button">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]">bolt</span>
+<span class="">灵感闪现</span>
+</div>
+<span class="text-[11px] bg-on-primary/20 text-on-primary px-1.5 py-0.5 rounded font-medium">⌘J</span>
+</button>
+</div>
+<nav class="px-3 flex flex-col gap-1">
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface text-sm transition-colors" href="#">
+<span class="material-symbols-outlined text-[20px]">grid_view</span>
+<span class="">工作台</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface text-sm transition-colors" href="#">
+<span class="material-symbols-outlined text-[20px]">groups</span>
+<span class="">客户管理</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface text-sm transition-colors" href="#">
+<span class="material-symbols-outlined text-[20px]">account_balance_wallet</span>
+<span class="">财务中心</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface text-sm transition-colors" href="#">
+<span class="material-symbols-outlined text-[20px]">check_circle</span>
+<span class="">待办事项</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface text-sm transition-colors" href="#">
+<span class="material-symbols-outlined text-[20px]">edit_note</span>
+<span class="">团队笔记</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface text-sm transition-colors" href="#">
+<span class="material-symbols-outlined text-[20px]">event_repeat</span>
+<span class="">打卡·习惯</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg transition-colors bg-primary text-on-primary font-semibold shadow-sm" href="#">
+<span class="material-symbols-outlined text-[20px]">emoji_events</span>
+<span class="">成就奖杯</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface text-sm transition-colors" href="#">
+<span class="material-symbols-outlined text-[20px]">settings</span>
+<span class="">系统设置</span>
+</a>
+</nav>
+</div>
+<div class="p-3">
+<div class="flex items-center justify-between p-2 rounded-lg bg-surface-container-low hover:bg-surface-container transition-colors">
+<div class="flex items-center gap-2.5 min-w-0">
+<div class="relative flex-shrink-0">
+<div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-on-primary text-[18px]">person</span>
+</div>
+<span class="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-secondary ring-2 ring-surface-container-lowest"></span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="text-sm font-medium text-on-surface truncate">陈致远</span>
+<span class="text-xs text-on-surface-variant truncate">Core Team</span>
+</div>
+</div>
+<button aria-label="切换用户" class="text-on-surface-variant hover:text-on-surface p-1 rounded transition-colors" type="button">
+<span class="material-symbols-outlined text-[18px]">unfold_more</span>
+</button>
+</div>
+</div>
+</aside>
+<!-- Main Content Layout -->
+<div class="pl-64">
+<!-- Top Header -->
+<header class="fixed top-0 left-64 right-0 h-16 bg-surface/80 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)] z-20 flex items-center justify-between px-8">
+<div class="flex items-center gap-2 text-sm">
+<span class="text-on-surface-variant">Nexus</span>
+<span class="material-symbols-outlined text-outline text-[16px]">chevron_right</span>
+<span class="font-medium text-on-surface">成就奖杯</span>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2 bg-surface-container-lowest px-3 py-1.5 rounded-lg text-on-surface-variant shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+<span class="material-symbols-outlined text-[18px] text-outline">search</span>
+<span class="text-on-surface-variant text-sm pr-4">搜索工作区、任务或文档...</span>
+<kbd class="text-xs bg-surface-container-high text-on-surface px-1.5 py-0.5 rounded font-mono">⌘K</kbd>
+</div>
+<div class="flex items-center gap-1.5 text-on-secondary-container bg-secondary-container/30 px-2.5 py-1 rounded-full text-xs font-medium">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary animate-pulse"></span>
+<span class="">云端已实时同步</span>
+</div>
+<div class="flex items-center gap-1 text-on-surface-variant">
+<button aria-label="帮助中心" class="p-1.5 rounded-lg hover:bg-surface-container-high hover:text-on-surface transition-colors" type="button">
+<span class="material-symbols-outlined text-[20px]">help</span>
+</button>
+<button aria-label="通知" class="relative p-1.5 rounded-lg hover:bg-surface-container-high hover:text-on-surface transition-colors" type="button">
+<span class="material-symbols-outlined text-[20px]">notifications</span>
+<span class="absolute top-1 right-1 w-2 h-2 rounded-full bg-primary"></span>
+</button>
+</div>
+<div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-on-primary text-[18px]">person</span>
+</div>
+</div>
+</header>
+<!-- Underlying Achievement Dashboard (Background Base Screen) -->
+<main class="relative pt-20 bg-surface min-h-screen w-full px-8 pb-12">
+<div class="flex flex-col gap-6 select-none">
+<!-- Top Summary Banner -->
+<div class="flex items-center justify-between bg-surface-container-lowest p-6 rounded-xl shadow-sm border border-slate-100">
+<div class="flex items-center gap-5">
+<div class="w-16 h-16 rounded-xl bg-gradient-to-br from-primary via-primary-container to-secondary flex items-center justify-center text-on-primary shadow-md">
+<span class="material-symbols-outlined text-[36px]" style="font-variation-settings: &quot;FILL&quot; 1;">emoji_events</span>
+</div>
+<div class="flex flex-col">
+<div class="flex items-center gap-3">
+<h1 class="text-2xl font-bold text-on-surface">成就殿堂 · 荣誉中心</h1>
+<span class="px-2.5 py-0.5 rounded-full bg-secondary/15 text-secondary text-xs font-semibold">等级 248 · 敏捷大师</span>
+</div>
+<span class="text-sm text-on-surface-variant mt-1">记录团队协同的每一个卓越时刻，解锁跨模块工作流专属勋章与特权</span>
+</div>
+</div>
+<div class="flex items-center gap-8 pr-4">
+<div class="flex flex-col items-end">
+<span class="text-xs text-on-surface-variant font-medium">总奖杯点数</span>
+<span class="text-2xl font-bold text-primary">14,850</span>
+</div>
+<div class="w-px h-8 bg-surface-container-high"></div>
+<div class="flex items-center gap-4">
+<div class="flex flex-col items-center">
+<span class="text-sm font-bold text-blue-600">4</span>
+<span class="text-[11px] text-on-surface-variant">白金</span>
+</div>
+<div class="flex flex-col items-center">
+<span class="text-sm font-bold text-amber-500">18</span>
+<span class="text-[11px] text-on-surface-variant">金杯</span>
+</div>
+<div class="flex flex-col items-center">
+<span class="text-sm font-bold text-slate-500">42</span>
+<span class="text-[11px] text-on-surface-variant">银杯</span>
+</div>
+<div class="flex flex-col items-center">
+<span class="text-sm font-bold text-amber-700">109</span>
+<span class="text-[11px] text-on-surface-variant">铜杯</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Next Milestone Card -->
+<div class="bg-surface-container-lowest p-5 rounded-xl shadow-sm border border-slate-100 flex items-center justify-between">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-lg">
+<span class="material-symbols-outlined text-[28px]">military_tech</span>
+</div>
+<div class="flex flex-col">
+<div class="flex items-center gap-2">
+<span class="font-semibold text-slate-900">下一里程碑：终极全景协调者</span>
+<span class="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full font-medium">进度 96%</span>
+</div>
+<span class="text-xs text-slate-500 mt-0.5">再完成 1 项跨部门联动流程即刻晋升 Lv.249 传奇敏捷大师</span>
+</div>
+</div>
+<div class="flex items-center gap-4 w-72">
+<div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+<div class="bg-primary h-full rounded-full w-[96%]"></div>
+</div>
+<span class="text-xs font-semibold text-slate-700">4,800/5,000</span>
+</div>
+</div>
+<!-- Trophies Grid Mockup -->
+<div class="grid grid-cols-4 gap-4">
+<div class="bg-surface-container-lowest p-5 rounded-xl shadow-sm border border-slate-100 flex flex-col justify-between h-44">
+<div class="flex items-start justify-between">
+<div class="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined text-[24px]">verified</span>
+</div>
+<span class="px-2 py-0.5 rounded text-xs bg-secondary/15 text-secondary font-medium">已解锁</span>
+</div>
+<div class="flex flex-col">
+<span class="font-semibold text-on-surface">首周闭环先锋</span>
+<span class="text-xs text-on-surface-variant mt-1">连续7天完成财务与客户双向回款核对</span>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-5 rounded-xl shadow-sm border border-slate-100 flex flex-col justify-between h-44">
+<div class="flex items-start justify-between">
+<div class="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[24px]">bolt</span>
+</div>
+<span class="px-2 py-0.5 rounded text-xs bg-secondary/15 text-secondary font-medium">已解锁</span>
+</div>
+<div class="flex flex-col">
+<span class="font-semibold text-on-surface">疾风笔记达人</span>
+<span class="text-xs text-on-surface-variant mt-1">撰写超过100篇具有引用链接的高效协同文档</span>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-5 rounded-xl shadow-sm border border-blue-200 ring-2 ring-blue-500/20 flex flex-col justify-between h-44">
+<div class="flex items-start justify-between">
+<div class="w-10 h-10 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center">
+<span class="material-symbols-outlined text-[24px]">workspace_premium</span>
+</div>
+<span class="px-2 py-0.5 rounded text-xs bg-blue-600 text-white font-medium">刚解锁</span>
+</div>
+<div class="flex flex-col">
+<span class="font-semibold text-blue-700">全境主宰 (Grand Nexus)</span>
+<span class="text-xs text-on-surface-variant mt-1">打通CRM、财务与待办5维协同枢纽</span>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-5 rounded-xl shadow-sm border border-slate-100 flex flex-col justify-between h-44 opacity-70">
+<div class="flex items-start justify-between">
+<div class="w-10 h-10 rounded-lg bg-surface-container flex items-center justify-center text-outline">
+<span class="material-symbols-outlined text-[24px]">lock</span>
+</div>
+<span class="px-2 py-0.5 rounded text-xs bg-surface-container text-on-surface-variant font-medium">未解锁</span>
+</div>
+<div class="flex flex-col">
+<span class="font-semibold text-on-surface">星系拓荒者</span>
+<span class="text-xs text-on-surface-variant mt-1">邀请并激活 50 位跨企业客座协作伙伴</span>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Translucent Overlay Modal Layer (Bright & Refined Light Backdrop) -->
+<div class="fixed inset-0 top-0 left-64 bg-slate-900/25 backdrop-blur-md z-40 flex flex-col items-center justify-center p-6 overflow-y-auto">
+<!-- Top-Right PSN Instant Notification Pill (Floating at top-16 right-12) -->
+<aside aria-label="奖杯获得通知" class="fixed top-16 right-12 z-50 flex items-center gap-3 bg-white/95 backdrop-blur shadow-xl border border-blue-100 rounded-full py-2 px-5 transition-all">
+<div class="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 via-indigo-600 to-cyan-400 flex items-center justify-center text-white shadow-md shadow-blue-500/20">
+<svg class="w-4 h-4 fill-current drop-shadow-sm" viewBox="0 0 24 24">
+<path d="M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H7v2h10v-2h-4v-3.1c1.63-.33 2.98-1.46 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z"></path>
+</svg>
+</div>
+<div class="flex items-center gap-2.5">
+<span class="text-sm font-semibold text-slate-800">获得奖杯！全境主宰 (Grand Nexus)</span>
+<span class="w-1.5 h-1.5 rounded-full bg-blue-300"></span>
+<span class="text-[11px] font-bold uppercase tracking-wider text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">白金 PLATINUM</span>
+</div>
+</aside>
+<!-- Center Trophy Celebration Unlock Dialog -->
+<div class="relative w-full max-w-lg bg-white shadow-2xl rounded-2xl border border-slate-200/80 p-8 flex flex-col items-center overflow-hidden my-auto">
+<!-- Subtle Ambient Blue Glow Backdrop -->
+<div class="absolute -top-24 left-1/2 -translate-x-1/2 w-96 h-96 bg-gradient-to-b from-blue-100/70 via-indigo-50/40 to-transparent rounded-full blur-3xl pointer-events-none"></div>
+<!-- Top Header in Modal -->
+<div class="w-full flex items-center justify-between relative z-10">
+<div class="flex items-center gap-1.5 text-blue-600">
+<span class="material-symbols-outlined text-[16px]">auto_awesome</span>
+<span class="text-xs font-semibold tracking-wider uppercase">PLAYSTATION TROPHY ACHIEVED</span>
+</div>
+<button aria-label="关闭" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition-colors" type="button">
+<span class="material-symbols-outlined text-[18px]">close</span>
+</button>
+</div>
+<!-- Trophy Badge Exhibit / Pedestal Showcase -->
+<div class="w-full mt-4 bg-gradient-to-b from-blue-50 to-indigo-50/50 rounded-2xl p-6 border border-blue-100 flex flex-col items-center justify-center relative shadow-inner"><!-- Multi-layer Luminous Ambient Aura behind Trophy -->
+<div class="absolute w-56 h-56 rounded-full bg-gradient-to-tr from-blue-400/25 via-cyan-300/30 to-white/40 blur-2xl pointer-events-none -top-4 left-1/2 -translate-x-1/2"></div>
+<div class="absolute w-40 h-40 rounded-full bg-blue-500/15 blur-xl pointer-events-none top-6 left-1/2 -translate-x-1/2"></div>
+
+<!-- Trophy Floating Container with Shadow -->
+<div class="relative flex items-center justify-center w-40 h-40 trophy-floating select-none z-10">
+  <!-- Outer Radial Ring Base -->
+  <div class="w-36 h-36 rounded-full bg-gradient-to-br from-white via-slate-100 to-blue-100 p-1 shadow-[0_12px_32px_rgba(37,99,235,0.22)] border-2 border-white flex items-center justify-center relative overflow-hidden">
+    <!-- Dynamic Sheen Sweep Reflection across the badge -->
+    <div class="trophy-sheen-bar absolute inset-0 w-16 h-full bg-gradient-to-r from-transparent via-white/80 to-transparent pointer-events-none z-20"></div>
+    
+    <!-- Decorative Micro Sparkles -->
+    <span class="material-symbols-outlined absolute top-2 right-4 text-cyan-500 text-[15px] sparkle-animated-1 pointer-events-none z-20">sparkles</span>
+    <span class="material-symbols-outlined absolute bottom-4 left-3 text-blue-400 text-[13px] sparkle-animated-2 pointer-events-none z-20">star</span>
+    <span class="material-symbols-outlined absolute top-5 left-3 text-indigo-400 text-[13px] sparkle-animated-3 pointer-events-none z-20">flare</span>
+    <span class="material-symbols-outlined absolute bottom-6 right-3 text-cyan-400 text-[11px] sparkle-animated-1 pointer-events-none z-20">auto_awesome</span>
+
+    <!-- Ultra-Refined High-Grade Platinum Trophy SVG with Rich Metallic Depth -->
+    <svg class="w-24 h-24 filter drop-shadow-[0_10px_16px_rgba(30,64,175,0.35)] relative z-10" fill="none" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <!-- Platinum High-Sheen Primary Gradient -->
+        <linearGradient id="platBodyGrad" x1="22" y1="16" x2="78" y2="76" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stop-color="#FFFFFF"></stop>
+          <stop offset="18%" stop-color="#F1F5F9"></stop>
+          <stop offset="36%" stop-color="#DBEAFE"></stop>
+          <stop offset="58%" stop-color="#93C5FD"></stop>
+          <stop offset="80%" stop-color="#3B82F6"></stop>
+          <stop offset="100%" stop-color="#1E40AF"></stop>
+        </linearGradient>
+        <!-- Titanium Rim Specular Highlight -->
+        <linearGradient id="platRimLight" x1="30" y1="18" x2="70" y2="18" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stop-color="#93C5FD"></stop>
+          <stop offset="40%" stop-color="#FFFFFF"></stop>
+          <stop offset="60%" stop-color="#FFFFFF"></stop>
+          <stop offset="100%" stop-color="#93C5FD"></stop>
+        </linearGradient>
+        <!-- Deep Metallic Shadow Gradient -->
+        <linearGradient id="platDeepShadow" x1="50" y1="20" x2="50" y2="64" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.6"></stop>
+          <stop offset="65%" stop-color="#64748B" stop-opacity="0.15"></stop>
+          <stop offset="100%" stop-color="#0F172A" stop-opacity="0.45"></stop>
+        </linearGradient>
+        <!-- Premium Base Metallic Gradient -->
+        <linearGradient id="platBaseGrad" x1="26" y1="72" x2="74" y2="88" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stop-color="#FFFFFF"></stop>
+          <stop offset="30%" stop-color="#BFDBFE"></stop>
+          <stop offset="70%" stop-color="#2563EB"></stop>
+          <stop offset="100%" stop-color="#172554"></stop>
+        </linearGradient>
+        <!-- Center Star Emblem Gradient -->
+        <linearGradient id="platStarGrad" x1="50" y1="32" x2="50" y2="52" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stop-color="#FFFFFF"></stop>
+          <stop offset="45%" stop-color="#67E8F9"></stop>
+          <stop offset="100%" stop-color="#2563EB"></stop>
+        </linearGradient>
+      </defs>
+      
+      <!-- Handles (Winged & Sculpted) -->
+      <path d="M28 25C18 25 12 33 12 43C12 55 22 62 31 64L33 57C26 55 19 50 19 43C19 36 23 31 29 31L28 25Z" fill="url(#platBodyGrad)"></path>
+      <path d="M28 25C18 25 12 33 12 43C12 55 22 62 31 64L33 57C26 55 19 50 19 43C19 36 23 31 29 31L28 25Z" fill="url(#platDeepShadow)"></path>
+      <path d="M72 25C82 25 88 33 88 43C88 55 78 62 69 64L67 57C74 55 81 50 81 43C81 36 77 31 71 31L72 25Z" fill="url(#platBodyGrad)"></path>
+      <path d="M72 25C82 25 88 33 88 43C88 55 78 62 69 64L67 57C74 55 81 50 81 43C81 36 77 31 71 31L72 25Z" fill="url(#platDeepShadow)"></path>
+      
+      <!-- Cup Outer Shell -->
+      <path d="M27 19H73C73 19 74.5 54 50 63.5C25.5 54 27 19 27 19Z" fill="url(#platBodyGrad)"></path>
+      <path d="M27 19H73C73 19 74.5 54 50 63.5C25.5 54 27 19 27 19Z" fill="url(#platDeepShadow)"></path>
+      
+      <!-- Rim Top Lip with Platinum Sheen -->
+      <ellipse cx="50" cy="19" rx="23" ry="3" fill="url(#platRimLight)"></ellipse>
+      <ellipse cx="50" cy="19" rx="21" ry="1.8" fill="#1E3A8A" opacity="0.55"></ellipse>
+      
+      <!-- Front Cup Inner Light Sculpture -->
+      <path d="M32 23C32 23 33.5 48 50 56C66.5 48 68 23 68 23H32Z" fill="url(#platBodyGrad)" opacity="0.9"></path>
+      <!-- Vertical Specular Mirror Highlight Strip -->
+      <path d="M48 21L45 54.5C47.5 55.2 50 55.5 50 55.5C50 55.5 52.5 55.2 55 54.5L52 21H48Z" fill="#FFFFFF" opacity="0.8"></path>
+      <path d="M34 24C34 24 37 42 46 49L44 24H34Z" fill="#FFFFFF" opacity="0.35"></path>
+      
+      <!-- Trophy Central Stem / Column -->
+      <path d="M44 62.5H56V72H44V62.5Z" fill="url(#platBaseGrad)"></path>
+      <ellipse cx="50" cy="62.5" rx="6" ry="1.5" fill="#FFFFFF" opacity="0.7"></ellipse>
+      <!-- Stem Collar Ring -->
+      <rect x="42" y="70" width="16" height="3" rx="1.5" fill="url(#platRimLight)"></rect>
+      
+      <!-- Pedestal Tiered Base -->
+      <path d="M31 73H69L73 82H27L31 73Z" fill="url(#platBaseGrad)"></path>
+      <path d="M31 73L35 73L30 82H27L31 73Z" fill="#FFFFFF" opacity="0.6"></path>
+      <rect x="24" y="82" width="52" height="6.5" rx="2.5" fill="#1E3A8A"></rect>
+      <rect x="25" y="82.5" width="50" height="1.5" rx="0.75" fill="#93C5FD" opacity="0.75"></rect>
+      
+      <!-- Central Embossed Star & Orbit Diamond Emblem -->
+      <circle cx="50" cy="42" r="10" fill="#1E3A8A" opacity="0.2"></circle>
+      <polygon points="50,32 53.5,39.5 61,40 55.5,45 57.5,52.5 50,48 42.5,52.5 44.5,45 39,40 46.5,39.5" fill="url(#platStarGrad)" filter="drop-shadow(0 2px 4px rgba(30,58,138,0.5))"></polygon>
+      <polygon points="50,34 52.5,39.5 57,40 53,44 54.5,49.5 50,46.5 45.5,49.5 47,44 43,40 47.5,39.5" fill="#FFFFFF" opacity="0.55"></polygon>
+    </svg>
+  </div>
+</div>
+
+<!-- Trophy Title Pill below Badge -->
+<div class="-mt-3 z-10 px-4 py-1 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500 text-white text-xs font-bold tracking-wider uppercase shadow-md shadow-blue-500/30 flex items-center gap-1.5">
+  <span class="material-symbols-outlined text-[14px]">workspace_premium</span>
+  <span class="">白金奖杯 PLATINUM</span>
+</div>
+
+<!-- Rarity Tag -->
+<div class="flex items-center gap-2 mt-3">
+  <span class="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-semibold flex items-center gap-1.5">
+    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+    超稀有 0.9%
+  </span>
+  <span class="text-slate-300">·</span>
+  <span class="text-xs text-slate-500 font-medium">全平台首批达成 Top 1%</span>
+</div></div>
+<!-- Trophy Title & Description Text Section -->
+<h2 class="text-slate-900 text-2xl font-bold mt-4 tracking-tight">全境主宰 (Grand Nexus)</h2>
+<p class="text-slate-600 text-sm leading-relaxed mt-2 text-center max-w-md">
+          主导搭建并贯通待办、财务、CRM、笔记与打卡全链路闭环，达成寻鸽工作台数字化协同终极突破。
+        </p>
+<!-- EXP & Growth Progress Box -->
+<div class="w-full bg-slate-50 border border-slate-200/70 rounded-xl p-4 mt-5 flex flex-col gap-2.5">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-xs font-bold">荣誉等级突破 +500 EXP</span>
+<span class="text-xs text-slate-500">经验值已注满</span>
+</div>
+<div class="flex items-center gap-1.5 text-xs text-slate-700 font-medium">
+<span class="text-slate-500">Lv.248 敏捷大师</span>
+<span class="material-symbols-outlined text-[14px] text-blue-600">arrow_forward</span>
+<span class="text-blue-700 font-bold">Lv.249 (晋升中)</span>
+</div>
+</div>
+<!-- Dynamic Energy Progress Bar -->
+<div class="w-full h-2.5 rounded-full bg-slate-200 overflow-hidden relative shadow-inner">
+<div class="h-full rounded-full bg-gradient-to-r from-blue-600 via-indigo-500 to-emerald-400 w-full shadow-sm relative">
+<div class="absolute inset-0 bg-white/20 animate-pulse"></div>
+</div>
+</div>
+<div class="flex items-center justify-between text-xs text-slate-500 pt-0.5">
+<div class="flex items-center gap-1 text-slate-600 font-medium">
+<span class="material-symbols-outlined text-[14px] text-emerald-600">task_alt</span>
+<span class="">已完成 Lv.248 全部进阶要求</span>
+</div>
+<span class="text-amber-600 font-semibold">新权益：解锁专属 PSN 黄金成就外框</span>
+</div>
+</div>
+<!-- Action Buttons -->
+<div class="w-full flex items-center gap-3 mt-6">
+<button class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-xl shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2 flex-1 transition-all" type="button">
+<span class="material-symbols-outlined text-[18px]">share</span>
+<span class="">生成奖杯分享海报 (⌘S)</span>
+</button>
+<button class="bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-medium py-3 px-6 rounded-xl flex items-center justify-center gap-2 transition-colors" type="button">
+<span class="material-symbols-outlined text-[18px]">close</span>
+<span class="">关闭 (Esc)</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+
+
+</body></html>

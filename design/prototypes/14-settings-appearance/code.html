@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config={darkMode:"class",theme:{extend:{"colors":{"on-surface":"#0b1c30","tertiary-container":"#bc4800","secondary":"#006c49","background":"#f8f9ff","surface-tint":"#0053db","tertiary":"#943700","surface-container-highest":"#d3e4fe","on-secondary-container":"#00714d","surface-dim":"#cbdbf5","secondary-fixed-dim":"#4edea3","on-primary":"#ffffff","on-tertiary":"#ffffff","outline-variant":"#c3c6d7","on-primary-container":"#eeefff","surface-container-low":"#eff4ff","on-secondary":"#ffffff","secondary-container":"#6cf8bb","on-error-container":"#93000a","on-background":"#0b1c30","secondary-fixed":"#6ffbbe","primary-fixed-dim":"#b4c5ff","surface":"#f8f9ff","on-tertiary-fixed":"#360f00","on-tertiary-fixed-variant":"#7d2d00","primary":"#004ac6","surface-container":"#e5eeff","on-primary-fixed-variant":"#003ea8","on-primary-fixed":"#00174b","surface-variant":"#d3e4fe","outline":"#737686","on-surface-variant":"#434655","inverse-primary":"#b4c5ff","surface-container-high":"#dce9ff","surface-bright":"#f8f9ff","on-secondary-fixed-variant":"#005236","tertiary-fixed-dim":"#ffb596","primary-container":"#2563eb","inverse-surface":"#213145","on-tertiary-container":"#ffede6","tertiary-fixed":"#ffdbcd","error":"#ba1a1a","error-container":"#ffdad6","inverse-on-surface":"#eaf1ff","primary-fixed":"#dbe1ff","surface-container-lowest":"#ffffff","on-secondary-fixed":"#002113","on-error":"#ffffff"},"borderRadius":{"DEFAULT":"0.125rem","lg":"0.25rem","xl":"0.5rem","full":"0.75rem"},"spacing":{"md":"16px","gutter":"16px","xs":"4px","sm":"8px","base":"4px","container-margin-mobile":"16px","container-margin-desktop":"40px","xl":"32px","lg":"24px"},"fontFamily":{"headline-md":["Inter"],"button":["Inter"],"body-sm":["Inter"],"headline-lg-mobile":["Inter"],"body-lg":["Inter"],"headline-lg":["Inter"],"label-caps":["Inter"]},"fontSize":{"headline-md":["20px",{"lineHeight":"28px","fontWeight":"600"}],"button":["14px",{"lineHeight":"20px","fontWeight":"500"}],"body-sm":["14px",{"lineHeight":"20px","fontWeight":"400"}],"headline-lg-mobile":["24px",{"lineHeight":"32px","letterSpacing":"-0.01em","fontWeight":"700"}],"body-lg":["16px",{"lineHeight":"24px","fontWeight":"400"}],"headline-lg":["30px",{"lineHeight":"38px","letterSpacing":"-0.02em","fontWeight":"700"}],"label-caps":["12px",{"lineHeight":"16px","letterSpacing":"0.05em","fontWeight":"600"}]}}}}</script></head><body class="bg-background font-body-sm text-on-surface antialiased"><aside class="fixed left-0 top-0 h-full w-64 bg-surface-container-lowest shadow-[0_1px_8px_rgba(0,0,0,0.04)] z-50 flex flex-col justify-between select-none"><div class="flex flex-col p-md"><div class="flex items-center gap-sm px-xs pb-md"><div class="w-8 h-8 rounded-xl bg-primary-container flex items-center justify-center text-on-primary shadow-sm"><span class="material-symbols-outlined text-[20px]">send</span></div><div class="flex flex-col"><span class="font-headline-md text-[16px] leading-[20px] font-bold text-on-surface tracking-tight">寻鸽工作台</span><span class="font-label-caps text-[10px] uppercase text-outline tracking-wider">Nexus Workspace</span></div></div><div class="my-xs"><button class="w-full flex items-center justify-between px-md py-sm bg-primary-container text-on-primary rounded-xl shadow-[0_2px_8px_rgba(37,99,235,0.25)] hover:bg-primary transition-all" type="button"><div class="flex items-center gap-sm"><span class="material-symbols-outlined text-[18px]">bolt</span><span class="font-button text-button">灵感闪现</span></div><kbd class="px-xs py-0.5 rounded bg-on-primary/20 text-on-primary font-label-caps text-[11px]">⌘J</kbd></button></div><nav class="flex flex-col gap-xs mt-md" data-active-classes="bg-primary-container text-on-primary font-medium rounded-xl shadow-sm"><a class="flex items-center gap-sm px-md py-sm rounded-xl text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-colors" data-path="workbench" href="#"><span class="material-symbols-outlined text-[20px]">grid_view</span><span class="font-button text-button">工作台</span></a><a class="flex items-center gap-sm px-md py-sm rounded-xl text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-colors" data-path="tasks" href="#"><span class="material-symbols-outlined text-[20px]">check_circle</span><span class="font-button text-button">待办事项</span></a><a class="flex items-center gap-sm px-md py-sm rounded-xl text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-colors" data-path="crm" href="#"><span class="material-symbols-outlined text-[20px]">group</span><span class="font-button text-button">CRM 客户</span></a><a class="flex items-center gap-sm px-md py-sm rounded-xl text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-colors" data-path="finance" href="#"><span class="material-symbols-outlined text-[20px]">account_balance_wallet</span><span class="font-button text-button">财务中心</span></a><a class="flex items-center gap-sm px-md py-sm rounded-xl text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-colors" data-path="notes" href="#"><span class="material-symbols-outlined text-[20px]">description</span><span class="font-button text-button">团队笔记</span></a><a class="flex items-center gap-sm px-md py-sm rounded-xl text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-colors" data-path="habits" href="#"><span class="material-symbols-outlined text-[20px]">event_repeat</span><span class="font-button text-button">打卡·习惯</span></a><a class="flex items-center gap-sm px-md py-sm rounded-xl text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-colors" data-path="trophies" href="#"><span class="material-symbols-outlined text-[20px]">emoji_events</span><span class="font-button text-button">成就奖杯</span></a><a aria-current="page" class="flex items-center gap-sm px-md py-sm transition-colors bg-primary-container text-on-primary font-medium rounded-xl shadow-sm" data-path="system-settings" href="#"><span class="material-symbols-outlined text-[20px]">settings</span><span class="font-button text-button">系统设置</span></a></nav></div><div class="p-md"><div class="flex items-center justify-between p-sm rounded-xl bg-surface-container-low"><div class="flex items-center gap-sm min-w-0"><div class="relative flex-shrink-0"><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div><span class="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-secondary ring-2 ring-surface-container-lowest"></span></div><div class="flex flex-col min-w-0"><span class="font-button text-button text-on-surface truncate">陈致远</span><span class="font-label-caps text-[11px] text-outline truncate">Core Team</span></div></div><button class="text-outline hover:text-on-surface transition-colors" type="button"><span class="material-symbols-outlined text-[18px]">unfold_more</span></button></div></div></aside><div class="pl-64 flex flex-col min-h-screen"><header class="fixed top-0 left-64 right-0 h-16 bg-surface/80 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)] z-40 flex items-center justify-between px-xl"><div class="flex items-center gap-md"><nav class="flex items-center gap-xs font-body-sm text-body-sm text-on-surface-variant"><span class="hover:text-on-surface cursor-pointer transition-colors">Nexus</span><span class="material-symbols-outlined text-[14px] text-outline">chevron_right</span><span class="text-on-surface font-button font-medium">系统设置</span></nav><div class="hidden lg:flex items-center gap-xs px-sm py-1 bg-surface-container-low rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-secondary"></span><span class="font-label-caps text-[11px] text-secondary font-medium">云端已实时同步</span></div></div><div class="flex items-center gap-md"><div class="relative w-64 md:w-80"><span class="material-symbols-outlined absolute left-sm top-1/2 -translate-y-1/2 text-outline text-[18px]">search</span><input class="w-full pl-9 pr-12 py-1.5 bg-surface-container-low rounded-xl text-body-sm font-body-sm text-on-surface placeholder:text-outline focus:outline-none focus:bg-surface-container-lowest focus:ring-1 focus:ring-primary-container transition-all" placeholder="搜索设置项、功能与成员..." type="text"/><kbd class="absolute right-sm top-1/2 -translate-y-1/2 px-xs py-0.5 rounded bg-surface-container text-outline font-label-caps text-[10px]">⌘K</kbd></div><div class="flex items-center gap-xs"><button class="w-8 h-8 flex items-center justify-center rounded-xl text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors" type="button"><span class="material-symbols-outlined text-[20px]">help_outline</span></button><button class="relative w-8 h-8 flex items-center justify-center rounded-xl text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors" type="button"><span class="material-symbols-outlined text-[20px]">notifications</span><span class="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-tertiary-container"></span></button></div><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div></div></header><main class="w-full pt-16 bg-background min-h-screen"><div class="flex flex-col w-full px-xl py-lg space-y-lg max-w-7xl mx-auto">
+<!-- Top Header Section -->
+<header class="flex flex-col md:flex-row md:items-center justify-between gap-md pb-xs">
+<div class="space-y-xs">
+<div class="flex items-center gap-xs">
+<span class="px-xs py-0.5 rounded-full bg-surface-container-high text-primary font-label-caps text-[11px] tracking-wide uppercase">Workspace Preferences</span>
+<span class="inline-block w-1 h-1 rounded-full bg-outline-variant"></span>
+<span class="font-label-caps text-outline text-[12px]">V3.4.0-STABLE</span>
+</div>
+<h1 class="font-headline-lg text-headline-lg text-on-surface tracking-tight">系统设置</h1>
+<p class="font-body-sm text-body-sm text-on-surface-variant max-w-2xl">定制您的专属工作台界面风格、工作流偏好与数据安全策略，配置将即刻同步至多端设备。</p>
+</div>
+<div class="flex items-center gap-sm self-start md:self-center shrink-0">
+<button class="flex items-center gap-xs px-md py-sm bg-surface-container-lowest text-on-surface-variant rounded-xl hover:bg-surface-container-low hover:text-on-surface transition-all shadow-sm" id="reset-btn" type="button">
+<span class="material-symbols-outlined text-[18px]">restart_alt</span>
+<span class="font-button text-button">重置为默认</span>
+</button>
+<button class="flex items-center gap-xs px-md py-sm bg-primary-container text-on-primary rounded-xl shadow-md hover:bg-primary transition-all" id="save-btn" type="button">
+<span class="material-symbols-outlined text-[18px]">check</span>
+<span class="font-button text-button">保存更改</span>
+</button>
+</div>
+</header>
+<!-- Secondary Horizontal Navigation Tabs -->
+<nav aria-label="设置导航" class="flex items-center gap-xs bg-surface-container-lowest rounded-full p-1.5 shadow-sm overflow-x-auto select-none">
+<button class="flex items-center gap-xs px-md py-sm rounded-full bg-primary text-on-primary font-button text-button transition-all shrink-0" type="button">
+<span class="material-symbols-outlined text-[18px]">palette</span>
+<span>外观与主题</span>
+</button>
+<button class="flex items-center gap-xs px-md py-sm rounded-full text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface font-button text-button transition-all shrink-0" type="button">
+<span class="material-symbols-outlined text-[18px]">tune</span>
+<span>色彩与密度</span>
+</button>
+<button class="flex items-center gap-xs px-md py-sm rounded-full text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface font-button text-button transition-all shrink-0" type="button">
+<span class="material-symbols-outlined text-[18px]">format_size</span>
+<span>字体与排版</span>
+</button>
+<button class="flex items-center gap-xs px-md py-sm rounded-full text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface font-button text-button transition-all shrink-0" type="button">
+<span class="material-symbols-outlined text-[18px]">keyboard</span>
+<span>通用与快捷键</span>
+</button>
+<button class="flex items-center gap-xs px-md py-sm rounded-full text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface font-button text-button transition-all shrink-0" type="button">
+<span class="material-symbols-outlined text-[18px]">notifications_active</span>
+<span>提醒与协同</span>
+</button>
+<button class="flex items-center gap-xs px-md py-sm rounded-full text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface font-button text-button transition-all shrink-0" type="button">
+<span class="material-symbols-outlined text-[18px]">shield</span>
+<span>数据与安全</span>
+</button>
+</nav>
+<!-- Main Content Layout Grid -->
+<div class="grid grid-cols-1 xl:grid-cols-12 gap-lg items-start">
+<!-- Left Column: Core Theme & Appearance Controls -->
+<section class="xl:col-span-8 flex flex-col gap-lg">
+<!-- Card 1: Appearance Mode Cards -->
+<article class="bg-surface-container-lowest rounded-xl p-lg shadow-sm space-y-md">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-sm">
+<div class="w-8 h-8 rounded-xl bg-surface-container-high flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[20px]">brightness_medium</span>
+</div>
+<div>
+<h2 class="font-headline-md text-headline-md text-on-surface">外观显示模式</h2>
+<p class="font-body-sm text-body-sm text-on-surface-variant">选择工作台的基础底色方案，支持根据系统实时自动切换</p>
+</div>
+</div>
+<span class="px-sm py-0.5 rounded-full bg-secondary-container/40 text-on-secondary-container font-label-caps text-[11px]">即时生效</span>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-md pt-xs" id="appearance-modes">
+<!-- Mode A: Light (Active) -->
+<div class="group relative flex flex-col p-md rounded-xl bg-surface-container-lowest cursor-pointer transition-all hover:shadow-md shadow-sm" data-mode="light">
+<!-- Active indicator badge -->
+<div class="mode-badge absolute top-3 right-3 w-6 h-6 rounded-full bg-primary-container text-on-primary flex items-center justify-center shadow-sm">
+<span class="material-symbols-outlined text-[16px]">check</span>
+</div>
+<!-- Mockup Preview Illustration -->
+<div class="w-full h-32 rounded-lg bg-surface-container-low p-2 flex gap-1.5 shadow-inner mb-sm overflow-hidden">
+<div class="w-1/4 h-full rounded bg-surface-container-high flex flex-col gap-1 p-1">
+<div class="w-full h-2 rounded bg-primary-container/70"></div>
+<div class="w-3/4 h-1.5 rounded bg-outline-variant/60 mt-1"></div>
+<div class="w-2/3 h-1.5 rounded bg-outline-variant/40"></div>
+<div class="w-4/5 h-1.5 rounded bg-outline-variant/40"></div>
+</div>
+<div class="w-3/4 h-full rounded bg-surface-container-lowest p-2 flex flex-col gap-1.5">
+<div class="flex justify-between items-center">
+<div class="w-1/2 h-2.5 rounded bg-primary/20"></div>
+<div class="w-2 h-2 rounded-full bg-secondary"></div>
+</div>
+<div class="w-full h-8 rounded bg-surface-container-low flex items-center px-1.5 gap-1">
+<div class="w-4 h-4 rounded bg-primary-container"></div>
+<div class="w-16 h-1.5 rounded bg-outline-variant/70"></div>
+</div>
+<div class="grid grid-cols-2 gap-1 mt-auto">
+<div class="h-5 rounded bg-surface-container-low"></div>
+<div class="h-5 rounded bg-surface-container-high"></div>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-xs">
+<span class="material-symbols-outlined text-primary text-[18px]">light_mode</span>
+<span class="font-button text-button text-on-surface">浅色模式 (Light)</span>
+</div>
+<p class="font-body-sm text-body-sm text-outline mt-0.5 text-xs">经典清爽底色，保持长时间注视的最佳对比与清晰感</p>
+</div>
+<!-- Mode B: Dark -->
+<div class="group relative flex flex-col p-md rounded-xl bg-surface-container-lowest cursor-pointer transition-all hover:shadow-md shadow-sm" data-mode="dark">
+<div class="mode-badge hidden absolute top-3 right-3 w-6 h-6 rounded-full bg-primary-container text-on-primary flex items-center justify-center shadow-sm">
+<span class="material-symbols-outlined text-[16px]">check</span>
+</div>
+<!-- Mockup Preview Illustration -->
+<div class="w-full h-32 rounded-lg bg-inverse-surface p-2 flex gap-1.5 shadow-inner mb-sm overflow-hidden">
+<div class="w-1/4 h-full rounded bg-on-surface/40 flex flex-col gap-1 p-1">
+<div class="w-full h-2 rounded bg-primary"></div>
+<div class="w-3/4 h-1.5 rounded bg-outline/60 mt-1"></div>
+<div class="w-2/3 h-1.5 rounded bg-outline/40"></div>
+<div class="w-4/5 h-1.5 rounded bg-outline/40"></div>
+</div>
+<div class="w-3/4 h-full rounded bg-on-surface p-2 flex flex-col gap-1.5">
+<div class="flex justify-between items-center">
+<div class="w-1/2 h-2.5 rounded bg-surface-container-highest/20"></div>
+<div class="w-2 h-2 rounded-full bg-secondary-fixed"></div>
+</div>
+<div class="w-full h-8 rounded bg-inverse-surface flex items-center px-1.5 gap-1">
+<div class="w-4 h-4 rounded bg-primary"></div>
+<div class="w-16 h-1.5 rounded bg-outline/50"></div>
+</div>
+<div class="grid grid-cols-2 gap-1 mt-auto">
+<div class="h-5 rounded bg-inverse-surface"></div>
+<div class="h-5 rounded bg-surface-container-high/20"></div>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-xs">
+<span class="material-symbols-outlined text-outline text-[18px]">dark_mode</span>
+<span class="font-button text-button text-on-surface">深色模式 (Dark)</span>
+</div>
+<p class="font-body-sm text-body-sm text-outline mt-0.5 text-xs">沉浸式暗黑调性，大幅降低夜间光线刺激与屏幕能耗</p>
+</div>
+<!-- Mode C: System Sync -->
+<div class="group relative flex flex-col p-md rounded-xl bg-surface-container-lowest cursor-pointer transition-all hover:shadow-md shadow-sm" data-mode="system">
+<div class="mode-badge hidden absolute top-3 right-3 w-6 h-6 rounded-full bg-primary-container text-on-primary flex items-center justify-center shadow-sm">
+<span class="material-symbols-outlined text-[16px]">check</span>
+</div>
+<!-- Mockup Preview Split Illustration -->
+<div class="w-full h-32 rounded-lg bg-surface-container-low p-2 flex gap-1.5 shadow-inner mb-sm overflow-hidden relative">
+<div class="absolute inset-0 flex">
+<div class="w-1/2 h-full bg-surface-container-lowest p-2 flex flex-col gap-1.5">
+<div class="w-full h-2 rounded bg-primary-container/80"></div>
+<div class="w-3/4 h-2 rounded bg-outline-variant/60"></div>
+<div class="w-full h-6 rounded bg-surface-container-low mt-2"></div>
+</div>
+<div class="w-1/2 h-full bg-inverse-surface p-2 flex flex-col gap-1.5">
+<div class="w-full h-2 rounded bg-primary"></div>
+<div class="w-3/4 h-2 rounded bg-outline/60"></div>
+<div class="w-full h-6 rounded bg-on-surface mt-2"></div>
+</div>
+</div>
+<div class="absolute inset-y-0 left-1/2 w-0.5 bg-surface-tint -translate-x-1/2 flex items-center justify-center">
+<span class="w-4 h-4 rounded-full bg-surface-container-lowest text-primary shadow-sm flex items-center justify-center">
+<span class="material-symbols-outlined text-[12px]">sync_alt</span>
+</span>
+</div>
+</div>
+<div class="flex items-center gap-xs">
+<span class="material-symbols-outlined text-outline text-[18px]">settings_night_sight</span>
+<span class="font-button text-button text-on-surface">跟随系统 (System Sync)</span>
+</div>
+<p class="font-body-sm text-body-sm text-outline mt-0.5 text-xs">与 macOS / Windows 系统的日升日落自动化日程严格同步</p>
+</div>
+</div>
+</article>
+<!-- Card 2: Window & Sidebar Behavior -->
+<article class="bg-surface-container-lowest rounded-xl p-lg shadow-sm space-y-md">
+<div class="flex items-center gap-sm">
+<div class="w-8 h-8 rounded-xl bg-surface-container-high flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[20px]">dock_to_left</span>
+</div>
+<div>
+<h2 class="font-headline-md text-headline-md text-on-surface">窗口与侧边栏外观</h2>
+<p class="font-body-sm text-body-sm text-on-surface-variant">配置主界面视窗在不同显示分辨率下的微交互质感</p>
+</div>
+</div>
+<div class="flex flex-col divide-y-0 space-y-sm pt-xs">
+<!-- Toggle 1: Default Open Sidebar -->
+<div class="flex items-center justify-between p-md rounded-xl bg-surface-container-low hover:bg-surface-container transition-colors">
+<div class="space-y-0.5 pr-md">
+<div class="flex items-center gap-xs">
+<span class="font-button text-button text-on-surface">侧边栏默认展开状态</span>
+<span class="px-xs py-0.5 rounded bg-surface-container-high text-primary font-label-caps text-[10px]">推荐开启</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant text-xs leading-relaxed">进入工作台时默认完整呈现全部一级导航与团队空间树状层级，提供更高效的快捷寻径。</p>
+</div>
+<label class="relative inline-flex items-center cursor-pointer shrink-0">
+<input checked="" class="sr-only peer" id="toggle-sidebar" type="checkbox"/>
+<div class="w-11 h-6 bg-outline-variant peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-surface-container-lowest after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-surface-container-lowest after:border-gray-300 after:border-0 after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-container shadow-inner"></div>
+</label>
+</div>
+<!-- Toggle 2: Glassmorphism / Vibrancy -->
+<div class="flex items-center justify-between p-md rounded-xl bg-surface-container-low hover:bg-surface-container transition-colors">
+<div class="space-y-0.5 pr-md">
+<div class="flex items-center gap-xs">
+<span class="font-button text-button text-on-surface">透明磨砂模糊特效 (Vibrancy / Glassmorphism)</span>
+<span class="px-xs py-0.5 rounded bg-surface-container-high text-outline font-label-caps text-[10px]">GPU 加速</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant text-xs leading-relaxed">在顶部吸顶导航栏、快捷搜索遮罩与浮窗弹窗启用高级毛玻璃滤镜，营造轻盈现代的层次感。</p>
+</div>
+<label class="relative inline-flex items-center cursor-pointer shrink-0">
+<input checked="" class="sr-only peer" id="toggle-glass" type="checkbox"/>
+<div class="w-11 h-6 bg-outline-variant peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-surface-container-lowest after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-surface-container-lowest after:border-gray-300 after:border-0 after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-container shadow-inner"></div>
+</label>
+</div>
+<!-- Toggle 3: Reduce Motion -->
+<div class="flex items-center justify-between p-md rounded-xl bg-surface-container-low hover:bg-surface-container transition-colors">
+<div class="space-y-0.5 pr-md">
+<div class="flex items-center gap-xs">
+<span class="font-button text-button text-on-surface">动画过渡减弱模式 (Reduce Motion)</span>
+<span class="px-xs py-0.5 rounded bg-surface-container-high text-on-surface-variant font-label-caps text-[10px]">辅助功能</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant text-xs leading-relaxed">停用界面中超过 150ms 的位移、浮动与缩放微动效，极大保护动晕症敏感用户或低功耗设备。</p>
+</div>
+<label class="relative inline-flex items-center cursor-pointer shrink-0">
+<input class="sr-only peer" id="toggle-motion" type="checkbox"/>
+<div class="w-11 h-6 bg-outline-variant peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-surface-container-lowest after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-surface-container-lowest after:border-gray-300 after:border-0 after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-container shadow-inner"></div>
+</label>
+</div>
+</div>
+</article>
+<!-- Card 3: Canvas Tone Fine-tuning -->
+<article class="bg-surface-container-lowest rounded-xl p-lg shadow-sm space-y-md">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-sm">
+<div class="w-8 h-8 rounded-xl bg-surface-container-high flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[20px]">format_paint</span>
+</div>
+<div>
+<h2 class="font-headline-md text-headline-md text-on-surface">页面底色微调</h2>
+<p class="font-body-sm text-body-sm text-on-surface-variant">选择浅色工作区底布的主色温，营造专属于个人工作台的氛围</p>
+</div>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-md pt-xs" id="canvas-tones">
+<!-- Option 1: Pure White -->
+<div class="tone-card flex items-center justify-between p-md rounded-xl bg-surface-container-lowest shadow-sm hover:shadow-md cursor-pointer transition-all" data-tone="pure-white">
+<div class="flex items-center gap-sm">
+<div class="w-9 h-9 rounded-full bg-surface-container-lowest shadow-sm flex items-center justify-center">
+<span class="w-6 h-6 rounded-full bg-[#ffffff] shadow-sm"></span>
+</div>
+<div class="flex flex-col">
+<span class="font-button text-button text-on-surface">纯白日光</span>
+<span class="font-label-caps text-[11px] text-outline">#FFFFFF</span>
+</div>
+</div>
+<div class="radio-indicator w-5 h-5 rounded-full bg-surface-container-high flex items-center justify-center">
+<span class="material-symbols-outlined text-[14px] text-surface-container-lowest opacity-0">check</span>
+</div>
+</div>
+<!-- Option 2: Snow Blue (Default selected) -->
+<div class="tone-card flex items-center justify-between p-md rounded-xl bg-surface-container-lowest shadow-sm hover:shadow-md cursor-pointer transition-all" data-tone="snow-blue">
+<div class="flex items-center gap-sm">
+<div class="w-9 h-9 rounded-full bg-surface-container-low shadow-sm flex items-center justify-center">
+<span class="w-6 h-6 rounded-full bg-[#f8f9ff] shadow-sm"></span>
+</div>
+<div class="flex flex-col">
+<div class="flex items-center gap-xs">
+<span class="font-button text-button text-on-surface">雪青冷蓝</span>
+<span class="px-1 rounded bg-secondary-container/40 text-secondary font-label-caps text-[10px]">默认</span>
+</div>
+<span class="font-label-caps text-[11px] text-outline">#F8F9FF</span>
+</div>
+</div>
+<div class="radio-indicator w-5 h-5 rounded-full bg-primary-container text-on-primary flex items-center justify-center shadow-sm">
+<span class="material-symbols-outlined text-[14px]">check</span>
+</div>
+</div>
+<!-- Option 3: Cool Slate -->
+<div class="tone-card flex items-center justify-between p-md rounded-xl bg-surface-container-lowest shadow-sm hover:shadow-md cursor-pointer transition-all" data-tone="cool-slate">
+<div class="flex items-center gap-sm">
+<div class="w-9 h-9 rounded-full bg-surface-container-high shadow-sm flex items-center justify-center">
+<span class="w-6 h-6 rounded-full bg-[#f3f4f6] shadow-sm"></span>
+</div>
+<div class="flex flex-col">
+<span class="font-button text-button text-on-surface">沉静冷灰</span>
+<span class="font-label-caps text-[11px] text-outline">#F3F4F6</span>
+</div>
+</div>
+<div class="radio-indicator w-5 h-5 rounded-full bg-surface-container-high flex items-center justify-center">
+<span class="material-symbols-outlined text-[14px] text-surface-container-lowest opacity-0">check</span>
+</div>
+</div>
+</div>
+</article>
+</section>
+<!-- Right Column: Context Preview, Quick Status & Flow Navigation -->
+<aside class="xl:col-span-4 flex flex-col gap-lg">
+<!-- Real-time Status Card -->
+<div class="bg-surface-container-lowest rounded-xl p-lg shadow-sm space-y-md">
+<div class="flex items-center justify-between">
+<h3 class="font-headline-md text-headline-md text-on-surface text-[16px]">环境实时概览</h3>
+<span class="flex items-center gap-1 font-label-caps text-secondary text-[11px]">
+<span class="w-2 h-2 rounded-full bg-secondary animate-pulse"></span>
+            已就绪
+          </span>
+</div>
+<!-- SVG Mini Metric Rings & Specs -->
+<div class="p-md rounded-xl bg-surface-container-low flex items-center gap-md">
+<div class="relative w-14 h-14 shrink-0 flex items-center justify-center">
+<svg class="w-full h-full -rotate-90" viewbox="0 0 36 36">
+<path class="text-surface-container-high" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-width="3.5"></path>
+<path class="text-primary" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-dasharray="85, 100" stroke-linecap="round" stroke-width="3.5"></path>
+</svg>
+<span class="absolute font-label-caps text-[12px] font-bold text-on-surface">85%</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-button text-button text-on-surface truncate">视觉渲染效能分</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant text-xs">GPU 加速已挂载，无重绘抖动</span>
+</div>
+</div>
+<div class="space-y-xs pt-xs">
+<div class="flex items-center justify-between text-xs py-1">
+<span class="text-on-surface-variant font-body-sm">当前活跃显示器</span>
+<span class="text-on-surface font-button">Apple Retina (P3 色域)</span>
+</div>
+<div class="flex items-center justify-between text-xs py-1">
+<span class="text-on-surface-variant font-body-sm">工作台渲染帧率</span>
+<span class="text-secondary font-button">120 FPS ProMotion</span>
+</div>
+<div class="flex items-center justify-between text-xs py-1">
+<span class="text-on-surface-variant font-body-sm">最后同步时间</span>
+<span class="text-on-surface font-button">刚刚 (14:32:08)</span>
+</div>
+</div>
+</div>
+<!-- Quick Tips Card with Illustration Placeholder -->
+<div class="bg-surface-container-lowest rounded-xl p-lg shadow-sm space-y-md">
+<div class="flex items-center gap-xs text-primary">
+<span class="material-symbols-outlined text-[20px]">lightbulb</span>
+<span class="font-button text-button">小贴士</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant text-xs leading-relaxed">
+          在任意工作台界面使用组合快捷键 <kbd class="px-1.5 py-0.5 rounded bg-surface-container text-on-surface font-label-caps text-[10px]">⌘</kbd> + <kbd class="px-1.5 py-0.5 rounded bg-surface-container text-on-surface font-label-caps text-[10px]">Shift</kbd> + <kbd class="px-1.5 py-0.5 rounded bg-surface-container text-on-surface font-label-caps text-[10px]">D</kbd>，可快速在“纯白日光”与“雪青冷蓝”底色之间快速切换，便于在校色或文案审阅时获得更纯粹的视觉对比。
+        </p>
+<!-- Ambient Mini Graphic Card -->
+<div class="relative w-full h-28 rounded-lg overflow-hidden bg-gradient-to-tr from-surface-container-high to-surface-container-lowest p-3 flex flex-col justify-end">
+<div class="absolute -right-4 -top-4 w-20 h-20 rounded-full bg-primary/10 blur-xl"></div>
+<img class="w-full h-full object-cover absolute inset-0 opacity-40 mix-blend-multiply" data-alt="A clean, minimalist 3D isometric representation of a high-tech modern workstation layout on a gentle azure background, with geometric soft blue glass cards and precise neon highlights in deep Team Blue, perfectly matching the design system." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAYNIhaXLIcYhDu6OOaALOzTrZjBYs898Umy4BJVVGEKoUaIuvRs5X9jNJqug3eqvSUX88shpixpffePW13HZlcttx4iXV3rx3STbIHlrSlxm6k-HHDybaj0ImRuK_FaavsFmNjtI0K0a_YAWLyydHi4545KyNhCUoVZiHT6b3G2gLzny7pXavzJPCAe6daWE11gbAyqJ2ieLOH1K-TB93qhu9y879a4Zch4x9i9ABNGLRuwBdmSW1AVQ"/>
+<div class="relative z-10 flex items-center justify-between">
+<span class="font-label-caps text-[11px] text-primary font-bold">Nexus Aesthetic Engine</span>
+<span class="material-symbols-outlined text-primary text-[16px]">spark</span>
+</div>
+</div>
+</div>
+<!-- Flow Guidance Card (Next Step CTA) -->
+<div class="group relative bg-primary-container text-on-primary rounded-xl p-lg shadow-lg hover:bg-primary transition-all cursor-pointer overflow-hidden" id="next-step-card">
+<div class="absolute -right-6 -bottom-6 w-32 h-32 rounded-full bg-on-primary/10 pointer-events-none"></div>
+<div class="relative z-10 space-y-sm">
+<div class="flex items-center justify-between">
+<span class="font-label-caps text-[11px] uppercase tracking-wider text-on-primary/80">下一步向导</span>
+<span class="material-symbols-outlined text-[20px] group-hover:translate-x-1 transition-transform">arrow_forward</span>
+</div>
+<div>
+<h4 class="font-headline-md text-headline-md text-[18px] text-on-primary">配置主题色彩与界面密度</h4>
+<p class="font-body-sm text-body-sm text-on-primary/80 text-xs mt-1">微调品牌强调色、数据图表主基调以及列表行高紧凑度 →</p>
+</div>
+</div>
+</div>
+<!-- Toast Feedback Floating Placeholder -->
+<div class="hidden items-center gap-sm p-md rounded-xl bg-on-surface text-inverse-on-surface shadow-xl transition-all duration-300" id="toast">
+<span class="material-symbols-outlined text-secondary-fixed text-[20px]">check_circle</span>
+<span class="font-body-sm text-body-sm text-xs" id="toast-message">外观模式偏好已保存并同步至云端。</span>
+</div>
+</aside>
+</div>
+</div>
+<script>
+  (function() {
+    // Mode switcher interactions
+    const modeCards = document.querySelectorAll('#appearance-modes > div');
+    const toast = document.getElementById('toast');
+    const toastMessage = document.getElementById('toast-message');
+    const saveBtn = document.getElementById('save-btn');
+    const resetBtn = document.getElementById('reset-btn');
+    const nextStepCard = document.getElementById('next-step-card');
+
+    function showToast(msg) {
+      if (!toast) return;
+      toastMessage.textContent = msg;
+      toast.classList.remove('hidden');
+      toast.classList.add('flex');
+      setTimeout(() => {
+        toast.classList.add('hidden');
+        toast.classList.remove('flex');
+      }, 2500);
+    }
+
+    modeCards.forEach(card => {
+      card.addEventListener('click', () => {
+        modeCards.forEach(c => {
+          c.classList.remove('shadow-md', 'bg-surface-container-lowest');
+          c.querySelector('.mode-badge').classList.add('hidden');
+        });
+        card.classList.add('shadow-md');
+        card.querySelector('.mode-badge').classList.remove('hidden');
+        const modeTitle = card.querySelector('.font-button').textContent;
+        showToast(`已切换至: ${modeTitle}`);
+      });
+    });
+
+    // Tone switcher interactions
+    const toneCards = document.querySelectorAll('#canvas-tones > .tone-card');
+    toneCards.forEach(card => {
+      card.addEventListener('click', () => {
+        toneCards.forEach(c => {
+          const ind = c.querySelector('.radio-indicator');
+          ind.className = 'radio-indicator w-5 h-5 rounded-full bg-surface-container-high flex items-center justify-center';
+          const icon = ind.querySelector('.material-symbols-outlined');
+          icon.classList.add('opacity-0');
+          icon.classList.remove('text-on-primary');
+        });
+
+        const activeInd = card.querySelector('.radio-indicator');
+        activeInd.className = 'radio-indicator w-5 h-5 rounded-full bg-primary-container text-on-primary flex items-center justify-center shadow-sm';
+        const activeIcon = activeInd.querySelector('.material-symbols-outlined');
+        activeIcon.classList.remove('opacity-0');
+        
+        const toneName = card.querySelector('.font-button').textContent;
+        showToast(`底色微调已更新为: ${toneName}`);
+      });
+    });
+
+    // Actions
+    if (saveBtn) {
+      saveBtn.addEventListener('click', () => {
+        showToast('全部外观设置已成功保存！');
+      });
+    }
+
+    if (resetBtn) {
+      resetBtn.addEventListener('click', () => {
+        // Reset toggles
+        document.getElementById('toggle-sidebar').checked = true;
+        document.getElementById('toggle-glass').checked = true;
+        document.getElementById('toggle-motion').checked = false;
+        
+        // Reset mode to light
+        modeCards[0].click();
+        
+        // Reset tone to snow-blue
+        toneCards[1].click();
+
+        showToast('已重置为系统出厂默认外观配置');
+      });
+    }
+
+    if (nextStepCard) {
+      nextStepCard.addEventListener('click', () => {
+        showToast('即将载入「色彩与密度」配置模块...');
+      });
+    }
+  })();
+</script></main></div></body></html>

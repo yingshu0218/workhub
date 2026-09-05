@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet"/><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config={darkMode:"class",theme:{extend:{colors:{"surface-bright":"#f8f9ff","on-surface-variant":"#434655","background":"#f8f9ff","primary-container":"#2563eb","secondary-fixed-dim":"#4edea3","on-primary-fixed":"#00174b","tertiary-fixed-dim":"#ffb596","inverse-primary":"#b4c5ff","surface-container-high":"#dce9ff","on-surface":"#0b1c30","on-secondary-container":"#00714d","surface":"#f8f9ff","on-tertiary-fixed":"#360f00","error":"#ba1a1a","outline":"#737686","surface-tint":"#0053db","inverse-surface":"#213145","error-container":"#ffdad6","primary-fixed-dim":"#b4c5ff","surface-dim":"#cbdbf5","on-secondary":"#ffffff","surface-container-highest":"#d3e4fe","on-secondary-fixed":"#002113","on-primary-fixed-variant":"#003ea8","tertiary-fixed":"#ffdbcd","on-primary":"#ffffff","primary-fixed":"#dbe1ff","primary":"#004ac6","secondary-fixed":"#6ffbbe","secondary":"#006c49","outline-variant":"#c3c6d7","surface-container-lowest":"#ffffff","on-tertiary-container":"#ffede6","on-error":"#ffffff","surface-container-low":"#eff4ff","secondary-container":"#6cf8bb","on-primary-container":"#eeefff","surface-variant":"#d3e4fe","on-tertiary-fixed-variant":"#7d2d00","on-error-container":"#93000a","tertiary":"#943700","tertiary-container":"#bc4800","surface-container":"#e5eeff","inverse-on-surface":"#eaf1ff","on-secondary-fixed-variant":"#005236","on-tertiary":"#ffffff","on-background":"#0b1c30"},borderRadius:{DEFAULT:"0.125rem",lg:"0.25rem",xl:"0.5rem",full:"0.75rem"},spacing:{"container-margin-desktop":"40px",sm:"8px",xl:"32px",xs:"4px",gutter:"16px","container-margin-mobile":"16px",md:"16px",lg:"24px",base:"4px"},fontFamily:{"label-caps":["Inter"],"body-sm":["Inter"],"headline-lg":["Inter"],"headline-md":["Inter"],"headline-lg-mobile":["Inter"],"body-lg":["Inter"],button:["Inter"]},fontSize:{"label-caps":["12px",{lineHeight:"16px",letterSpacing:"0.05em",fontWeight:"600"}],"body-sm":["14px",{lineHeight:"20px",fontWeight:"400"}],"headline-lg":["30px",{lineHeight:"38px",letterSpacing:"-0.02em",fontWeight:"700"}],"headline-md":["20px",{lineHeight:"28px",fontWeight:"600"}],"headline-lg-mobile":["24px",{lineHeight:"32px",letterSpacing:"-0.01em",fontWeight:"700"}],"body-lg":["16px",{lineHeight:"24px",fontWeight:"400"}],button:["14px",{lineHeight:"20px",fontWeight:"500"}]}}}}</script></head><body class="bg-surface font-body-sm text-body-sm text-on-surface"><aside class="fixed left-0 top-0 h-full w-64 bg-surface-container-lowest shadow-[0_1px_8px_rgba(0,0,0,0.04)] z-50 flex flex-col justify-between select-none"><div class="flex flex-col"><div class="h-16 flex items-center gap-3 px-6"><div class="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-on-primary"><span class="material-symbols-outlined text-[20px]">send</span></div><div class="flex flex-col"><span class="font-headline-md text-body-lg font-semibold tracking-tight text-on-surface leading-tight">寻鸽工作台</span><span class="font-label-caps text-label-caps text-on-surface-variant">Nexus Workspace</span></div></div><div class="px-4 pt-2 pb-3"><button class="w-full flex items-center justify-between px-3 py-2.5 rounded-lg bg-primary hover:bg-primary-container text-on-primary font-button text-button transition-all shadow-[0_1px_3px_rgba(0,0,0,0.1)]" type="button"><div class="flex items-center gap-2"><span class="material-symbols-outlined text-[18px]">bolt</span><span>灵感闪现</span></div><span class="font-label-caps text-label-caps bg-on-primary/20 text-on-primary px-1.5 py-0.5 rounded">⌘J</span></button></div><nav class="px-3 flex flex-col gap-1" data-active-classes="bg-primary-container text-on-primary-container font-semibold"><a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface font-button text-button transition-colors" data-path="workbench" href="#"><span class="material-symbols-outlined text-[20px]">grid_view</span><span>工作台</span></a><a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface font-button text-button transition-colors" data-path="crm" href="#"><span class="material-symbols-outlined text-[20px]">groups</span><span>客户管理</span></a><a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface font-button text-button transition-colors" data-path="finance" href="#"><span class="material-symbols-outlined text-[20px]">account_balance_wallet</span><span>财务中心</span></a><a aria-current="page" class="flex items-center gap-3 px-3 py-2 rounded-lg transition-colors bg-primary-container text-on-primary-container font-semibold" data-path="tasks" href="#"><span class="material-symbols-outlined text-[20px]">check_circle</span><span>待办事项</span></a><a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface font-button text-button transition-colors" data-path="notes" href="#"><span class="material-symbols-outlined text-[20px]">edit_note</span><span>团队笔记</span></a><a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface font-button text-button transition-colors" data-path="habits" href="#"><span class="material-symbols-outlined text-[20px]">event_repeat</span><span>打卡·习惯</span></a><a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface font-button text-button transition-colors" data-path="trophies" href="#"><span class="material-symbols-outlined text-[20px]">emoji_events</span><span>成就奖杯</span></a><a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface font-button text-button transition-colors" data-path="settings" href="#"><span class="material-symbols-outlined text-[20px]">settings</span><span>系统设置</span></a></nav></div><div class="p-3"><div class="flex items-center justify-between p-2 rounded-lg bg-surface-container-low hover:bg-surface-container transition-colors"><div class="flex items-center gap-2.5 min-w-0"><div class="relative flex-shrink-0"><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div><span class="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-secondary ring-2 ring-surface-container-lowest"></span></div><div class="flex flex-col min-w-0"><span class="font-button text-button text-on-surface truncate">陈致远</span><span class="font-label-caps text-label-caps text-on-surface-variant truncate">Core Team</span></div></div><button aria-label="切换用户" class="text-on-surface-variant hover:text-on-surface p-1 rounded transition-colors" type="button"><span class="material-symbols-outlined text-[18px]">unfold_more</span></button></div></div></aside><div class="pl-64"><header class="fixed top-0 left-64 right-0 h-16 bg-surface/80 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)] z-40 flex items-center justify-between px-8"><div class="flex items-center gap-2 font-body-sm text-body-sm"><span class="text-on-surface-variant">Nexus</span><span class="material-symbols-outlined text-outline text-[16px]">chevron_right</span><span class="font-button text-button text-on-surface font-medium">待办事项</span></div><div class="flex items-center gap-4"><div class="flex items-center gap-2 bg-surface-container-lowest px-3 py-1.5 rounded-lg text-on-surface-variant shadow-[0_1px_3px_rgba(0,0,0,0.05)]"><span class="material-symbols-outlined text-[18px] text-outline">search</span><span class="text-on-surface-variant font-body-sm text-body-sm pr-4">搜索工作区、任务或文档...</span><kbd class="font-label-caps text-label-caps bg-surface-container-high text-on-surface px-1.5 py-0.5 rounded">⌘K</kbd></div><div class="flex items-center gap-1.5 text-on-secondary-container bg-secondary-container/30 px-2.5 py-1 rounded-full font-label-caps text-label-caps"><span class="w-1.5 h-1.5 rounded-full bg-secondary animate-pulse"></span><span>云端已实时同步</span></div><div class="flex items-center gap-1 text-on-surface-variant"><button aria-label="帮助中心" class="p-1.5 rounded-lg hover:bg-surface-container-high hover:text-on-surface transition-colors" type="button"><span class="material-symbols-outlined text-[20px]">help</span></button><button aria-label="通知" class="relative p-1.5 rounded-lg hover:bg-surface-container-high hover:text-on-surface transition-colors" type="button"><span class="material-symbols-outlined text-[20px]">notifications</span><span class="absolute top-1 right-1 w-2 h-2 rounded-full bg-primary"></span></button></div><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div></div></header><main class="relative pt-16 bg-surface min-h-screen w-full px-8 py-6"><div class="flex flex-col w-full">
+<!-- Underlying Habit Tracker Dashboard Context (Dimmed Background Preview) -->
+<div aria-hidden="true" class="w-full flex flex-col gap-6 opacity-60 pointer-events-none select-none">
+<div class="flex items-center justify-between">
+<div class="flex flex-col">
+<span class="font-headline-lg text-headline-lg text-on-surface">打卡 · 习惯养成与热力追踪</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">科学构建行为回馈机制，强化自驱力回路与神经塑性</span>
+</div>
+<div class="flex items-center gap-3">
+<div class="bg-surface-container px-3 py-1.5 rounded-lg text-on-surface font-button text-button flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]">calendar_month</span>
+<span>2024 Q4 追踪周期</span>
+</div>
+<div class="bg-primary text-on-primary px-4 py-2 rounded-lg font-button text-button flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]">add</span>
+<span>新建自律习惯</span>
+</div>
+</div>
+</div>
+<!-- Habit Summary Metrics -->
+<div class="grid grid-cols-4 gap-4">
+<div class="bg-surface-container-lowest p-4 rounded-xl shadow-sm flex items-center gap-4">
+<div class="w-10 h-10 rounded-lg bg-primary-container/20 text-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-[22px]">local_fire_department</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-label-caps text-label-caps text-on-surface-variant uppercase">当前最高连击</span>
+<span class="font-headline-md text-headline-md text-on-surface">42 天</span>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-4 rounded-xl shadow-sm flex items-center gap-4">
+<div class="w-10 h-10 rounded-lg bg-secondary-container/40 text-secondary flex items-center justify-center">
+<span class="material-symbols-outlined text-[22px]">task_alt</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-label-caps text-label-caps text-on-surface-variant uppercase">今日达标率</span>
+<span class="font-headline-md text-headline-md text-on-surface">83.3%</span>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-4 rounded-xl shadow-sm flex items-center gap-4">
+<div class="w-10 h-10 rounded-lg bg-surface-container-high text-on-surface-variant flex items-center justify-center">
+<span class="material-symbols-outlined text-[22px]">schedule</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-label-caps text-label-caps text-on-surface-variant uppercase">深度投入时长</span>
+<span class="font-headline-md text-headline-md text-on-surface">164.5 h</span>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-4 rounded-xl shadow-sm flex items-center gap-4">
+<div class="w-10 h-10 rounded-lg bg-tertiary-fixed text-tertiary flex items-center justify-center">
+<span class="material-symbols-outlined text-[22px]">military_tech</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-label-caps text-label-caps text-on-surface-variant uppercase">已解锁勋章</span>
+<span class="font-headline-md text-headline-md text-on-surface">19 枚</span>
+</div>
+</div>
+</div>
+<!-- Habit Heatmap Grid Skeleton -->
+<div class="bg-surface-container-lowest p-5 rounded-xl shadow-sm flex flex-col gap-3">
+<div class="flex items-center justify-between">
+<span class="font-headline-md text-body-lg text-on-surface">365 天高频连贯性热力矩阵</span>
+<div class="flex items-center gap-1.5 font-label-caps text-label-caps text-on-surface-variant">
+<span>少</span>
+<span class="w-3 h-3 rounded-sm bg-surface-container-high"></span>
+<span class="w-3 h-3 rounded-sm bg-primary-fixed"></span>
+<span class="w-3 h-3 rounded-sm bg-primary-fixed-dim"></span>
+<span class="w-3 h-3 rounded-sm bg-primary"></span>
+<span>多</span>
+</div>
+</div>
+<div class="grid grid-flow-col grid-rows-7 gap-1.5 w-full h-32 pt-2">
+<div class="bg-primary/20 rounded-sm"></div>
+<div class="bg-primary/60 rounded-sm"></div>
+<div class="bg-primary rounded-sm"></div>
+<div class="bg-surface-container-high rounded-sm"></div>
+<div class="bg-primary-fixed-dim rounded-sm"></div>
+<div class="bg-primary rounded-sm"></div>
+<div class="bg-primary/40 rounded-sm"></div>
+</div>
+</div>
+</div>
+<!-- Focused Modal Overlay Layer -->
+<div class="fixed inset-0 z-50 flex items-center justify-center bg-inverse-surface/40 backdrop-blur-sm p-4 overflow-y-auto" id="habitModalOverlay">
+<!-- Modal Card Container -->
+<div aria-labelledby="modal-title" aria-modal="true" class="relative w-full max-w-2xl bg-surface-container-lowest rounded-xl shadow-xl flex flex-col overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-200" role="dialog">
+<!-- Top Accent Bar -->
+<div class="h-1 w-full bg-gradient-to-r from-primary via-primary-container to-secondary"></div>
+<!-- Modal Header -->
+<div class="px-6 py-5 flex items-start justify-between bg-surface-container-low/50">
+<div class="flex items-center gap-3.5">
+<div class="w-11 h-11 rounded-xl bg-primary text-on-primary flex items-center justify-center shadow-sm flex-shrink-0 transition-colors" id="habitBadgePreview">
+<span class="material-symbols-outlined text-[24px]" id="previewIcon">electric_bolt</span>
+</div>
+<div class="flex flex-col">
+<div class="flex items-center gap-2">
+<span class="font-headline-md text-headline-md text-on-surface" id="modal-title">新建自律习惯</span>
+<span class="font-label-caps text-label-caps px-2 py-0.5 rounded bg-primary-fixed text-on-primary-fixed tracking-wider">NEW HABIT</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-0.5">
+              设定具有神经塑性稳态的微习惯，支持周期排程、跨模块业务联动与精准提醒
+            </p>
+</div>
+</div>
+<button aria-label="关闭窗口 (Esc)" class="text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high p-1.5 rounded-lg transition-colors" id="closeModalBtn" type="button">
+<span class="material-symbols-outlined text-[20px]">close</span>
+</button>
+</div>
+<!-- Modal Body (4 Discrete Systematic Sections) -->
+<div class="p-6 flex flex-col gap-6 max-h-[calc(85vh-130px)] overflow-y-auto">
+<!-- Section 1: Basic Identity & Core Vision -->
+<div class="flex flex-col gap-3.5">
+<div class="flex items-center justify-between">
+<span class="font-button text-button text-on-surface font-semibold flex items-center gap-1.5">
+<span class="w-1.5 h-3.5 bg-primary rounded-full"></span>
+              习惯基础识别与驱动愿景
+            </span>
+<span class="font-label-caps text-label-caps text-outline">* 必填字段</span>
+</div>
+<!-- Habit Name -->
+<div class="flex flex-col gap-1.5">
+<label class="font-label-caps text-label-caps text-on-surface-variant" for="habitNameInput">习惯名称</label>
+<div class="relative">
+<input class="w-full bg-surface-container-low focus:bg-surface-container-lowest text-on-surface font-body-sm text-body-sm px-3.5 py-2.5 rounded-lg outline-none transition-all placeholder:text-outline/70 shadow-sm focus:shadow-md" id="habitNameInput" placeholder="输入习惯名称，如：每日核心系统架构深度复盘" type="text" value="每日晚间 Q4 核心架构深度复盘"/>
+</div>
+</div>
+<!-- Icon & Color Picker Selector -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-surface-container-low/40 p-3 rounded-lg">
+<!-- Icon Picker -->
+<div class="flex flex-col gap-1.5">
+<span class="font-label-caps text-label-caps text-on-surface-variant">精选矢量图标</span>
+<div class="flex items-center gap-1.5" id="iconSelectionGroup">
+<button class="icon-option active w-8 h-8 rounded-lg bg-primary text-on-primary flex items-center justify-center transition-all shadow-sm" data-icon="electric_bolt" type="button">
+<span class="material-symbols-outlined text-[18px]">electric_bolt</span>
+</button>
+<button class="icon-option w-8 h-8 rounded-lg bg-surface-container text-on-surface-variant hover:bg-surface-container-high flex items-center justify-center transition-all" data-icon="code" type="button">
+<span class="material-symbols-outlined text-[18px]">code</span>
+</button>
+<button class="icon-option w-8 h-8 rounded-lg bg-surface-container text-on-surface-variant hover:bg-surface-container-high flex items-center justify-center transition-all" data-icon="directions_run" type="button">
+<span class="material-symbols-outlined text-[18px]">directions_run</span>
+</button>
+<button class="icon-option w-8 h-8 rounded-lg bg-surface-container text-on-surface-variant hover:bg-surface-container-high flex items-center justify-center transition-all" data-icon="menu_book" type="button">
+<span class="material-symbols-outlined text-[18px]">menu_book</span>
+</button>
+<button class="icon-option w-8 h-8 rounded-lg bg-surface-container text-on-surface-variant hover:bg-surface-container-high flex items-center justify-center transition-all" data-icon="schedule" type="button">
+<span class="material-symbols-outlined text-[18px]">schedule</span>
+</button>
+<button class="icon-option w-8 h-8 rounded-lg bg-surface-container text-on-surface-variant hover:bg-surface-container-high flex items-center justify-center transition-all" data-icon="local_fire_department" type="button">
+<span class="material-symbols-outlined text-[18px]">local_fire_department</span>
+</button>
+</div>
+</div>
+<!-- Color Palette Picker -->
+<div class="flex flex-col gap-1.5">
+<span class="font-label-caps text-label-caps text-on-surface-variant">标识主题色彩</span>
+<div class="flex items-center gap-2.5 pt-1" id="colorSelectionGroup">
+<button class="color-option active w-6 h-6 rounded-full bg-primary flex items-center justify-center text-on-primary shadow-sm scale-110" data-color="primary" title="经典蓝" type="button">
+<span class="material-symbols-outlined text-[14px]">check</span>
+</button>
+<button class="color-option w-6 h-6 rounded-full bg-secondary flex items-center justify-center text-on-secondary opacity-80 hover:opacity-100 transition-opacity" data-color="secondary" title="祖母绿" type="button">
+<span class="material-symbols-outlined text-[14px] hidden">check</span>
+</button>
+<button class="color-option w-6 h-6 rounded-full bg-tertiary flex items-center justify-center text-on-tertiary opacity-80 hover:opacity-100 transition-opacity" data-color="tertiary" title="琥珀橙" type="button">
+<span class="material-symbols-outlined text-[14px] hidden">check</span>
+</button>
+<button class="color-option w-6 h-6 rounded-full bg-primary-container flex items-center justify-center text-on-primary opacity-80 hover:opacity-100 transition-opacity" data-color="primary-container" title="科技紫" type="button">
+<span class="material-symbols-outlined text-[14px] hidden">check</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Habit Motivation Memo -->
+<div class="flex flex-col gap-1.5">
+<label class="font-label-caps text-label-caps text-on-surface-variant" for="habitMotivationInput">驱动愿景 / 动机备忘</label>
+<input class="w-full bg-surface-container-low focus:bg-surface-container-lowest text-on-surface font-body-sm text-body-sm px-3.5 py-2 rounded-lg outline-none transition-all placeholder:text-outline/70 shadow-sm" id="habitMotivationInput" placeholder="为什么要养成此习惯？（例如：保持对底层架构的敏感度，减少线上隐患）" type="text" value="保持对底层分布式架构与性能抖动的敏锐感知，降低线上突发隐患。"/>
+</div>
+</div>
+<!-- Section 2: Frequency & Schedule Configuration -->
+<div class="flex flex-col gap-3.5">
+<span class="font-button text-button text-on-surface font-semibold flex items-center gap-1.5">
+<span class="w-1.5 h-3.5 bg-primary rounded-full"></span>
+            周期频次与执行排程
+          </span>
+<!-- Frequency Segmented Controller -->
+<div class="flex flex-col gap-1.5">
+<span class="font-label-caps text-label-caps text-on-surface-variant">执行周期频次</span>
+<div class="grid grid-cols-4 gap-1 p-1 bg-surface-container rounded-lg" id="frequencyTabs">
+<button class="freq-btn py-1.5 px-3 rounded-md font-button text-button text-center transition-all bg-surface-container-lowest text-primary shadow-sm font-medium" data-val="daily" type="button">每天</button>
+<button class="freq-btn py-1.5 px-3 rounded-md font-button text-button text-center transition-all text-on-surface-variant hover:text-on-surface" data-val="weekdays" type="button">工作日 (周一至周五)</button>
+<button class="freq-btn py-1.5 px-3 rounded-md font-button text-button text-center transition-all text-on-surface-variant hover:text-on-surface" data-val="weekends" type="button">周末双休</button>
+<button class="freq-btn py-1.5 px-3 rounded-md font-button text-button text-center transition-all text-on-surface-variant hover:text-on-surface" data-val="custom" type="button">自定义每周天数</button>
+</div>
+</div>
+<!-- Quantity Target & Smart Reminder Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+<!-- Quantity Metric -->
+<div class="flex flex-col gap-1.5">
+<label class="font-label-caps text-label-caps text-on-surface-variant" for="targetMetricInput">目标频次与量化指标</label>
+<div class="flex items-center gap-2">
+<div class="flex-1 flex items-center bg-surface-container-low px-3 py-2 rounded-lg">
+<span class="font-body-sm text-body-sm text-on-surface-variant mr-2">每次</span>
+<input class="w-14 bg-transparent font-button text-button text-on-surface font-semibold text-center outline-none" id="targetMetricInput" type="text" value="30"/>
+<span class="font-body-sm text-body-sm text-on-surface-variant">分钟</span>
+</div>
+<div class="bg-surface-container-low px-3 py-2 rounded-lg font-button text-button text-on-surface-variant">
+                  / 1 次完成
+                </div>
+</div>
+</div>
+<!-- Reminder Timing Switch -->
+<div class="flex flex-col gap-1.5">
+<div class="flex items-center justify-between">
+<span class="font-label-caps text-label-caps text-on-surface-variant">智能排程提醒</span>
+<label class="relative inline-flex items-center cursor-pointer">
+<input checked="" class="sr-only peer" id="reminderToggle" type="checkbox"/>
+<div class="w-9 h-5 bg-surface-container-high peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
+</label>
+</div>
+<div class="flex items-center gap-2 bg-surface-container-low px-3 py-1.5 rounded-lg" id="reminderConfigPanel">
+<span class="material-symbols-outlined text-[18px] text-primary">alarm</span>
+<input class="bg-transparent font-button text-button text-on-surface outline-none cursor-pointer" type="time" value="21:30"/>
+<span class="text-outline text-xs">|</span>
+<div class="flex items-center gap-2 font-label-caps text-label-caps text-on-surface-variant">
+<label class="flex items-center gap-1 cursor-pointer">
+<input checked="" class="rounded text-primary focus:ring-0" type="checkbox"/>
+<span>系统桌面弹窗</span>
+</label>
+<label class="flex items-center gap-1 cursor-pointer">
+<input checked="" class="rounded text-primary focus:ring-0" type="checkbox"/>
+<span>Webhook 同步</span>
+</label>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Section 3: Attributes & Compact Single-Line Tag Container -->
+<div class="flex flex-col gap-2">
+<div class="flex items-center justify-between">
+<span class="font-button text-button text-on-surface font-semibold flex items-center gap-1.5">
+<span class="w-1.5 h-3.5 bg-primary rounded-full"></span>
+              习惯属性分类与标签
+            </span>
+<span class="font-label-caps text-label-caps text-outline">回车 (Enter) 快速录入</span>
+</div>
+<!-- Single-line Tag Flow Container -->
+<div class="flex flex-wrap items-center gap-2 p-2 rounded-lg bg-surface-container-low min-h-[44px]">
+<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-primary-fixed text-on-primary-fixed font-label-caps text-label-caps">
+<span>#深度工作</span>
+<button class="hover:text-primary transition-colors flex items-center" type="button"><span class="material-symbols-outlined text-[14px]">close</span></button>
+</span>
+<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-secondary-container text-on-secondary-container font-label-caps text-label-caps">
+<span>#架构复盘</span>
+<button class="hover:text-secondary transition-colors flex items-center" type="button"><span class="material-symbols-outlined text-[14px]">close</span></button>
+</span>
+<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-tertiary-fixed text-on-tertiary-fixed font-label-caps text-label-caps">
+<span>#自我纠偏</span>
+<button class="hover:text-tertiary transition-colors flex items-center" type="button"><span class="material-symbols-outlined text-[14px]">close</span></button>
+</span>
+<!-- Inline Add Tag Input -->
+<div class="flex-1 min-w-[120px] flex items-center">
+<input class="w-full bg-transparent font-body-sm text-body-sm text-on-surface placeholder:text-outline outline-none px-1" id="customTagInput" placeholder="+ 键入自定义标签..." type="text"/>
+</div>
+</div>
+<!-- Preset Recommendations -->
+<div class="flex items-center gap-2 font-label-caps text-label-caps text-on-surface-variant">
+<span>推荐标签:</span>
+<button class="recommend-tag px-2 py-0.5 rounded bg-surface-container hover:bg-surface-container-high transition-colors text-on-surface-variant hover:text-on-surface" type="button">+ 认知提升</button>
+<button class="recommend-tag px-2 py-0.5 rounded bg-surface-container hover:bg-surface-container-high transition-colors text-on-surface-variant hover:text-on-surface" type="button">+ 体能健康</button>
+<button class="recommend-tag px-2 py-0.5 rounded bg-surface-container hover:bg-surface-container-high transition-colors text-on-surface-variant hover:text-on-surface" type="button">+ 商业敏锐</button>
+</div>
+</div>
+<!-- Section 4: Cross-Module Business Sync -->
+<div class="flex flex-col gap-3">
+<span class="font-button text-button text-on-surface font-semibold flex items-center gap-1.5">
+<span class="w-1.5 h-3.5 bg-primary rounded-full"></span>
+            跨模块业务协同联动 (Cross-Module Sync)
+          </span>
+<div class="flex flex-col gap-2 bg-surface-container-low/60 p-3 rounded-lg">
+<!-- Sync Option 1 -->
+<label class="flex items-start gap-3 p-2 rounded-md hover:bg-surface-container-lowest/80 transition-colors cursor-pointer group">
+<input checked="" class="mt-0.5 w-4 h-4 rounded text-primary focus:ring-0 cursor-pointer" type="checkbox"/>
+<div class="flex flex-col min-w-0">
+<span class="font-button text-button text-on-surface font-medium flex items-center gap-1.5">
+                  自动联动「待办事项」模块
+                  <span class="font-label-caps text-label-caps text-primary bg-primary-fixed px-1.5 py-0.2 rounded">实时双向流转</span>
+</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">每日排程到达时，自动在工作区“今日待办”中生成同名待办条目，勾选即视为打卡成功。</span>
+</div>
+</label>
+<!-- Sync Option 2 -->
+<label class="flex items-start gap-3 p-2 rounded-md hover:bg-surface-container-lowest/80 transition-colors cursor-pointer group">
+<input checked="" class="mt-0.5 w-4 h-4 rounded text-primary focus:ring-0 cursor-pointer" type="checkbox"/>
+<div class="flex flex-col min-w-0">
+<span class="font-button text-button text-on-surface font-medium flex items-center gap-1.5">
+                  计入「工作台首页 - 专注当下 (NOW DOING)」
+                </span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">允许在 Nexus 工作台主看板一键拉起番茄钟或正计时，深度专注数据沉淀至本习惯。</span>
+</div>
+</label>
+<!-- Sync Option 3 -->
+<label class="flex items-start gap-3 p-2 rounded-md hover:bg-surface-container-lowest/80 transition-colors cursor-pointer group">
+<input checked="" class="mt-0.5 w-4 h-4 rounded text-primary focus:ring-0 cursor-pointer" type="checkbox"/>
+<div class="flex flex-col min-w-0">
+<span class="font-button text-button text-on-surface font-medium flex items-center gap-1.5">
+                  绑定「成就 · 勋章成长体系」
+                  <span class="material-symbols-outlined text-[16px] text-tertiary">military_tech</span>
+</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">连续达成 7 天、21 天稳态期与 100 天终身习惯，即时触发全员通知并点亮特制奖杯。</span>
+</div>
+</label>
+</div>
+</div>
+</div>
+<!-- Modal Action Footer -->
+<div class="px-6 py-4 bg-surface-container-low flex items-center justify-between">
+<div class="flex items-center gap-1.5 text-on-surface-variant font-label-caps text-label-caps">
+<kbd class="bg-surface-container-highest px-1.5 py-0.5 rounded font-mono text-on-surface">⌘</kbd>
+<span>+</span>
+<kbd class="bg-surface-container-highest px-1.5 py-0.5 rounded font-mono text-on-surface">↵</kbd>
+<span class="ml-1">快速创建并提交习惯</span>
+</div>
+<div class="flex items-center gap-3">
+<button class="px-4 py-2 rounded-lg font-button text-button text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors" id="cancelModalBtn" type="button">
+            取消 (Esc)
+          </button>
+<button class="flex items-center gap-2 px-5 py-2 rounded-lg bg-primary hover:bg-primary-container text-on-primary font-button text-button shadow-sm hover:shadow-md transition-all" id="submitHabitBtn" type="button">
+<span class="material-symbols-outlined text-[18px]">add_task</span>
+<span>立即创建并开启打卡</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+<script>
+  (function initHabitModal() {
+    // Interactive Icon Selection
+    const iconButtons = document.querySelectorAll('.icon-option');
+    const previewIcon = document.getElementById('previewIcon');
+    iconButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        iconButtons.forEach(b => {
+          b.classList.remove('bg-primary', 'text-on-primary', 'active', 'shadow-sm');
+          b.classList.add('bg-surface-container', 'text-on-surface-variant');
+        });
+        btn.classList.add('bg-primary', 'text-on-primary', 'active', 'shadow-sm');
+        btn.classList.remove('bg-surface-container', 'text-on-surface-variant');
+        const iconName = btn.getAttribute('data-icon');
+        if (previewIcon && iconName) {
+          previewIcon.textContent = iconName;
+        }
+      });
+    });
+
+    // Interactive Color Palette
+    const colorButtons = document.querySelectorAll('.color-option');
+    const habitBadgePreview = document.getElementById('habitBadgePreview');
+    const colorMap = {
+      'primary': 'bg-primary',
+      'secondary': 'bg-secondary',
+      'tertiary': 'bg-tertiary',
+      'primary-container': 'bg-primary-container'
+    };
+
+    colorButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        colorButtons.forEach(b => {
+          b.classList.remove('scale-110');
+          const checkIcon = b.querySelector('.material-symbols-outlined');
+          if (checkIcon) checkIcon.classList.add('hidden');
+        });
+        btn.classList.add('scale-110');
+        const checkIcon = btn.querySelector('.material-symbols-outlined');
+        if (checkIcon) checkIcon.classList.remove('hidden');
+
+        const chosenColor = btn.getAttribute('data-color');
+        if (habitBadgePreview && colorMap[chosenColor]) {
+          habitBadgePreview.className = habitBadgePreview.className.replace(/bg-(primary|secondary|tertiary|primary-container)/g, '');
+          habitBadgePreview.classList.add(colorMap[chosenColor]);
+        }
+      });
+    });
+
+    // Frequency Tab Switching
+    const freqButtons = document.querySelectorAll('.freq-btn');
+    freqButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        freqButtons.forEach(b => {
+          b.classList.remove('bg-surface-container-lowest', 'text-primary', 'shadow-sm', 'font-medium');
+          b.classList.add('text-on-surface-variant');
+        });
+        btn.classList.add('bg-surface-container-lowest', 'text-primary', 'shadow-sm', 'font-medium');
+        btn.classList.remove('text-on-surface-variant');
+      });
+    });
+
+    // Reminder Panel Toggle
+    const reminderToggle = document.getElementById('reminderToggle');
+    const reminderConfigPanel = document.getElementById('reminderConfigPanel');
+    if (reminderToggle && reminderConfigPanel) {
+      reminderToggle.addEventListener('change', (e) => {
+        if (e.target.checked) {
+          reminderConfigPanel.classList.remove('opacity-40', 'pointer-events-none');
+        } else {
+          reminderConfigPanel.classList.add('opacity-40', 'pointer-events-none');
+        }
+      });
+    }
+
+    // Preset Recommendation Click
+    const recButtons = document.querySelectorAll('.recommend-tag');
+    const customTagInput = document.getElementById('customTagInput');
+    recButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tagText = btn.textContent.replace('+ ', '#');
+        const container = customTagInput ? customTagInput.parentElement.parentElement : null;
+        if (container && customTagInput) {
+          const newSpan = document.createElement('span');
+          newSpan.className = 'inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-primary-fixed text-on-primary-fixed font-label-caps text-label-caps animate-in fade-in';
+          newSpan.innerHTML = `<span>${tagText}</span><button type="button" class="hover:text-primary transition-colors flex items-center" onclick="this.parentElement.remove()"><span class="material-symbols-outlined text-[14px]">close</span></button>`;
+          container.insertBefore(newSpan, customTagInput.parentElement);
+        }
+      });
+    });
+
+    // Enter Key to append Custom Tag
+    if (customTagInput) {
+      customTagInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && customTagInput.value.trim() !== '') {
+          e.preventDefault();
+          const val = customTagInput.value.trim().startsWith('#') ? customTagInput.value.trim() : '#' + customTagInput.value.trim();
+          const container = customTagInput.parentElement.parentElement;
+          const newSpan = document.createElement('span');
+          newSpan.className = 'inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-surface-container-high text-on-surface font-label-caps text-label-caps animate-in fade-in';
+          newSpan.innerHTML = `<span>${val}</span><button type="button" class="hover:text-error transition-colors flex items-center" onclick="this.parentElement.remove()"><span class="material-symbols-outlined text-[14px]">close</span></button>`;
+          container.insertBefore(newSpan, customTagInput.parentElement);
+          customTagInput.value = '';
+        }
+      });
+    }
+
+    // Modal Keyboard Shortcuts (⌘+Enter to submit, Esc to close)
+    window.addEventListener('keydown', (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        e.preventDefault();
+        const submitBtn = document.getElementById('submitHabitBtn');
+        if (submitBtn) submitBtn.click();
+      }
+      if (e.key === 'Escape') {
+        const modal = document.getElementById('habitModalOverlay');
+        if (modal) modal.style.display = 'none';
+      }
+    });
+
+    // Close Button Handling
+    const closeBtn = document.getElementById('closeModalBtn');
+    const cancelBtn = document.getElementById('cancelModalBtn');
+    const modalOverlay = document.getElementById('habitModalOverlay');
+
+    const closeModal = () => {
+      if (modalOverlay) {
+        modalOverlay.classList.add('opacity-0', 'transition-opacity', 'duration-200');
+        setTimeout(() => { modalOverlay.style.display = 'none'; }, 200);
+      }
+    };
+
+    if (closeBtn) closeBtn.addEventListener('click', closeModal);
+    if (cancelBtn) cancelBtn.addEventListener('click', closeModal);
+
+    const submitBtn = document.getElementById('submitHabitBtn');
+    if (submitBtn) {
+      submitBtn.addEventListener('click', () => {
+        submitBtn.innerHTML = `<span class="material-symbols-outlined text-[18px] animate-spin">refresh</span><span>正在同步架构链路...</span>`;
+        setTimeout(() => {
+          closeModal();
+        }, 600);
+      });
+    }
+  })();
+</script></main></div></body></html>

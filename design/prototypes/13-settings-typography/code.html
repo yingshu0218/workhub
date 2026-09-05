@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config={darkMode:"class",theme:{extend:{"colors":{"on-surface":"#0b1c30","tertiary-container":"#bc4800","secondary":"#006c49","background":"#f8f9ff","surface-tint":"#0053db","tertiary":"#943700","surface-container-highest":"#d3e4fe","on-secondary-container":"#00714d","surface-dim":"#cbdbf5","secondary-fixed-dim":"#4edea3","on-primary":"#ffffff","on-tertiary":"#ffffff","outline-variant":"#c3c6d7","on-primary-container":"#eeefff","surface-container-low":"#eff4ff","on-secondary":"#ffffff","secondary-container":"#6cf8bb","on-error-container":"#93000a","on-background":"#0b1c30","secondary-fixed":"#6ffbbe","primary-fixed-dim":"#b4c5ff","surface":"#f8f9ff","on-tertiary-fixed":"#360f00","on-tertiary-fixed-variant":"#7d2d00","primary":"#004ac6","surface-container":"#e5eeff","on-primary-fixed-variant":"#003ea8","on-primary-fixed":"#00174b","surface-variant":"#d3e4fe","outline":"#737686","on-surface-variant":"#434655","inverse-primary":"#b4c5ff","surface-container-high":"#dce9ff","surface-bright":"#f8f9ff","on-secondary-fixed-variant":"#005236","tertiary-fixed-dim":"#ffb596","primary-container":"#2563eb","inverse-surface":"#213145","on-tertiary-container":"#ffede6","tertiary-fixed":"#ffdbcd","error":"#ba1a1a","error-container":"#ffdad6","inverse-on-surface":"#eaf1ff","primary-fixed":"#dbe1ff","surface-container-lowest":"#ffffff","on-secondary-fixed":"#002113","on-error":"#ffffff"},"borderRadius":{"DEFAULT":"0.125rem","lg":"0.25rem","xl":"0.5rem","full":"0.75rem"},"spacing":{"md":"16px","gutter":"16px","xs":"4px","sm":"8px","base":"4px","container-margin-mobile":"16px","container-margin-desktop":"40px","xl":"32px","lg":"24px"},"fontFamily":{"headline-md":["Inter"],"button":["Inter"],"body-sm":["Inter"],"headline-lg-mobile":["Inter"],"body-lg":["Inter"],"headline-lg":["Inter"],"label-caps":["Inter"]},"fontSize":{"headline-md":["20px",{"lineHeight":"28px","fontWeight":"600"}],"button":["14px",{"lineHeight":"20px","fontWeight":"500"}],"body-sm":["14px",{"lineHeight":"20px","fontWeight":"400"}],"headline-lg-mobile":["24px",{"lineHeight":"32px","letterSpacing":"-0.01em","fontWeight":"700"}],"body-lg":["16px",{"lineHeight":"24px","fontWeight":"400"}],"headline-lg":["30px",{"lineHeight":"38px","letterSpacing":"-0.02em","fontWeight":"700"}],"label-caps":["12px",{"lineHeight":"16px","letterSpacing":"0.05em","fontWeight":"600"}]}}}}</script></head><body class="bg-background font-body-sm text-on-surface antialiased"><aside class="fixed left-0 top-0 h-full w-64 bg-surface-container-lowest shadow-[0_1px_8px_rgba(0,0,0,0.04)] z-50 flex flex-col justify-between select-none"><div class="flex flex-col p-md"><div class="flex items-center gap-sm px-xs pb-md"><div class="w-8 h-8 rounded-xl bg-primary-container flex items-center justify-center text-on-primary shadow-sm"><span class="material-symbols-outlined text-[20px]">send</span></div><div class="flex flex-col"><span class="font-headline-md text-[16px] leading-[20px] font-bold text-on-surface tracking-tight">寻鸽工作台</span><span class="font-label-caps text-[10px] uppercase text-outline tracking-wider">Nexus Workspace</span></div></div><div class="my-xs"><button class="w-full flex items-center justify-between px-md py-sm bg-primary-container text-on-primary rounded-xl shadow-[0_2px_8px_rgba(37,99,235,0.25)] hover:bg-primary transition-all" type="button"><div class="flex items-center gap-sm"><span class="material-symbols-outlined text-[18px]">bolt</span><span class="font-button text-button">灵感闪现</span></div><kbd class="px-xs py-0.5 rounded bg-on-primary/20 text-on-primary font-label-caps text-[11px]">⌘J</kbd></button></div><nav class="flex flex-col gap-xs mt-md" data-active-classes="bg-primary-container text-on-primary font-medium rounded-xl shadow-sm"><a class="flex items-center gap-sm px-md py-sm rounded-xl text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-colors" data-path="workbench" href="#"><span class="material-symbols-outlined text-[20px]">grid_view</span><span class="font-button text-button">工作台</span></a><a class="flex items-center gap-sm px-md py-sm rounded-xl text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-colors" data-path="tasks" href="#"><span class="material-symbols-outlined text-[20px]">check_circle</span><span class="font-button text-button">待办事项</span></a><a class="flex items-center gap-sm px-md py-sm rounded-xl text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-colors" data-path="crm" href="#"><span class="material-symbols-outlined text-[20px]">group</span><span class="font-button text-button">CRM 客户</span></a><a class="flex items-center gap-sm px-md py-sm rounded-xl text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-colors" data-path="finance" href="#"><span class="material-symbols-outlined text-[20px]">account_balance_wallet</span><span class="font-button text-button">财务中心</span></a><a class="flex items-center gap-sm px-md py-sm rounded-xl text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-colors" data-path="notes" href="#"><span class="material-symbols-outlined text-[20px]">description</span><span class="font-button text-button">团队笔记</span></a><a class="flex items-center gap-sm px-md py-sm rounded-xl text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-colors" data-path="habits" href="#"><span class="material-symbols-outlined text-[20px]">event_repeat</span><span class="font-button text-button">打卡·习惯</span></a><a class="flex items-center gap-sm px-md py-sm rounded-xl text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-colors" data-path="trophies" href="#"><span class="material-symbols-outlined text-[20px]">emoji_events</span><span class="font-button text-button">成就奖杯</span></a><a aria-current="page" class="flex items-center gap-sm px-md py-sm transition-colors bg-primary-container text-on-primary font-medium rounded-xl shadow-sm" data-path="system-settings" href="#"><span class="material-symbols-outlined text-[20px]">settings</span><span class="font-button text-button">系统设置</span></a></nav></div><div class="p-md"><div class="flex items-center justify-between p-sm rounded-xl bg-surface-container-low"><div class="flex items-center gap-sm min-w-0"><div class="relative flex-shrink-0"><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div><span class="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-secondary ring-2 ring-surface-container-lowest"></span></div><div class="flex flex-col min-w-0"><span class="font-button text-button text-on-surface truncate">陈致远</span><span class="font-label-caps text-[11px] text-outline truncate">Core Team</span></div></div><button class="text-outline hover:text-on-surface transition-colors" type="button"><span class="material-symbols-outlined text-[18px]">unfold_more</span></button></div></div></aside><div class="pl-64 flex flex-col min-h-screen"><header class="fixed top-0 left-64 right-0 h-16 bg-surface/80 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)] z-40 flex items-center justify-between px-xl"><div class="flex items-center gap-md"><nav class="flex items-center gap-xs font-body-sm text-body-sm text-on-surface-variant"><span class="hover:text-on-surface cursor-pointer transition-colors">Nexus</span><span class="material-symbols-outlined text-[14px] text-outline">chevron_right</span><span class="text-on-surface font-button font-medium">系统设置</span></nav><div class="hidden lg:flex items-center gap-xs px-sm py-1 bg-surface-container-low rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-secondary"></span><span class="font-label-caps text-[11px] text-secondary font-medium">云端已实时同步</span></div></div><div class="flex items-center gap-md"><div class="relative w-64 md:w-80"><span class="material-symbols-outlined absolute left-sm top-1/2 -translate-y-1/2 text-outline text-[18px]">search</span><input class="w-full pl-9 pr-12 py-1.5 bg-surface-container-low rounded-xl text-body-sm font-body-sm text-on-surface placeholder:text-outline focus:outline-none focus:bg-surface-container-lowest focus:ring-1 focus:ring-primary-container transition-all" placeholder="搜索设置项、功能与成员..." type="text"/><kbd class="absolute right-sm top-1/2 -translate-y-1/2 px-xs py-0.5 rounded bg-surface-container text-outline font-label-caps text-[10px]">⌘K</kbd></div><div class="flex items-center gap-xs"><button class="w-8 h-8 flex items-center justify-center rounded-xl text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors" type="button"><span class="material-symbols-outlined text-[20px]">help_outline</span></button><button class="relative w-8 h-8 flex items-center justify-center rounded-xl text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors" type="button"><span class="material-symbols-outlined text-[20px]">notifications</span><span class="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-tertiary-container"></span></button></div><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div></div></header><main class="w-full pt-16 bg-background min-h-screen"><div class="flex flex-col w-full">
+<!-- Top Decorative Ambient Glow -->
+<div class="relative w-full overflow-hidden">
+<div class="absolute -top-24 left-1/4 w-96 h-96 bg-primary/5 rounded-full blur-3xl pointer-events-none"></div>
+<div class="absolute -top-12 right-1/4 w-80 h-80 bg-secondary/5 rounded-full blur-2xl pointer-events-none"></div>
+<div class="max-w-[1200px] w-full mx-auto px-container-margin-desktop py-xl flex flex-col gap-xl">
+<!-- Header Section -->
+<section class="flex flex-col md:flex-row md:items-end justify-between gap-md">
+<div class="flex flex-col gap-xs min-w-0">
+<div class="flex items-center gap-xs text-outline font-label-caps text-label-caps uppercase tracking-wider">
+<span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span>
+<span>Preferences · Nexus Engine</span>
+</div>
+<h1 class="font-headline-lg text-headline-lg text-on-surface tracking-tight">系统设置</h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant max-w-2xl">
+            定制您的专属工作台界面风格、工作流偏好与数据安全策略
+          </p>
+</div>
+<!-- Action CTA Buttons -->
+<div class="flex items-center gap-sm flex-shrink-0">
+<button class="flex items-center gap-xs px-md py-sm rounded-xl bg-surface-container-low text-primary font-button text-button hover:bg-surface-container transition-all" id="reset-btn" type="button">
+<span class="material-symbols-outlined text-[18px]">restart_alt</span>
+<span>重置为默认</span>
+</button>
+<button class="flex items-center gap-xs px-lg py-sm rounded-xl bg-primary-container text-on-primary font-button text-button shadow-md hover:bg-primary transition-all" id="save-btn" type="button">
+<span class="material-symbols-outlined text-[18px]">done_all</span>
+<span>保存更改</span>
+</button>
+</div>
+</section>
+<!-- Category Navigation Tabs -->
+<nav class="flex items-center gap-xs overflow-x-auto pb-xs scrollbar-none bg-surface-container-lowest p-xs rounded-xl shadow-sm">
+<button class="px-md py-sm rounded-xl font-button text-button text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low transition-colors whitespace-nowrap" type="button">
+          外观与主题
+        </button>
+<button class="px-md py-sm rounded-xl font-button text-button text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low transition-colors whitespace-nowrap" type="button">
+          色彩与密度
+        </button>
+<!-- Active Tab -->
+<button class="relative px-md py-sm rounded-xl font-button text-button bg-primary text-on-primary shadow-sm whitespace-nowrap flex items-center gap-xs" type="button">
+<span class="material-symbols-outlined text-[16px]">match_case</span>
+<span>字体与排版</span>
+<span class="w-1.5 h-1.5 rounded-full bg-secondary-fixed"></span>
+</button>
+<button class="px-md py-sm rounded-xl font-button text-button text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low transition-colors whitespace-nowrap" type="button">
+          通用与快捷键
+        </button>
+<button class="px-md py-sm rounded-xl font-button text-button text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low transition-colors whitespace-nowrap" type="button">
+          提醒与协同
+        </button>
+<button class="px-md py-sm rounded-xl font-button text-button text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low transition-colors whitespace-nowrap" type="button">
+          数据与安全
+        </button>
+</nav>
+<!-- Main Config Grid (2 Columns: Controls vs Preview Box) -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-lg items-start">
+<!-- Left Column: Typography Family & Metrics (7 Columns) -->
+<div class="lg:col-span-7 flex flex-col gap-lg">
+<!-- Card 1: Font Family Options -->
+<div class="bg-surface-container-lowest p-lg rounded-xl shadow-sm flex flex-col gap-md">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-sm">
+<div class="w-8 h-8 rounded-xl bg-surface-container flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[20px]">font_download</span>
+</div>
+<div>
+<h2 class="font-headline-md text-headline-md text-on-surface">中英文字体组合</h2>
+<p class="font-body-sm text-body-sm text-outline">选择满足您阅读习惯与工程沉浸感的主字体配置</p>
+</div>
+</div>
+<span class="px-sm py-0.5 rounded-full bg-surface-container text-outline font-label-caps text-label-caps">CSS VARS</span>
+</div>
+<!-- Font Family Radio Tiles -->
+<div class="flex flex-col gap-sm mt-xs" id="font-family-group">
+<!-- Option A (Active Default) -->
+<label class="cursor-pointer block relative p-md rounded-xl bg-surface-container-low text-on-surface transition-all font-card-selected shadow-sm hover:shadow-md" data-font="sans">
+<input checked="" class="sr-only" name="font_family" type="radio" value="sans"/>
+<div class="flex items-start justify-between gap-md">
+<div class="flex flex-col gap-xs">
+<div class="flex items-center gap-xs">
+<span class="font-button text-button font-bold text-on-surface">系统默认现代无衬线</span>
+<span class="px-xs py-0.5 rounded bg-primary text-on-primary font-label-caps text-[10px]">推荐</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant font-mono">
+                      Inter · PingFang SC (苹方) / Microsoft YaHei
+                    </p>
+<p class="font-body-sm text-body-sm text-outline mt-xs">
+                      几何精确、字怀开阔，专为高密度现代协作与多端高清屏打造。
+                    </p>
+</div>
+<div class="w-5 h-5 rounded-full bg-primary flex items-center justify-center text-on-primary flex-shrink-0 mt-0.5">
+<span class="material-symbols-outlined text-[14px]">check</span>
+</div>
+</div>
+<div class="mt-sm pt-sm flex items-center gap-md text-outline font-label-caps text-label-caps">
+<span>Aa Bb Gg 123</span>
+<span>敏捷协同·极简透明</span>
+</div>
+</label>
+<!-- Option B -->
+<label class="cursor-pointer block relative p-md rounded-xl bg-surface-container-lowest hover:bg-surface-container-low text-on-surface transition-all shadow-sm hover:shadow-md" data-font="mono">
+<input class="sr-only" name="font_family" type="radio" value="mono"/>
+<div class="flex items-start justify-between gap-md">
+<div class="flex flex-col gap-xs">
+<div class="flex items-center gap-xs">
+<span class="font-button text-button font-bold text-on-surface">极客等宽与现代衬线</span>
+<span class="px-xs py-0.5 rounded bg-surface-container text-outline font-label-caps text-[10px]">Markdown 极客</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant font-mono">
+                      JetBrains Mono · Noto Sans SC (思源黑体)
+                    </p>
+<p class="font-body-sm text-body-sm text-outline mt-xs">
+                      增强的代码连字支持，严格网格字符对齐，适合高频编写技术文档与结构化报表。
+                    </p>
+</div>
+<div class="w-5 h-5 rounded-full bg-surface-container flex items-center justify-center text-transparent flex-shrink-0 mt-0.5 indicator-dot">
+<span class="material-symbols-outlined text-[14px]">check</span>
+</div>
+</div>
+<div class="mt-sm pt-sm flex items-center gap-md text-outline font-label-caps text-label-caps font-mono">
+<span>const sync = =&gt; true;</span>
+<span>精准对齐·结构纯粹</span>
+</div>
+</label>
+<!-- Option C -->
+<label class="cursor-pointer block relative p-md rounded-xl bg-surface-container-lowest hover:bg-surface-container-low text-on-surface transition-all shadow-sm hover:shadow-md" data-font="humanist">
+<input class="sr-only" name="font_family" type="radio" value="humanist"/>
+<div class="flex items-start justify-between gap-md">
+<div class="flex flex-col gap-xs">
+<div class="flex items-center gap-xs">
+<span class="font-button text-button font-bold text-on-surface">优雅人文排版</span>
+<span class="px-xs py-0.5 rounded bg-surface-container text-outline font-label-caps text-[10px]">长文阅读</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant font-mono">
+                      Source Sans 3 · 汉仪旗黑 (HYQiHei)
+                    </p>
+<p class="font-body-sm text-body-sm text-outline mt-xs">
+                      温润的手写骨架笔触，降低长时间注视文档引起的视觉疲劳感。
+                    </p>
+</div>
+<div class="w-5 h-5 rounded-full bg-surface-container flex items-center justify-center text-transparent flex-shrink-0 mt-0.5 indicator-dot">
+<span class="material-symbols-outlined text-[14px]">check</span>
+</div>
+</div>
+<div class="mt-sm pt-sm flex items-center gap-md text-outline font-label-caps text-label-caps">
+<span class="italic">Humanist Warmth · 1984</span>
+<span>随性书写·温润舒适</span>
+</div>
+</label>
+</div>
+</div>
+<!-- Card 2: Font Size Slider & Line Height Options -->
+<div class="bg-surface-container-lowest p-lg rounded-xl shadow-sm flex flex-col gap-lg">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-sm">
+<div class="w-8 h-8 rounded-xl bg-surface-container flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[20px]">format_size</span>
+</div>
+<div>
+<h2 class="font-headline-md text-headline-md text-on-surface">基准字号与阅读间距</h2>
+<p class="font-body-sm text-body-sm text-outline">动态调整全站文本物理渲染阶梯与行距倍数</p>
+</div>
+</div>
+<div class="flex items-center gap-xs px-sm py-1 bg-surface-container-low rounded-lg text-primary font-mono text-body-sm">
+<span id="current-metrics-label">14px / 1.6x</span>
+</div>
+</div>
+<!-- Font Size Scale Stepper -->
+<div class="flex flex-col gap-sm">
+<div class="flex justify-between items-center text-on-surface font-button text-button">
+<span class="text-on-surface font-medium">基准字体大小 (Base Font Size)</span>
+<span class="text-primary font-mono font-bold" id="font-size-readout">14 px</span>
+</div>
+<!-- Stepper Ruler / Slider track -->
+<div class="relative py-md">
+<div class="w-full h-2 bg-surface-container rounded-full relative overflow-hidden">
+<div class="absolute left-0 top-0 h-full bg-primary rounded-full transition-all duration-200" id="slider-fill" style="width: 33.333%;"></div>
+</div>
+<!-- 4 Interactive Notch Nodes -->
+<div class="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-between px-1">
+<!-- 13px -->
+<button class="size-node w-5 h-5 rounded-full bg-surface-container-lowest shadow-md flex items-center justify-center transition-all hover:scale-110" data-size="13" type="button">
+<span class="w-2 h-2 rounded-full bg-outline"></span>
+</button>
+<!-- 14px (Default active) -->
+<button class="size-node w-6 h-6 rounded-full bg-primary text-on-primary shadow-md flex items-center justify-center transition-all hover:scale-110 scale-110" data-size="14" type="button">
+<span class="w-2 h-2 rounded-full bg-on-primary"></span>
+</button>
+<!-- 15px -->
+<button class="size-node w-5 h-5 rounded-full bg-surface-container-lowest shadow-md flex items-center justify-center transition-all hover:scale-110" data-size="15" type="button">
+<span class="w-2 h-2 rounded-full bg-outline"></span>
+</button>
+<!-- 16px -->
+<button class="size-node w-5 h-5 rounded-full bg-surface-container-lowest shadow-md flex items-center justify-center transition-all hover:scale-110" data-size="16" type="button">
+<span class="w-2 h-2 rounded-full bg-outline"></span>
+</button>
+</div>
+</div>
+<!-- Labels for ruler notches -->
+<div class="grid grid-cols-4 text-center font-label-caps text-label-caps text-outline">
+<div class="flex flex-col items-center">
+<span>13px</span>
+<span class="text-[10px] text-outline/80">紧凑高密</span>
+</div>
+<div class="flex flex-col items-center text-primary font-bold">
+<span>14px</span>
+<span class="text-[10px]">默认标准</span>
+</div>
+<div class="flex flex-col items-center">
+<span>15px</span>
+<span class="text-[10px] text-outline/80">舒适阅读</span>
+</div>
+<div class="flex flex-col items-center">
+<span>16px</span>
+<span class="text-[10px] text-outline/80">超大清晰</span>
+</div>
+</div>
+</div>
+<!-- Line Height Option Segmented Buttons -->
+<div class="flex flex-col gap-sm pt-xs">
+<span class="font-button text-button font-medium text-on-surface">行高与纵向韵律 (Line Height Ratio)</span>
+<div class="grid grid-cols-3 gap-sm p-1 bg-surface-container-low rounded-xl" id="line-height-group">
+<!-- 1.4x -->
+<button class="lh-btn py-sm px-md rounded-xl font-button text-button text-on-surface-variant hover:text-on-surface hover:bg-surface-container-lowest transition-all" data-lh="1.4" type="button">
+<div class="flex flex-col items-center">
+<span class="font-bold">1.4x</span>
+<span class="font-label-caps text-[11px] text-outline">紧凑工程</span>
+</div>
+</button>
+<!-- 1.6x (Active) -->
+<button class="lh-btn py-sm px-md rounded-xl font-button text-button bg-surface-container-lowest text-primary shadow-sm transition-all" data-lh="1.6" type="button">
+<div class="flex flex-col items-center">
+<div class="flex items-center gap-xs">
+<span class="font-bold">1.6x</span>
+<span class="w-1.5 h-1.5 rounded-full bg-secondary"></span>
+</div>
+<span class="font-label-caps text-[11px] text-secondary font-medium">推荐黄金比</span>
+</div>
+</button>
+<!-- 1.8x -->
+<button class="lh-btn py-sm px-md rounded-xl font-button text-button text-on-surface-variant hover:text-on-surface hover:bg-surface-container-lowest transition-all" data-lh="1.8" type="button">
+<div class="flex flex-col items-center">
+<span class="font-bold">1.8x</span>
+<span class="font-label-caps text-[11px] text-outline">宽松透气</span>
+</div>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Column: Live Typography Preview Box (5 Columns) -->
+<div class="lg:col-span-5 flex flex-col gap-md sticky top-24">
+<div class="bg-surface-container-lowest p-lg rounded-xl shadow-sm flex flex-col gap-md">
+<div class="flex items-center justify-between pb-xs">
+<div class="flex items-center gap-xs">
+<span class="material-symbols-outlined text-[20px] text-primary">visibility</span>
+<span class="font-headline-md text-headline-md text-on-surface">实时排版对比</span>
+</div>
+<span class="px-sm py-0.5 rounded-full bg-secondary-container text-on-secondary-container font-label-caps text-[11px] font-bold">
+                LIVE RENDERING
+              </span>
+</div>
+<!-- Interactive Stage Container -->
+<div class="p-lg bg-surface-container-low rounded-xl transition-all duration-300 flex flex-col gap-md" id="preview-sandbox">
+<!-- Meta Row -->
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-xs">
+<span class="px-xs py-0.5 rounded bg-primary-container text-on-primary font-label-caps text-[10px]"># 核心战略</span>
+<span class="px-xs py-0.5 rounded bg-surface-container text-on-surface-variant font-label-caps text-[10px]">Q3 Milestone</span>
+</div>
+<div class="flex items-center gap-xs text-outline font-label-caps text-[11px]">
+<span class="material-symbols-outlined text-[14px]">schedule</span>
+<span>刚刚更新</span>
+</div>
+</div>
+<!-- Heading 2 Sample -->
+<div>
+<h3 class="font-headline-lg text-headline-lg text-on-surface leading-tight" id="preview-heading">
+                  多维穿透工作流与团队协作网格
+                </h3>
+</div>
+<!-- Body Paragraph -->
+<div class="text-on-surface font-body-sm leading-relaxed" id="preview-paragraph">
+                在团队敏捷协作中，沉浸式笔记与待办任务可无缝穿透。寻鸽工作台深度集成 Inter 字体内核与网格间距微调，使每日站会纪要、OKR 对齐与财务中心之间实现零损耗上下文传递。
+              </div>
+<!-- Code & Monospace Segment -->
+<div class="p-sm bg-surface-container rounded-xl flex items-center justify-between font-mono text-body-sm text-on-surface-variant">
+<div class="flex items-center gap-xs min-w-0">
+<span class="material-symbols-outlined text-[16px] text-primary">terminal</span>
+<code class="truncate text-on-surface">nexus.typography.apply({ family: 'Inter', base: 14 })</code>
+</div>
+<span class="px-xs py-0.5 bg-surface-container-lowest text-secondary font-bold text-[10px] rounded">200 OK</span>
+</div>
+<!-- Data Metrics Card Sample -->
+<div class="grid grid-cols-2 gap-sm pt-xs">
+<div class="p-sm bg-surface-container-lowest rounded-xl flex flex-col">
+<span class="font-label-caps text-label-caps text-outline">阅读舒适度评级</span>
+<span class="font-headline-md text-headline-md text-primary mt-xs font-bold">99.4%</span>
+<span class="font-label-caps text-[10px] text-secondary mt-0.5">↑ 无眼疲劳指数</span>
+</div>
+<div class="p-sm bg-surface-container-lowest rounded-xl flex flex-col">
+<span class="font-label-caps text-label-caps text-outline">字符高宽比</span>
+<span class="font-headline-md text-headline-md text-on-surface mt-xs font-bold">0.72 : 1</span>
+<span class="font-label-caps text-[10px] text-outline mt-0.5">x-Height 动态适配</span>
+</div>
+</div>
+<!-- Rich Visual Micro Element: Font Anatomy Visualization -->
+<div class="p-sm bg-surface-container-lowest rounded-xl flex flex-col gap-xs">
+<div class="flex justify-between items-center text-outline font-label-caps text-[11px]">
+<span>字偶距 (Kerning) 实时拟合曲线</span>
+<span class="text-primary font-mono font-medium">Optimal</span>
+</div>
+<!-- Inline SVG Sparkline / Waveform -->
+<div class="h-8 w-full flex items-center">
+<svg class="w-full h-7 text-primary-container" fill="none" preserveaspectratio="none" viewbox="0 0 240 28">
+<path d="M0 14 Q 30 2, 60 14 T 120 14 T 180 14 T 240 14" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2"></path>
+<circle class="fill-primary" cx="120" cy="14" r="3.5"></circle>
+<circle class="fill-secondary" cx="60" cy="14" r="2.5"></circle>
+<circle class="fill-secondary" cx="180" cy="14" r="2.5"></circle>
+</svg>
+</div>
+</div>
+</div>
+<!-- Live Status Hint -->
+<div class="flex items-center gap-xs px-xs py-sm text-outline font-label-caps text-label-caps">
+<span class="w-2 h-2 rounded-full bg-secondary"></span>
+<span>所有样式调整即刻在此沙箱预览，点击右上角保存即可持久化应用。</span>
+</div>
+</div>
+<!-- Quick Tip Card -->
+<div class="p-md bg-surface-container-lowest rounded-xl shadow-sm flex items-start gap-md">
+<div class="w-8 h-8 rounded-full bg-surface-container-low flex items-center justify-center text-primary flex-shrink-0">
+<span class="material-symbols-outlined text-[18px]">lightbulb</span>
+</div>
+<div class="flex flex-col gap-xs">
+<span class="font-button text-button font-bold text-on-surface">小提示</span>
+<p class="font-body-sm text-body-sm text-outline">
+                双显示器协作时，可在“通用与快捷键”中为不同分辨率预设快捷切换字号宏 (⌥ + 1/2/3)。
+              </p>
+</div>
+</div>
+</div>
+</div>
+<!-- Bottom Navigation Footer Wizard -->
+<section class="flex items-center justify-between p-lg bg-surface-container-lowest rounded-xl shadow-sm mt-md">
+<a class="flex items-center gap-sm px-md py-sm rounded-xl text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-colors" href="#">
+<span class="material-symbols-outlined text-[20px]">arrow_back</span>
+<div class="flex flex-col text-left">
+<span class="font-label-caps text-[10px] text-outline uppercase">上一设置页</span>
+<span class="font-button text-button font-medium">主题色彩与密度</span>
+</div>
+</a>
+<div class="hidden sm:flex items-center gap-xs text-outline font-label-caps text-label-caps">
+<span class="w-2 h-2 rounded-full bg-surface-container"></span>
+<span class="w-2 h-2 rounded-full bg-surface-container"></span>
+<span class="w-6 h-2 rounded-full bg-primary"></span>
+<span class="w-2 h-2 rounded-full bg-surface-container"></span>
+<span class="w-2 h-2 rounded-full bg-surface-container"></span>
+<span class="w-2 h-2 rounded-full bg-surface-container"></span>
+</div>
+<a class="flex items-center gap-sm px-md py-sm rounded-xl bg-surface-container-low text-primary hover:bg-surface-container transition-colors" href="#">
+<div class="flex flex-col text-right">
+<span class="font-label-caps text-[10px] text-outline uppercase">下一设置页</span>
+<span class="font-button text-button font-bold">通用与快捷键</span>
+</div>
+<span class="material-symbols-outlined text-[20px]">arrow_forward</span>
+</a>
+</section>
+</div>
+</div>
+</div>
+<script>
+  // Interactive Typography Customization Engine
+  (function() {
+    let currentFamily = 'sans';
+    let currentSize = 14;
+    let currentLineHeight = 1.6;
+
+    const previewSandbox = document.getElementById('preview-sandbox');
+    const previewParagraph = document.getElementById('preview-paragraph');
+    const previewHeading = document.getElementById('preview-heading');
+    const fontSizeReadout = document.getElementById('font-size-readout');
+    const currentMetricsLabel = document.getElementById('current-metrics-label');
+    const sliderFill = document.getElementById('slider-fill');
+    const saveBtn = document.getElementById('save-btn');
+    const resetBtn = document.getElementById('reset-btn');
+
+    // Font Family Select logic
+    const fontCards = document.querySelectorAll('#font-family-group label');
+    fontCards.forEach(card => {
+      card.addEventListener('click', () => {
+        fontCards.forEach(c => {
+          c.classList.remove('bg-surface-container-low');
+          c.classList.add('bg-surface-container-lowest');
+          const dot = c.querySelector('.indicator-dot');
+          if(dot) {
+            dot.classList.remove('bg-primary', 'text-on-primary');
+            dot.classList.add('bg-surface-container', 'text-transparent');
+          }
+        });
+
+        card.classList.add('bg-surface-container-low');
+        card.classList.remove('bg-surface-container-lowest');
+        const activeDot = card.querySelector('div.w-5.h-5');
+        if (activeDot) {
+          activeDot.classList.remove('bg-surface-container', 'text-transparent');
+          activeDot.classList.add('bg-primary', 'text-on-primary');
+        }
+
+        currentFamily = card.getAttribute('data-font');
+        updatePreview();
+      });
+    });
+
+    // Size Ruler Notches logic
+    const sizeNodes = document.querySelectorAll('.size-node');
+    const sizePercents = { 13: '0%', 14: '33.333%', 15: '66.666%', 16: '100%' };
+
+    sizeNodes.forEach(node => {
+      node.addEventListener('click', () => {
+        const sz = parseInt(node.getAttribute('data-size'), 10);
+        currentSize = sz;
+
+        sizeNodes.forEach(n => {
+          n.classList.remove('bg-primary', 'text-on-primary', 'scale-110');
+          n.classList.add('bg-surface-container-lowest');
+          const innerDot = n.querySelector('span');
+          if (innerDot) {
+            innerDot.classList.remove('bg-on-primary');
+            innerDot.classList.add('bg-outline');
+          }
+        });
+
+        node.classList.remove('bg-surface-container-lowest');
+        node.classList.add('bg-primary', 'text-on-primary', 'scale-110');
+        const dot = node.querySelector('span');
+        if (dot) {
+          dot.classList.remove('bg-outline');
+          dot.classList.add('bg-on-primary');
+        }
+
+        if (sliderFill) {
+          sliderFill.style.width = sizePercents[sz];
+        }
+        if (fontSizeReadout) {
+          fontSizeReadout.innerText = sz + ' px';
+        }
+        updatePreview();
+      });
+    });
+
+    // Line Height Buttons logic
+    const lhButtons = document.querySelectorAll('.lh-btn');
+    lhButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        lhButtons.forEach(b => {
+          b.classList.remove('bg-surface-container-lowest', 'text-primary', 'shadow-sm');
+          b.classList.add('text-on-surface-variant');
+        });
+        btn.classList.add('bg-surface-container-lowest', 'text-primary', 'shadow-sm');
+        btn.classList.remove('text-on-surface-variant');
+
+        currentLineHeight = parseFloat(btn.getAttribute('data-lh'));
+        updatePreview();
+      });
+    });
+
+    function updatePreview() {
+      if (!previewSandbox || !previewParagraph || !previewHeading) return;
+
+      // Update family styling
+      if (currentFamily === 'mono') {
+        previewSandbox.style.fontFamily = 'ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, Consolas, monospace';
+      } else if (currentFamily === 'humanist') {
+        previewSandbox.style.fontFamily = '"Source Sans 3", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      } else {
+        previewSandbox.style.fontFamily = 'Inter, -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif';
+      }
+
+      // Update sizes & line heights
+      previewParagraph.style.fontSize = currentSize + 'px';
+      previewParagraph.style.lineHeight = (currentSize * currentLineHeight) + 'px';
+
+      // Scale heading proportionally
+      const headingBase = currentSize === 13 ? 24 : currentSize === 14 ? 28 : currentSize === 15 ? 30 : 32;
+      previewHeading.style.fontSize = headingBase + 'px';
+      previewHeading.style.lineHeight = (headingBase * 1.2) + 'px';
+
+      if (currentMetricsLabel) {
+        currentMetricsLabel.innerText = currentSize + 'px / ' + currentLineHeight + 'x';
+      }
+    }
+
+    // Reset button action
+    if (resetBtn) {
+      resetBtn.addEventListener('click', () => {
+        const defaultFont = document.querySelector('label[data-font="sans"]');
+        const defaultSize = document.querySelector('.size-node[data-size="14"]');
+        const defaultLh = document.querySelector('.lh-btn[data-lh="1.6"]');
+        
+        if (defaultFont) defaultFont.click();
+        if (defaultSize) defaultSize.click();
+        if (defaultLh) defaultLh.click();
+      });
+    }
+
+    // Save button visual confirmation feedback
+    if (saveBtn) {
+      saveBtn.addEventListener('click', () => {
+        const originalHtml = saveBtn.innerHTML;
+        saveBtn.innerHTML = '<span class="material-symbols-outlined text-[18px]">check</span> 已成功保存';
+        saveBtn.classList.replace('bg-primary-container', 'bg-secondary');
+        setTimeout(() => {
+          saveBtn.innerHTML = originalHtml;
+          saveBtn.classList.replace('bg-secondary', 'bg-primary-container');
+        }, 1800);
+      });
+    }
+
+    // Initial sync
+    updatePreview();
+  })();
+</script></main></div></body></html>

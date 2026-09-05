@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config={darkMode:"class",theme:{extend:{"colors":{"on-surface":"#0b1c30","tertiary-container":"#bc4800","secondary":"#006c49","background":"#f8f9ff","surface-tint":"#0053db","tertiary":"#943700","surface-container-highest":"#d3e4fe","on-secondary-container":"#00714d","surface-dim":"#cbdbf5","secondary-fixed-dim":"#4edea3","on-primary":"#ffffff","on-tertiary":"#ffffff","outline-variant":"#c3c6d7","on-primary-container":"#eeefff","surface-container-low":"#eff4ff","on-secondary":"#ffffff","secondary-container":"#6cf8bb","on-error-container":"#93000a","on-background":"#0b1c30","secondary-fixed":"#6ffbbe","primary-fixed-dim":"#b4c5ff","surface":"#f8f9ff","on-tertiary-fixed":"#360f00","on-tertiary-fixed-variant":"#7d2d00","primary":"#004ac6","surface-container":"#e5eeff","on-primary-fixed-variant":"#003ea8","on-primary-fixed":"#00174b","surface-variant":"#d3e4fe","outline":"#737686","on-surface-variant":"#434655","inverse-primary":"#b4c5ff","surface-container-high":"#dce9ff","surface-bright":"#f8f9ff","on-secondary-fixed-variant":"#005236","tertiary-fixed-dim":"#ffb596","primary-container":"#2563eb","inverse-surface":"#213145","on-tertiary-container":"#ffede6","tertiary-fixed":"#ffdbcd","error":"#ba1a1a","error-container":"#ffdad6","inverse-on-surface":"#eaf1ff","primary-fixed":"#dbe1ff","surface-container-lowest":"#ffffff","on-secondary-fixed":"#002113","on-error":"#ffffff"},"borderRadius":{"DEFAULT":"0.125rem","lg":"0.25rem","xl":"0.5rem","full":"0.75rem"},"spacing":{"md":"16px","gutter":"16px","xs":"4px","sm":"8px","base":"4px","container-margin-mobile":"16px","container-margin-desktop":"40px","xl":"32px","lg":"24px"},"fontFamily":{"headline-md":["Inter"],"button":["Inter"],"body-sm":["Inter"],"headline-lg-mobile":["Inter"],"body-lg":["Inter"],"headline-lg":["Inter"],"label-caps":["Inter"]},"fontSize":{"headline-md":["20px",{"lineHeight":"28px","fontWeight":"600"}],"button":["14px",{"lineHeight":"20px","fontWeight":"500"}],"body-sm":["14px",{"lineHeight":"20px","fontWeight":"400"}],"headline-lg-mobile":["24px",{"lineHeight":"32px","letterSpacing":"-0.01em","fontWeight":"700"}],"body-lg":["16px",{"lineHeight":"24px","fontWeight":"400"}],"headline-lg":["30px",{"lineHeight":"38px","letterSpacing":"-0.02em","fontWeight":"700"}],"label-caps":["12px",{"lineHeight":"16px","letterSpacing":"0.05em","fontWeight":"600"}]}}}}</script></head><body class="bg-background font-body-sm text-on-surface antialiased"><aside class="fixed left-0 top-0 h-full w-64 bg-surface-container-lowest shadow-[0_1px_8px_rgba(0,0,0,0.04)] z-50 flex flex-col justify-between select-none"><div class="flex flex-col p-md"><div class="flex items-center gap-sm px-xs pb-md"><div class="w-8 h-8 rounded-xl bg-primary-container flex items-center justify-center text-on-primary shadow-sm"><span class="material-symbols-outlined text-[20px]">send</span></div><div class="flex flex-col"><span class="font-headline-md text-[16px] leading-[20px] font-bold text-on-surface tracking-tight">寻鸽工作台</span><span class="font-label-caps text-[10px] uppercase text-outline tracking-wider">Nexus Workspace</span></div></div><div class="my-xs"><button class="w-full flex items-center justify-between px-md py-sm bg-primary-container text-on-primary rounded-xl shadow-[0_2px_8px_rgba(37,99,235,0.25)] hover:bg-primary transition-all" type="button"><div class="flex items-center gap-sm"><span class="material-symbols-outlined text-[18px]">bolt</span><span class="font-button text-button">灵感闪现</span></div><kbd class="px-xs py-0.5 rounded bg-on-primary/20 text-on-primary font-label-caps text-[11px]">⌘J</kbd></button></div><nav class="flex flex-col gap-xs mt-md" data-active-classes="bg-primary-container text-on-primary font-medium rounded-xl shadow-sm"><a class="flex items-center gap-sm px-md py-sm rounded-xl text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-colors" data-path="workbench" href="#"><span class="material-symbols-outlined text-[20px]">grid_view</span><span class="font-button text-button">工作台</span></a><a class="flex items-center gap-sm px-md py-sm rounded-xl text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-colors" data-path="tasks" href="#"><span class="material-symbols-outlined text-[20px]">check_circle</span><span class="font-button text-button">待办事项</span></a><a class="flex items-center gap-sm px-md py-sm rounded-xl text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-colors" data-path="crm" href="#"><span class="material-symbols-outlined text-[20px]">group</span><span class="font-button text-button">CRM 客户</span></a><a class="flex items-center gap-sm px-md py-sm rounded-xl text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-colors" data-path="finance" href="#"><span class="material-symbols-outlined text-[20px]">account_balance_wallet</span><span class="font-button text-button">财务中心</span></a><a class="flex items-center gap-sm px-md py-sm rounded-xl text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-colors" data-path="notes" href="#"><span class="material-symbols-outlined text-[20px]">description</span><span class="font-button text-button">团队笔记</span></a><a class="flex items-center gap-sm px-md py-sm rounded-xl text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-colors" data-path="habits" href="#"><span class="material-symbols-outlined text-[20px]">event_repeat</span><span class="font-button text-button">打卡·习惯</span></a><a class="flex items-center gap-sm px-md py-sm rounded-xl text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-colors" data-path="trophies" href="#"><span class="material-symbols-outlined text-[20px]">emoji_events</span><span class="font-button text-button">成就奖杯</span></a><a aria-current="page" class="flex items-center gap-sm px-md py-sm transition-colors bg-primary-container text-on-primary font-medium rounded-xl shadow-sm" data-path="system-settings" href="#"><span class="material-symbols-outlined text-[20px]">settings</span><span class="font-button text-button">系统设置</span></a></nav></div><div class="p-md"><div class="flex items-center justify-between p-sm rounded-xl bg-surface-container-low"><div class="flex items-center gap-sm min-w-0"><div class="relative flex-shrink-0"><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div><span class="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-secondary ring-2 ring-surface-container-lowest"></span></div><div class="flex flex-col min-w-0"><span class="font-button text-button text-on-surface truncate">陈致远</span><span class="font-label-caps text-[11px] text-outline truncate">Core Team</span></div></div><button class="text-outline hover:text-on-surface transition-colors" type="button"><span class="material-symbols-outlined text-[18px]">unfold_more</span></button></div></div></aside><div class="pl-64 flex flex-col min-h-screen"><header class="fixed top-0 left-64 right-0 h-16 bg-surface/80 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)] z-40 flex items-center justify-between px-xl"><div class="flex items-center gap-md"><nav class="flex items-center gap-xs font-body-sm text-body-sm text-on-surface-variant"><span class="hover:text-on-surface cursor-pointer transition-colors">Nexus</span><span class="material-symbols-outlined text-[14px] text-outline">chevron_right</span><span class="text-on-surface font-button font-medium">系统设置</span></nav><div class="hidden lg:flex items-center gap-xs px-sm py-1 bg-surface-container-low rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-secondary"></span><span class="font-label-caps text-[11px] text-secondary font-medium">云端已实时同步</span></div></div><div class="flex items-center gap-md"><div class="relative w-64 md:w-80"><span class="material-symbols-outlined absolute left-sm top-1/2 -translate-y-1/2 text-outline text-[18px]">search</span><input class="w-full pl-9 pr-12 py-1.5 bg-surface-container-low rounded-xl text-body-sm font-body-sm text-on-surface placeholder:text-outline focus:outline-none focus:bg-surface-container-lowest focus:ring-1 focus:ring-primary-container transition-all" placeholder="搜索设置项、功能与成员..." type="text"/><kbd class="absolute right-sm top-1/2 -translate-y-1/2 px-xs py-0.5 rounded bg-surface-container text-outline font-label-caps text-[10px]">⌘K</kbd></div><div class="flex items-center gap-xs"><button class="w-8 h-8 flex items-center justify-center rounded-xl text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors" type="button"><span class="material-symbols-outlined text-[20px]">help_outline</span></button><button class="relative w-8 h-8 flex items-center justify-center rounded-xl text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors" type="button"><span class="material-symbols-outlined text-[20px]">notifications</span><span class="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-tertiary-container"></span></button></div><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div></div></header><main class="w-full pt-16 bg-background min-h-screen"><div class="flex flex-col w-full px-container-margin-desktop py-lg max-w-[1240px] mx-auto gap-xl">
+<!-- 页面顶部标题与操作栏 -->
+<header class="flex flex-col md:flex-row md:items-end justify-between gap-md">
+<div class="flex flex-col gap-xs">
+<div class="flex items-center gap-xs text-primary font-label-caps text-label-caps uppercase tracking-wider">
+<span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+        Preferences &amp; Keystrokes
+      </div>
+<h1 class="font-headline-lg text-headline-lg text-on-surface tracking-tight">系统设置</h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant">定制您的专属工作台界面风格、工作流偏好与数据安全策略</p>
+</div>
+<div class="flex items-center gap-sm">
+<button class="flex items-center gap-xs px-md py-sm rounded-xl bg-surface-container-low hover:bg-surface-container-high text-on-surface-variant transition-all text-button font-button shadow-sm" id="btn-reset" type="button">
+<span class="material-symbols-outlined text-[18px]">restart_alt</span>
+<span>重置快捷键</span>
+</button>
+<button class="flex items-center gap-xs px-lg py-sm rounded-xl bg-primary hover:bg-primary-container text-on-primary font-button text-button shadow-md transition-all" id="btn-save" type="button">
+<span class="material-symbols-outlined text-[18px]">check</span>
+<span>保存更改</span>
+</button>
+</div>
+</header>
+<!-- 二级分类导航 Tab -->
+<nav class="flex items-center gap-xs overflow-x-auto p-1 bg-surface-container-low rounded-xl">
+<button class="px-md py-sm rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/60 transition-all font-button text-button whitespace-nowrap" type="button">
+      外观与主题
+    </button>
+<button class="px-md py-sm rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/60 transition-all font-button text-button whitespace-nowrap" type="button">
+      色彩与密度
+    </button>
+<button class="px-md py-sm rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/60 transition-all font-button text-button whitespace-nowrap" type="button">
+      字体与排版
+    </button>
+<button class="relative px-md py-sm rounded-lg bg-surface-container-lowest text-primary font-button text-button shadow-sm whitespace-nowrap flex items-center gap-xs" type="button">
+<span class="material-symbols-outlined text-[18px] text-primary">keyboard</span>
+<span>通用与快捷键</span>
+<span class="absolute bottom-0 left-3 right-3 h-0.5 bg-primary rounded-full"></span>
+</button>
+<button class="px-md py-sm rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/60 transition-all font-button text-button whitespace-nowrap" type="button">
+      提醒与协同
+    </button>
+<button class="px-md py-sm rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/60 transition-all font-button text-button whitespace-nowrap" type="button">
+      数据与安全
+    </button>
+</nav>
+<!-- 主布局网格 (通用偏好 + 热键映射 + 极客模式) -->
+<div class="flex flex-col gap-lg">
+<!-- 卡片 1: 通用偏好设定 -->
+<section class="bg-surface-container-lowest rounded-xl p-lg shadow-sm flex flex-col gap-lg">
+<div class="flex items-center justify-between pb-sm">
+<div class="flex items-center gap-sm">
+<div class="w-9 h-9 rounded-lg bg-surface-container flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[20px]">tune</span>
+</div>
+<div>
+<h2 class="font-headline-md text-headline-md text-on-surface">通用偏好设定</h2>
+<p class="font-body-sm text-body-sm text-on-surface-variant">General Preferences &amp; Regional Formatting</p>
+</div>
+</div>
+<span class="px-sm py-0.5 rounded-full bg-surface-container-low text-outline font-label-caps text-label-caps">Auto-saved</span>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-lg pt-xs">
+<!-- 语言 -->
+<div class="flex flex-col gap-xs">
+<label class="font-button text-button text-on-surface flex items-center gap-xs">
+<span>系统语言 (Language)</span>
+</label>
+<div class="relative">
+<select class="w-full appearance-none bg-surface-container-low hover:bg-surface-container text-on-surface font-body-sm text-body-sm rounded-xl px-md py-sm pr-10 focus:outline-none focus:bg-surface-container-lowest focus:shadow-sm transition-all cursor-pointer">
+<option selected="">简体中文 (Simplified Chinese)</option>
+<option>English (United States)</option>
+<option>繁體中文 (Traditional Chinese)</option>
+<option>日本語 (Japanese)</option>
+</select>
+<span class="material-symbols-outlined absolute right-sm top-1/2 -translate-y-1/2 text-outline pointer-events-none text-[18px]">expand_more</span>
+</div>
+<p class="font-label-caps text-label-caps text-outline">影响全局操作指引、报错消息以及快捷键说明文本</p>
+</div>
+<!-- 起始日 -->
+<div class="flex flex-col gap-xs">
+<label class="font-button text-button text-on-surface">每周起始日</label>
+<div class="relative">
+<select class="w-full appearance-none bg-surface-container-low hover:bg-surface-container text-on-surface font-body-sm text-body-sm rounded-xl px-md py-sm pr-10 focus:outline-none focus:bg-surface-container-lowest focus:shadow-sm transition-all cursor-pointer">
+<option selected="">星期一 (Monday) · 工作日标配</option>
+<option>星期日 (Sunday) · 传统周历</option>
+<option>星期六 (Saturday)</option>
+</select>
+<span class="material-symbols-outlined absolute right-sm top-1/2 -translate-y-1/2 text-outline pointer-events-none text-[18px]">expand_more</span>
+</div>
+<p class="font-label-caps text-label-caps text-outline">影响工作台周看板、CRM 日程及打卡习惯视图</p>
+</div>
+<!-- 时区与24小时制 -->
+<div class="flex flex-col gap-xs">
+<div class="flex items-center justify-between">
+<label class="font-button text-button text-on-surface">时区与时间制</label>
+<span class="text-secondary font-label-caps text-label-caps flex items-center gap-0.5">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary"></span> 自动对齐网络授时
+            </span>
+</div>
+<div class="flex items-center gap-sm">
+<div class="relative flex-1">
+<input class="w-full bg-surface-container-low text-on-surface font-body-sm text-body-sm rounded-xl px-md py-sm cursor-not-allowed select-none" readonly="" type="text" value="(GMT+08:00) 北京、上海、香港"/>
+<span class="material-symbols-outlined absolute right-sm top-1/2 -translate-y-1/2 text-outline text-[18px]">lock</span>
+</div>
+<label class="flex items-center gap-xs px-md py-sm bg-surface-container-low rounded-xl cursor-pointer hover:bg-surface-container transition-colors select-none">
+<input checked="" class="sr-only peer" id="toggle-24h" type="checkbox"/>
+<div class="w-8 h-4 bg-outline-variant peer-checked:bg-primary rounded-full relative transition-colors duration-200 ease-in-out">
+<div class="w-3 h-3 bg-on-primary rounded-full absolute left-0.5 top-0.5 peer-checked:translate-x-4 transition-transform duration-200 ease-in-out"></div>
+</div>
+<span class="font-button text-button text-on-surface">24小时制</span>
+</label>
+</div>
+</div>
+<!-- 默认启动模块 -->
+<div class="flex flex-col gap-xs">
+<label class="font-button text-button text-on-surface">启动时默认进入的模块</label>
+<div class="relative">
+<select class="w-full appearance-none bg-surface-container-low hover:bg-surface-container text-on-surface font-body-sm text-body-sm rounded-xl px-md py-sm pr-10 focus:outline-none focus:bg-surface-container-lowest focus:shadow-sm transition-all cursor-pointer">
+<option selected="">工作台专注主页 (Nexus Workbench)</option>
+<option>待办事项列表 (Tasks Stream)</option>
+<option>CRM 客户看板 (Clients &amp; Leads)</option>
+<option>财务中心总览 (Finance Overview)</option>
+<option>团队笔记 (Team Notes)</option>
+</select>
+<span class="material-symbols-outlined absolute right-sm top-1/2 -translate-y-1/2 text-outline pointer-events-none text-[18px]">expand_more</span>
+</div>
+<p class="font-label-caps text-label-caps text-outline">登录后将直接导向该空间，规避非核心视觉干扰</p>
+</div>
+</div>
+</section>
+<!-- 卡片 2: 全局高频热键映射 -->
+<section class="bg-surface-container-lowest rounded-xl p-lg shadow-sm flex flex-col gap-md">
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-sm pb-sm">
+<div class="flex items-center gap-sm">
+<div class="w-9 h-9 rounded-lg bg-surface-container flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[20px]">keyboard_command_key</span>
+</div>
+<div>
+<h2 class="font-headline-md text-headline-md text-on-surface">全局高频热键映射</h2>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Global Hotkeys Map · 双击快捷键胶囊可直接键入重设</p>
+</div>
+</div>
+<!-- 平台胶囊切换 -->
+<div class="flex items-center p-0.5 bg-surface-container-low rounded-xl">
+<button class="px-sm py-1 rounded-lg bg-surface-container-lowest shadow-xs text-primary font-label-caps text-label-caps flex items-center gap-xs" type="button">
+<span class="material-symbols-outlined text-[14px]">laptop_mac</span> macOS
+          </button>
+<button class="px-sm py-1 rounded-lg text-on-surface-variant hover:text-on-surface font-label-caps text-label-caps flex items-center gap-xs transition-colors" type="button">
+<span class="material-symbols-outlined text-[14px]">desktop_windows</span> Windows / Linux
+          </button>
+</div>
+</div>
+<!-- 热键表格清单 -->
+<div class="overflow-x-auto -mx-lg px-lg">
+<div class="min-w-[680px] flex flex-col">
+<!-- 表头 -->
+<div class="grid grid-cols-12 gap-md px-md py-sm bg-surface-container-low rounded-xl text-outline font-label-caps text-label-caps uppercase">
+<div class="col-span-4">动作名称</div>
+<div class="col-span-5">功能描述</div>
+<div class="col-span-3 text-right">快捷键绑定 (点击录入)</div>
+</div>
+<!-- 列表行 -->
+<div class="flex flex-col">
+<!-- 键位 1 -->
+<div class="grid grid-cols-12 gap-md px-md py-md items-center hover:bg-surface-container-low/60 rounded-xl transition-colors group">
+<div class="col-span-4 flex items-center gap-sm">
+<span class="material-symbols-outlined text-primary text-[18px]">travel_explore</span>
+<span class="font-button text-button text-on-surface font-medium">唤醒全局命令中心</span>
+</div>
+<div class="col-span-5 font-body-sm text-body-sm text-on-surface-variant truncate">
+                穿透搜索任务、客户、账单与知识笔记
+              </div>
+<div class="col-span-3 flex justify-end gap-1 items-center">
+<button class="key-cap-btn group-hover:bg-surface-container-high transition-all flex items-center gap-1 px-sm py-1 rounded-lg bg-surface-container font-label-caps text-[12px] text-on-surface shadow-xs" type="button">
+<kbd class="font-semibold">⌘</kbd><span class="text-outline font-light">+</span><kbd class="font-semibold">K</kbd>
+</button>
+</div>
+</div>
+<!-- 键位 2 -->
+<div class="grid grid-cols-12 gap-md px-md py-md items-center hover:bg-surface-container-low/60 rounded-xl transition-colors group">
+<div class="col-span-4 flex items-center gap-sm">
+<span class="material-symbols-outlined text-tertiary text-[18px]">bolt</span>
+<span class="font-button text-button text-on-surface font-medium">灵感闪现抽取</span>
+</div>
+<div class="col-span-5 font-body-sm text-body-sm text-on-surface-variant truncate">
+                随机抽取待办、创意或待联系关键客户
+              </div>
+<div class="col-span-3 flex justify-end gap-1 items-center">
+<button class="key-cap-btn group-hover:bg-surface-container-high transition-all flex items-center gap-1 px-sm py-1 rounded-lg bg-surface-container font-label-caps text-[12px] text-on-surface shadow-xs" type="button">
+<kbd class="font-semibold">⌘</kbd><span class="text-outline font-light">+</span><kbd class="font-semibold">J</kbd>
+</button>
+</div>
+</div>
+<!-- 键位 3 -->
+<div class="grid grid-cols-12 gap-md px-md py-md items-center hover:bg-surface-container-low/60 rounded-xl transition-colors group">
+<div class="col-span-4 flex items-center gap-sm">
+<span class="material-symbols-outlined text-secondary text-[18px]">add_task</span>
+<span class="font-button text-button text-on-surface font-medium">新建待办事项</span>
+</div>
+<div class="col-span-5 font-body-sm text-body-sm text-on-surface-variant truncate">
+                快速唤醒首行成标题新建待办弹窗
+              </div>
+<div class="col-span-3 flex justify-end gap-1 items-center">
+<button class="key-cap-btn group-hover:bg-surface-container-high transition-all flex items-center gap-1 px-sm py-1 rounded-lg bg-surface-container font-label-caps text-[12px] text-on-surface shadow-xs" type="button">
+<kbd class="font-semibold">⌘</kbd><span class="text-outline font-light">+</span><kbd class="font-semibold">N</kbd>
+</button>
+</div>
+</div>
+<!-- 键位 4 -->
+<div class="grid grid-cols-12 gap-md px-md py-md items-center hover:bg-surface-container-low/60 rounded-xl transition-colors group">
+<div class="col-span-4 flex items-center gap-sm">
+<span class="material-symbols-outlined text-tertiary-container text-[18px]">receipt_long</span>
+<span class="font-button text-button text-on-surface font-medium">记一笔流水</span>
+</div>
+<div class="col-span-5 font-body-sm text-body-sm text-on-surface-variant truncate">
+                快速唤醒高级记账录入表单
+              </div>
+<div class="col-span-3 flex justify-end gap-1 items-center">
+<button class="key-cap-btn group-hover:bg-surface-container-high transition-all flex items-center gap-1 px-sm py-1 rounded-lg bg-surface-container font-label-caps text-[12px] text-on-surface shadow-xs" type="button">
+<kbd class="font-semibold">⌘</kbd><span class="text-outline font-light">+</span><kbd class="font-semibold">⌥</kbd><span class="text-outline font-light">+</span><kbd class="font-semibold">B</kbd>
+</button>
+</div>
+</div>
+<!-- 键位 5 -->
+<div class="grid grid-cols-12 gap-md px-md py-md items-center hover:bg-surface-container-low/60 rounded-xl transition-colors group">
+<div class="col-span-4 flex items-center gap-sm">
+<span class="material-symbols-outlined text-primary text-[18px]">edit_note</span>
+<span class="font-button text-button text-on-surface font-medium">新建 Markdown 笔记</span>
+</div>
+<div class="col-span-5 font-body-sm text-body-sm text-on-surface-variant truncate">
+                创建并进入当前工作台笔记专注编辑流
+              </div>
+<div class="col-span-3 flex justify-end gap-1 items-center">
+<button class="key-cap-btn group-hover:bg-surface-container-high transition-all flex items-center gap-1 px-sm py-1 rounded-lg bg-surface-container font-label-caps text-[12px] text-on-surface shadow-xs" type="button">
+<kbd class="font-semibold">⌘</kbd><span class="text-outline font-light">+</span><kbd class="font-semibold">⇧</kbd><span class="text-outline font-light">+</span><kbd class="font-semibold">N</kbd>
+</button>
+</div>
+</div>
+<!-- 键位 6 -->
+<div class="grid grid-cols-12 gap-md px-md py-md items-center hover:bg-surface-container-low/60 rounded-xl transition-colors group">
+<div class="col-span-4 flex items-center gap-sm">
+<span class="material-symbols-outlined text-secondary text-[18px]">send_and_archive</span>
+<span class="font-button text-button text-on-surface font-medium">提交当前表单</span>
+</div>
+<div class="col-span-5 font-body-sm text-body-sm text-on-surface-variant truncate">
+                快速保存更改并关闭弹窗或折叠卡片
+              </div>
+<div class="col-span-3 flex justify-end gap-1 items-center">
+<button class="key-cap-btn group-hover:bg-surface-container-high transition-all flex items-center gap-1 px-sm py-1 rounded-lg bg-surface-container font-label-caps text-[12px] text-on-surface shadow-xs" type="button">
+<kbd class="font-semibold">⌘</kbd><span class="text-outline font-light">+</span><kbd class="font-semibold">↵</kbd>
+</button>
+</div>
+</div>
+<!-- 键位 7 -->
+<div class="grid grid-cols-12 gap-md px-md py-md items-center hover:bg-surface-container-low/60 rounded-xl transition-colors group">
+<div class="col-span-4 flex items-center gap-sm">
+<span class="material-symbols-outlined text-outline text-[18px]">cancel</span>
+<span class="font-button text-button text-on-surface font-medium">关闭所有弹窗/抽屉</span>
+</div>
+<div class="col-span-5 font-body-sm text-body-sm text-on-surface-variant truncate">
+                层级退出当前顶层浮动视图或取消录入
+              </div>
+<div class="col-span-3 flex justify-end gap-1 items-center">
+<button class="key-cap-btn group-hover:bg-surface-container-high transition-all flex items-center gap-1 px-sm py-1 rounded-lg bg-surface-container font-label-caps text-[12px] text-on-surface shadow-xs" type="button">
+<kbd class="font-semibold">Esc</kbd>
+</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- 卡片 3: 单键快捷模式 (Vim / Linear 极客模式) -->
+<section class="bg-surface-container-lowest rounded-xl p-lg shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-md">
+<div class="flex items-start gap-md">
+<div class="w-10 h-10 rounded-xl bg-surface-container flex items-center justify-center text-primary-container shrink-0 mt-0.5">
+<span class="material-symbols-outlined text-[24px]">terminal</span>
+</div>
+<div class="flex flex-col gap-xs">
+<div class="flex items-center gap-xs">
+<h3 class="font-headline-md text-[18px] leading-[24px] text-on-surface font-semibold">单键快捷模式 (Vim / Linear 单键极客模式)</h3>
+<span class="px-sm py-0.5 rounded bg-surface-container-highest text-primary font-label-caps text-[11px] font-semibold">Pro Flow</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant max-w-2xl">
+            启用后在非文本输入焦点状态下，按 <kbd class="px-1.5 py-0.5 bg-surface-container rounded text-on-surface font-semibold">C</kbd> 快速新建，按 <kbd class="px-1.5 py-0.5 bg-surface-container rounded text-on-surface font-semibold">E</kbd> 快速归档任务，按 <kbd class="px-1.5 py-0.5 bg-surface-container rounded text-on-surface font-semibold">J</kbd> / <kbd class="px-1.5 py-0.5 bg-surface-container rounded text-on-surface font-semibold">K</kbd> 穿行于行项目间。
+          </p>
+</div>
+</div>
+<div class="flex items-center gap-sm shrink-0 self-end md:self-center">
+<label class="relative inline-flex items-center cursor-pointer select-none">
+<input class="sr-only peer" id="geek-mode-toggle" type="checkbox" value=""/>
+<div class="w-11 h-6 bg-outline-variant peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-surface-container-lowest after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-surface-container-lowest after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+</label>
+</div>
+</section>
+<!-- 底部流转指引 -->
+<footer class="flex items-center justify-between pt-md pb-xl">
+<a class="flex items-center gap-xs text-on-surface-variant hover:text-primary transition-colors font-button text-button group" href="#">
+<span class="material-symbols-outlined text-[18px] group-hover:-translate-x-1 transition-transform">arrow_back</span>
+<span>上一步：字体与排版</span>
+</a>
+<a class="flex items-center gap-xs text-primary hover:text-primary-container transition-colors font-button text-button font-medium group" href="#">
+<span>下一步：提醒与协同</span>
+<span class="material-symbols-outlined text-[18px] group-hover:translate-x-1 transition-transform">arrow_forward</span>
+</a>
+</footer>
+</div>
+</div>
+<script>
+  // 简易交互支持：热键录入反馈与保存状态提示
+  document.addEventListener('DOMContentLoaded', () => {
+    const keyButtons = document.querySelectorAll('.key-cap-btn');
+    keyButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const originalContent = btn.innerHTML;
+        btn.classList.add('bg-primary', 'text-on-primary');
+        btn.innerHTML = '<span class="animate-pulse font-label-caps text-[12px]">按下新按键...</span>';
+        
+        const keyHandler = (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          let keys = [];
+          if (e.metaKey) keys.push('⌘');
+          if (e.ctrlKey) keys.push('Ctrl');
+          if (e.altKey) keys.push('⌥');
+          if (e.shiftKey) keys.push('⇧');
+          if (!['Control', 'Meta', 'Alt', 'Shift'].includes(e.key)) {
+            keys.push(e.key.toUpperCase());
+            btn.classList.remove('bg-primary', 'text-on-primary');
+            btn.innerHTML = keys.map(k => `<kbd class="font-semibold">${k}</kbd>`).join('<span class="text-outline font-light">+</span>');
+            window.removeEventListener('keydown', keyHandler);
+          }
+        };
+        window.addEventListener('keydown', keyHandler, { once: false });
+      });
+    });
+
+    const btnSave = document.getElementById('btn-save');
+    if (btnSave) {
+      btnSave.addEventListener('click', () => {
+        btnSave.innerHTML = '<span class="material-symbols-outlined text-[18px]">done_all</span><span>已保存</span>';
+        btnSave.classList.replace('bg-primary', 'bg-secondary');
+        setTimeout(() => {
+          btnSave.innerHTML = '<span class="material-symbols-outlined text-[18px]">check</span><span>保存更改</span>';
+          btnSave.classList.replace('bg-secondary', 'bg-primary');
+        }, 1500);
+      });
+    }
+
+    const btnReset = document.getElementById('btn-reset');
+    if (btnReset) {
+      btnReset.addEventListener('click', () => {
+        if (confirm('确认将所有快捷键重置为默认配置吗？')) {
+          location.reload();
+        }
+      });
+    }
+  });
+</script></main></div></body></html>
