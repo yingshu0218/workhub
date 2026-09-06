@@ -1,5 +1,6 @@
 import { eventBus } from './eventBus'
 import { habitRepo, habitLogRepo, habitLogId } from '@/repositories'
+import { installTrophyEngine } from '@/modules/trophies/trophyEngine'
 import dayjs from 'dayjs'
 
 /**
@@ -34,4 +35,7 @@ export function installModuleEffects() {
       console.error('[effects] focus→habit 联动失败', err)
     }
   })
+
+  // 奖杯引擎（幂等安装）：监听 focus:completed / habit:checked + 启动全量检查
+  installTrophyEngine()
 }

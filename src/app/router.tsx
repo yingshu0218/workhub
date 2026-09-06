@@ -6,6 +6,11 @@ import FinancePage from '@/modules/finance/FinancePage'
 import CrmPage from '@/modules/crm/CrmPage'
 import CrmCanvasPage from '@/modules/crm/CrmCanvasPage'
 import CustomerDetailPage from '@/modules/crm/CustomerDetailPage'
+import NotesPage from '@/modules/notes/NotesPage'
+import NoteEditorPage from '@/modules/notes/NoteEditorPage'
+import HabitsPage from '@/modules/habits/HabitsPage'
+import TrophiesPage from '@/modules/trophies/TrophiesPage'
+import ProfilePage from '@/modules/trophies/ProfilePage'
 import PlaceholderPage from '@/modules/placeholder/PlaceholderPage'
 
 /** 路由映射见 docs/寻鸽工作台-开发计划.md 第四节 */
@@ -27,10 +32,11 @@ const router = createBrowserRouter([
       { path: '/crm/canvas', element: <CrmCanvasPage /> },
       { path: '/crm/:id', element: <CustomerDetailPage /> },
       { path: '/finance', element: <FinancePage /> },
-      { path: '/notes', element: <PlaceholderPage title="团队笔记" subtitle="Markdown 双栏 · @提及 · 双向链接" phase="Phase 4" icon="description" /> },
-      { path: '/habits', element: <PlaceholderPage title="打卡习惯" subtitle="21 天稳态 · 热力图 · 连击" phase="Phase 5" icon="local_fire_department" /> },
-      { path: '/trophies', element: <PlaceholderPage title="成就奖杯" subtitle="EXP 等级 · 奖杯墙 · 解锁弹窗" phase="Phase 5" icon="emoji_events" /> },
-      { path: '/profile', element: <PlaceholderPage title="个人主页" subtitle="等级 · 成就 · 统计" phase="Phase 5" icon="person" /> },
+      { path: '/notes', element: <NotesPage /> },
+      { path: '/notes/:id', element: <NoteEditorPage /> },
+      { path: '/habits', element: <HabitsPage /> },
+      { path: '/trophies', element: <TrophiesPage /> },
+      { path: '/profile', element: <ProfilePage /> },
       { path: '/inspiration', element: <PlaceholderPage title="灵感闪现" subtitle="规则引擎抽取下一件最值得推进的事" phase="Phase 6" icon="auto_awesome" /> },
       { path: '/settings', element: <PlaceholderPage title="系统设置" subtitle="外观 · 字体 · 快捷键 · 提醒 · 数据安全" phase="Phase 6" icon="settings" /> },
     ],

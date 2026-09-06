@@ -131,6 +131,15 @@ export interface HabitLog extends SyncMeta {
 
 export type TrophyTier = '铜' | '银' | '金' | '白金'
 
+/** 奖杯解锁条件的结构化类型（统计一律从源记录推导，不存快照） */
+export type TrophyConditionType =
+  | 'focus_minutes_total' // 累计专注分钟
+  | 'focus_once_minutes' // 单次专注分钟
+  | 'habit_streak' // 任一习惯连续打卡天数
+  | 'habit_checks_total' // 累计打卡次数
+  | 'transactions_total' // 累计交易笔数
+  | 'customers_total' // 累计客户数
+
 export interface Trophy extends SyncMeta {
   id: string
   name: string
@@ -139,6 +148,9 @@ export interface Trophy extends SyncMeta {
   description: string
   icon: string
   unlockedAt?: number
+  /** 结构化解锁条件：缺省表示无条件奖杯（不参与引擎评估） */
+  conditionType?: TrophyConditionType
+  conditionValue?: number
 }
 
 /**

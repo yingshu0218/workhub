@@ -62,7 +62,7 @@ export async function seedIfEmpty(): Promise<boolean> {
       decisionLevel: '影响者',
       tier: 'A',
       stage: '方案沟通中',
-      tags: ['内容合作', '潛力客户'],
+      tags: ['内容合作', '潜力客户'],
       phone: '159****2210',
       wechat: 'xitang_lin',
       email: 'linxt@cloudcc.cn',
@@ -294,6 +294,8 @@ export async function seedIfEmpty(): Promise<boolean> {
       description: '单笔项目款首次突破 5 位数',
       icon: 'emoji_events',
       unlockedAt: now - 86400_000,
+      conditionType: 'transactions_total',
+      conditionValue: 1,
       ...meta(),
     },
     {
@@ -303,6 +305,8 @@ export async function seedIfEmpty(): Promise<boolean> {
       description: '任一习惯连续打卡 21 天',
       icon: 'military_tech',
       unlockedAt: now - 3 * 86400_000,
+      conditionType: 'habit_streak',
+      conditionValue: 21,
       ...meta(),
     },
     {
