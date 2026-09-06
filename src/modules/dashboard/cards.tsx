@@ -1,9 +1,8 @@
-import { useCollection, useQuery } from '@/queries/hooks'
-import { db } from '@/queries/hooks'
+import { useCollection, useTodayFocusMinutes } from '@/queries/hooks'
 import { useFocusStore, FOCUS_TOTAL_SEC } from '@/stores/focus'
 import { Button, Card, Chip } from '@/design-system/ui'
 import { eventBus } from '@/shared/eventBus'
-import { todoRepo, newId } from '@/repositories'
+import { todoRepo, habitLogRepo, habitLogId, newId } from '@/repositories'
 import { useState } from 'react'
 import type { Todo } from '@/db/types'
 import dayjs from 'dayjs'
@@ -20,15 +19,7 @@ export function FocusCard() {
   const openTodos = todos.filter((t) => t.status !== 'done' && t.id !== focus.todoId)
 
   // 今日专注分钟数（本地推导，不参与同步）
-  const todayMinutes =
-    useQuery(
-      async () => {
-        const start = dayjs().startOf('day').valueOf()
-        const sessions = await db.focusSessions.where('completedAt').aboveOrEqual(start).toArray()
-        return sessions.reduce((sum, s) => sum + s.minutes, 0)
-      },
-      [focus.status],
-    ) ?? 0
+  const todayMinutes = useTodayFocusMinutes()
 
   const pct = 1 - focus.remaining / FOCUS_TOTAL_SEC
   const circumference = 2 * Math.PI * 52
@@ -143,11 +134,11 @@ export function HabitLoopCard() {
   async function toggle(habitId: string) {
     const existing = logs.find((l) => l.habitId === habitId && l.date === todayStr)
     if (existing) {
-      await import('@/repositories').then((m) => m.habitLogRepo.softDelete(existing.id))
+      await habitLogRepo.softDelete(existing.id)
     } else {
-      const { habitLogRepo } = await import('@/repositories')
+      // 确定性 id 幂等：同日同习惯恒为同一条记录（若之前软删过则原地复活）
       await habitLogRepo.put({
-        id: newId('hl'),
+        id: habitLogId(habitId, todayStr),
         habitId,
         date: todayStr,
         completedAt: Date.now(),

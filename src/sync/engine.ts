@@ -55,6 +55,11 @@ class SyncEngine {
       // 1. 推送本地队列
       const all = await db.syncQueue.toArray()
       const pending = all.filter((p) => !p.sentAt)
+      // 清理历史遗留的已发送条目（现在改为推完即删，不再保留 sentAt 标记）
+      const staleSent = all.filter((p) => p.sentAt).map((p) => p.seq!).filter((s) => s !== undefined)
+      if (staleSent.length > 0) {
+        await db.syncQueue.where('seq').anyOf(staleSent).delete()
+      }
       store.setPending(pending.length)
       if (pending.length > 0) {
         const results = await this.adapter.push(
@@ -64,7 +69,8 @@ class SyncEngine {
           .filter((p) => results.find((r) => r.ok && r.recordId === p.recordId))
           .map((p) => p.seq!)
         if (okSeqs.length > 0) {
-          await db.syncQueue.where('seq').anyOf(okSeqs).modify({ sentAt: Date.now() })
+          // 推送成功即删除队列条目，不留全量历史
+          await db.syncQueue.where('seq').anyOf(okSeqs).delete()
         }
         store.setPending(pending.length - okSeqs.length)
       }
@@ -74,7 +80,11 @@ class SyncEngine {
       useSyncStore.getState().setStatus('synced')
       useSyncStore.getState().setLastSync(Date.now())
     } catch {
-      useSyncStore.getState().setStatus(navigator.onLine ? 'synced' : 'offline')
+      // 失败时按队列实际积压如实显示：有未传 → offline（待同步徽章），无未传 → synced
+      const s = useSyncStore.getState()
+      const pendingCount = await db.syncQueue.filter((p) => !p.sentAt).count()
+      s.setPending(pendingCount)
+      s.setStatus(!navigator.onLine || pendingCount > 0 ? 'offline' : 'synced')
     } finally {
       this.running = false
     }

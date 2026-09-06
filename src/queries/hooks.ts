@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '@/db/db'
+import dayjs from 'dayjs'
 
 /**
  * 统一查询 Hook —— 存储可插拔的另一半（开发计划 2.0）
@@ -42,4 +43,35 @@ export function useQuery<T>(queryFn: () => Promise<T>, deps: unknown[]): T | und
   return useLiveQuery(queryFn, deps)
 }
 
-export { db }
+/** 今日专注分钟数（focusSessions 本地推导，不参与同步） */
+export function useTodayFocusMinutes(): number {
+  return useLiveQuery(async () => {
+    const start = dayjs().startOf('day').valueOf()
+    const sessions = await db.focusSessions.where('completedAt').aboveOrEqual(start).toArray()
+    return sessions.reduce((sum, s) => sum + s.minutes, 0)
+  }, []) ?? 0
+}
+
+/** 最佳习惯连击天数（全部习惯中的最大连续打卡） */
+export function useBestHabitStreak(): number {
+  return useLiveQuery(async () => {
+    const logs = await db.habitLogs.filter((l) => !l.deleted).toArray()
+    const byHabit = new Map<string, Set<string>>()
+    logs.forEach((l) => {
+      if (!byHabit.has(l.habitId)) byHabit.set(l.habitId, new Set())
+      byHabit.get(l.habitId)!.add(l.date)
+    })
+    let best = 0
+    const todayStr = dayjs().format('YYYY-MM-DD')
+    byHabit.forEach((dates) => {
+      let n = 0
+      let cursor = dates.has(todayStr) ? dayjs() : dayjs().subtract(1, 'day')
+      while (dates.has(cursor.format('YYYY-MM-DD'))) {
+        n++
+        cursor = cursor.subtract(1, 'day')
+      }
+      best = Math.max(best, n)
+    })
+    return best
+  }, []) ?? 0
+}

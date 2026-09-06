@@ -1,6 +1,5 @@
 import { eventBus } from './eventBus'
-import { habitRepo, habitLogRepo } from '@/repositories'
-import { newId } from '@/repositories'
+import { habitRepo, habitLogRepo, habitLogId } from '@/repositories'
 import dayjs from 'dayjs'
 
 /**
@@ -19,11 +18,12 @@ export function installModuleEffects() {
       const focusHabit = habits.find((h) => h.crossModuleSync && h.targetMinutes > 0 && h.category === '工作')
       if (!focusHabit || minutes < focusHabit.targetMinutes) return
       const date = dayjs().format('YYYY-MM-DD')
-      const logs = await habitLogRepo.list()
-      const exists = logs.some((l) => l.habitId === focusHabit.id && l.date === date)
-      if (exists) return
+      // 确定性 id 幂等：同日同习惯恒为同一条记录，存在即跳过
+      const logId = habitLogId(focusHabit.id, date)
+      const existing = await habitLogRepo.get(logId)
+      if (existing) return
       await habitLogRepo.put({
-        id: newId('hl'),
+        id: logId,
         habitId: focusHabit.id,
         date,
         completedAt: Date.now(),

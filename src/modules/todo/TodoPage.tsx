@@ -176,7 +176,9 @@ export function TodoFormDrawer({
       setError('标题不能为空')
       return
     }
+    // 以旧记录展开为基底，仅覆盖表单字段，保留 habitId/ledgerId/completedAt 等
     const base: Todo = {
+      ...todo,
       id: todo?.id ?? newId('td'),
       title: title.trim(),
       desc: desc.trim(),

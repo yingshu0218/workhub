@@ -1,5 +1,4 @@
-import { useCollection, useQuery } from '@/queries/hooks'
-import { db } from '@/queries/hooks'
+import { useCollection, useTodayFocusMinutes, useBestHabitStreak } from '@/queries/hooks'
 import { Card, PageHeader, Button } from '@/design-system/ui'
 import type { Todo, Customer, Transaction } from '@/db/types'
 import { FocusCard, HabitLoopCard, QuickNoteCard } from './cards'
@@ -20,35 +19,10 @@ export default function DashboardPage() {
   const income = transactions.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0)
 
   // 今日专注分钟（本地推导）
-  const focusMinutes =
-    useQuery(async () => {
-      const start = dayjs().startOf('day').valueOf()
-      const sessions = await db.focusSessions.where('completedAt').aboveOrEqual(start).toArray()
-      return sessions.reduce((sum, s) => sum + s.minutes, 0)
-    }, []) ?? 0
+  const focusMinutes = useTodayFocusMinutes()
 
   // 最佳习惯连击
-  const bestStreak =
-    useQuery(async () => {
-      const logs = await db.habitLogs.filter((l) => !l.deleted).toArray()
-      const byHabit = new Map<string, Set<string>>()
-      logs.forEach((l) => {
-        if (!byHabit.has(l.habitId)) byHabit.set(l.habitId, new Set())
-        byHabit.get(l.habitId)!.add(l.date)
-      })
-      let best = 0
-      const todayStr = dayjs().format('YYYY-MM-DD')
-      byHabit.forEach((dates) => {
-        let n = 0
-        let cursor = dates.has(todayStr) ? dayjs() : dayjs().subtract(1, 'day')
-        while (dates.has(cursor.format('YYYY-MM-DD'))) {
-          n++
-          cursor = cursor.subtract(1, 'day')
-        }
-        best = Math.max(best, n)
-      })
-      return best
-    }, []) ?? 0
+  const bestStreak = useBestHabitStreak()
 
   return (
     <div className="mx-auto max-w-[1200px]">

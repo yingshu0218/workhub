@@ -1,6 +1,7 @@
 import { db } from '@/db/db'
 import { DEFAULT_WORKSPACE_ID } from '@/db/db'
 import { nanoid } from 'nanoid'
+import type { Table } from 'dexie'
 import type { SyncMeta } from '@/db/types'
 import { syncEngine } from '@/sync/engine'
 
@@ -30,6 +31,7 @@ export function createRepository<T extends { id: string } & Partial<SyncMeta>>(
     put(record: T): Promise<string>
     update(id: string, changes: Partial<T>): Promise<number>
   }
+  const bizTable = () => db[tableName] as unknown as Table
 
   return {
     async get(id) {
@@ -44,37 +46,43 @@ export function createRepository<T extends { id: string } & Partial<SyncMeta>>(
 
     async put(record) {
       const now = Date.now()
-      const prev = await table().get(record.id)
-      const stamped = {
-        ...record,
-        updatedAt: now,
-        rev: (prev?.rev ?? 0) + 1,
-        deleted: 0 as const,
-      } as T
-      await table().put(stamped)
-      await db.syncQueue.add({
-        table: String(tableName),
-        recordId: record.id,
-        op: 'upsert',
-        createdAt: now,
+      // 盖章、落库、入队必须在同一事务：落库成功而入队失败 = 变更永远不再推送
+      await db.transaction('rw', [bizTable(), db.syncQueue], async () => {
+        const prev = await table().get(record.id)
+        const stamped = {
+          ...record,
+          updatedAt: now,
+          rev: (prev?.rev ?? 0) + 1,
+          deleted: 0 as const,
+        } as T
+        await table().put(stamped)
+        await db.syncQueue.add({
+          table: String(tableName),
+          recordId: record.id,
+          op: 'upsert',
+          createdAt: now,
+        })
       })
       syncEngine.requestSync()
       return record.id
     },
 
     async softDelete(id) {
-      const now = Date.now()
-      const prev = await table().get(id)
-      await table().update(id, {
-        deleted: 1,
-        updatedAt: now,
-        rev: (prev?.rev ?? 0) + 1,
-      } as Partial<T>)
-      await db.syncQueue.add({
-        table: String(tableName),
-        recordId: id,
-        op: 'delete',
-        createdAt: now,
+      await db.transaction('rw', [bizTable(), db.syncQueue], async () => {
+        const prev = await table().get(id)
+        if (!prev) return // 不存在的 id：不动库、不入队
+        const now = Date.now()
+        await table().update(id, {
+          deleted: 1,
+          updatedAt: now,
+          rev: (prev?.rev ?? 0) + 1,
+        } as Partial<T>)
+        await db.syncQueue.add({
+          table: String(tableName),
+          recordId: id,
+          op: 'delete',
+          createdAt: now,
+        })
       })
       syncEngine.requestSync()
     },
