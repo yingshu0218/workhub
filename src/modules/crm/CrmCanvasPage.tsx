@@ -48,6 +48,8 @@ export default function CrmCanvasPage() {
   const svgRef = useRef<SVGSVGElement>(null)
   const simRef = useRef<Simulation<CanvasNode, undefined> | null>(null)
   const dragIdRef = useRef<string | null>(null)
+  const pointerStartRef = useRef<{ x: number; y: number } | null>(null)
+  const draggedRef = useRef(false)
   const [size, setSize] = useState({ w: 0, h: 0 })
   const [nodes, setNodes] = useState<CanvasNode[]>([])
   const [links, setLinks] = useState<CanvasLink[]>([])
@@ -146,12 +148,20 @@ export default function CrmCanvasPage() {
     e.stopPropagation()
     e.preventDefault()
     dragIdRef.current = node.id
+    pointerStartRef.current = { x: e.clientX, y: e.clientY }
+    draggedRef.current = false
     ;(e.target as Element).setPointerCapture?.(e.pointerId)
   }
 
   function onPointerMove(e: React.PointerEvent) {
     const id = dragIdRef.current
     if (!id) return
+    const start = pointerStartRef.current
+    if (start) {
+      const dx = e.clientX - start.x
+      const dy = e.clientY - start.y
+      if (Math.hypot(dx, dy) > 4) draggedRef.current = true
+    }
     const p = toSvgPoint(e.clientX, e.clientY)
     if (!p) return
     const node = nodes.find((n) => n.id === id)
@@ -257,7 +267,12 @@ export default function CrmCanvasPage() {
                         className={n.kind === 'customer' ? 'cursor-pointer' : 'cursor-grab'}
                         onPointerDown={(e) => onNodePointerDown(e, n)}
                         onClick={() => {
-                          if (n.kind === 'customer' && !dragIdRef.current) navigate(`/crm/${n.id}`)
+                          // click 在 pointerup 之后派发：拖拽过的手势不触发穿透跳转，并消费标记
+                          if (draggedRef.current) {
+                            draggedRef.current = false
+                            return
+                          }
+                          if (n.kind === 'customer') navigate(`/crm/${n.id}`)
                         }}
                       >
                         <circle

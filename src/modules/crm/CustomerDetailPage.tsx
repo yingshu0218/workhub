@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useRecord } from '@/queries/hooks'
 import type { Customer, Interaction } from '@/db/types'
-import { customerRepo, interactionRepo, newId } from '@/repositories'
+import { deleteCustomerCascade, newId, saveInteractionAndTouchCustomer } from '@/repositories'
+import { eventBus } from '@/shared/eventBus'
 import {
   Avatar,
   Button,
@@ -50,6 +51,16 @@ export default function CustomerDetailPage() {
 
   const hc = healthColor(customer.healthScore)
 
+  function handleDelete(name: string, id: string) {
+    const ok = confirm(
+      `确定删除客户「${name}」？\n\n` +
+        `将同时删除其名下 ${interactions.length} 条沟通日志，` +
+        `并解绑 ${transactions.length} 笔交易流水与 ${todos.length} 项待办。`,
+    )
+    if (!ok) return
+    void deleteCustomerCascade(id).then(() => navigate('/crm'))
+  }
+
   return (
     <div className="mx-auto max-w-[1200px]">
       <PageHeader
@@ -62,6 +73,9 @@ export default function CustomerDetailPage() {
             </Button>
             <Button icon="edit" onClick={() => setEditing(true)}>
               编辑档案
+            </Button>
+            <Button variant="danger" icon="person_remove" onClick={() => handleDelete(customer.name, customer.id)}>
+              删除客户
             </Button>
           </>
         }
@@ -213,10 +227,7 @@ export default function CustomerDetailPage() {
             <div className="mb-3 text-[12px] font-medium uppercase tracking-wide text-on-surface-variant">
               深度跟进与沟通日志
             </div>
-            <QuickLog customerId={customer.id} onSaved={(ts) => {
-              // 状态即流程：记录沟通即刷新客户最近联系时间
-              void customerRepo.put({ ...customer, lastContactAt: ts })
-            }} />
+            <QuickLog customerId={customer.id} />
             <div className="mt-4">
               {interactions.length === 0 ? (
                 <div className="py-6 text-center text-[12px] text-outline">
@@ -319,7 +330,7 @@ function copyText(text: string) {
 }
 
 /** 快速记一笔：类型 + 内容 → interactions 表，并联动刷新 lastContactAt */
-function QuickLog({ customerId, onSaved }: { customerId: string; onSaved: (ts: number) => void }) {
+function QuickLog({ customerId }: { customerId: string }) {
   const [type, setType] = useState<Interaction['type']>('电话')
   const [content, setContent] = useState('')
   const [saving, setSaving] = useState(false)
@@ -327,17 +338,20 @@ function QuickLog({ customerId, onSaved }: { customerId: string; onSaved: (ts: n
   async function save() {
     if (!content.trim() || saving) return
     setSaving(true)
-    const at = Date.now()
-    await interactionRepo.put({
-      id: newId('itx'),
-      customerId,
-      type,
-      content: content.trim(),
-      at,
-    })
-    onSaved(at)
-    setContent('')
-    setSaving(false)
+    try {
+      // 原子双写：日志落库 + 客户 lastContactAt 刷新在同一事务完成
+      const at = Date.now()
+      await saveInteractionAndTouchCustomer(
+        { id: newId('itx'), customerId, type, content: content.trim(), at },
+        customerId,
+      )
+      eventBus.emit('customer:contacted', { customerId })
+      setContent('')
+    } catch (err) {
+      console.error('[QuickLog] 保存沟通日志失败', err)
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -369,7 +383,7 @@ function QuickLog({ customerId, onSaved }: { customerId: string; onSaved: (ts: n
           className={inputCls}
           value={content}
           onChange={(e) => setContent(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && void save()}
+          onKeyDown={(e) => e.key === 'Enter' && !e.nativeEvent.isComposing && void save()}
           placeholder="如：确认了二期验收标准，下周回签合同…"
         />
         <Button icon="send" disabled={!content.trim() || saving} onClick={() => void save()}>
