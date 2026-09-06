@@ -50,7 +50,7 @@ export interface Ledger extends SyncMeta {
   name: string
   currency: string
   openingBalance: number
-  closingCycle: '月结' | '季结' | '年结'
+  closingCycle: '月结' | '季结' | '年结' | '不封账'
   createdAt: number
 }
 
