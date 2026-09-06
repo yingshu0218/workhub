@@ -1,25 +1,33 @@
 import { useState } from 'react'
 import { useCollection } from '@/queries/hooks'
-import { attachmentRepo, newId, transactionRepo } from '@/repositories'
-import type { Customer, Ledger, Transaction } from '@/db/types'
+import { newId, saveTransactionWithAttachments } from '@/repositories'
+import type { PutInput } from '@/repositories/repository'
+import type { Attachment } from '@/db/db'
+import type { Customer, Ledger, Todo, Transaction } from '@/db/types'
 import { Button, Chip, Drawer, Field, inputCls } from '@/design-system/ui'
 import dayjs from 'dayjs'
 
 const CHANNELS = ['微信', '支付宝', '银行卡', '现金', '对公转账'] as const
+const MAX_ATTACHMENT_SIZE = 5 * 1024 * 1024
 
-/** 记一笔账抽屉（对齐原型 04-finance-new-transaction） */
+/** 记一笔账 / 编辑流水抽屉（对齐原型 04-finance-new-transaction） */
 export default function TransactionFormDrawer({
   open,
   defaultLedgerId,
+  editTxn,
   onClose,
 }: {
   open: boolean
   /** 当前选中的账本 id；'all' 表示全部账本（回落到第一个账本） */
   defaultLedgerId: string
+  /** 传入则为编辑模式：以旧记录为基底展开，仅覆盖表单字段 */
+  editTxn?: Transaction | null
   onClose: () => void
 }) {
   const ledgers = useCollection<Ledger>('ledgers')
   const customers = useCollection<Customer>('customers')
+  const todos = useCollection<Todo>('todos')
+  const openTodos = todos.filter((t) => t.status !== 'done')
   const [type, setType] = useState<Transaction['type']>('income')
   const [ledgerId, setLedgerId] = useState('')
   const [channel, setChannel] = useState<(typeof CHANNELS)[number]>('微信')
@@ -28,30 +36,46 @@ export default function TransactionFormDrawer({
   const [occurredAt, setOccurredAt] = useState('')
   const [tagsRaw, setTagsRaw] = useState('')
   const [customerId, setCustomerId] = useState('')
+  const [todoId, setTodoId] = useState('')
   const [invoiceNo, setInvoiceNo] = useState('')
   const [note, setNote] = useState('')
   const [files, setFiles] = useState<File[]>([])
   const [error, setError] = useState('')
   const [seedKey, setSeedKey] = useState(0)
 
-  // 打开时重置（渲染期重置模式，同 TodoFormDrawer）
-  const openKey = `${open}-${defaultLedgerId}`
+  // 打开时重置（渲染期重置模式，同 TodoFormDrawer）；编辑模式以旧记录回填
+  const openKey = `${open}-${defaultLedgerId}-${editTxn?.id ?? ''}`
   const [lastKey, setLastKey] = useState('')
   if (openKey !== lastKey) {
     setLastKey(openKey)
     if (open) {
-      const fallback = ledgers[0]?.id ?? ''
-      const initial = defaultLedgerId && defaultLedgerId !== 'all' ? defaultLedgerId : fallback
-      setType('income')
-      setLedgerId(initial)
-      setChannel('微信')
-      setSummary('')
-      setAmount('')
-      setOccurredAt(dayjs().format('YYYY-MM-DDTHH:mm'))
-      setTagsRaw('')
-      setCustomerId('')
-      setInvoiceNo('')
-      setNote('')
+      if (editTxn) {
+        setType(editTxn.type)
+        setLedgerId(editTxn.ledgerId)
+        setChannel(editTxn.channel as (typeof CHANNELS)[number])
+        setSummary(editTxn.summary)
+        setAmount(String(editTxn.amount))
+        setOccurredAt(dayjs(editTxn.occurredAt).format('YYYY-MM-DDTHH:mm'))
+        setTagsRaw(editTxn.tags.join(', '))
+        setCustomerId(editTxn.customerId ?? '')
+        setTodoId(editTxn.todoId ?? '')
+        setInvoiceNo(editTxn.invoiceNo ?? '')
+        setNote(editTxn.note ?? '')
+      } else {
+        const fallback = ledgers[0]?.id ?? ''
+        const initial = defaultLedgerId && defaultLedgerId !== 'all' ? defaultLedgerId : fallback
+        setType('income')
+        setLedgerId(initial)
+        setChannel('微信')
+        setSummary('')
+        setAmount('')
+        setOccurredAt(dayjs().format('YYYY-MM-DDTHH:mm'))
+        setTagsRaw('')
+        setCustomerId('')
+        setTodoId('')
+        setInvoiceNo('')
+        setNote('')
+      }
       setFiles([])
       setError('')
       setSeedKey((k) => k + 1)
@@ -77,39 +101,64 @@ export default function TransactionFormDrawer({
       setError('请先创建账本')
       return
     }
-    const txnId = newId('txn')
-    await transactionRepo.put({
-      id: txnId,
-      ledgerId,
-      type,
-      amount: amountNum,
-      summary: summary.trim(),
-      channel,
-      occurredAt: occurredAt ? dayjs(occurredAt).valueOf() : Date.now(),
-      tags,
-      invoiceNo: invoiceNo.trim() || undefined,
-      note: note.trim() || undefined,
-      customerId: customerId || undefined,
-      status: '待对账',
-    })
-    // 附件存根：Blob 入 attachments 表，refId 指向交易
-    for (const f of files) {
-      await attachmentRepo.put({
-        id: newId('att'),
-        refType: 'transaction',
-        refId: txnId,
-        name: f.name,
-        mime: f.type,
-        size: f.size,
-        blob: f,
-        createdAt: Date.now(),
-      })
+    const oversized = files.find((f) => f.size > MAX_ATTACHMENT_SIZE)
+    if (oversized) {
+      setError(`附件「${oversized.name}」超过单文件 5MB 限制`)
+      return
     }
-    onClose()
+    const txnId = editTxn?.id ?? newId('txn')
+    // 编辑模式以旧记录展开为基底，保留 status/todoId 等表单外字段
+    const record: PutInput<Transaction> = editTxn
+      ? {
+          ...editTxn,
+          ledgerId,
+          type,
+          amount: amountNum,
+          summary: summary.trim(),
+          channel,
+          occurredAt: occurredAt ? dayjs(occurredAt).valueOf() : Date.now(),
+          tags,
+          invoiceNo: invoiceNo.trim() || undefined,
+          note: note.trim() || undefined,
+          customerId: customerId || undefined,
+          todoId: todoId || undefined,
+        }
+      : {
+          id: txnId,
+          ledgerId,
+          type,
+          amount: amountNum,
+          summary: summary.trim(),
+          channel,
+          occurredAt: occurredAt ? dayjs(occurredAt).valueOf() : Date.now(),
+          tags,
+          invoiceNo: invoiceNo.trim() || undefined,
+          note: note.trim() || undefined,
+          customerId: customerId || undefined,
+          todoId: todoId || undefined,
+          status: '待对账',
+        }
+    // 附件存根：Blob 入 attachments 表，refId 指向交易；与交易同事务原子落库
+    const attachments: Attachment[] = files.map((f) => ({
+      id: newId('att'),
+      refType: 'transaction',
+      refId: txnId,
+      name: f.name,
+      mime: f.type,
+      size: f.size,
+      blob: f,
+      createdAt: Date.now(),
+    }))
+    try {
+      await saveTransactionWithAttachments(record, attachments)
+      onClose()
+    } catch (e) {
+      setError(e instanceof Error ? `保存失败：${e.message}` : '保存失败，请重试')
+    }
   }
 
   return (
-    <Drawer open={open} title="记一笔账" onClose={onClose} width={460}>
+    <Drawer open={open} title={editTxn ? '编辑流水' : '记一笔账'} onClose={onClose} width={460}>
       <div key={seedKey}>
         <Field label="类型 *">
           <div className="flex gap-2">
@@ -208,6 +257,17 @@ export default function TransactionFormDrawer({
             ))}
           </select>
         </Field>
+        <Field label="关联待办">
+          <select className={inputCls} value={todoId} onChange={(e) => setTodoId(e.target.value)}>
+            <option value="">不关联</option>
+            {openTodos.length === 0 && <option disabled>暂无未完成待办</option>}
+            {openTodos.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.title}
+              </option>
+            ))}
+          </select>
+        </Field>
         <Field label="发票号">
           <input
             className={inputCls}
@@ -223,7 +283,7 @@ export default function TransactionFormDrawer({
             onChange={(e) => setNote(e.target.value)}
           />
         </Field>
-        <Field label={`附件存根（${files.length} 个）`}>
+        <Field label={`附件存根（${files.length} 个，单文件 ≤ 5MB）`}>
           <input
             type="file"
             multiple
@@ -238,7 +298,11 @@ export default function TransactionFormDrawer({
               {files.map((f, i) => (
                 <div
                   key={`${f.name}-${i}`}
-                  className="flex items-center justify-between rounded-lg border border-outline-variant/40 px-2.5 py-1.5 text-[12px]"
+                  className={`flex items-center justify-between rounded-lg border px-2.5 py-1.5 text-[12px] ${
+                    f.size > MAX_ATTACHMENT_SIZE
+                      ? 'border-danger/50 text-danger'
+                      : 'border-outline-variant/40'
+                  }`}
                 >
                   <span className="truncate">{f.name}</span>
                   <span className="ml-2 shrink-0 text-outline">{(f.size / 1024).toFixed(0)} KB</span>
@@ -253,7 +317,7 @@ export default function TransactionFormDrawer({
             取消
           </Button>
           <Button icon="save" onClick={save}>
-            立即保存此笔流水
+            {editTxn ? '保存修改' : '立即保存此笔流水'}
           </Button>
         </div>
       </div>

@@ -12,8 +12,17 @@ const CURRENCY_LABELS: Record<(typeof CURRENCIES)[number], string> = {
   EUR: 'EUR · 欧元 €',
 }
 
-/** 新建财务账本抽屉（对齐原型 05-finance-new-ledger） */
-export default function LedgerFormDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
+/** 新建 / 编辑财务账本抽屉（对齐原型 05-finance-new-ledger） */
+export default function LedgerFormDrawer({
+  open,
+  editLedger,
+  onClose,
+}: {
+  open: boolean
+  /** 传入则为编辑模式：以旧账本为基底，仅覆盖表单字段 */
+  editLedger?: Ledger | null
+  onClose: () => void
+}) {
   const [name, setName] = useState('')
   const [currency, setCurrency] = useState<(typeof CURRENCIES)[number]>('CNY')
   const [opening, setOpening] = useState('0')
@@ -21,15 +30,25 @@ export default function LedgerFormDrawer({ open, onClose }: { open: boolean; onC
   const [error, setError] = useState('')
   const [seedKey, setSeedKey] = useState(0)
 
-  // 打开时重置（渲染期重置模式，同 TodoFormDrawer）
-  const [lastOpen, setLastOpen] = useState(false)
-  if (open !== lastOpen) {
-    setLastOpen(open)
+  // 打开时重置（渲染期重置模式，同 TodoFormDrawer）；编辑模式回填旧值
+  const openKey = `${open}-${editLedger?.id ?? ''}`
+  const [lastKey, setLastKey] = useState('')
+  if (openKey !== lastKey) {
+    setLastKey(openKey)
     if (open) {
-      setName('')
-      setCurrency('CNY')
-      setOpening('0')
-      setCycle('月结')
+      if (editLedger) {
+        setName(editLedger.name)
+        setCurrency((CURRENCIES as readonly string[]).includes(editLedger.currency)
+          ? (editLedger.currency as (typeof CURRENCIES)[number])
+          : 'CNY')
+        setOpening(String(editLedger.openingBalance))
+        setCycle(editLedger.closingCycle)
+      } else {
+        setName('')
+        setCurrency('CNY')
+        setOpening('0')
+        setCycle('月结')
+      }
       setError('')
       setSeedKey((k) => k + 1)
     }
@@ -45,19 +64,29 @@ export default function LedgerFormDrawer({ open, onClose }: { open: boolean; onC
       setError('期初建账金额需为不小于 0 的数字')
       return
     }
-    await ledgerRepo.put({
-      id: newId('ldg'),
-      name: name.trim(),
-      currency,
-      openingBalance: openingNum,
-      closingCycle: cycle,
-      createdAt: Date.now(),
-    })
+    if (editLedger) {
+      await ledgerRepo.put({
+        ...editLedger,
+        name: name.trim(),
+        currency,
+        openingBalance: openingNum,
+        closingCycle: cycle,
+      })
+    } else {
+      await ledgerRepo.put({
+        id: newId('ldg'),
+        name: name.trim(),
+        currency,
+        openingBalance: openingNum,
+        closingCycle: cycle,
+        createdAt: Date.now(),
+      })
+    }
     onClose()
   }
 
   return (
-    <Drawer open={open} title="新建财务账本" onClose={onClose}>
+    <Drawer open={open} title={editLedger ? '编辑财务账本' : '新建财务账本'} onClose={onClose}>
       <div key={seedKey}>
         <Field label="账本名称 *">
           <input
@@ -114,7 +143,7 @@ export default function LedgerFormDrawer({ open, onClose }: { open: boolean; onC
             取消
           </Button>
           <Button icon="check" onClick={save}>
-            立即创建账本
+            {editLedger ? '保存修改' : '立即创建账本'}
           </Button>
         </div>
       </div>

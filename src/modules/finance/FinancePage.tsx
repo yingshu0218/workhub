@@ -15,42 +15,73 @@ import {
 import dayjs from 'dayjs'
 import LedgerFormDrawer from './LedgerFormDrawer'
 import TransactionFormDrawer from './TransactionFormDrawer'
-import { useAttachmentCounts, useTransactionAttachments } from './hooks'
+import { useAttachmentCount, useTransactionAttachments } from './hooks'
+import { ledgerRepo, transactionRepo } from '@/repositories'
 
 type TypeFilter = 'all' | 'income' | 'expense'
 type StatusFilter = 'all' | '已结算' | '待对账'
 
-const fmtMoney = (n: number) =>
-  `¥${Math.abs(n).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+/** 币种 → 符号映射（未登记币种回落 ¥） */
+const CURRENCY_SYMBOLS: Record<string, string> = { CNY: '¥', USD: '$', EUR: '€' }
+const symbolOf = (currency: string | undefined) => CURRENCY_SYMBOLS[currency ?? 'CNY'] ?? '¥'
 
-const fmtSigned = (t: Transaction) => `${t.type === 'income' ? '+' : '-'}${fmtMoney(t.amount)}`
+const fmtMoney = (n: number, symbol = '¥') =>
+  `${symbol}${Math.abs(n).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
+const fmtSigned = (t: Transaction, symbol = '¥') =>
+  `${t.type === 'income' ? '+' : '-'}${fmtMoney(t.amount, symbol)}`
 
 /** 财务中心主页面（对齐原型 03-finance-center） */
 export default function FinancePage() {
   const ledgers = useCollection<Ledger>('ledgers')
   const transactions = useCollection<Transaction>('transactions')
   const customers = useCollection<Customer>('customers')
-  const attachCounts = useAttachmentCounts()
   const [scope, setScope] = useState<string>('all')
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [keyword, setKeyword] = useState('')
   const [creating, setCreating] = useState(false)
   const [newLedgerOpen, setNewLedgerOpen] = useState(false)
+  const [editingLedger, setEditingLedger] = useState<Ledger | null>(null)
+  const [ledgerError, setLedgerError] = useState('')
   const [detailId, setDetailId] = useState<string | null>(null)
 
   const ledgerMap = new Map(ledgers.map((l) => [l.id, l]))
-  // 当前账本口径下的流水与汇总（统计一律从源记录推导）
-  const scoped = transactions.filter((t) => scope === 'all' || t.ledgerId === scope)
+  const activeLedger = scope === 'all' ? undefined : ledgerMap.get(scope)
+  // 当前口径币种：「全部账本」仅汇总 CNY 账本，按 CNY 展示
+  const currency = scope === 'all' ? 'CNY' : (activeLedger?.currency ?? 'CNY')
+  const symbol = symbolOf(currency)
+  // 当前账本口径下的流水与汇总（统计一律从源记录推导）；全部账本口径仅计 CNY 账本
+  const scoped = transactions.filter((t) =>
+    scope === 'all'
+      ? (ledgerMap.get(t.ledgerId)?.currency ?? 'CNY') === 'CNY'
+      : t.ledgerId === scope,
+  )
+  const scopeNote = scope === 'all' ? ' · 仅 CNY 账本' : ''
   const income = scoped.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0)
   const expense = scoped.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
   const opening =
     scope === 'all'
-      ? ledgers.reduce((s, l) => s + l.openingBalance, 0)
+      ? ledgers
+          .filter((l) => (l.currency ?? 'CNY') === 'CNY')
+          .reduce((s, l) => s + l.openingBalance, 0)
       : (ledgerMap.get(scope)?.openingBalance ?? 0)
   const net = opening + income - expense
   const pending = scoped.filter((t) => t.status === '待对账')
   const pendingAmount = pending.reduce((s, t) => s + t.amount, 0)
+
+  /** 删除账本：有未删流水则阻止（useCollection 已过滤软删记录） */
+  async function handleDeleteLedger(l: Ledger) {
+    setLedgerError('')
+    const txnCount = transactions.filter((t) => t.ledgerId === l.id).length
+    if (txnCount > 0) {
+      setLedgerError(`账本「${l.name}」下仍有 ${txnCount} 笔流水，无法删除`)
+      return
+    }
+    if (!window.confirm(`确认删除账本「${l.name}」？删除后可在同步层恢复前撤销。`)) return
+    await ledgerRepo.softDelete(l.id)
+    setScope('all')
+  }
 
   const list = scoped
     .filter((t) => {
@@ -85,12 +116,15 @@ export default function FinancePage() {
       />
 
       {/* 账本穿透 Tabs */}
-      <div className="mb-4 flex gap-1 overflow-x-auto rounded-lg bg-surface-container p-1" style={{ width: 'fit-content', maxWidth: '100%' }}>
+      <div className="mb-4 flex items-center gap-1 overflow-x-auto rounded-lg bg-surface-container p-1" style={{ width: 'fit-content', maxWidth: '100%' }}>
         <LedgerTab
           label="全部账本"
           count={transactions.length}
           active={scope === 'all'}
-          onClick={() => setScope('all')}
+          onClick={() => {
+            setScope('all')
+            setLedgerError('')
+          }}
         />
         {ledgers.map((l) => (
           <LedgerTab
@@ -98,36 +132,64 @@ export default function FinancePage() {
             label={l.name}
             count={transactions.filter((t) => t.ledgerId === l.id).length}
             active={scope === l.id}
-            onClick={() => setScope(l.id)}
+            onClick={() => {
+              setScope(l.id)
+              setLedgerError('')
+            }}
           />
         ))}
+        {activeLedger && (
+          <div className="ml-1 flex shrink-0 items-center gap-0.5 pl-1">
+            <button
+              title="编辑账本"
+              onClick={() => setEditingLedger(activeLedger)}
+              className="flex h-7 w-7 items-center justify-center rounded-md text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-primary"
+            >
+              <span className="material-symbols-rounded" style={{ fontSize: 16 }}>
+                edit
+              </span>
+            </button>
+            <button
+              title="删除账本"
+              onClick={() => handleDeleteLedger(activeLedger)}
+              className="flex h-7 w-7 items-center justify-center rounded-md text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-danger"
+            >
+              <span className="material-symbols-rounded" style={{ fontSize: 16 }}>
+                delete
+              </span>
+            </button>
+          </div>
+        )}
       </div>
+      {ledgerError && (
+        <div className="-mt-2 mb-3 text-[12px] text-danger">{ledgerError}</div>
+      )}
 
       {/* 汇总卡 4 张 */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <SummaryCard
-          label="累计收入"
+          label={`累计收入${currency !== 'CNY' ? `（${currency}）` : ''}`}
           icon="trending_up"
           iconCls="bg-success-container/60 text-success"
-          value={fmtMoney(income)}
+          value={fmtMoney(income, symbol)}
           valueCls="text-success"
-          sub={`共 ${scoped.filter((t) => t.type === 'income').length} 笔流入`}
+          sub={`共 ${scoped.filter((t) => t.type === 'income').length} 笔流入${scopeNote}`}
         />
         <SummaryCard
-          label="累计支出"
+          label={`累计支出${currency !== 'CNY' ? `（${currency}）` : ''}`}
           icon="trending_down"
           iconCls="bg-danger-container/60 text-danger"
-          value={fmtMoney(expense)}
+          value={fmtMoney(expense, symbol)}
           valueCls="text-danger"
-          sub={`共 ${scoped.filter((t) => t.type === 'expense').length} 笔流出`}
+          sub={`共 ${scoped.filter((t) => t.type === 'expense').length} 笔流出${scopeNote}`}
         />
         <SummaryCard
-          label="净结余"
+          label={`净结余${currency !== 'CNY' ? `（${currency}）` : ''}`}
           icon="account_balance"
           iconCls="bg-surface-container-high text-primary"
-          value={`${net >= 0 ? '+' : '-'}${fmtMoney(net)}`}
+          value={`${net >= 0 ? '+' : '-'}${fmtMoney(net, symbol)}`}
           valueCls="text-primary"
-          sub={`含期初结转 ${fmtMoney(opening)}`}
+          sub={`含期初结转 ${fmtMoney(opening, symbol)}${scopeNote}`}
         />
         <div
           className="card card-hover cursor-pointer p-4"
@@ -145,7 +207,10 @@ export default function FinancePage() {
             {pending.length}
             <span className="ml-1 text-[13px] font-normal text-on-surface-variant">笔待确认</span>
           </div>
-          <div className="mt-0.5 text-[11px] text-outline">涉及金额 {fmtMoney(pendingAmount)}</div>
+          <div className="mt-0.5 text-[11px] text-outline">
+            涉及金额 {fmtMoney(pendingAmount, symbol)}
+            {scopeNote}
+          </div>
         </div>
       </div>
 
@@ -196,7 +261,6 @@ export default function FinancePage() {
               txn={t}
               ledger={ledgerMap.get(t.ledgerId)}
               customer={customers.find((c) => c.id === t.customerId)}
-              attCount={attachCounts.get(t.id) ?? 0}
               showLedger={scope === 'all'}
               onOpen={() => setDetailId(t.id)}
             />
@@ -209,7 +273,14 @@ export default function FinancePage() {
         defaultLedgerId={scope}
         onClose={() => setCreating(false)}
       />
-      <LedgerFormDrawer open={newLedgerOpen} onClose={() => setNewLedgerOpen(false)} />
+      <LedgerFormDrawer
+        open={newLedgerOpen || editingLedger !== null}
+        editLedger={editingLedger}
+        onClose={() => {
+          setNewLedgerOpen(false)
+          setEditingLedger(null)
+        }}
+      />
       <TransactionDetailDrawer transactionId={detailId} onClose={() => setDetailId(null)} />
     </div>
   )
@@ -311,17 +382,18 @@ function TransactionRow({
   txn,
   ledger,
   customer,
-  attCount,
   showLedger,
   onOpen,
 }: {
   txn: Transaction
   ledger: Ledger | undefined
   customer: Customer | undefined
-  attCount: number
   showLedger: boolean
   onOpen: () => void
 }) {
+  // 每行独立计数 Hook：count() 只走索引计数，不反序列化 Blob
+  const attCount = useAttachmentCount(txn.id)
+  const symbol = symbolOf(ledger?.currency)
   const isIncome = txn.type === 'income'
   return (
     <div
@@ -365,7 +437,7 @@ function TransactionRow({
       </div>
       <div className="flex shrink-0 flex-col items-end gap-1">
         <span className={`text-[15px] font-bold tracking-tight ${isIncome ? 'text-success' : 'text-danger'}`}>
-          {fmtSigned(txn)}
+          {fmtSigned(txn, symbol)}
         </span>
         <Chip tone={txn.status === '已结算' ? 'green' : 'amber'} icon={txn.status === '已结算' ? 'check_circle' : 'fact_check'}>
           {txn.status}
@@ -384,7 +456,7 @@ function downloadAttachment(a: { name: string; blob: Blob }) {
   URL.revokeObjectURL(url)
 }
 
-/** 凭证详情抽屉：完整字段 + 附件下载 + 关联业务溯源 */
+/** 凭证详情抽屉：完整字段 + 附件下载 + 关联业务溯源 + 状态流转与编辑 */
 function TransactionDetailDrawer({
   transactionId,
   onClose,
@@ -398,13 +470,21 @@ function TransactionDetailDrawer({
   const todos = useCollection<Todo>('todos')
   const attachments = useTransactionAttachments(transactionId ?? undefined)
   const navigate = useNavigate()
+  const [editing, setEditing] = useState(false)
 
   const ledger = ledgers.find((l) => l.id === txn?.ledgerId)
   const customer = customers.find((c) => c.id === txn?.customerId)
   const todo = todos.find((t) => t.id === txn?.todoId)
+  const symbol = symbolOf(ledger?.currency)
+
+  /** 状态流转：以旧记录为基底，仅覆盖 status */
+  async function changeStatus(status: Transaction['status']) {
+    if (!txn) return
+    await transactionRepo.put({ ...txn, status })
+  }
 
   return (
-    <Drawer open={transactionId !== null} title="财务流水凭证详情" onClose={onClose} width={460}>
+    <Drawer open={transactionId !== null && !editing} title="财务流水凭证详情" onClose={onClose} width={460}>
       {!txn ? null : (
         <div className="space-y-5">
           {/* 金额主卡 */}
@@ -429,9 +509,25 @@ function TransactionDetailDrawer({
                 txn.type === 'income' ? 'text-success' : 'text-danger'
               }`}
             >
-              {fmtSigned(txn)}
+              {fmtSigned(txn, symbol)}
             </div>
             <div className="mt-1 text-[13px] font-medium">{txn.summary}</div>
+          </div>
+
+          {/* 状态流转 + 编辑 */}
+          <div className="flex gap-2">
+            {txn.status === '待对账' ? (
+              <Button icon="check_circle" onClick={() => changeStatus('已结算')}>
+                ✓ 标记已入账
+              </Button>
+            ) : (
+              <Button variant="tonal" icon="undo" onClick={() => changeStatus('待对账')}>
+                退回待对账
+              </Button>
+            )}
+            <Button variant="ghost" icon="edit" onClick={() => setEditing(true)}>
+              编辑
+            </Button>
           </div>
 
           {/* 基础明细 */}
@@ -555,6 +651,13 @@ function TransactionDetailDrawer({
           )}
         </div>
       )}
+      {/* 编辑模式：以当前流水为基底回填表单，保存后详情随 liveQuery 刷新 */}
+      <TransactionFormDrawer
+        open={editing}
+        defaultLedgerId={txn?.ledgerId ?? 'all'}
+        editTxn={txn}
+        onClose={() => setEditing(false)}
+      />
     </Drawer>
   )
 }
