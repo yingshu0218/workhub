@@ -25,6 +25,14 @@ function Bootstrap() {
     syncEngine.start()
     installKeyboardListener()
     installModuleEffects()
+    // PWA：仅生产构建注册 Service Worker（cache-first 静态资源，API 不缓存）
+    if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch((err) => {
+          console.warn('[pwa] Service Worker 注册失败', err)
+        })
+      })
+    }
     return () => syncEngine.stop()
   }, [])
 

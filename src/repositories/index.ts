@@ -58,6 +58,7 @@ function mergeSettings(prev: Settings | undefined): Settings {
     typography: { ...DEFAULT_SETTINGS.typography, ...base.typography },
     notifications: { ...DEFAULT_SETTINGS.notifications, ...base.notifications },
     security: { ...DEFAULT_SETTINGS.security, ...base.security },
+    sync: { ...DEFAULT_SETTINGS.sync, ...base.sync },
   }
 }
 

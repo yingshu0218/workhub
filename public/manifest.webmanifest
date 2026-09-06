@@ -1,0 +1,26 @@
+{
+  "name": "寻鸽工作台 · Nexus Workspace",
+  "short_name": "寻鸽工作台",
+  "description": "一体化数字工作台：CRM、财务、待办、笔记、习惯全链路闭环",
+  "lang": "zh-CN",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#F8F9FF",
+  "theme_color": "#004AC6",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

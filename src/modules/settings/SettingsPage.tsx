@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Card, PageHeader, Button, inputCls } from '@/design-system/ui'
-import type { Settings } from '@/db/types'
+import type { Settings, SettingsSync } from '@/db/types'
 import { settingsRepo, resetAndSeedLocalData } from '@/repositories'
 import {
   workspaceRepo, customerRepo, interactionRepo, ledgerRepo, transactionRepo,
@@ -8,6 +8,9 @@ import {
 } from '@/repositories'
 import { listShortcuts } from '@/shared/shortcuts'
 import { ACCENT_PRESETS, RADIUS_PRESETS, FONT_SIZE_STEPS, LINE_HEIGHT_STEPS } from '@/shared/theme'
+import { pbPing, isSyncConfigured, enqueueAllForPush } from '@/sync/pocketbaseAdapter'
+import { syncEngine } from '@/sync/engine'
+import { useSyncStore } from '@/sync/store'
 
 /**
  * 系统设置（对齐原型 13~15/17/18/20 · 6 标签）
@@ -20,6 +23,7 @@ const TABS = [
   { id: 'typography', label: '字体与排版', icon: 'text_fields' },
   { id: 'shortcuts', label: '通用与快捷键', icon: 'keyboard' },
   { id: 'notifications', label: '提醒与协同', icon: 'notifications_active' },
+  { id: 'sync', label: '云端同步', icon: 'cloud_sync' },
   { id: 'security', label: '数据与安全', icon: 'security' },
 ] as const
 
@@ -100,9 +104,19 @@ export default function SettingsPage() {
   const [persisted, setPersisted] = useState<boolean | null>(null)
   const [exporting, setExporting] = useState(false)
   const [resetting, setResetting] = useState(false)
+  // 云端同步：表单本地草稿（保存后才生效）、连接测试与全量推送状态
+  const [syncForm, setSyncForm] = useState<SettingsSync | null>(null)
+  const [syncSaving, setSyncSaving] = useState(false)
+  const [pinging, setPinging] = useState(false)
+  const [pingMsg, setPingMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [pushingAll, setPushingAll] = useState(false)
+  const syncStatus = useSyncStore()
 
   useEffect(() => {
-    void settingsRepo.get().then(setSettings)
+    void settingsRepo.get().then((s) => {
+      setSettings(s)
+      setSyncForm(s.sync)
+    })
     if (navigator.storage?.persisted) {
       void navigator.storage.persisted().then(setPersisted).catch(() => setPersisted(null))
     }
@@ -156,6 +170,54 @@ export default function SettingsPage() {
         console.error('[settings] 清空失败', err)
         setResetting(false)
       })
+  }
+
+  // ── 云端同步：保存配置 → 连接测试 → 立即同步一次 ──
+  const saveSyncAndTest = async () => {
+    if (!syncForm) return
+    const url = syncForm.serverUrl.trim().replace(/\/+$/, '')
+    setSyncSaving(true)
+    setPingMsg(null)
+    try {
+      const saved = await settingsRepo.save({ sync: { ...syncForm, serverUrl: url } })
+      setSyncForm(saved.sync)
+      setPinging(true)
+      const result = await pbPing()
+      setPingMsg({ ok: result.ok, text: result.message })
+      if (result.ok) void syncEngine.syncNow('manual')
+    } catch (err) {
+      setPingMsg({ ok: false, text: err instanceof Error ? err.message : '保存失败' })
+    } finally {
+      setSyncSaving(false)
+      setPinging(false)
+    }
+  }
+
+  const testSync = async () => {
+    setPinging(true)
+    setPingMsg(null)
+    try {
+      const result = await pbPing()
+      setPingMsg({ ok: result.ok, text: result.message })
+    } finally {
+      setPinging(false)
+    }
+  }
+
+  // ── 云端同步：全量推送（首次接入服务器 / 更换服务器时使用） ──
+  const pushAllToServer = () => {
+    if (!window.confirm('将把本地全部业务记录（含软删除墓碑）写入同步队列并推送至服务器，随后拉取远端增量做 LWW 合并。首次接入服务器请执行此操作，确定继续？')) return
+    setPushingAll(true)
+    void enqueueAllForPush()
+      .then((count) => {
+        syncEngine.requestSync()
+        setPingMsg({ ok: true, text: `已将 ${count} 条记录加入同步队列，正在推送…` })
+      })
+      .catch((err) => {
+        console.error('[settings] 全量推送入队失败', err)
+        setPingMsg({ ok: false, text: '全量推送入队失败，请稍后重试' })
+      })
+      .finally(() => setPushingAll(false))
   }
 
   // 每次切标签重算：注册表随挂载页面动态变化，实时读取当前已注册快捷键
@@ -403,6 +465,114 @@ export default function SettingsPage() {
             ))}
           </div>
         </Section>
+      )}
+
+      {/* ── 云端同步 ── */}
+      {tab === 'sync' && syncForm && (
+        <div className="space-y-4">
+          <Section
+            icon="cloud_sync"
+            title="自托管同步服务（PocketBase）"
+            desc="数据真源在您自己的云服务器；未配置时为本地模式，全部功能照常可用"
+            badge={isSyncConfigured(syncForm) ? '已配置' : '本地模式'}
+          >
+            <div className="mb-4 flex items-center justify-between rounded-xl border border-outline-variant/40 bg-surface-container-low/60 px-4 py-3">
+              <div className="flex items-center gap-3">
+                <span className={`material-symbols-rounded msr-fill text-[20px] ${
+                  isSyncConfigured(syncForm)
+                    ? syncStatus.status === 'synced' ? 'text-success' : syncStatus.status === 'syncing' ? 'text-primary' : 'text-warning'
+                    : 'text-outline'
+                }`}>
+                  {isSyncConfigured(syncForm)
+                    ? syncStatus.status === 'synced' ? 'cloud_done' : syncStatus.status === 'syncing' ? 'cloud_sync' : 'cloud_off'
+                    : 'cloud_off'}
+                </span>
+                <div>
+                  <div className="text-[13px] font-semibold">
+                    {isSyncConfigured(syncForm)
+                      ? syncStatus.status === 'synced' ? '已连接 · 已同步' : syncStatus.status === 'syncing' ? '同步中…' : `离线待同步（${syncStatus.pendingCount} 条待传）`
+                      : '本地模式（数据仅存本机）'}
+                  </div>
+                  <div className="mt-0.5 text-[11.5px] text-on-surface-variant">
+                    {syncStatus.lastSyncAt
+                      ? `上次同步：${new Date(syncStatus.lastSyncAt).toLocaleString('zh-CN')}`
+                      : '尚未同步过'}
+                  </div>
+                </div>
+              </div>
+              <span className={`rounded px-2.5 py-1 text-[11.5px] font-semibold ${
+                isSyncConfigured(syncForm)
+                  ? syncStatus.status === 'synced' ? 'bg-success-container/60 text-success' : 'bg-primary-fixed text-primary'
+                  : 'bg-surface-container text-outline'
+              }`}>
+                {isSyncConfigured(syncForm) ? '● 已配置' : '○ 本地模式'}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+              <label className="col-span-2 block">
+                <div className="mb-1.5 text-[12px] font-medium text-on-surface-variant">服务器地址（如 https://sync.example.com）</div>
+                <input
+                  className={inputCls}
+                  value={syncForm.serverUrl}
+                  placeholder="https://sync.example.com"
+                  onChange={(e) => setSyncForm({ ...syncForm, serverUrl: e.target.value })}
+                />
+              </label>
+              <label className="block">
+                <div className="mb-1.5 text-[12px] font-medium text-on-surface-variant">账号（PocketBase users）</div>
+                <input
+                  className={inputCls}
+                  value={syncForm.username}
+                  placeholder="you@example.com"
+                  onChange={(e) => setSyncForm({ ...syncForm, username: e.target.value })}
+                />
+              </label>
+              <label className="block">
+                <div className="mb-1.5 text-[12px] font-medium text-on-surface-variant">密码（仅存本地，不上传同步载荷）</div>
+                <input
+                  className={inputCls}
+                  type="password"
+                  value={syncForm.password}
+                  placeholder="••••••••"
+                  onChange={(e) => setSyncForm({ ...syncForm, password: e.target.value })}
+                />
+              </label>
+            </div>
+
+            <div className="mt-4 flex items-center gap-3">
+              <Button size="sm" variant="primary" onClick={() => void saveSyncAndTest()} disabled={syncSaving || pinging}>
+                {syncSaving || pinging ? '连接中…' : '保存并连接'}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => void testSync()} disabled={pinging}>
+                测试连接
+              </Button>
+            </div>
+            {pingMsg && (
+              <div className={`mt-3 rounded-lg px-3 py-2 text-[12px] ${
+                pingMsg.ok ? 'bg-success-container/40 text-success' : 'bg-danger-container/40 text-danger'
+              }`}>
+                {pingMsg.ok ? '✓ ' : '✕ '}
+                {pingMsg.text}
+              </div>
+            )}
+          </Section>
+
+          <Section icon="cloud_upload" title="首次接入 / 更换服务器" desc="把本地全部业务记录推送到服务器（含墓碑），随后自动拉取远端增量做 LWW 合并">
+            <div className="flex items-center gap-4 rounded-xl border border-outline-variant/40 bg-surface-container-low/60 px-5 py-4">
+              <div className="flex-1">
+                <div className="text-[13.5px] font-semibold">全量推送本地数据到服务器</div>
+                <div className="mt-0.5 text-[11.5px] leading-relaxed text-on-surface-variant">
+                  仅在「保存并连接」成功后可用。历史数据默认不自动上传（只同步增量），首次接入服务器请执行一次。
+                  详细部署步骤见 docs/部署指南.md。
+                </div>
+              </div>
+              <Button size="sm" variant="ghost" onClick={pushAllToServer} disabled={pushingAll || !isSyncConfigured(syncForm)}>
+                {pushingAll ? '入队中…' : '全量推送'}
+              </Button>
+            </div>
+          </Section>
+        </div>
       )}
 
       {/* ── 数据与安全 ── */}

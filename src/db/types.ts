@@ -204,12 +204,30 @@ export interface SettingsSecurity {
   persistCache: boolean
 }
 
+/**
+ * 自托管 PocketBase 同步配置（Phase 7）—— 仅存本地，绝不进同步载荷
+ * serverUrl 为空 = 本地模式（适配器退化为空实现）
+ */
+export interface SettingsSync {
+  /** 服务端地址，如 https://sync.example.com（不带尾斜杠） */
+  serverUrl: string
+  /** PocketBase users 账号（邮箱或用户名） */
+  username: string
+  /** 明文仅存本地 IndexedDB，用于 401 时自动重登 */
+  password: string
+  /** auth-with-password 获取的鉴权 token（内存外缓存，避免每次同步重登） */
+  token: string
+  /** token 对应的 PocketBase 用户 id */
+  tokenUserId: string
+}
+
 export interface Settings {
   key: string
   appearance: SettingsAppearance
   typography: SettingsTypography
   notifications: SettingsNotifications
   security: SettingsSecurity
+  sync: SettingsSync
 }
 
 export const SETTINGS_KEY = 'singleton'
@@ -229,6 +247,7 @@ export const DEFAULT_SETTINGS: Settings = {
     customerStaleAlert: true,
   },
   security: { encryption: false, syncFrequency: 'realtime', persistCache: true },
+  sync: { serverUrl: '', username: '', password: '', token: '', tokenUserId: '' },
 }
 
 export const SYNC_META_DEFAULT: SyncMeta = {

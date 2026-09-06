@@ -1,14 +1,20 @@
 import { db } from '@/db/db'
-import { stubAdapter, type SyncAdapter } from './adapter'
+import type { SyncAdapter } from './adapter'
+import { pocketBaseAdapter, cleanupTombstones, isSyncConfigured } from './pocketbaseAdapter'
 import { useSyncStore } from './store'
 
 /**
- * 同步引擎（Phase 0 骨架，Phase 7 实装 PocketBase）
+ * 同步引擎 —— 触发：启动 / online 事件 / 30s 心跳 / 写入后防抖 2s（repository 层调用 requestSync）
  * 协议：LWW —— 只认 updatedAt，新者胜（开发计划 2.3）
- * 触发：启动 / online 事件 / 30s 心跳 / 写入后防抖 2s（由 repository 层调用 requestSync）
+ * 适配器：PocketBase（未配置 serverUrl 时适配器内部退化为本地模式空实现）
+ * 拉取游标：持久化 db.meta（pb_cursor:<table>，由适配器维护；全局 cursor 仅为展示/兼容保留）
  */
+const CURSOR_KEY = 'sync_cursor'
+const TOMBSTONE_CLEANUP_KEY = 'tombstone_cleanup_at'
+const TOMBSTONE_CLEANUP_INTERVAL = 24 * 60 * 60 * 1000
+
 class SyncEngine {
-  private adapter: SyncAdapter = stubAdapter
+  private adapter: SyncAdapter = pocketBaseAdapter
   private timer: ReturnType<typeof setInterval> | null = null
   private debounce: ReturnType<typeof setTimeout> | null = null
   private cursor = 0
@@ -23,7 +29,12 @@ class SyncEngine {
     window.addEventListener('online', this.onOnline)
     window.addEventListener('offline', this.onOffline)
     this.timer = setInterval(() => void this.syncNow('heartbeat'), 30_000)
-    void this.syncNow('startup')
+    void db.meta
+      .get(CURSOR_KEY)
+      .then((entry) => {
+        if (typeof entry?.value === 'number') this.cursor = entry.value
+      })
+      .then(() => this.syncNow('startup'))
   }
 
   stop() {
@@ -74,11 +85,21 @@ class SyncEngine {
         }
         store.setPending(pending.length - okSeqs.length)
       }
-      // 2. 拉取远端增量（stub 恒为空；Phase 7 实装）
+      // 2. 拉取远端增量（LWW 合并在适配器内完成：远端新 → 写本地盖 rev 不入队）
       const pulled = await this.adapter.pull(this.cursor)
       this.cursor = pulled.cursor
+      await db.meta.put({ key: CURSOR_KEY, value: pulled.cursor })
       useSyncStore.getState().setStatus('synced')
       useSyncStore.getState().setLastSync(Date.now())
+      // 3. 墓碑物理清理：已配置同步时每天一次（两端各自清理 30 天前软删除）
+      if (isSyncConfigured()) {
+        const lastCleanup = await db.meta.get(TOMBSTONE_CLEANUP_KEY)
+        const last = typeof lastCleanup?.value === 'number' ? lastCleanup.value : 0
+        if (Date.now() - last > TOMBSTONE_CLEANUP_INTERVAL) {
+          await cleanupTombstones()
+          await db.meta.put({ key: TOMBSTONE_CLEANUP_KEY, value: Date.now() })
+        }
+      }
     } catch {
       // 失败时按队列实际积压如实显示：有未传 → offline（待同步徽章），无未传 → synced
       const s = useSyncStore.getState()
