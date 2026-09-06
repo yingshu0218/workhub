@@ -3,6 +3,9 @@ import AppLayout from './AppLayout'
 import DashboardPage from '@/modules/dashboard/DashboardPage'
 import TodoPage from '@/modules/todo/TodoPage'
 import FinancePage from '@/modules/finance/FinancePage'
+import CrmPage from '@/modules/crm/CrmPage'
+import CrmCanvasPage from '@/modules/crm/CrmCanvasPage'
+import CustomerDetailPage from '@/modules/crm/CustomerDetailPage'
 import PlaceholderPage from '@/modules/placeholder/PlaceholderPage'
 
 /** 路由映射见 docs/寻鸽工作台-开发计划.md 第四节 */
@@ -20,8 +23,9 @@ const router = createBrowserRouter([
     children: [
       { path: '/', element: <DashboardPage /> },
       { path: '/todo', element: <TodoPage /> },
-      { path: '/crm', element: <PlaceholderPage title="客户管理" subtitle="客户档案 · 智能管家 · 关系画布" phase="Phase 3" icon="group" /> },
-      { path: '/crm/canvas', element: <PlaceholderPage title="客户关系画布" subtitle="力导向关系图" phase="Phase 3" icon="hub" /> },
+      { path: '/crm', element: <CrmPage /> },
+      { path: '/crm/canvas', element: <CrmCanvasPage /> },
+      { path: '/crm/:id', element: <CustomerDetailPage /> },
       { path: '/finance', element: <FinancePage /> },
       { path: '/notes', element: <PlaceholderPage title="团队笔记" subtitle="Markdown 双栏 · @提及 · 双向链接" phase="Phase 4" icon="description" /> },
       { path: '/habits', element: <PlaceholderPage title="打卡习惯" subtitle="21 天稳态 · 热力图 · 连击" phase="Phase 5" icon="local_fire_department" /> },
