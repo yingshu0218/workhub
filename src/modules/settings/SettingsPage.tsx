@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Card, PageHeader, Button, inputCls } from '@/design-system/ui'
 import type { Settings, SettingsSync } from '@/db/types'
-import { settingsRepo, resetAndSeedLocalData } from '@/repositories'
+import { settingsRepo, resetAndSeedLocalData, restoreFromJson } from '@/repositories'
 import {
   workspaceRepo, customerRepo, interactionRepo, ledgerRepo, transactionRepo,
   todoRepo, noteRepo, quickNoteRepo, habitRepo, habitLogRepo, trophyRepo,
@@ -28,6 +28,26 @@ const TABS = [
 ] as const
 
 type TabId = (typeof TABS)[number]['id']
+
+/** 下载文本文件（导出共用）：CSV 载荷自带 BOM，浏览器端生成无需依赖 */
+function downloadText(content: string, mime: string, filename: string) {
+  const blob = new Blob([content], { type: mime })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+/** CSV 序列化：含逗号/引号/换行的字段引号包裹转义，\uFEFF BOM 兼容 Excel 直开 */
+function toCsv(headers: string[], rows: (string | number)[][]): string {
+  const esc = (v: string | number) => {
+    const s = String(v ?? '')
+    return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+  }
+  return '\uFEFF' + [headers, ...rows].map((r) => r.map(esc).join(',')).join('\r\n')
+}
 
 function Section({ icon, title, desc, badge, children }: {
   icon: string
@@ -104,6 +124,9 @@ export default function SettingsPage() {
   const [persisted, setPersisted] = useState<boolean | null>(null)
   const [exporting, setExporting] = useState(false)
   const [resetting, setResetting] = useState(false)
+  // 导入迁移：选文件 → 解析 → confirm → 逐表 bulkPut（restoreFromJson）
+  const importInputRef = useRef<HTMLInputElement>(null)
+  const [importing, setImporting] = useState(false)
   // 云端同步：表单本地草稿（保存后才生效）、连接测试与全量推送状态
   const [syncForm, setSyncForm] = useState<SettingsSync | null>(null)
   const [syncSaving, setSyncSaving] = useState(false)
@@ -157,6 +180,82 @@ export default function SettingsPage() {
       URL.revokeObjectURL(url)
     } finally {
       setExporting(false)
+    }
+  }
+
+  // ── 数据导出：CSV 表格包 —— 交易平表 + 客户档案两张表，各自带 BOM 下载 ──
+  const exportCsv = async () => {
+    setExporting(true)
+    try {
+      const [txns, ledgers, customers] = await Promise.all([
+        transactionRepo.list(), ledgerRepo.list(), customerRepo.list(),
+      ])
+      const currencyOf = new Map(ledgers.map((l) => [l.id, l.currency]))
+      const date = (ts: number) => new Date(ts).toLocaleDateString('zh-CN')
+      const stamp = new Date().toISOString().slice(0, 10)
+      const txnCsv = toCsv(
+        ['日期', '类型', '金额', '币种', '渠道', '摘要', '状态', '发票号', '标签'],
+        txns.map((t) => [
+          date(t.occurredAt),
+          t.type === 'income' ? '收入' : '支出',
+          t.amount,
+          currencyOf.get(t.ledgerId) ?? '',
+          t.channel,
+          t.summary,
+          t.status,
+          t.invoiceNo ?? '',
+          t.tags.join(';'),
+        ]),
+      )
+      downloadText(txnCsv, 'text/csv;charset=utf-8', `nexus-transactions-${stamp}.csv`)
+      const custCsv = toCsv(
+        ['姓名', '公司', '行业', '分层', '阶段', '电话', '微信', '邮箱', '健康指数'],
+        customers.map((c) => [
+          c.name, c.company, c.industry, c.tier, c.stage,
+          c.phone, c.wechat, c.email, c.healthScore,
+        ]),
+      )
+      downloadText(custCsv, 'text/csv;charset=utf-8', `nexus-customers-${stamp}.csv`)
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  // ── 数据导出：全部未删笔记合并为单个 .md（# 标题 + 正文 + 标签行，--- 分隔） ──
+  const exportNotesMd = async () => {
+    setExporting(true)
+    try {
+      const notes = await noteRepo.list()
+      const md = notes
+        .map((n) => {
+          const tagsLine = n.tags.length ? `\n\n标签：${n.tags.join('、')}` : ''
+          return `# ${n.title}\n\n${n.markdown}${tagsLine}`
+        })
+        .join('\n\n---\n\n')
+      downloadText(
+        md,
+        'text/markdown;charset=utf-8',
+        `nexus-notes-${new Date().toISOString().slice(0, 10)}.md`,
+      )
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  // ── 导入迁移：JSON 存档恢复（解析 → confirm 覆盖提示 → 逐表 bulkPut） ──
+  const importJson = async (file: File) => {
+    setImporting(true)
+    try {
+      const parsed: unknown = JSON.parse(await file.text())
+      if (!window.confirm('存档解析成功。将逐表写回本地数据库，与现有记录同 id 的会被存档内容覆盖，确定恢复？')) return
+      const count = await restoreFromJson(parsed)
+      window.alert(`已恢复 ${count} 条记录，界面即将刷新`)
+      window.location.reload()
+    } catch (err) {
+      console.error('[settings] JSON 恢复失败', err)
+      window.alert(`恢复失败：${err instanceof Error ? err.message : '文件解析错误'}`)
+    } finally {
+      setImporting(false)
     }
   }
 
@@ -449,7 +548,7 @@ export default function SettingsPage() {
               { key: 'dailyBrief', title: '每日待办预告', desc: '每天 09:00 依据事项清单草拟待办今日完成率简报' },
               { key: 'todoDueWarning', title: '任务逾期预警', desc: '在待办事项临近截止前推送预警，避免项目节点延误' },
               { key: 'habitReminder', title: '打卡习惯晚间提醒', desc: '入睡前温和提示今日自律习惯（阅读、代码复盘、健身）待打卡' },
-              { key: 'monthEndReconcile', title: '月末流水对账与核算提醒', desc: '每月最后 18:00 自动提醒核对当月流水与速算税税' },
+              { key: 'monthEndReconcile', title: '月末流水对账与核算提醒', desc: '每月最后 18:00 自动提醒核对当月流水与速算税额' },
               { key: 'customerStaleAlert', title: '客户久未跟进关键提醒', desc: '当重要 VIP 客户超过 14 天无跟进记录，在工作台顶栏提示' },
             ] as const).map((item) => (
               <div key={item.key} className="flex items-center gap-4 border-b border-outline-variant/20 py-3.5 last:border-0">
@@ -591,9 +690,9 @@ export default function SettingsPage() {
           <Section icon="archive" title="数据导出与多格式打包" desc="您的所有数据归您所有，可随时打包导出成无锁定迁移其他工具生态">
             <div className="grid grid-cols-3 gap-3">
               {([
-                { icon: 'data_object', tag: 'SNAPSHOT', title: 'JSON 全量结构化存档', desc: '完整流水表结构：CRM · 客户档案 · 财务流水 · 笔记视关系', action: exportJson, label: exporting ? '导出中…' : '导出 JSON 存档', variant: 'primary' as const },
-                { icon: 'table_view', tag: 'SPREADSHEET', title: 'CSV 电子表格格式包', desc: '财务流水、销售漏斗与CRM跟进数据兼容 Excel / Numbers / 飞书表格', action: exportJson, label: '导出 CSV 表格包', variant: 'ghost' as const },
-                { icon: 'article', tag: 'MARKDOWN', title: 'Markdown 树文本笔记', desc: '所有笔记 Markdown 源文件笔记可导出 .zip 空数据线笔记库 ToValLinks', action: exportJson, label: '导出笔记文档包', variant: 'ghost' as const },
+                { icon: 'data_object', tag: 'SNAPSHOT', title: 'JSON 全量结构化存档', desc: '完整流水表结构：CRM · 客户档案 · 财务流水 · 笔记关联关系', action: exportJson, label: exporting ? '导出中…' : '导出 JSON 存档', variant: 'primary' as const },
+                { icon: 'table_view', tag: 'SPREADSHEET', title: 'CSV 电子表格格式包', desc: '交易平表与客户档案两张表，带 BOM 兼容 Excel / Numbers / 飞书表格', action: exportCsv, label: '导出 CSV 表格包', variant: 'ghost' as const },
+                { icon: 'article', tag: 'MARKDOWN', title: 'Markdown 树文本笔记', desc: '全部笔记 Markdown 源文件可导出 .zip 归档（当前为合并 .md）', action: exportNotesMd, label: '导出笔记文档包', variant: 'ghost' as const },
               ]).map((c) => (
                 <div key={c.title} className="rounded-xl border border-outline-variant/50 p-4">
                   <div className="flex items-center justify-between">
@@ -609,6 +708,35 @@ export default function SettingsPage() {
                   </div>
                 </div>
               ))}
+            </div>
+
+            {/* 导入迁移：JSON 存档恢复 */}
+            <div className="mt-3 flex items-center gap-4 rounded-xl border border-outline-variant/40 bg-surface-container-low/60 px-5 py-4">
+              <div className="flex-1">
+                <div className="text-[13.5px] font-semibold">从 JSON 存档恢复（导入迁移）</div>
+                <div className="mt-0.5 text-[11.5px] text-on-surface-variant">
+                  选择此前导出的 JSON 存档，逐表写回本地数据库；与现有记录同 id 的将被覆盖，恢复后自动刷新界面。
+                </div>
+              </div>
+              <input
+                ref={importInputRef}
+                type="file"
+                accept="application/json,.json"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0]
+                  if (f) void importJson(f)
+                  e.target.value = ''
+                }}
+              />
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => importInputRef.current?.click()}
+                disabled={importing}
+              >
+                {importing ? '恢复中…' : '选择存档文件'}
+              </Button>
             </div>
           </Section>
 

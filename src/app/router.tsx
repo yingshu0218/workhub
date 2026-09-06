@@ -24,8 +24,6 @@ function Shell() {
 }
 
 const router = createBrowserRouter([
-  // 灵感闪现：全屏决策态，不套 AppLayout（对齐原型 02 深色全屏）
-  { path: '/inspiration', element: <InspirationPage /> },
   {
     element: <Shell />,
     children: [
@@ -40,6 +38,7 @@ const router = createBrowserRouter([
       { path: '/habits', element: <HabitsPage /> },
       { path: '/trophies', element: <TrophiesPage /> },
       { path: '/profile', element: <ProfilePage /> },
+      { path: '/inspiration', element: <InspirationPage /> },
       { path: '/settings', element: <SettingsPage /> },
     ],
   },

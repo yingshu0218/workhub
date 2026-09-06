@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { NavLink, useLocation } from 'react-router-dom'
+import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { Avatar, Chip } from '@/design-system/ui'
 import { useSyncStore } from '@/sync/store'
 import { registerShortcut } from '@/shared/shortcuts'
@@ -58,6 +58,7 @@ function SyncBadge() {
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation()
+  const navigate = useNavigate()
   const title =
     TITLES[pathname] ?? NAV_ITEMS.find((n) => pathname.startsWith(n.to))?.label ?? '寻鸽工作台'
 
@@ -196,6 +197,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     )}
                   </button>
                 ))}
+                {/* 账号偏好设置（对齐原型 19：面板底部入口 → /profile） */}
+                <button
+                  className="flex w-full items-center gap-2.5 border-t border-outline-variant/30 px-3.5 py-2.5 text-left transition-colors hover:bg-surface-container"
+                  onClick={() => {
+                    navigate('/profile')
+                    setWsOpen(false)
+                  }}
+                >
+                  <span className="material-symbols-rounded text-[18px] text-primary">manage_accounts</span>
+                  <span className="text-[12.5px] font-medium">账号偏好设置</span>
+                </button>
                 <div className="border-t border-outline-variant/30 px-3.5 py-2 text-[11px] text-outline">
                   添加新账号 / 加入工作区（即将上线）
                 </div>

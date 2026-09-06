@@ -2,6 +2,7 @@ import { db } from '@/db/db'
 import { syncEngine } from '@/sync/engine'
 import { createRepository, newId } from './repository'
 import type { PutInput } from './repository'
+import type { Table } from 'dexie'
 import type {
   Customer,
   Interaction,
@@ -95,6 +96,45 @@ export async function resetAndSeedLocalData(): Promise<void> {
 /** 习惯打卡确定性 id：同日同习惯恒为同一条记录（幂等，杜绝重复打卡/幽灵记录） */
 export function habitLogId(habitId: string, date: string): string {
   return `hl-${habitId}-${date}`
+}
+
+/**
+ * JSON 存档恢复（设置页「数据与安全」导入迁移用）：
+ * 校验导出格式 → 单事务逐表 bulkPut（保留记录自带的 updatedAt/rev/deleted 盖章）。
+ * 覆盖语义：与本地同 id 的记录整体被存档版本覆盖。
+ * 同步说明：最简恢复不逐条入同步队列（避免恢复一次洪泛队列），
+ * 跨设备传播依赖「全量推送」入口（enqueueAllForPush）。
+ * @returns 实际写入的记录总数
+ */
+const RESTORE_TABLES = [
+  'workspaces', 'customers', 'interactions', 'ledgers', 'transactions',
+  'todos', 'notes', 'quickNotes', 'habits', 'habitLogs', 'trophies',
+] as const
+
+export async function restoreFromJson(payload: unknown): Promise<number> {
+  const parsed = payload as {
+    app?: string
+    data?: Partial<Record<(typeof RESTORE_TABLES)[number], unknown[]>>
+  } | null
+  if (!parsed || parsed.app !== 'nexus-workspace' || !parsed.data || typeof parsed.data !== 'object') {
+    throw new Error('所选文件不是本工作台导出的 JSON 存档（缺少 app / data 字段）')
+  }
+  let count = 0
+  await db.transaction(
+    'rw',
+    RESTORE_TABLES.map((t) => db[t] as unknown as Table),
+    async () => {
+      for (const name of RESTORE_TABLES) {
+        const rows = parsed.data?.[name]
+        if (!Array.isArray(rows) || rows.length === 0) continue
+        const table = db[name] as unknown as { bulkPut(items: unknown[]): Promise<unknown> }
+        await table.bulkPut(rows)
+        count += rows.length
+      }
+    },
+  )
+  syncEngine.requestSync()
+  return count
 }
 
 /**

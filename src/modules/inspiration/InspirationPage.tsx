@@ -105,8 +105,9 @@ export default function InspirationPage() {
   const kindMeta = current ? KIND_META[current.kind] : undefined
   const topMatch = candidates.length ? candidates[0].match : 0
 
+  // 壳内全幅：负 margin 抵消 AppLayout main 的 px-8 py-6，高度补回上下 padding（3rem）
   return (
-    <div className="relative flex h-screen flex-col overflow-hidden bg-[#0b1220] text-slate-100">
+    <div className="relative -mx-8 -my-6 flex h-[calc(100%+3rem)] flex-col overflow-hidden bg-[#0b1220] text-slate-100">
       {/* 背景光晕 */}
       <div className="pointer-events-none absolute -top-40 left-1/3 h-96 w-96 rounded-full bg-blue-600/20 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-40 right-1/4 h-96 w-96 rounded-full bg-indigo-500/10 blur-3xl" />
