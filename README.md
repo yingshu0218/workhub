@@ -53,3 +53,4 @@
 | 6 | 2026-09-06 | 重写根 README：仓库用途说明、开发阶段标识、Changelog 协作约定 | yingshu0218 |
 | 7 | 2026-09-06 | Changelog 表格增加序号列 | yingshu0218 |
 | 8 | 2026-09-06 | Phase 0 基建完成：Vite+React18+TS+Tailwind4 脚手架、设计 token 落地、Dexie 12 表 schema（含同步元数据）、repository/查询 Hook 存储抽象层、同步引擎骨架（LWW 队列+状态徽章）、布局壳与 12 条路由、持久化存储申请、原型演示种子数据、构建通过 | yingshu0218 |
+| 9 | 2026-09-06 | 忽略并移除误提交的 tsbuildinfo 构建产物 | yingshu0218 |
