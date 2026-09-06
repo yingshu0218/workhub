@@ -21,6 +21,7 @@
     "dayjs": "^1.11.13",
     "dexie": "^4.0.8",
     "dexie-react-hooks": "^1.1.7",
+    "dompurify": "^3.4.15",
     "marked": "^15.0.4",
     "material-symbols": "^0.28.2",
     "nanoid": "^5.0.9",
@@ -33,6 +34,7 @@
   "devDependencies": {
     "@tailwindcss/vite": "^4.0.0",
     "@types/d3-force": "^3.0.10",
+    "@types/dompurify": "^3.0.5",
     "@types/node": "^26.4.1",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",

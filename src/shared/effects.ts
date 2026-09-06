@@ -1,6 +1,7 @@
 import { eventBus } from './eventBus'
-import { habitRepo, habitLogRepo, habitLogId } from '@/repositories'
+import { habitRepo, habitLogRepo, habitLogId, settingsRepo } from '@/repositories'
 import { installTrophyEngine } from '@/modules/trophies/trophyEngine'
+import { ACCENT_PRESETS } from './theme'
 import dayjs from 'dayjs'
 
 /**
@@ -8,6 +9,56 @@ import dayjs from 'dayjs'
  * 深度专注完成 → 自动打卡「深度专注」习惯（若开启跨模块联动且时长达标）
  */
 let installed = false
+
+/**
+ * 设置应用初始化（Phase 6）：
+ * 启动时读取 settings singleton 应用到 DOM；写后由 settingsRepo 广播 settings:changed 实时生效。
+ * token 全部走 CSS 变量覆盖（Tailwind v4 工具类引用 --color-* / --spacing / --radius-* 变量）。
+ */
+let lastSettings: import('@/db/types').Settings | undefined
+let mediaHandler: (() => void) | undefined
+
+export function applySettingsToDom(settings: import('@/db/types').Settings): void {
+  const root = document.documentElement
+  lastSettings = settings
+
+  // 深浅模式（system 跟随 prefers-color-scheme）
+  const dark =
+    settings.appearance.mode === 'dark' ||
+    (settings.appearance.mode === 'system' &&
+      window.matchMedia('(prefers-color-scheme: dark)').matches)
+  root.classList.toggle('dark', dark)
+
+  // 强调色 → 覆盖 primary 系变量（fixed 为浅色容器底，用 color-mix 派生）
+  const accent = ACCENT_PRESETS.find((a) => a.id === settings.appearance.accent) ?? ACCENT_PRESETS[0]
+  root.style.setProperty('--color-primary', accent.primary)
+  root.style.setProperty('--color-primary-container', accent.container)
+  root.style.setProperty(
+    '--color-primary-fixed',
+    `color-mix(in srgb, ${accent.container} 16%, ${dark ? '#0f172a' : '#ffffff'})`,
+  )
+
+  // 圆角档位 → 覆盖 rounded-lg/rounded-xl 引用的半径变量（.card 用 rounded-lg）
+  const radius = { sharp: '4px', medium: '8px', large: '14px' }[settings.appearance.radius]
+  root.style.setProperty('--radius-lg', radius)
+  root.style.setProperty('--radius-xl', radius)
+
+  // 信息密度 → Tailwind v4 spacing 基数（4px 基线；紧凑 3.5px）
+  root.style.setProperty('--spacing', settings.appearance.density === 'compact' ? '0.21875rem' : '0.25rem')
+
+  // 字体排版 → html 基准字号 / 行高
+  root.style.fontSize = `${settings.typography.fontSize}px`
+  root.style.lineHeight = String(settings.typography.lineHeight)
+}
+
+function watchSystemTheme(): void {
+  const mql = window.matchMedia('(prefers-color-scheme: dark)')
+  if (mediaHandler) mql.removeEventListener('change', mediaHandler)
+  mediaHandler = () => {
+    if (lastSettings?.appearance.mode === 'system') applySettingsToDom(lastSettings)
+  }
+  mql.addEventListener('change', mediaHandler)
+}
 
 export function installModuleEffects() {
   if (installed) return
@@ -35,6 +86,14 @@ export function installModuleEffects() {
       console.error('[effects] focus→habit 联动失败', err)
     }
   })
+
+  // 设置实时生效：启动应用一次 + 监听变更广播 + 跟随系统主题
+  eventBus.on('settings:changed', ({ settings }) => applySettingsToDom(settings))
+  void settingsRepo
+    .get()
+    .then(applySettingsToDom)
+    .catch((err) => console.error('[effects] 设置应用失败', err))
+  watchSystemTheme()
 
   // 奖杯引擎（幂等安装）：监听 focus:completed / habit:checked + 启动全量检查
   installTrophyEngine()

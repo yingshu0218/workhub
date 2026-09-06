@@ -33,6 +33,32 @@
   --radius-xl-card: 12px;
 }
 
+/* ===== 深浅模式（Phase 6 系统设置）：工具类引用 var(--color-*)，.dark 覆盖变量即全局换肤 ===== */
+.dark {
+  --color-surface: #0b1220;
+  --color-on-surface: #e4e9f5;
+  --color-on-surface-variant: #a3aec4;
+  --color-outline: #6f7a94;
+  --color-outline-variant: #2c3a55;
+
+  --color-primary-fixed: #1e2a4a;
+  --color-surface-container-lowest: #101828;
+  --color-surface-container-low: #141d30;
+  --color-surface-container: #1a2438;
+  --color-surface-container-high: #223050;
+
+  --color-success: #4ade80;
+  --color-success-container: #053b26;
+  --color-warning: #fbbf24;
+  --color-warning-container: #3f2305;
+  --color-danger: #f87171;
+  --color-danger-container: #450a0a;
+}
+
+.dark .card {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
 /* ===== 全局基础 ===== */
 html {
   font-size: 14px;

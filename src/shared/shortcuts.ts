@@ -40,6 +40,8 @@ export function installKeyboardListener() {
   window.addEventListener(
     'keydown',
     (e) => {
+      // 输入法组合中不拦截（戒点④：IME isComposing）
+      if (e.isComposing) return
       // 输入场景不拦截
       const target = e.target as HTMLElement
       if (

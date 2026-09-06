@@ -1,5 +1,6 @@
 import dayjs from 'dayjs'
 import { db, DEFAULT_WORKSPACE_ID } from './db'
+import { habitLogId } from '@/repositories'
 import type {
   Workspace,
   Customer,
@@ -350,7 +351,7 @@ export async function seedIfEmpty(): Promise<boolean> {
       await db.habitLogs.bulkPut(
         habits.map(
           (h, i): HabitLog => ({
-            id: `hl-${today}-${h.id}`,
+            id: habitLogId(h.id, today),
             habitId: h.id,
             date: today,
             completedAt: now - i * 600_000,

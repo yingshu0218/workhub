@@ -1,9 +1,10 @@
+import DOMPurify from 'dompurify'
 import { marked } from 'marked'
 import type { CSSProperties } from 'react'
 import type { NoteMention } from '@/db/types'
 
 /**
- * 笔记模块共享工具：智能彩色标签 / @提及语法解析 / marked 渲染（含基本净化）
+ * 笔记模块共享工具：智能彩色标签 / @提及语法解析 / marked 渲染（DOMPurify 净化）
  * 本地内容可信（开发计划 Phase 4 约定），但仍禁止外链脚本与内联事件执行。
  */
 
@@ -62,14 +63,10 @@ function preprocessMentions(md: string): string {
   )
 }
 
-/** 渲染为 HTML：本地可信内容直接 innerHTML，但剥除 script / 内联事件 / javascript: 链接 */
+/** 渲染为 HTML：markdown → 提及胶囊预处理 → DOMPurify 净化后再进预览 */
 export function renderMarkdown(md: string): string {
   const raw = marked.parse(preprocessMentions(md)) as string
-  return raw
-    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
-    .replace(/<script\b[^>]*\/?>/gi, '')
-    .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
-    .replace(/(href|src)\s*=\s*(["'])\s*javascript:[^"']*\2/gi, '$1="#"')
+  return DOMPurify.sanitize(raw)
 }
 
 /** 剥掉 markdown 语法后的纯文本（列表摘要用） */

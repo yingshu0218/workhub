@@ -15,8 +15,8 @@ export interface HabitRowStat {
   streak: number
   /** 所选月份打卡次数 */
   monthChecks: number
-  /** 本月完成率 0-100（以当月已过天数分母，历史月份用整月） */
-  monthRate: number
+  /** 本月完成率 0-100；分母按 schedule 推导当月应打卡天数，分母为 0（未来月份）时为 null 显示 — */
+  monthRate: number | null
   doneToday: boolean
   /** 累计打卡次数 */
   totalChecks: number
@@ -27,21 +27,58 @@ interface HabitSource {
   logs: HabitLog[]
 }
 
+/** 当月已过天数：当月=今天几号；历史月份=整月；未来月份=0 */
+function elapsedDaysOfMonth(month: string): number {
+  const monthStart = dayjs(month + '-01')
+  if (month === dayjs().format('YYYY-MM')) return dayjs().date()
+  return monthStart.isAfter(dayjs(), 'month') ? 0 : monthStart.daysInMonth()
+}
+
+/** 已过天数中周一至周五的天数（'工作日' 排程分母） */
+function weekdayCount(month: string, elapsedDays: number): number {
+  const monthStart = dayjs(month + '-01')
+  let count = 0
+  for (let i = 0; i < elapsedDays; i++) {
+    const dow = monthStart.date(i + 1).day()
+    if (dow >= 1 && dow <= 5) count++
+  }
+  return count
+}
+
+/**
+ * 按 schedule 推导当月应打卡天数（完成率分母，与进度条同源）：
+ * - '每日'（含自定义描述兜底）：当月已过天数 elapsed
+ * - '工作日'：当月已过天数中的周一至周五天数
+ * - '每周N次'：min(N × ⌊elapsed / 7⌋ + round(N × (elapsed mod 7) / 7), elapsed)
+ *   即 N × 已过完整周数 + 本周已过天数按 N/7 比例折算，并以已过天数封顶（N=7 时退化为每日）
+ */
+function monthDenominator(schedule: string, month: string, elapsed: number): number {
+  if (elapsed <= 0) return 0
+  if (schedule === '工作日') return weekdayCount(month, elapsed)
+  const m = schedule.match(/^每周(\d+)次$/)
+  if (m) {
+    const n = Math.min(7, Math.max(1, Number(m[1])))
+    const fullWeeks = Math.floor(elapsed / 7)
+    const remainder = elapsed % 7
+    return Math.min(n * fullWeeks + Math.round((n * remainder) / 7), elapsed)
+  }
+  return elapsed
+}
+
 function computeRowStats({ habits, logs }: HabitSource, month: string): HabitRowStat[] {
   const todayStr = dayjs().format('YYYY-MM-DD')
-  const currentMonth = dayjs().format('YYYY-MM')
-  const elapsedDays =
-    month === currentMonth ? dayjs().date() : dayjs(month + '-01').daysInMonth()
+  const elapsedDays = elapsedDaysOfMonth(month)
 
   return habits.map((habit) => {
     const mine = logs.filter((l) => l.habitId === habit.id)
     const dates = new Set(mine.map((l) => l.date))
     const monthChecks = mine.filter((l) => l.date.startsWith(month)).length
+    const denominator = monthDenominator(habit.schedule, month, elapsedDays)
     return {
       habit,
       streak: calcStreak(dates),
       monthChecks,
-      monthRate: elapsedDays > 0 ? Math.round((monthChecks / elapsedDays) * 100) : 0,
+      monthRate: denominator > 0 ? Math.round((monthChecks / denominator) * 100) : null,
       doneToday: dates.has(todayStr),
       totalChecks: mine.length,
     }

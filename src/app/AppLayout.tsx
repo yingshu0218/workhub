@@ -1,6 +1,10 @@
+import { useEffect, useRef, useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { Avatar, Chip } from '@/design-system/ui'
 import { useSyncStore } from '@/sync/store'
+import { registerShortcut } from '@/shared/shortcuts'
+import CommandPalette from './CommandPalette'
+import TrophyUnlockToast from './TrophyUnlockToast'
 
 const NAV_ITEMS = [
   { to: '/', icon: 'dashboard', label: '工作台' },
@@ -24,6 +28,12 @@ const TITLES: Record<string, string> = {
   '/inspiration': '灵感闪现',
   '/settings': '系统设置',
 }
+
+/** 工作区条目（原型 19-dashboard-account）：切换仅改 UI 选中态，数据隔离 Phase 7 后考虑 */
+const WORKSPACES = [
+  { id: 'ws-main', name: '青枫工作室', role: 'Owner', sub: '团队协作者 · Owner' },
+  { id: 'ws-personal', name: '个人空间', role: 'Personal', sub: '个人空间 · Personal' },
+]
 
 function SyncBadge() {
   const { status, pendingCount } = useSyncStore()
@@ -50,6 +60,30 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation()
   const title =
     TITLES[pathname] ?? NAV_ITEMS.find((n) => pathname.startsWith(n.to))?.label ?? '寻鸽工作台'
+
+  // ⌘K 命令面板（走统一快捷键注册表）
+  const [paletteOpen, setPaletteOpen] = useState(false)
+  useEffect(() => {
+    return registerShortcut({
+      combo: 'mod+k',
+      description: '唤起全局搜索 / 命令面板',
+      scope: 'global',
+      handler: () => setPaletteOpen((o) => !o),
+    })
+  }, [])
+
+  // 工作区切换面板（轻量：仅 UI 选中态）
+  const [activeWs, setActiveWs] = useState(WORKSPACES[0].id)
+  const [wsOpen, setWsOpen] = useState(false)
+  const wsRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!wsOpen) return
+    const onDown = (e: MouseEvent) => {
+      if (wsRef.current && !wsRef.current.contains(e.target as Node)) setWsOpen(false)
+    }
+    window.addEventListener('mousedown', onDown)
+    return () => window.removeEventListener('mousedown', onDown)
+  }, [wsOpen])
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -113,23 +147,61 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <span className="material-symbols-rounded">settings</span>
             系统设置
           </NavLink>
-          <NavLink
-            to="/profile"
-            className={({ isActive }) =>
-              `flex items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-surface-container ${
-                isActive ? 'bg-primary-fixed' : ''
-              }`
-            }
-          >
-            <Avatar name="陈致远" size={32} />
-            <div className="flex-1">
-              <div className="text-[13px] font-medium leading-tight">陈致远</div>
-              <div className="text-[11px] text-outline">青枫工作室 · Owner</div>
-            </div>
-            <span className="material-symbols-rounded text-[18px] text-outline">
-              expand_more
-            </span>
-          </NavLink>
+
+          {/* 账号 / 工作区切换 */}
+          <div className="relative" ref={wsRef}>
+            <button
+              className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-surface-container ${
+                pathname === '/profile' ? 'bg-primary-fixed' : ''
+              }`}
+              onClick={() => setWsOpen((o) => !o)}
+            >
+              <Avatar name="陈致远" size={32} />
+              <div className="flex-1 text-left">
+                <div className="text-[13px] font-medium leading-tight">陈致远</div>
+                <div className="text-[11px] text-outline">
+                  {WORKSPACES.find((w) => w.id === activeWs)?.sub ?? '青枫工作室 · Owner'}
+                </div>
+              </div>
+              <span className="material-symbols-rounded text-[18px] text-outline">
+                {wsOpen ? 'expand_less' : 'expand_more'}
+              </span>
+            </button>
+
+            {wsOpen && (
+              <div className="absolute bottom-full left-0 z-40 mb-2 w-full overflow-hidden rounded-xl border border-outline-variant/40 bg-surface-container-lowest shadow-xl">
+                <div className="border-b border-outline-variant/30 px-3.5 py-2 text-[11px] font-semibold uppercase tracking-wide text-outline">
+                  工作空间与身份
+                </div>
+                {WORKSPACES.map((w) => (
+                  <button
+                    key={w.id}
+                    className={`flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left transition-colors hover:bg-surface-container ${
+                      activeWs === w.id ? 'bg-primary-fixed/60' : ''
+                    }`}
+                    onClick={() => {
+                      setActiveWs(w.id) // 仅切换 UI 选中态（多工作区数据隔离 Phase 7 后考虑）
+                      setWsOpen(false)
+                    }}
+                  >
+                    <span className="material-symbols-rounded text-[18px] text-primary">
+                      {w.role === 'Personal' ? 'person' : 'diversity_3'}
+                    </span>
+                    <span className="flex-1">
+                      <span className="block text-[12.5px] font-medium leading-tight">{w.name}</span>
+                      <span className="block text-[10.5px] text-outline">{w.sub}</span>
+                    </span>
+                    {activeWs === w.id && (
+                      <span className="material-symbols-rounded msr-fill text-[16px] text-primary">check_circle</span>
+                    )}
+                  </button>
+                ))}
+                <div className="border-t border-outline-variant/30 px-3.5 py-2 text-[11px] text-outline">
+                  添加新账号 / 加入工作区（即将上线）
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </aside>
 
@@ -140,7 +212,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-3">
             <button
               className="flex h-8 items-center gap-1.5 rounded-lg border border-outline-variant/60 px-3 text-[12px] text-outline hover:border-primary hover:text-primary"
-              title="全局搜索（开发中，Phase 6 实装）"
+              onClick={() => setPaletteOpen(true)}
+              title="全局搜索（⌘K）"
             >
               <span className="material-symbols-rounded" style={{ fontSize: 16 }}>search</span>
               搜索
@@ -151,6 +224,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </header>
         <main className="flex-1 overflow-y-auto px-8 py-6">{children}</main>
       </div>
+
+      {/* 全局弹层：⌘K 命令面板 + 奖杯解锁（任何页面解锁都能弹） */}
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+      <TrophyUnlockToast />
     </div>
   )
 }

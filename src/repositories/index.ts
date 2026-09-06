@@ -13,11 +13,16 @@ import type {
   Habit,
   HabitLog,
   Trophy,
+  Workspace,
+  Settings,
 } from '@/db/types'
+import { DEFAULT_SETTINGS } from '@/db/types'
 import type { SyncMeta } from '@/db/types'
 import type { Attachment } from '@/db/db'
+import { eventBus } from '@/shared/eventBus'
 
 /** 模块统一从这里拿仓储实例，不直接触碰 Dexie */
+export const workspaceRepo = createRepository<Workspace>('workspaces')
 export const customerRepo = createRepository<Customer>('customers')
 export const interactionRepo = createRepository<Interaction>('interactions')
 export const ledgerRepo = createRepository<Ledger>('ledgers')
@@ -32,9 +37,110 @@ export const attachmentRepo = createRepository<Attachment>('attachments')
 
 export { newId }
 
+/**
+ * 设置 singleton 仓储（Phase 6）—— 本地偏好，不进同步队列
+ * 读：缺省段位用 DEFAULT_SETTINGS 补齐（前向兼容新增字段）
+ * 写：单事务覆盖 settings 表（singleton + 事务），写后广播 settings:changed 由消费端实时应用
+ */
+const SETTINGS_TABLE = () =>
+  db.settings as unknown as {
+    get(key: string): Promise<Settings | undefined>
+    put(value: Settings): Promise<string>
+  }
+
+function mergeSettings(prev: Settings | undefined): Settings {
+  const base = prev ?? DEFAULT_SETTINGS
+  return {
+    ...DEFAULT_SETTINGS,
+    ...base,
+    key: 'singleton',
+    appearance: { ...DEFAULT_SETTINGS.appearance, ...base.appearance },
+    typography: { ...DEFAULT_SETTINGS.typography, ...base.typography },
+    notifications: { ...DEFAULT_SETTINGS.notifications, ...base.notifications },
+    security: { ...DEFAULT_SETTINGS.security, ...base.security },
+  }
+}
+
+export const settingsRepo = {
+  async get(): Promise<Settings> {
+    return mergeSettings(await SETTINGS_TABLE().get('singleton'))
+  },
+
+  /** patch 为段级整体替换（调用方传完整段对象），段内字段由本函数与旧值合并兜底 */
+  async save(patch: Partial<Omit<Settings, 'key'>>): Promise<Settings> {
+    const merged = mergeSettings({
+      ...mergeSettings(await SETTINGS_TABLE().get('singleton')),
+      ...patch,
+    })
+    await db.transaction('rw', [db.settings], async () => {
+      await SETTINGS_TABLE().put(merged)
+    })
+    eventBus.emit('settings:changed', { settings: merged })
+    return merged
+  },
+}
+
+/**
+ * 危险区：清空本地数据库并重新写入演示种子（设置页「数据与安全」用）
+ * 动态 import 规避 db.ts ↔ seed.ts 的模块环；调用方负责自行 reload 刷新界面态
+ */
+export async function resetAndSeedLocalData(): Promise<void> {
+  await db.delete()
+  await db.open()
+  const { seedIfEmpty } = await import('@/db/seed')
+  await seedIfEmpty()
+}
+
 /** 习惯打卡确定性 id：同日同习惯恒为同一条记录（幂等，杜绝重复打卡/幽灵记录） */
 export function habitLogId(habitId: string, date: string): string {
   return `hl-${habitId}-${date}`
+}
+
+/**
+ * 习惯级联删除：单 Dexie 事务覆盖 habits / habitLogs / syncQueue 三表，
+ * 任一步失败整体回滚。语义：
+ * 1. 软删习惯（盖章 + 入队 delete）
+ * 2. 软删该习惯全部打卡日志（盖章 + 入队 delete）
+ * 习惯不存在时静默返回（幂等），其余记录已属事务内一致状态。
+ */
+export async function deleteHabitCascade(habitId: string): Promise<void> {
+  const now = Date.now()
+  await db.transaction('rw', [db.habits, db.habitLogs, db.syncQueue], async () => {
+    const prevHabit = await db.habits.get(habitId)
+    if (!prevHabit || prevHabit.deleted) return
+
+    await db.habits.update(habitId, {
+      deleted: 1,
+      updatedAt: now,
+      rev: prevHabit.rev + 1,
+    })
+    await db.syncQueue.add({
+      table: 'habits',
+      recordId: habitId,
+      op: 'delete',
+      createdAt: now,
+    })
+
+    const logs = await db.habitLogs
+      .where('habitId')
+      .equals(habitId)
+      .filter((l) => !l.deleted)
+      .toArray()
+    for (const log of logs) {
+      await db.habitLogs.update(log.id, {
+        deleted: 1,
+        updatedAt: now,
+        rev: log.rev + 1,
+      })
+      await db.syncQueue.add({
+        table: 'habitLogs',
+        recordId: log.id,
+        op: 'delete',
+        createdAt: now,
+      })
+    }
+  })
+  syncEngine.requestSync()
 }
 
 /**

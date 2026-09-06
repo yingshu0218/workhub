@@ -1,4 +1,6 @@
 /** 轻量类型化事件总线 —— 跨模块联动（开发计划 2.3 联动机制）的解耦核心 */
+import type { Settings } from '@/db/types'
+
 export type AppEvent = {
   'focus:completed': { minutes: number }
   'habit:checked': { habitId: string; date: string }
@@ -7,6 +9,7 @@ export type AppEvent = {
   'quicknote:convert': { quickNoteId: string; to: 'todo' | 'note' }
   'exp:changed': { delta: number; reason: string }
   'trophy:unlocked': { trophyId: string }
+  'settings:changed': { settings: Settings }
 }
 
 type Handler<K extends keyof AppEvent> = (payload: AppEvent[K]) => void

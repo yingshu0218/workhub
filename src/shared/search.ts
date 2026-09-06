@@ -1,0 +1,108 @@
+import type { Customer, Todo, Transaction, Note, Habit } from '@/db/types'
+
+/**
+ * ⌘K 全局搜索检索层（Phase 6 · 戒点②：选择性投影，不拉整字段）
+ * 每个实体只投影 { id, title, subtitle, path } 参与匹配与跳转，
+ * 组件层零数据面扩张；将来换存储只改本文件的取数来源。
+ */
+
+export type SearchEntityType = 'customer' | 'todo' | 'transaction' | 'note' | 'habit'
+
+export interface SearchItem {
+  id: string
+  type: SearchEntityType
+  title: string
+  subtitle: string
+  path: string
+}
+
+export const SEARCH_TYPE_META: Record<SearchEntityType, { label: string; icon: string }> = {
+  customer: { label: 'CRM 客户', icon: 'group' },
+  todo: { label: '待办事项', icon: 'check_circle' },
+  transaction: { label: '财务流水', icon: 'account_balance_wallet' },
+  note: { label: '团队笔记', icon: 'description' },
+  habit: { label: '打卡习惯', icon: 'local_fire_department' },
+}
+
+/** 投影顺序即结果组序 */
+const TYPE_ORDER: SearchEntityType[] = ['customer', 'todo', 'transaction', 'note', 'habit']
+
+function fmtAmount(amount: number): string {
+  return `¥${amount.toLocaleString('zh-CN')}`
+}
+
+/** 选择性投影：五实体 → 精简检索条目 */
+export function buildSearchIndex(inputs: {
+  customers: Customer[]
+  todos: Todo[]
+  transactions: Transaction[]
+  notes: Note[]
+  habits: Habit[]
+}): SearchItem[] {
+  const items: SearchItem[] = []
+  for (const c of inputs.customers) {
+    items.push({
+      id: c.id,
+      type: 'customer',
+      title: c.name,
+      subtitle: [c.company, c.title].filter(Boolean).join(' · '),
+      path: `/crm/${c.id}`,
+    })
+  }
+  for (const t of inputs.todos) {
+    items.push({
+      id: t.id,
+      type: 'todo',
+      title: t.title,
+      subtitle: t.desc,
+      path: '/todo',
+    })
+  }
+  for (const t of inputs.transactions) {
+    items.push({
+      id: t.id,
+      type: 'transaction',
+      title: t.summary,
+      subtitle: `${t.type === 'income' ? '收入' : '支出'} ${fmtAmount(t.amount)} · ${t.status}`,
+      path: '/finance',
+    })
+  }
+  for (const n of inputs.notes) {
+    // 摘要：剥掉 Markdown 标记取前 48 字
+    const digest = n.markdown.replace(/[#>*`\-\[\]]/g, '').replace(/\s+/g, ' ').trim().slice(0, 48)
+    items.push({
+      id: n.id,
+      type: 'note',
+      title: n.title,
+      subtitle: digest,
+      path: `/notes/${n.id}`,
+    })
+  }
+  for (const h of inputs.habits) {
+    items.push({
+      id: h.id,
+      type: 'habit',
+      title: h.name,
+      subtitle: [h.category, h.schedule].filter(Boolean).join(' · '),
+      path: '/habits',
+    })
+  }
+  return items
+}
+
+/** 模糊匹配：lowercase includes，命中标题权重高于副标题 */
+export function searchAll(
+  index: SearchItem[],
+  query: string,
+): { type: SearchEntityType; label: string; icon: string; items: SearchItem[] }[] {
+  const q = query.trim().toLowerCase()
+  const matched = q
+    ? index.filter((item) => item.title.toLowerCase().includes(q) || item.subtitle.toLowerCase().includes(q))
+    : index
+  return TYPE_ORDER.map((type) => ({
+    type,
+    label: SEARCH_TYPE_META[type].label,
+    icon: SEARCH_TYPE_META[type].icon,
+    items: matched.filter((it) => it.type === type),
+  })).filter((g) => g.items.length > 0)
+}

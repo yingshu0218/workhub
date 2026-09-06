@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import dayjs from 'dayjs'
 import type { Habit } from '@/db/types'
-import { habitRepo, habitLogRepo, habitLogId } from '@/repositories'
+import { habitLogRepo, habitLogId, deleteHabitCascade } from '@/repositories'
 import { eventBus } from '@/shared/eventBus'
 import { Button, Card, Chip, EmptyState, PageHeader } from '@/design-system/ui'
 import { useHabitStats, useHabitMonthCounts, useCompletedHabitsOn, useTodayCheckCount } from './hooks'
@@ -51,6 +51,15 @@ export default function HabitsPage() {
       })
       eventBus.emit('habit:checked', { habitId: habit.id, date: todayStr })
     }
+  }
+
+  /** 删除习惯 —— 确认后单事务级联软删习惯及其全部历史打卡 */
+  function removeHabit(habit: Habit, totalChecks: number) {
+    const msg =
+      totalChecks > 0
+        ? `删除习惯「${habit.name}」？\n该习惯已有 ${totalChecks} 次历史打卡记录，将一并删除，此操作不可撤销。`
+        : `删除习惯「${habit.name}」？此操作不可撤销。`
+    if (confirm(msg)) void deleteHabitCascade(habit.id)
   }
 
   const monthTotalChecks = stats.reduce((sum, s) => sum + s.monthChecks, 0)
@@ -202,12 +211,12 @@ export default function HabitsPage() {
                 )}
                 <div className="hidden w-28 shrink-0 text-right sm:block">
                   <div className="text-[11px] text-outline">
-                    {monthLabel.slice(0, -1)}完成 {monthChecks} 次 · {monthRate}%
+                    {monthLabel.slice(0, -1)}完成 {monthChecks} 次 · {monthRate === null ? '—' : `${monthRate}%`}
                   </div>
                   <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-surface-container">
                     <div
                       className="h-full rounded-full bg-secondary transition-all"
-                      style={{ width: `${Math.min(100, monthRate)}%` }}
+                      style={{ width: `${monthRate === null ? 0 : Math.min(100, monthRate)}%` }}
                     />
                   </div>
                 </div>
@@ -224,7 +233,7 @@ export default function HabitsPage() {
                 <button
                   className="rounded-md p-1.5 text-outline opacity-0 transition-opacity hover:bg-surface-container-low hover:text-danger group-hover:opacity-100"
                   title="删除习惯"
-                  onClick={() => void habitRepo.softDelete(habit.id)}
+                  onClick={() => removeHabit(habit, totalChecks)}
                 >
                   <span className="material-symbols-rounded" style={{ fontSize: 18 }}>delete</span>
                 </button>

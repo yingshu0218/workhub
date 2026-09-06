@@ -11,7 +11,8 @@ import NoteEditorPage from '@/modules/notes/NoteEditorPage'
 import HabitsPage from '@/modules/habits/HabitsPage'
 import TrophiesPage from '@/modules/trophies/TrophiesPage'
 import ProfilePage from '@/modules/trophies/ProfilePage'
-import PlaceholderPage from '@/modules/placeholder/PlaceholderPage'
+import SettingsPage from '@/modules/settings/SettingsPage'
+import InspirationPage from '@/modules/inspiration/InspirationPage'
 
 /** 路由映射见 docs/寻鸽工作台-开发计划.md 第四节 */
 function Shell() {
@@ -23,6 +24,8 @@ function Shell() {
 }
 
 const router = createBrowserRouter([
+  // 灵感闪现：全屏决策态，不套 AppLayout（对齐原型 02 深色全屏）
+  { path: '/inspiration', element: <InspirationPage /> },
   {
     element: <Shell />,
     children: [
@@ -37,8 +40,7 @@ const router = createBrowserRouter([
       { path: '/habits', element: <HabitsPage /> },
       { path: '/trophies', element: <TrophiesPage /> },
       { path: '/profile', element: <ProfilePage /> },
-      { path: '/inspiration', element: <PlaceholderPage title="灵感闪现" subtitle="规则引擎抽取下一件最值得推进的事" phase="Phase 6" icon="auto_awesome" /> },
-      { path: '/settings', element: <PlaceholderPage title="系统设置" subtitle="外观 · 字体 · 快捷键 · 提醒 · 数据安全" phase="Phase 6" icon="settings" /> },
+      { path: '/settings', element: <SettingsPage /> },
     ],
   },
 ])

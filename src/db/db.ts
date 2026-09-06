@@ -11,6 +11,7 @@ import type {
   Habit,
   HabitLog,
   Trophy,
+  Settings,
 } from './types'
 
 export interface SyncQueueItem {
@@ -71,6 +72,7 @@ export class NexusDB extends Dexie {
   syncQueue!: Table<SyncQueueItem, number>
   meta!: Table<MetaEntry, string>
   focusSessions!: Table<FocusSession, string>
+  settings!: Table<Settings, string>
 
   constructor() {
     super('nexus-workspace')
@@ -92,6 +94,10 @@ export class NexusDB extends Dexie {
     })
     this.version(2).stores({
       focusSessions: 'id, startedAt, completedAt',
+    })
+    // v3（Phase 6）：settings singleton 表 —— 本地偏好，不进同步队列
+    this.version(3).stores({
+      settings: 'key',
     })
   }
 }

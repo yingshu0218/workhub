@@ -158,6 +158,79 @@ export interface Trophy extends SyncMeta {
  * EXP/连击等一律从源记录（HabitLog/Todo/Transaction）实时推导
  */
 
+/**
+ * 系统设置 singleton（Phase 6）—— 本地 UI 偏好，不参与同步（开发计划 2.3：瞬态/UI 偏好只存本地）
+ * 写入走 settingsRepo：singleton + 事务，写后广播 settings:changed，各消费端监听实时应用
+ */
+export interface SettingsAppearance {
+  /** 深浅模式：light / dark / 跟随系统 */
+  mode: 'light' | 'dark' | 'system'
+  /** 强调色（取 ACCENT_PRESETS 的 id，见 SettingsPage） */
+  accent: string
+  /** 圆角档位：sharp 4px / medium 8px / large 14px */
+  radius: 'sharp' | 'medium' | 'large'
+  /** 信息密度：舒适 / 紧凑（映射 Tailwind spacing 基数） */
+  density: 'comfortable' | 'compact'
+}
+
+export interface SettingsTypography {
+  /** 基准字号 px（html font-size） */
+  fontSize: number
+  /** 行高倍数 */
+  lineHeight: number
+}
+
+export interface SettingsNotifications {
+  desktopNotice: boolean
+  soundAlerts: boolean
+  webhook: boolean
+  /** 每日待办预告 */
+  dailyBrief: boolean
+  /** 逾期预警 */
+  todoDueWarning: boolean
+  /** 打卡晚间提醒 */
+  habitReminder: boolean
+  /** 月末对账 */
+  monthEndReconcile: boolean
+  /** 客户久未跟进提醒 */
+  customerStaleAlert: boolean
+}
+
+export interface SettingsSecurity {
+  /** AES-256-GCM 端侧加密（预留位，本期不实装） */
+  encryption: boolean
+  syncFrequency: 'realtime' | '5min' | 'manual'
+  /** 高性能缓存持久化（IndexedDB） */
+  persistCache: boolean
+}
+
+export interface Settings {
+  key: string
+  appearance: SettingsAppearance
+  typography: SettingsTypography
+  notifications: SettingsNotifications
+  security: SettingsSecurity
+}
+
+export const SETTINGS_KEY = 'singleton'
+
+export const DEFAULT_SETTINGS: Settings = {
+  key: SETTINGS_KEY,
+  appearance: { mode: 'light', accent: 'blue', radius: 'medium', density: 'comfortable' },
+  typography: { fontSize: 14, lineHeight: 1.6 },
+  notifications: {
+    desktopNotice: true,
+    soundAlerts: true,
+    webhook: false,
+    dailyBrief: true,
+    todoDueWarning: true,
+    habitReminder: true,
+    monthEndReconcile: true,
+    customerStaleAlert: true,
+  },
+  security: { encryption: false, syncFrequency: 'realtime', persistCache: true },
+}
+
 export const SYNC_META_DEFAULT: SyncMeta = {
   updatedAt: 0,
   deleted: 0,

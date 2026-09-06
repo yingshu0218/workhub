@@ -1,7 +1,5 @@
-import { useEffect, useState } from 'react'
-import type { Trophy, TrophyTier } from '@/db/types'
-import { eventBus } from '@/shared/eventBus'
-import { Button, Card, EmptyState, PageHeader } from '@/design-system/ui'
+import type { TrophyTier } from '@/db/types'
+import { Card, EmptyState, PageHeader } from '@/design-system/ui'
 import { useTrophyStats, useTrophyList, computeConditionValue, CONDITION_LABELS } from './hooks'
 
 /** tier → 主题配色（边框/渐变/文字/标签）；ProfilePage 复用 */
@@ -12,51 +10,7 @@ export const TIER_THEME: Record<TrophyTier, { border: string; gradient: string; 
   '白金': { border: 'border-sky-400/60', gradient: 'from-cyan-600 via-sky-300 to-indigo-200', text: 'text-sky-700', label: '白金' },
 }
 
-/** PSN 风格全屏解锁弹窗：监听 trophy:unlocked，5 秒自动关闭或点击关闭 */
-export function TrophyUnlockToast({ trophies }: { trophies: Trophy[] }) {
-  const [unlockingId, setUnlockingId] = useState<string | null>(null)
-
-  useEffect(() => {
-    return eventBus.on('trophy:unlocked', ({ trophyId }) => setUnlockingId(trophyId))
-  }, [])
-
-  useEffect(() => {
-    if (!unlockingId) return
-    const timer = window.setTimeout(() => setUnlockingId(null), 5000)
-    return () => window.clearTimeout(timer)
-  }, [unlockingId])
-
-  const trophy = trophies.find((t) => t.id === unlockingId)
-  if (!trophy) return null
-  const theme = TIER_THEME[trophy.tier]
-
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/45" onClick={() => setUnlockingId(null)}>
-      <div className={`rounded-2xl bg-gradient-to-br ${theme.gradient} p-1 shadow-2xl`}>
-        <div className={`flex w-[340px] flex-col items-center gap-4 rounded-2xl bg-surface-container-lowest px-8 py-10`}>
-          <div className={`rounded-xl bg-gradient-to-tr ${theme.gradient} p-1`}>
-            <div className="flex h-24 w-24 items-center justify-center rounded-xl bg-surface-container-lowest">
-              <span className={`material-symbols-rounded msr-fill ${theme.text}`} style={{ fontSize: 56 }}>
-                {trophy.icon}
-              </span>
-            </div>
-          </div>
-          <div className="text-center">
-            <div className={`text-[12px] font-bold uppercase tracking-[0.2em] ${theme.text}`}>
-              {theme.label} · 已解锁
-            </div>
-            <div className="mt-1 text-[20px] font-bold">{trophy.name}</div>
-            <div className="mt-1.5 text-[12.5px] text-on-surface-variant">{trophy.description}</div>
-            <div className="mt-1 text-[11px] text-outline">稀有度 {trophy.rarity}</div>
-          </div>
-          <Button size="sm" variant="tonal" onClick={() => setUnlockingId(null)}>
-            收下奖杯
-          </Button>
-        </div>
-      </div>
-    </div>
-  )
-}
+/** PSN 风格解锁弹窗已全局化为 src/app/TrophyUnlockToast.tsx（Phase 6），任何页面解锁都能弹出 */
 
 export default function TrophiesPage() {
   const trophies = useTrophyList()
@@ -167,8 +121,6 @@ export default function TrophiesPage() {
           })}
         </div>
       )}
-
-      <TrophyUnlockToast trophies={trophies} />
     </div>
   )
 }

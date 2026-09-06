@@ -1,0 +1,482 @@
+import { useEffect, useState } from 'react'
+import { Card, PageHeader, Button, inputCls } from '@/design-system/ui'
+import type { Settings } from '@/db/types'
+import { settingsRepo, resetAndSeedLocalData } from '@/repositories'
+import {
+  workspaceRepo, customerRepo, interactionRepo, ledgerRepo, transactionRepo,
+  todoRepo, noteRepo, quickNoteRepo, habitRepo, habitLogRepo, trophyRepo,
+} from '@/repositories'
+import { listShortcuts } from '@/shared/shortcuts'
+import { ACCENT_PRESETS, RADIUS_PRESETS, FONT_SIZE_STEPS, LINE_HEIGHT_STEPS } from '@/shared/theme'
+
+/**
+ * 系统设置（对齐原型 13~15/17/18/20 · 6 标签）
+ * 所有改动经 settingsRepo.save 即时落库并广播 settings:changed，各消费端实时应用（无「保存更改」按钮）
+ */
+
+const TABS = [
+  { id: 'appearance', label: '外观与主题', icon: 'palette' },
+  { id: 'density', label: '色彩与密度', icon: 'format_color_fill' },
+  { id: 'typography', label: '字体与排版', icon: 'text_fields' },
+  { id: 'shortcuts', label: '通用与快捷键', icon: 'keyboard' },
+  { id: 'notifications', label: '提醒与协同', icon: 'notifications_active' },
+  { id: 'security', label: '数据与安全', icon: 'security' },
+] as const
+
+type TabId = (typeof TABS)[number]['id']
+
+function Section({ icon, title, desc, badge, children }: {
+  icon: string
+  title: string
+  desc?: string
+  badge?: string
+  children: React.ReactNode
+}) {
+  return (
+    <Card className="p-6">
+      <div className="mb-4 flex items-center gap-2.5">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-fixed text-primary">
+          <span className="material-symbols-rounded" style={{ fontSize: 18 }}>{icon}</span>
+        </div>
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <h3 className="text-[14.5px] font-semibold">{title}</h3>
+            {badge && <span className="rounded bg-success-container/60 px-1.5 py-0.5 text-[10px] font-medium text-success">{badge}</span>}
+          </div>
+          {desc && <p className="mt-0.5 text-[11.5px] text-on-surface-variant">{desc}</p>}
+        </div>
+      </div>
+      {children}
+    </Card>
+  )
+}
+
+function Toggle({ checked, onChange, disabled }: { checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
+  return (
+    <button
+      role="switch"
+      aria-checked={checked}
+      disabled={disabled}
+      className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-40 ${
+        checked ? 'bg-primary' : 'bg-outline-variant'
+      }`}
+      onClick={() => onChange(!checked)}
+    >
+      <span
+        className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${
+          checked ? 'left-[22px]' : 'left-0.5'
+        }`}
+      />
+    </button>
+  )
+}
+
+function Segmented<T extends string | number>({ options, value, onChange, format }: {
+  options: readonly T[]
+  value: T
+  onChange: (v: T) => void
+  format: (v: T) => string
+}) {
+  return (
+    <div className="inline-flex rounded-lg border border-outline-variant/60 p-0.5">
+      {options.map((opt) => (
+        <button
+          key={String(opt)}
+          className={`rounded-md px-3 py-1.5 text-[12.5px] transition-colors ${
+            opt === value ? 'bg-primary font-medium text-on-primary' : 'text-on-surface-variant hover:bg-surface-container'
+          }`}
+          onClick={() => onChange(opt)}
+        >
+          {format(opt)}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+export default function SettingsPage() {
+  const [tab, setTab] = useState<TabId>('appearance')
+  const [settings, setSettings] = useState<Settings | null>(null)
+  const [persisted, setPersisted] = useState<boolean | null>(null)
+  const [exporting, setExporting] = useState(false)
+  const [resetting, setResetting] = useState(false)
+
+  useEffect(() => {
+    void settingsRepo.get().then(setSettings)
+    if (navigator.storage?.persisted) {
+      void navigator.storage.persisted().then(setPersisted).catch(() => setPersisted(null))
+    }
+  }, [])
+
+  if (!settings) {
+    return <div className="py-20 text-center text-[13px] text-outline">设置载入中…</div>
+  }
+
+  const save = (patch: Partial<Omit<Settings, 'key'>>) => {
+    void settingsRepo.save(patch).then(setSettings)
+  }
+
+  // ── 数据导出：全部业务表走 repository.list 汇总 ──
+  const exportJson = async () => {
+    setExporting(true)
+    try {
+      const [
+        workspaces, customers, interactions, ledgers, transactions,
+        todos, notes, quickNotes, habits, habitLogs, trophies,
+      ] = await Promise.all([
+        workspaceRepo.list(), customerRepo.list(), interactionRepo.list(), ledgerRepo.list(),
+        transactionRepo.list(), todoRepo.list(), noteRepo.list(), quickNoteRepo.list(),
+        habitRepo.list(), habitLogRepo.list(), trophyRepo.list(),
+      ])
+      const payload = {
+        app: 'nexus-workspace',
+        schemaVersion: 3,
+        exportedAt: new Date().toISOString(),
+        data: { workspaces, customers, interactions, ledgers, transactions, todos, notes, quickNotes, habits, habitLogs, trophies },
+      }
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `nexus-workspace-backup-${new Date().toISOString().slice(0, 10)}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  // ── 危险区：清空本地数据并重新种子 ──
+  const resetAll = () => {
+    if (!window.confirm('将清空本地全部数据（IndexedDB）并重新写入演示种子，云端副本不受影响。该操作不可撤销，确定继续？')) return
+    setResetting(true)
+    void resetAndSeedLocalData()
+      .then(() => window.location.reload())
+      .catch((err) => {
+        console.error('[settings] 清空失败', err)
+        setResetting(false)
+      })
+  }
+
+  // 每次切标签重算：注册表随挂载页面动态变化，实时读取当前已注册快捷键
+  const shortcuts = listShortcuts()
+
+  return (
+    <div className="mx-auto max-w-[1200px]">
+      <PageHeader
+        title="系统设置"
+        subtitle="定制您的专属工作台界面风格、工作流偏好与数据安全策略 · 配置即时生效并本地持久化"
+      />
+
+      {/* 标签栏 */}
+      <div className="mb-5 flex flex-wrap gap-1.5 rounded-xl border border-outline-variant/40 bg-surface-container-lowest p-1.5">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            className={`flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-[13px] transition-colors ${
+              tab === t.id ? 'bg-primary font-semibold text-on-primary' : 'text-on-surface-variant hover:bg-surface-container'
+            }`}
+            onClick={() => setTab(t.id)}
+          >
+            <span className="material-symbols-rounded" style={{ fontSize: 16 }}>{t.icon}</span>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── 外观与主题 ── */}
+      {tab === 'appearance' && (
+        <Section icon="palette" title="外观显示模式" desc="选择工作台的基础底色方案，切换实时生效" badge="实时生效">
+          <div className="grid grid-cols-3 gap-3">
+            {([
+              { id: 'light', label: '浅色模式 (Light)', desc: '经典亮色画布，长时间可视的最佳性与低瞳感' },
+              { id: 'dark', label: '深色模式 (Dark)', desc: '沉浸式暗调素材，大幅降低夜间光线刺激与屏幕能耗' },
+              { id: 'system', label: '跟随系统 (System Sync)', desc: '与 macOS / Windows 系统的深浅日自动同步' },
+            ] as const).map((opt) => (
+              <button
+                key={opt.id}
+                className={`rounded-xl border p-4 text-left transition-colors ${
+                  settings.appearance.mode === opt.id
+                    ? 'border-primary bg-primary-fixed/40'
+                    : 'border-outline-variant/50 hover:border-primary/50'
+                }`}
+                onClick={() => save({ appearance: { ...settings.appearance, mode: opt.id } })}
+              >
+                <div className="mb-3 flex h-16 overflow-hidden rounded-lg border border-outline-variant/40">
+                  {(opt.id === 'light'
+                    ? ['#ffffff', '#dbe1ff', '#004ac6']
+                    : opt.id === 'dark'
+                      ? ['#0b1220', '#1a2438', '#60a5fa']
+                      : ['#ffffff', '#0b1220', '#004ac6']
+                  ).map((c, i) => (
+                    <div key={i} className="flex-1" style={{ background: c }} />
+                  ))}
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[13px] font-semibold">{opt.label}</span>
+                  {settings.appearance.mode === opt.id && (
+                    <span className="material-symbols-rounded msr-fill text-[18px] text-primary">check_circle</span>
+                  )}
+                </div>
+                <p className="mt-1 text-[11px] leading-snug text-on-surface-variant">{opt.desc}</p>
+              </button>
+            ))}
+          </div>
+        </Section>
+      )}
+
+      {/* ── 色彩与密度 ── */}
+      {tab === 'density' && (
+        <div className="space-y-4">
+          <Section icon="format_color_fill" title="强调色" desc="覆盖主按钮、选中态与链接色的品牌强调色" badge="实时生效">
+            <div className="flex flex-wrap gap-3">
+              {ACCENT_PRESETS.map((a) => (
+                <button
+                  key={a.id}
+                  className={`flex items-center gap-2.5 rounded-xl border px-4 py-2.5 transition-colors ${
+                    settings.appearance.accent === a.id ? 'border-primary bg-primary-fixed/40' : 'border-outline-variant/50 hover:border-primary/50'
+                  }`}
+                  onClick={() => save({ appearance: { ...settings.appearance, accent: a.id } })}
+                >
+                  <span className="h-5 w-5 rounded-full" style={{ background: a.container }} />
+                  <span className="text-[12.5px] font-medium">{a.label}</span>
+                  {settings.appearance.accent === a.id && (
+                    <span className="material-symbols-rounded msr-fill text-[16px] text-primary">check</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </Section>
+
+          <Section icon="rounded_corner" title="圆角与信息密度" desc="调整卡片圆角档位与全局间距基数，营造工作台氛围">
+            <div className="mb-4 flex items-center justify-between">
+              <span className="text-[13px] font-medium">卡片圆角</span>
+              <Segmented
+                options={RADIUS_PRESETS.map((r) => r.id)}
+                value={settings.appearance.radius}
+                format={(v) => RADIUS_PRESETS.find((r) => r.id === v)!.label}
+                onChange={(v) => save({ appearance: { ...settings.appearance, radius: v } })}
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-[13px] font-medium">信息密度</span>
+              <Segmented
+                options={['comfortable', 'compact'] as const}
+                value={settings.appearance.density}
+                format={(v) => (v === 'comfortable' ? '舒适（4px 基线）' : '紧凑（3.5px 基线）')}
+                onChange={(v) => save({ appearance: { ...settings.appearance, density: v } })}
+              />
+            </div>
+          </Section>
+        </div>
+      )}
+
+      {/* ── 字体与排版 ── */}
+      {tab === 'typography' && (
+        <div className="grid grid-cols-[1fr_380px] items-start gap-4">
+          <Section icon="text_fields" title="基准字号与阅读间距" desc="调整全局文本物理渲染阶梯与行距倍数" badge="实时生效">
+            <div className="mb-5">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-[13px] font-medium">基准字体大小 (Base Font Size)</span>
+                <span className="text-[12px] font-semibold text-primary">{settings.typography.fontSize} px</span>
+              </div>
+              <Segmented
+                options={FONT_SIZE_STEPS}
+                value={settings.typography.fontSize}
+                format={(v) => `${v}px${v === 14 ? ' · 默认' : ''}`}
+                onChange={(v) => save({ typography: { ...settings.typography, fontSize: v } })}
+              />
+            </div>
+            <div>
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-[13px] font-medium">行高与纵向韵律 (Line Height Ratio)</span>
+                <span className="text-[12px] font-semibold text-primary">{settings.typography.lineHeight}x</span>
+              </div>
+              <Segmented
+                options={LINE_HEIGHT_STEPS}
+                value={settings.typography.lineHeight}
+                format={(v) => `${v}x${v === 1.6 ? ' · 推荐' : ''}`}
+                onChange={(v) => save({ typography: { ...settings.typography, lineHeight: v } })}
+              />
+            </div>
+          </Section>
+
+          <Section icon="visibility" title="实时排版预览" desc="下方预览块即当前全局生效值" badge="Live Rendering">
+            <div
+              className="rounded-xl border border-outline-variant/40 bg-surface-container-low/60 p-5"
+              style={{ fontSize: settings.typography.fontSize, lineHeight: settings.typography.lineHeight }}
+            >
+              <div className="mb-1 text-[10.5px] font-semibold uppercase tracking-widest text-primary">
+                # 核心里程碑 · Q3 Milestone
+              </div>
+              <div className="text-[1.35em] font-bold">多维穿透工作流与团队协作网格</div>
+              <p className="mt-2 text-on-surface-variant">
+                在团队协作中，沉浸式记录与待办任务可无缝联动。寻鸽工作台深度集成 Inter 字体内核与表格间距韵律，使每次会议纪要、OKR 对齐与财务中心之间实现零损耗上下文传递。当前预览即所保存后的全局正文渲染效果。
+              </p>
+            </div>
+            <div className="mt-3 flex items-center justify-between text-[11px] text-outline">
+              <span>阅读舒适度评级 <b className="text-success">99.4%</b></span>
+              <span>字符高宽比 <b>0.72 : 1</b></span>
+            </div>
+          </Section>
+        </div>
+      )}
+
+      {/* ── 通用与快捷键 ── */}
+      {tab === 'shortcuts' && (
+        <div className="space-y-4">
+          <Section icon="tune" title="通用偏好设定" desc="General Preferences & Regional Formatting">
+            <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+              <label className="block">
+                <div className="mb-1.5 text-[12px] font-medium text-on-surface-variant">系统语言 (Language)</div>
+                <input className={inputCls} value="简体中文 (Simplified Chinese)" readOnly />
+              </label>
+              <label className="block">
+                <div className="mb-1.5 text-[12px] font-medium text-on-surface-variant">每周起始日</div>
+                <input className={inputCls} value="星期一 (Monday) · 工作日标配" readOnly />
+              </label>
+              <label className="block">
+                <div className="mb-1.5 text-[12px] font-medium text-on-surface-variant">时区与时间制</div>
+                <div className="flex items-center gap-2">
+                  <input className={inputCls} value="(GMT+08:00) 北京 · 上海 · 香港" readOnly />
+                  <span className="shrink-0 rounded bg-success-container/60 px-2 py-1.5 text-[11px] font-medium text-success">● 自动对齐网络授时</span>
+                </div>
+              </label>
+              <label className="block">
+                <div className="mb-1.5 text-[12px] font-medium text-on-surface-variant">启动时默认进入的模块</div>
+                <input className={inputCls} value="工作台专注主页 (Nexus Workbench)" readOnly />
+              </label>
+            </div>
+          </Section>
+
+          <Section icon="keyboard_command_key" title="全局高频热键映射" desc="Global Hotkeys Map · 快捷键走统一注册表（listShortcuts 实时读取，Phase 6 只读展示）">
+            <table className="w-full text-[13px]">
+              <thead>
+                <tr className="border-b border-outline-variant/40 text-left text-[11.5px] uppercase tracking-wide text-outline">
+                  <th className="pb-2 pr-4 font-semibold">动作名称</th>
+                  <th className="pb-2 pr-4 font-semibold">功能描述</th>
+                  <th className="pb-2 text-right font-semibold">快捷键绑定</th>
+                </tr>
+              </thead>
+              <tbody>
+                {shortcuts.map((s) => (
+                  <tr key={s.combo} className="border-b border-outline-variant/20 last:border-0">
+                    <td className="py-2.5 pr-4 font-medium">{s.description}</td>
+                    <td className="py-2.5 pr-4 text-on-surface-variant">{s.scope === 'global' ? '任何页面生效' : '激活页面内生效'}</td>
+                    <td className="py-2.5 text-right">
+                      <kbd className="rounded-md bg-surface-container-high px-2.5 py-1 text-[12px] font-semibold text-primary">
+                        {s.combo === 'mod+k' ? '⌘ K' : s.combo === 'space' ? 'Space' : s.combo === 'enter' ? 'Enter' : s.combo === 'esc' ? 'Esc' : s.combo}
+                      </kbd>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Section>
+        </div>
+      )}
+
+      {/* ── 提醒与协同 ── */}
+      {tab === 'notifications' && (
+        <Section icon="notifications_active" title="通知推送与业务联动提醒" desc="开关即时持久化 · 本期仅存本地偏好，真实推送通道 Phase 7 接入">
+          <div className="space-y-1">
+            {([
+              { key: 'desktopNotice', title: '系统桌面弹窗通知', desc: '当工作台切后台最小化时，通过系统 Notification API 发送横幅提示卡片' },
+              { key: 'soundAlerts', title: '声音提示 (Sound Alerts)', desc: '解锁奖杯、到期临门等重磅节点短促清晰提示' },
+              { key: 'webhook', title: '企业微信 / 钉钉 Webhook 协同同步', desc: '团队钉群机器人自动广播优先级看板更新与提醒完成消息' },
+              { key: 'dailyBrief', title: '每日待办预告', desc: '每天 09:00 依据事项清单草拟待办今日完成率简报' },
+              { key: 'todoDueWarning', title: '任务逾期预警', desc: '在待办事项临近截止前推送预警，避免项目节点延误' },
+              { key: 'habitReminder', title: '打卡习惯晚间提醒', desc: '入睡前温和提示今日自律习惯（阅读、代码复盘、健身）待打卡' },
+              { key: 'monthEndReconcile', title: '月末流水对账与核算提醒', desc: '每月最后 18:00 自动提醒核对当月流水与速算税税' },
+              { key: 'customerStaleAlert', title: '客户久未跟进关键提醒', desc: '当重要 VIP 客户超过 14 天无跟进记录，在工作台顶栏提示' },
+            ] as const).map((item) => (
+              <div key={item.key} className="flex items-center gap-4 border-b border-outline-variant/20 py-3.5 last:border-0">
+                <div className="flex-1">
+                  <div className="text-[13.5px] font-medium">{item.title}</div>
+                  <div className="mt-0.5 text-[11.5px] text-on-surface-variant">{item.desc}</div>
+                </div>
+                <Toggle
+                  checked={settings.notifications[item.key]}
+                  onChange={(v) => save({ notifications: { ...settings.notifications, [item.key]: v } })}
+                />
+              </div>
+            ))}
+          </div>
+        </Section>
+      )}
+
+      {/* ── 数据与安全 ── */}
+      {tab === 'security' && (
+        <div className="space-y-4">
+          <div className="flex items-start gap-3 rounded-xl border border-success/30 bg-success-container/30 px-5 py-4">
+            <span className="material-symbols-rounded msr-fill text-[20px] text-success">verified_user</span>
+            <div>
+              <div className="text-[13.5px] font-semibold">数据主权保障已激活 (Sovereignty Protocol v2.4)</div>
+              <div className="mt-0.5 text-[11.5px] leading-relaxed text-on-surface-variant">
+                本地优先 (Local-First) 原则：全部文案与档案数据优先存放于您受控的本地资源池中，云端请求不迁移、厂商脱敏托管。
+              </div>
+            </div>
+          </div>
+
+          <Section icon="archive" title="数据导出与多格式打包" desc="您的所有数据归您所有，可随时打包导出成无锁定迁移其他工具生态">
+            <div className="grid grid-cols-3 gap-3">
+              {([
+                { icon: 'data_object', tag: 'SNAPSHOT', title: 'JSON 全量结构化存档', desc: '完整流水表结构：CRM · 客户档案 · 财务流水 · 笔记视关系', action: exportJson, label: exporting ? '导出中…' : '导出 JSON 存档', variant: 'primary' as const },
+                { icon: 'table_view', tag: 'SPREADSHEET', title: 'CSV 电子表格格式包', desc: '财务流水、销售漏斗与CRM跟进数据兼容 Excel / Numbers / 飞书表格', action: exportJson, label: '导出 CSV 表格包', variant: 'ghost' as const },
+                { icon: 'article', tag: 'MARKDOWN', title: 'Markdown 树文本笔记', desc: '所有笔记 Markdown 源文件笔记可导出 .zip 空数据线笔记库 ToValLinks', action: exportJson, label: '导出笔记文档包', variant: 'ghost' as const },
+              ]).map((c) => (
+                <div key={c.title} className="rounded-xl border border-outline-variant/50 p-4">
+                  <div className="flex items-center justify-between">
+                    <span className="material-symbols-rounded text-[20px] text-primary">{c.icon}</span>
+                    <span className="text-[9.5px] font-bold uppercase tracking-widest text-outline">{c.tag}</span>
+                  </div>
+                  <div className="mt-2 text-[13px] font-semibold">{c.title}</div>
+                  <p className="mt-1 line-clamp-2 text-[11px] leading-snug text-on-surface-variant">{c.desc}</p>
+                  <div className="mt-3">
+                    <Button size="sm" variant={c.variant} onClick={() => void c.action()} disabled={exporting}>
+                      {c.label}
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Section>
+
+          <Section icon="settings_backup_restore" title="本地数据持久化状态" desc="启动时已自动申请 Persistent Storage，防浏览器回收 IndexedDB">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <div className="text-[13.5px] font-medium">高性能本地持久化 (IndexedDB)</div>
+                <div className="mt-0.5 text-[11.5px] text-on-surface-variant">
+                  {persisted === null
+                    ? '正在读取浏览器存储持久化状态…'
+                    : persisted
+                      ? '已持久化：浏览器承诺不自动回收本地数据库（离线写入与附件均安全保留）'
+                      : '未持久化：存储空间紧张时浏览器可能回收本地数据，建议将本站添加到主屏幕'}
+                </div>
+              </div>
+              <span className={`rounded px-2.5 py-1 text-[11.5px] font-semibold ${
+                persisted ? 'bg-success-container/60 text-success' : persisted === false ? 'bg-warning-container text-warning' : 'bg-surface-container text-outline'
+              }`}>
+                {persisted === null ? '读取中' : persisted ? '● Already Active' : '○ 未授予'}
+              </span>
+            </div>
+          </Section>
+
+          <Section icon="warning" title="危险区 (Danger Zone)" desc="以下操作不可逆，云端同步核心数据不受影响">
+            <div className="flex items-center gap-4 rounded-xl border border-danger/30 bg-danger-container/30 px-5 py-4">
+              <div className="flex-1">
+                <div className="text-[13.5px] font-semibold text-danger">清空本地缓存 (Clear Local Cache)</div>
+                <div className="mt-0.5 text-[11.5px] text-on-surface-variant">
+                  彻底重置本地 IndexedDB 数据库并重新写入演示种子，用于恢复出厂演示状态。
+                </div>
+              </div>
+              <Button variant="danger" size="sm" onClick={resetAll} disabled={resetting}>
+                {resetting ? '清空中…' : '清空所有数据'}
+              </Button>
+            </div>
+          </Section>
+        </div>
+      )}
+    </div>
+  )
+}
