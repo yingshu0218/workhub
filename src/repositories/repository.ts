@@ -2,6 +2,7 @@ import { db } from '@/db/db'
 import { DEFAULT_WORKSPACE_ID } from '@/db/db'
 import { nanoid } from 'nanoid'
 import type { SyncMeta } from '@/db/types'
+import { syncEngine } from '@/sync/engine'
 
 /**
  * Repository 层 —— 存储可插拔的关键（开发计划 2.0/2.3）
@@ -9,10 +10,13 @@ import type { SyncMeta } from '@/db/types'
  * 写入路径：统一盖章 updatedAt/rev → 落本地 → 进同步队列（在线时由引擎推送）
  */
 
+/** 写入入参：同步元数据可缺省，由实现层统一盖章 */
+export type PutInput<T> = Omit<T, keyof SyncMeta> & Partial<SyncMeta>
+
 export interface Repository<T extends { id: string }> {
   get(id: string): Promise<T | undefined>
   list(): Promise<T[]>
-  put(record: T): Promise<string>
+  put(record: PutInput<T>): Promise<string>
   softDelete(id: string): Promise<void>
 }
 
@@ -46,7 +50,7 @@ export function createRepository<T extends { id: string } & Partial<SyncMeta>>(
         updatedAt: now,
         rev: (prev?.rev ?? 0) + 1,
         deleted: 0 as const,
-      } as T & SyncMeta
+      } as T
       await table().put(stamped)
       await db.syncQueue.add({
         table: String(tableName),
@@ -54,6 +58,7 @@ export function createRepository<T extends { id: string } & Partial<SyncMeta>>(
         op: 'upsert',
         createdAt: now,
       })
+      syncEngine.requestSync()
       return record.id
     },
 
@@ -71,6 +76,7 @@ export function createRepository<T extends { id: string } & Partial<SyncMeta>>(
         op: 'delete',
         createdAt: now,
       })
+      syncEngine.requestSync()
     },
   }
 }

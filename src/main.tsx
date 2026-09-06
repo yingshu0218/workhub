@@ -7,6 +7,7 @@ import './styles/index.css'
 import { seedIfEmpty } from './db/seed'
 import { syncEngine } from './sync/engine'
 import { installKeyboardListener } from './shared/shortcuts'
+import { installModuleEffects } from './shared/effects'
 
 dayjs.locale('zh-cn')
 
@@ -23,6 +24,7 @@ function Bootstrap() {
     })
     syncEngine.start()
     installKeyboardListener()
+    installModuleEffects()
     return () => syncEngine.stop()
   }, [])
 

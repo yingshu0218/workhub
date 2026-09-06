@@ -1,6 +1,7 @@
 import { createBrowserRouter, RouterProvider, Outlet } from 'react-router-dom'
 import AppLayout from './AppLayout'
 import DashboardPage from '@/modules/dashboard/DashboardPage'
+import TodoPage from '@/modules/todo/TodoPage'
 import PlaceholderPage from '@/modules/placeholder/PlaceholderPage'
 
 /** 路由映射见 docs/寻鸽工作台-开发计划.md 第四节 */
@@ -17,7 +18,7 @@ const router = createBrowserRouter([
     element: <Shell />,
     children: [
       { path: '/', element: <DashboardPage /> },
-      { path: '/todo', element: <PlaceholderPage title="待办事项" subtitle="日程、P1 交付、跨模块联动" phase="Phase 1" icon="check_circle" /> },
+      { path: '/todo', element: <TodoPage /> },
       { path: '/crm', element: <PlaceholderPage title="客户管理" subtitle="客户档案 · 智能管家 · 关系画布" phase="Phase 3" icon="group" /> },
       { path: '/crm/canvas', element: <PlaceholderPage title="客户关系画布" subtitle="力导向关系图" phase="Phase 3" icon="hub" /> },
       { path: '/finance', element: <PlaceholderPage title="财务中心" subtitle="多账本 · 流水 · 凭证溯源" phase="Phase 2" icon="account_balance_wallet" /> },

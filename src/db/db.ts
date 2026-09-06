@@ -41,6 +41,17 @@ export interface Attachment {
 }
 
 /**
+ * 专注会话 —— 本地瞬态数据，不进同步队列（开发计划 2.3 多设备约定）
+ * 指标「深度专注分钟数」从本表推导
+ */
+export interface FocusSession {
+  id: string
+  startedAt: number
+  completedAt: number
+  minutes: number
+}
+
+/**
  * 寻鸽工作台本地数据库
  * 所有业务表均含同步元数据 updatedAt/deleted/rev（索引统一建在 updatedAt 上）
  */
@@ -59,6 +70,7 @@ export class NexusDB extends Dexie {
   attachments!: Table<Attachment, string>
   syncQueue!: Table<SyncQueueItem, number>
   meta!: Table<MetaEntry, string>
+  focusSessions!: Table<FocusSession, string>
 
   constructor() {
     super('nexus-workspace')
@@ -77,6 +89,9 @@ export class NexusDB extends Dexie {
       attachments: 'id, refType, refId, createdAt',
       syncQueue: '++seq, table, recordId, sentAt',
       meta: 'key',
+    })
+    this.version(2).stores({
+      focusSessions: 'id, startedAt, completedAt',
     })
   }
 }

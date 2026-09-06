@@ -151,3 +151,9 @@ export const SYNC_META_DEFAULT: SyncMeta = {
   deleted: 0,
   rev: 0,
 }
+
+export interface CustomerOption {
+  id: string
+  name: string
+  company: string
+}

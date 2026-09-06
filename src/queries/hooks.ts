@@ -42,4 +42,4 @@ export function useQuery<T>(queryFn: () => Promise<T>, deps: unknown[]): T | und
   return useLiveQuery(queryFn, deps)
 }
 
-export { db as __dbForAdvancedUse }
+export { db }

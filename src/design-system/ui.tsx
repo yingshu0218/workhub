@@ -1,6 +1,59 @@
-import { type ReactNode } from 'react'
+import { type ReactNode, useEffect } from 'react'
 
 /** 基础组件库（对齐 DESIGN.md：白卡/8px 圆角/1px 边框/柔和阴影/胶囊 Chip） */
+
+export function Drawer({
+  open,
+  title,
+  onClose,
+  children,
+  width = 420,
+}: {
+  open: boolean
+  title: string
+  onClose: () => void
+  children: ReactNode
+  width?: number
+}) {
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open, onClose])
+
+  if (!open) return null
+  return (
+    <div className="fixed inset-0 z-50">
+      <div className="absolute inset-0 bg-black/25" onClick={onClose} />
+      <div
+        className="absolute right-0 top-0 flex h-full flex-col bg-surface-container-lowest shadow-[-8px_0_24px_rgba(0,0,0,0.10)]"
+        style={{ width }}
+      >
+        <div className="flex h-14 shrink-0 items-center justify-between border-b border-outline-variant/40 px-5">
+          <h2 className="text-[15px] font-semibold">{title}</h2>
+          <button className="text-outline hover:text-on-surface" onClick={onClose}>
+            <span className="material-symbols-rounded">close</span>
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-5">{children}</div>
+      </div>
+    </div>
+  )
+}
+
+export function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label className="mb-4 block">
+      <div className="mb-1.5 text-[12px] font-medium text-on-surface-variant">{label}</div>
+      {children}
+    </label>
+  )
+}
+
+export const inputCls =
+  'w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-[13.5px] outline-none transition-shadow focus:border-primary focus:shadow-[0_0_0_3px_rgba(37,99,235,0.15)]'
+
 
 export function Button({
   children,

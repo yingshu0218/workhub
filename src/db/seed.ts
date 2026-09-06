@@ -331,6 +331,7 @@ export async function seedIfEmpty(): Promise<boolean> {
       db.habits,
       db.habitLogs,
       db.trophies,
+      db.meta,
     ],
     async () => {
       await db.workspaces.put(workspace)
