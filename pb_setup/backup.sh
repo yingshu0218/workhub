@@ -6,13 +6,13 @@
 #
 # 用法：
 #   chmod +x backup.sh
-#   ./backup.sh                 # 使用默认路径（/opt/nexus/pocketbase → /opt/nexus/backups）
+#   ./backup.sh                 # 使用默认路径（/opt/pocketbase → /opt/pocketbase/backups）
 #   PB_DIR=/srv/pb BACKUP_DIR=/mnt/backup ./backup.sh
 #
 set -euo pipefail
 
-PB_DIR="${PB_DIR:-/opt/nexus/pocketbase}"       # pocketbase 可执行文件与 pb_data 所在目录
-BACKUP_DIR="${BACKUP_DIR:-/opt/nexus/backups}"  # 备份输出目录
+PB_DIR="${PB_DIR:-/opt/pocketbase}"       # pocketbase 可执行文件与 pb_data 所在目录
+BACKUP_DIR="${BACKUP_DIR:-/opt/pocketbase/backups}"  # 备份输出目录
 RETAIN_DAYS="${RETAIN_DAYS:-14}"                # 备份保留天数
 
 STAMP="$(date +%Y%m%d-%H%M%S)"
@@ -54,12 +54,12 @@ fi
 echo "[backup] 完成：$DEST"
 
 # ── cron 示例（crontab -e）──
-# 0 */4 * * * /opt/nexus/pocketbase/backup.sh >> /var/log/nexus-backup.log 2>&1
+# 0 */4 * * * /opt/pocketbase/backup.sh >> /var/log/nexus-backup.log 2>&1
 #
 # 恢复方法：
 #   systemctl stop pocketbase
-#   cp <备份目录>/data.db /opt/nexus/pocketbase/pb_data/data.db
-#   rm -f /opt/nexus/pocketbase/pb_data/data.db-wal /opt/nexus/pocketbase/pb_data/data.db-shm
-#   cp -r <备份目录>/storage/* /opt/nexus/pocketbase/pb_data/storage/
-#   chown -R pocketbase:pocketbase /opt/nexus/pocketbase/pb_data
+#   cp <备份目录>/data.db /opt/pocketbase/pb_data/data.db
+#   rm -f /opt/pocketbase/pb_data/data.db-wal /opt/pocketbase/pb_data/data.db-shm
+#   cp -r <备份目录>/storage/* /opt/pocketbase/pb_data/storage/
+#   chown -R pocketbase:pocketbase /opt/pocketbase/pb_data
 #   systemctl start pocketbase

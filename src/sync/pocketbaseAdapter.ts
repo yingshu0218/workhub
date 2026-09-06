@@ -13,8 +13,12 @@ import type { SyncAdapter } from './adapter'
  * - 登录：/api/collections/users/auth-with-password，token 缓存 settings.sync，401 自动重登一次
  * - 未配置 serverUrl → 本地模式：push 全部 ok（与 stub 行为一致）、pull 空结果
  *
- * id 口径：服务端 collection 的主键 id 为 text（collections.json 定义），直接沿用本地
- * `ws-main:xxx:nanoid` 形态，两端天然同 id 对齐，无需映射表。
+ * id 口径：本地 id（如 `ws-main:td:abc123`，含冒号）不是合法的 PB 记录 id（PB 仅允许
+ * 15 位字母数字），故采用「确定性哈希 id + localId 字段映射」：
+ * - push：pbRecordId = pbId(localId)（SHA-256 → base36 截取 15 位，确定性可复算），
+ *   请求体不携带本地 id，改为携带 `localId` 字段；POST 时 body 带 `id: pbRecordId`
+ * - pull：从远端 `localId` 字段还原本地 id（缺失则跳过该记录）
+ * - upsert 判存：按 `localId` 字段过滤查询，而非按 id
  *
  * 附件：attachments.blob（Blob）不进 JSON 载荷，push 走 multipart 上传到 pb file 字段，
  * pull 时按 /api/files/ 下载还原；其余字段照常镜像。
@@ -131,6 +135,26 @@ async function login(cfg: SyncSettingsView): Promise<void> {
 
 // ─────────────────────────── 记录读写 ───────────────────────────
 
+/**
+ * 本地 id → 合法 PB 记录 id：SHA-256(localId) 视为大整数转 base36，取前 15 位
+ * （不足左补 0）。确定性：同一 localId 永远得到同一 pbId；base36 字符集（0-9a-z）
+ * 天然满足 PB 的 15 位字母数字约束。极端碰撞场景由 upsert 的 GET 判存兜底（命中
+ * 已有记录走 PATCH）。
+ */
+async function pbId(localId: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(localId))
+  const bytes = new Uint8Array(digest)
+  let n = 0n
+  for (const b of bytes) n = (n << 8n) | BigInt(b)
+  const alphabet = '0123456789abcdefghijklmnopqrstuvwxyz'
+  let s = ''
+  while (n > 0n) {
+    s = alphabet[Number(n % 36n)] + s
+    n /= 36n
+  }
+  return s.padStart(15, '0').slice(0, 15)
+}
+
 function bizTable(table: string) {
   if (!SYNC_TABLE_SET.has(table)) throw new Error(`未知的同步表：${table}`)
   return db[table as SyncTable] as unknown as {
@@ -141,57 +165,64 @@ function bizTable(table: string) {
   }
 }
 
-/** 服务端字段镜像本地字段，仅需剥离本地 Blob（attachments.blob），其余原样上传 */
+/** 服务端字段镜像本地字段：剥离本地 Blob（attachments.blob）与本地 id（由 pbId 派生，不直接上传） */
 function toPayload(rec: Record<string, unknown>): Record<string, unknown> {
-  const { blob: _blob, ...rest } = rec
+  const { blob: _blob, id: _id, ...rest } = rec
   return rest
 }
 
-/** 幂等 upsert：按 id 查服务端，存在 PATCH、不存在 POST（PocketBase REST 无原生 upsert） */
+/** 幂等 upsert：按 localId 查服务端判存，存在 PATCH、不存在 POST（PocketBase REST 无原生 upsert） */
 async function pbUpsert(
   cfg: SyncSettingsView,
   table: string,
   rec: Record<string, unknown>,
 ): Promise<void> {
-  const id = String(rec.id)
-  const filter = encodeURIComponent(`id = '${id.replace(/'/g, "\\'")}'`)
+  const localId = String(rec.id)
+  const pbRecordId = await pbId(localId)
+  const filter = encodeURIComponent(`localId = '${localId.replace(/'/g, "\\'")}'`)
   const found = await pbAuthedFetch(
     cfg,
     `/api/collections/${table}/records?filter=${filter}&fields=id`,
     { method: 'GET' },
   )
-  if (!found.ok) throw new Error(`查询 ${table}/${id} 失败（HTTP ${found.status}）`)
+  if (!found.ok) throw new Error(`查询 ${table}/${localId} 失败（HTTP ${found.status}）`)
   const { items } = (await found.json()) as { items?: PbRecord[] }
+  const exists = !!items && items.length > 0
+  const remoteId = exists ? String(items![0].id) : ''
+
+  // 载荷 = 业务字段 + localId 映射字段（不带本地 id；仅 POST 时带派生的 pbRecordId）
+  const payload = { ...toPayload(rec), localId }
 
   if (table === 'attachments' && rec.blob instanceof Blob) {
     // 附件：multipart 表单（file 字段）+ 其余元数据字段
     const form = new FormData()
-    for (const [k, v] of Object.entries(toPayload(rec))) {
+    for (const [k, v] of Object.entries(payload)) {
       if (v === undefined) continue
       form.append(k, typeof v === 'object' ? JSON.stringify(v) : String(v))
     }
     const blob = rec.blob as Blob
-    form.append('file', new File([blob], String(rec.name ?? id), { type: String(rec.mime ?? 'application/octet-stream') }))
+    form.append('file', new File([blob], String(rec.name ?? localId), { type: String(rec.mime ?? 'application/octet-stream') }))
+    if (!exists) form.append('id', pbRecordId)
     const res = await pbAuthedFetch(
       cfg,
-      items && items.length > 0
-        ? `/api/collections/${table}/records/${encodeURIComponent(id)}`
+      exists
+        ? `/api/collections/${table}/records/${encodeURIComponent(remoteId)}`
         : `/api/collections/${table}/records`,
-      { method: items && items.length > 0 ? 'PATCH' : 'POST', body: form },
+      { method: exists ? 'PATCH' : 'POST', body: form },
     )
-    if (!res.ok) throw new Error(`上传附件 ${id} 失败（HTTP ${res.status}）`)
+    if (!res.ok) throw new Error(`上传附件 ${localId} 失败（HTTP ${res.status}）`)
     return
   }
 
-  const body = JSON.stringify(toPayload(rec))
+  const body = JSON.stringify(exists ? payload : { ...payload, id: pbRecordId })
   const res = await pbAuthedFetch(
     cfg,
-    items && items.length > 0
-      ? `/api/collections/${table}/records/${encodeURIComponent(id)}`
+    exists
+      ? `/api/collections/${table}/records/${encodeURIComponent(remoteId)}`
       : `/api/collections/${table}/records`,
-    { method: items && items.length > 0 ? 'PATCH' : 'POST', body },
+    { method: exists ? 'PATCH' : 'POST', body },
   )
-  if (!res.ok) throw new Error(`推送 ${table}/${id} 失败（HTTP ${res.status}）`)
+  if (!res.ok) throw new Error(`推送 ${table}/${localId} 失败（HTTP ${res.status}）`)
 }
 
 interface PbListResult {
@@ -258,23 +289,30 @@ async function mergeRemote(
   remote: PbRecord,
 ): Promise<'written' | 'skipped'> {
   const table0 = bizTable(table)
-  const local = await table0.get(String(remote.id))
+  // 由远端 localId 字段还原本地 id（服务端主键是哈希 pbId，不可直接当本地 id 用）
+  const localId = typeof remote.localId === 'string' && remote.localId ? remote.localId : ''
+  if (!localId) {
+    console.warn(`[sync] 跳过缺失 localId 的远端记录 ${table}/${remote.id}`)
+    return 'skipped'
+  }
+  const local = await table0.get(localId)
   const remoteUpdatedAt = typeof remote.updatedAt === 'number' ? remote.updatedAt : 0
   const localUpdatedAt = typeof local?.updatedAt === 'number' ? local.updatedAt : 0
   // LWW：只认 updatedAt，新者胜；相等视为本端已推送的回环副本，跳过
   if (remoteUpdatedAt <= localUpdatedAt) return 'skipped'
 
-  // 剥离 pb 系统字段（collectionId/collectionName/created/updated/server_received_at）
+  // 剥离 pb 系统字段（collectionId/collectionName/created/updated/server_received_at）与映射字段 localId
   const {
     collectionId: _c,
     collectionName: _n,
     created: _cr,
     updated: _u,
     server_received_at: _s,
+    localId: _l,
     ...mirrored
   } = remote
   const record: Record<string, unknown> = { ...mirrored }
-  record.id = String(remote.id)
+  record.id = localId
   record.updatedAt = remoteUpdatedAt
   record.deleted = remote.deleted ? 1 : 0
   record.rev = Math.max(typeof local?.rev === 'number' ? local.rev : 0, typeof remote.rev === 'number' ? remote.rev : 0)

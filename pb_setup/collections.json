@@ -10,6 +10,7 @@
     "deleteRule": "@request.auth.id != ''",
     "fields": [
       { "name": "id", "type": "text", "primaryKey": true, "required": true, "autogeneratePattern": "" },
+      { "name": "localId", "type": "text", "required": true },
       { "name": "name", "type": "text" },
       { "name": "role", "type": "text" },
       { "name": "createdAt", "type": "number" },
@@ -20,7 +21,10 @@
       { "name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true },
       { "name": "server_received_at", "type": "autodate", "onCreate": true, "onUpdate": true }
     ],
-    "indexes": ["CREATE INDEX idx_workspaces_updatedAt ON workspaces (updatedAt)"]
+    "indexes": [
+      "CREATE INDEX idx_workspaces_updatedAt ON workspaces (updatedAt)",
+      "CREATE UNIQUE INDEX idx_workspaces_localId ON workspaces (localId)"
+    ]
   },
   {
     "name": "customers",
@@ -33,6 +37,7 @@
     "deleteRule": "@request.auth.id != ''",
     "fields": [
       { "name": "id", "type": "text", "primaryKey": true, "required": true, "autogeneratePattern": "" },
+      { "name": "localId", "type": "text", "required": true },
       { "name": "name", "type": "text" },
       { "name": "company", "type": "text" },
       { "name": "industry", "type": "text" },
@@ -55,7 +60,10 @@
       { "name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true },
       { "name": "server_received_at", "type": "autodate", "onCreate": true, "onUpdate": true }
     ],
-    "indexes": ["CREATE INDEX idx_customers_updatedAt ON customers (updatedAt)"]
+    "indexes": [
+      "CREATE INDEX idx_customers_updatedAt ON customers (updatedAt)",
+      "CREATE UNIQUE INDEX idx_customers_localId ON customers (localId)"
+    ]
   },
   {
     "name": "interactions",
@@ -68,6 +76,7 @@
     "deleteRule": "@request.auth.id != ''",
     "fields": [
       { "name": "id", "type": "text", "primaryKey": true, "required": true, "autogeneratePattern": "" },
+      { "name": "localId", "type": "text", "required": true },
       { "name": "customerId", "type": "text" },
       { "name": "type", "type": "text" },
       { "name": "content", "type": "text" },
@@ -79,7 +88,10 @@
       { "name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true },
       { "name": "server_received_at", "type": "autodate", "onCreate": true, "onUpdate": true }
     ],
-    "indexes": ["CREATE INDEX idx_interactions_updatedAt ON interactions (updatedAt)"]
+    "indexes": [
+      "CREATE INDEX idx_interactions_updatedAt ON interactions (updatedAt)",
+      "CREATE UNIQUE INDEX idx_interactions_localId ON interactions (localId)"
+    ]
   },
   {
     "name": "ledgers",
@@ -92,6 +104,7 @@
     "deleteRule": "@request.auth.id != ''",
     "fields": [
       { "name": "id", "type": "text", "primaryKey": true, "required": true, "autogeneratePattern": "" },
+      { "name": "localId", "type": "text", "required": true },
       { "name": "name", "type": "text" },
       { "name": "currency", "type": "text" },
       { "name": "openingBalance", "type": "number" },
@@ -104,7 +117,10 @@
       { "name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true },
       { "name": "server_received_at", "type": "autodate", "onCreate": true, "onUpdate": true }
     ],
-    "indexes": ["CREATE INDEX idx_ledgers_updatedAt ON ledgers (updatedAt)"]
+    "indexes": [
+      "CREATE INDEX idx_ledgers_updatedAt ON ledgers (updatedAt)",
+      "CREATE UNIQUE INDEX idx_ledgers_localId ON ledgers (localId)"
+    ]
   },
   {
     "name": "transactions",
@@ -117,6 +133,7 @@
     "deleteRule": "@request.auth.id != ''",
     "fields": [
       { "name": "id", "type": "text", "primaryKey": true, "required": true, "autogeneratePattern": "" },
+      { "name": "localId", "type": "text", "required": true },
       { "name": "ledgerId", "type": "text" },
       { "name": "type", "type": "text" },
       { "name": "amount", "type": "number" },
@@ -136,7 +153,10 @@
       { "name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true },
       { "name": "server_received_at", "type": "autodate", "onCreate": true, "onUpdate": true }
     ],
-    "indexes": ["CREATE INDEX idx_transactions_updatedAt ON transactions (updatedAt)"]
+    "indexes": [
+      "CREATE INDEX idx_transactions_updatedAt ON transactions (updatedAt)",
+      "CREATE UNIQUE INDEX idx_transactions_localId ON transactions (localId)"
+    ]
   },
   {
     "name": "todos",
@@ -149,6 +169,7 @@
     "deleteRule": "@request.auth.id != ''",
     "fields": [
       { "name": "id", "type": "text", "primaryKey": true, "required": true, "autogeneratePattern": "" },
+      { "name": "localId", "type": "text", "required": true },
       { "name": "title", "type": "text" },
       { "name": "desc", "type": "text" },
       { "name": "priority", "type": "text" },
@@ -166,7 +187,10 @@
       { "name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true },
       { "name": "server_received_at", "type": "autodate", "onCreate": true, "onUpdate": true }
     ],
-    "indexes": ["CREATE INDEX idx_todos_updatedAt ON todos (updatedAt)"]
+    "indexes": [
+      "CREATE INDEX idx_todos_updatedAt ON todos (updatedAt)",
+      "CREATE UNIQUE INDEX idx_todos_localId ON todos (localId)"
+    ]
   },
   {
     "name": "notes",
@@ -179,6 +203,7 @@
     "deleteRule": "@request.auth.id != ''",
     "fields": [
       { "name": "id", "type": "text", "primaryKey": true, "required": true, "autogeneratePattern": "" },
+      { "name": "localId", "type": "text", "required": true },
       { "name": "title", "type": "text" },
       { "name": "markdown", "type": "text" },
       { "name": "tags", "type": "json" },
@@ -192,7 +217,10 @@
       { "name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true },
       { "name": "server_received_at", "type": "autodate", "onCreate": true, "onUpdate": true }
     ],
-    "indexes": ["CREATE INDEX idx_notes_updatedAt ON notes (updatedAt)"]
+    "indexes": [
+      "CREATE INDEX idx_notes_updatedAt ON notes (updatedAt)",
+      "CREATE UNIQUE INDEX idx_notes_localId ON notes (localId)"
+    ]
   },
   {
     "name": "quickNotes",
@@ -205,6 +233,7 @@
     "deleteRule": "@request.auth.id != ''",
     "fields": [
       { "name": "id", "type": "text", "primaryKey": true, "required": true, "autogeneratePattern": "" },
+      { "name": "localId", "type": "text", "required": true },
       { "name": "content", "type": "text" },
       { "name": "convertedTo", "type": "text" },
       { "name": "createdAt", "type": "number" },
@@ -215,7 +244,10 @@
       { "name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true },
       { "name": "server_received_at", "type": "autodate", "onCreate": true, "onUpdate": true }
     ],
-    "indexes": ["CREATE INDEX idx_quickNotes_updatedAt ON quickNotes (updatedAt)"]
+    "indexes": [
+      "CREATE INDEX idx_quickNotes_updatedAt ON quickNotes (updatedAt)",
+      "CREATE UNIQUE INDEX idx_quickNotes_localId ON quickNotes (localId)"
+    ]
   },
   {
     "name": "habits",
@@ -228,6 +260,7 @@
     "deleteRule": "@request.auth.id != ''",
     "fields": [
       { "name": "id", "type": "text", "primaryKey": true, "required": true, "autogeneratePattern": "" },
+      { "name": "localId", "type": "text", "required": true },
       { "name": "name", "type": "text" },
       { "name": "icon", "type": "text" },
       { "name": "color", "type": "text" },
@@ -244,7 +277,10 @@
       { "name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true },
       { "name": "server_received_at", "type": "autodate", "onCreate": true, "onUpdate": true }
     ],
-    "indexes": ["CREATE INDEX idx_habits_updatedAt ON habits (updatedAt)"]
+    "indexes": [
+      "CREATE INDEX idx_habits_updatedAt ON habits (updatedAt)",
+      "CREATE UNIQUE INDEX idx_habits_localId ON habits (localId)"
+    ]
   },
   {
     "name": "habitLogs",
@@ -257,6 +293,7 @@
     "deleteRule": "@request.auth.id != ''",
     "fields": [
       { "name": "id", "type": "text", "primaryKey": true, "required": true, "autogeneratePattern": "" },
+      { "name": "localId", "type": "text", "required": true },
       { "name": "habitId", "type": "text" },
       { "name": "date", "type": "text" },
       { "name": "completedAt", "type": "number" },
@@ -270,7 +307,8 @@
     ],
     "indexes": [
       "CREATE INDEX idx_habitLogs_updatedAt ON habitLogs (updatedAt)",
-      "CREATE INDEX idx_habitLogs_habitId_date ON habitLogs (habitId, date)"
+      "CREATE INDEX idx_habitLogs_habitId_date ON habitLogs (habitId, date)",
+      "CREATE UNIQUE INDEX idx_habitLogs_localId ON habitLogs (localId)"
     ]
   },
   {
@@ -284,6 +322,7 @@
     "deleteRule": "@request.auth.id != ''",
     "fields": [
       { "name": "id", "type": "text", "primaryKey": true, "required": true, "autogeneratePattern": "" },
+      { "name": "localId", "type": "text", "required": true },
       { "name": "name", "type": "text" },
       { "name": "tier", "type": "text" },
       { "name": "rarity", "type": "text" },
@@ -299,7 +338,10 @@
       { "name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true },
       { "name": "server_received_at", "type": "autodate", "onCreate": true, "onUpdate": true }
     ],
-    "indexes": ["CREATE INDEX idx_trophies_updatedAt ON trophies (updatedAt)"]
+    "indexes": [
+      "CREATE INDEX idx_trophies_updatedAt ON trophies (updatedAt)",
+      "CREATE UNIQUE INDEX idx_trophies_localId ON trophies (localId)"
+    ]
   },
   {
     "name": "attachments",
@@ -312,6 +354,7 @@
     "deleteRule": "@request.auth.id != ''",
     "fields": [
       { "name": "id", "type": "text", "primaryKey": true, "required": true, "autogeneratePattern": "" },
+      { "name": "localId", "type": "text", "required": true },
       { "name": "refType", "type": "text" },
       { "name": "refId", "type": "text" },
       { "name": "name", "type": "text" },
@@ -326,7 +369,10 @@
       { "name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true },
       { "name": "server_received_at", "type": "autodate", "onCreate": true, "onUpdate": true }
     ],
-    "indexes": ["CREATE INDEX idx_attachments_updatedAt ON attachments (updatedAt)"]
+    "indexes": [
+      "CREATE INDEX idx_attachments_updatedAt ON attachments (updatedAt)",
+      "CREATE UNIQUE INDEX idx_attachments_localId ON attachments (localId)"
+    ]
   },
   {
     "name": "sync_state",
@@ -339,6 +385,7 @@
     "deleteRule": "@request.auth.id != ''",
     "fields": [
       { "name": "id", "type": "text", "primaryKey": true, "required": true, "autogeneratePattern": "" },
+      { "name": "localId", "type": "text", "required": true },
       { "name": "user", "type": "text" },
       { "name": "device", "type": "text" },
       { "name": "cursor", "type": "number" },
@@ -347,6 +394,9 @@
       { "name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true },
       { "name": "server_received_at", "type": "autodate", "onCreate": true, "onUpdate": true }
     ],
-    "indexes": ["CREATE INDEX idx_sync_state_user ON sync_state (user)"]
+    "indexes": [
+      "CREATE INDEX idx_sync_state_user ON sync_state (user)",
+      "CREATE UNIQUE INDEX idx_sync_state_localId ON sync_state (localId)"
+    ]
   }
 ]
