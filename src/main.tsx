@@ -1,0 +1,36 @@
+import { StrictMode, useEffect } from 'react'
+import { createRoot } from 'react-dom/client'
+import 'dayjs/locale/zh-cn'
+import dayjs from 'dayjs'
+import AppRouter from './app/router'
+import './styles/index.css'
+import { seedIfEmpty } from './db/seed'
+import { syncEngine } from './sync/engine'
+import { installKeyboardListener } from './shared/shortcuts'
+
+dayjs.locale('zh-cn')
+
+function Bootstrap() {
+  useEffect(() => {
+    // 持久化存储：防手机浏览器回收 IndexedDB（开发计划 2.3 多设备约定）
+    if (navigator.storage?.persist) {
+      void navigator.storage.persist().then((granted) => {
+        if (!granted) console.warn('[storage] 持久化存储未获批，数据可能被浏览器回收')
+      })
+    }
+    void seedIfEmpty().then((seeded) => {
+      if (seeded) console.info('[seed] 演示数据写入完成')
+    })
+    syncEngine.start()
+    installKeyboardListener()
+    return () => syncEngine.stop()
+  }, [])
+
+  return <AppRouter />
+}
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <Bootstrap />
+  </StrictMode>,
+)

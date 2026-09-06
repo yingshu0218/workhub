@@ -1,0 +1,361 @@
+import dayjs from 'dayjs'
+import { db, DEFAULT_WORKSPACE_ID } from './db'
+import type {
+  Workspace,
+  Customer,
+  Ledger,
+  Transaction,
+  Todo,
+  Note,
+  QuickNote,
+  Habit,
+  HabitLog,
+  Trophy,
+  Interaction,
+} from './types'
+
+/**
+ * 种子数据 —— 对齐 design/prototypes 演示数据（陈致远 / 深蓝科技 / 二期款 ¥185,000）
+ * 标记 synced=1，不进同步队列（本地演示数据）
+ */
+const now = Date.now()
+const meta = () => ({ updatedAt: now, deleted: 0 as const, rev: 1, synced: 1 as const })
+
+export async function seedIfEmpty(): Promise<boolean> {
+  const count = await db.customers.count()
+  if (count > 0) return false
+
+  const workspace: Workspace = {
+    id: DEFAULT_WORKSPACE_ID,
+    name: '青枫工作室',
+    role: 'Owner',
+    createdAt: now,
+    ...meta(),
+  }
+
+  const customers: Customer[] = [
+    {
+      id: 'c1',
+      name: '严伟强',
+      company: '深蓝科技',
+      industry: '智能制造',
+      title: '采购总监',
+      decisionLevel: '决策人',
+      tier: 'S',
+      stage: '合同 negotiation · 二期',
+      tags: ['深度工作', '优先跟进', '合同客户'],
+      phone: '138****6672',
+      wechat: 'yanwq_blue',
+      email: 'yanwq@deepblue-tech.com',
+      address: '厦门市软件园二期',
+      healthScore: 94,
+      lastContactAt: now - 2 * 3600_000,
+      createdAt: now - 90 * 86400_000,
+      ...meta(),
+    },
+    {
+      id: 'c2',
+      name: '林晓棠',
+      company: '云上文创',
+      industry: '文化创意',
+      title: '品牌经理',
+      decisionLevel: '影响者',
+      tier: 'A',
+      stage: '方案沟通中',
+      tags: ['内容合作', '潛力客户'],
+      phone: '159****2210',
+      wechat: 'xitang_lin',
+      email: 'linxt@cloudcc.cn',
+      address: '厦门市湖里区',
+      healthScore: 81,
+      lastContactAt: now - 3 * 86400_000,
+      createdAt: now - 45 * 86400_000,
+      ...meta(),
+    },
+    {
+      id: 'c3',
+      name: '赵屹峰',
+      company: '启衡咨询',
+      industry: '咨询服务',
+      title: '合伙人',
+      decisionLevel: '决策人',
+      tier: 'B',
+      stage: '久未跟进',
+      tags: ['观察'],
+      phone: '137****0915',
+      wechat: 'qiheng_zhao',
+      email: 'zhao@qiheng-consult.com',
+      address: '福州市鼓楼区',
+      healthScore: 62,
+      lastContactAt: now - 21 * 86400_000,
+      createdAt: now - 120 * 86400_000,
+      ...meta(),
+    },
+  ]
+
+  const interactions: Interaction[] = [
+    {
+      id: 'i1',
+      customerId: 'c1',
+      type: '会议',
+      content: '二期需求评审会，确认交付范围与时间线，下周回签补充协议',
+      at: now - 2 * 3600_000,
+      ...meta(),
+    },
+    {
+      id: 'i2',
+      customerId: 'c2',
+      type: '电话',
+      content: '沟通品牌年度框架合作意向，对方需要内部预算审批',
+      at: now - 3 * 86400_000,
+      ...meta(),
+    },
+  ]
+
+  const ledgers: Ledger[] = [
+    {
+      id: 'l1',
+      name: '运营主账本',
+      currency: 'CNY',
+      openingBalance: 150000,
+      closingCycle: '月结',
+      createdAt: now - 180 * 86400_000,
+      ...meta(),
+    },
+    {
+      id: 'l2',
+      name: '项目备用金',
+      currency: 'CNY',
+      openingBalance: 20000,
+      closingCycle: '月结',
+      createdAt: now - 60 * 86400_000,
+      ...meta(),
+    },
+  ]
+
+  const transactions: Transaction[] = [
+    {
+      id: 't1',
+      ledgerId: 'l1',
+      type: 'income',
+      amount: 185000,
+      summary: '深蓝科技 · 二期平台开发款',
+      channel: '对公转账',
+      occurredAt: now - 1 * 86400_000,
+      tags: ['项目收款', '深蓝科技'],
+      invoiceNo: 'INV-2026-0892',
+      customerId: 'c1',
+      status: '已结算',
+      ...meta(),
+    },
+    {
+      id: 't2',
+      ledgerId: 'l1',
+      type: 'expense',
+      amount: 8600,
+      summary: '云服务器季度费用',
+      channel: '支付宝',
+      occurredAt: now - 5 * 86400_000,
+      tags: ['基础设施'],
+      status: '待对账',
+      ...meta(),
+    },
+    {
+      id: 't3',
+      ledgerId: 'l2',
+      type: 'expense',
+      amount: 428,
+      summary: '客户拜访差旅 · 打车',
+      channel: '微信支付',
+      occurredAt: now - 2 * 86400_000,
+      tags: ['差旅', 'CRM 关联'],
+      customerId: 'c2',
+      status: '已结算',
+      ...meta(),
+    },
+  ]
+
+  const today = dayjs().format('YYYY-MM-DD')
+  const todos: Todo[] = [
+    {
+      id: 'td1',
+      title: '深蓝科技二期合同终稿校对',
+      desc: '重点核对交付边界条款与验收标准，17:30 前发出',
+      priority: 'P1',
+      dueAt: dayjs().hour(17).minute(30).valueOf(),
+      status: 'doing',
+      customerId: 'c1',
+      createdAt: now - 86400_000,
+      ...meta(),
+    },
+    {
+      id: 'td2',
+      title: '云上文创方案预算部分修订',
+      desc: '按林晓棠反馈调整内容生产模块报价',
+      priority: 'P2',
+      dueAt: dayjs().add(1, 'day').hour(12).valueOf(),
+      status: 'todo',
+      customerId: 'c2',
+      createdAt: now - 2 * 86400_000,
+      ...meta(),
+    },
+    {
+      id: 'td3',
+      title: '季度服务器费用对账',
+      desc: '关联流水 t2，核对发票抬头',
+      priority: 'P2',
+      status: 'todo',
+      ledgerId: 'l1',
+      createdAt: now - 4 * 86400_000,
+      ...meta(),
+    },
+    {
+      id: 'td4',
+      title: '晨间深度写作 90 分钟',
+      desc: 'AI 音乐课程第 3 章大纲',
+      priority: 'P3',
+      status: 'done',
+      completedAt: dayjs().hour(9).minute(41).valueOf(),
+      createdAt: now - 86400_000,
+      ...meta(),
+    },
+  ]
+
+  const notes: Note[] = [
+    {
+      id: 'n1',
+      title: '深蓝科技二期 · 交付边界备忘',
+      markdown:
+        '# 交付边界备忘\n\n## 范围内\n- 平台二期 4 个核心模块\n- 数据迁移脚本\n\n## 范围外\n- 硬件对接（转三期）\n- 定制报表（另行报价）\n\n> 关联客户 @严伟强，款项目前已结清 ¥185,000。',
+      tags: ['合同', '深蓝科技'],
+      backlinks: [],
+      mentions: [{ type: 'customer', id: 'c1', label: '严伟强' }],
+      createdAt: now - 2 * 86400_000,
+      ...meta(),
+    },
+  ]
+
+  const quickNotes: QuickNote[] = [
+    {
+      id: 'qn1',
+      content: '灵感：给课程学员做一个「AI 旋律生成器」小工具作为赠品',
+      createdAt: now - 3600_000,
+      ...meta(),
+    },
+  ]
+
+  const habits: Habit[] = [
+    {
+      id: 'h1',
+      name: '深度专注',
+      icon: 'psychology',
+      color: '#2563eb',
+      category: '工作',
+      schedule: '每日',
+      targetMinutes: 25,
+      motivationNote: '专注力是自由职业者唯一的护城河',
+      crossModuleSync: true,
+      createdAt: now - 60 * 86400_000,
+      ...meta(),
+    },
+    {
+      id: 'h2',
+      name: '客户跟进',
+      icon: 'handshake',
+      color: '#0f6e56',
+      category: '商务',
+      schedule: '每日',
+      targetMinutes: 15,
+      motivationNote: '每一条线索都值得被认真对待',
+      crossModuleSync: true,
+      createdAt: now - 45 * 86400_000,
+      ...meta(),
+    },
+    {
+      id: 'h3',
+      name: '睡前复盘',
+      icon: 'edit_note',
+      color: '#854f0b',
+      category: '成长',
+      schedule: '每日',
+      targetMinutes: 10,
+      motivationNote: '不总结，就没有积累',
+      crossModuleSync: false,
+      createdAt: now - 30 * 86400_000,
+      ...meta(),
+    },
+  ]
+
+  const trophy: Omit<Trophy, 'id'>[] = [
+    {
+      name: '首笔大额回款',
+      tier: '金',
+      rarity: '8.1%',
+      description: '单笔项目款首次突破 5 位数',
+      icon: 'emoji_events',
+      unlockedAt: now - 86400_000,
+      ...meta(),
+    },
+    {
+      name: '21 天稳态达成',
+      tier: '白金',
+      rarity: '2.3%',
+      description: '任一习惯连续打卡 21 天',
+      icon: 'military_tech',
+      unlockedAt: now - 3 * 86400_000,
+      ...meta(),
+    },
+    {
+      name: '团队笔记开张',
+      tier: '铜',
+      rarity: '43.7%',
+      description: '创建第一篇团队笔记',
+      icon: 'description',
+      unlockedAt: now - 60 * 86400_000,
+      ...meta(),
+    },
+  ]
+  const trophies: Trophy[] = trophy.map((t, i) => ({ ...t, id: `tr${i + 1}` }))
+
+  await db.transaction(
+    'rw',
+    [
+      db.workspaces,
+      db.customers,
+      db.interactions,
+      db.ledgers,
+      db.transactions,
+      db.todos,
+      db.notes,
+      db.quickNotes,
+      db.habits,
+      db.habitLogs,
+      db.trophies,
+    ],
+    async () => {
+      await db.workspaces.put(workspace)
+      await db.customers.bulkPut(customers)
+      await db.interactions.bulkPut(interactions)
+      await db.ledgers.bulkPut(ledgers)
+      await db.transactions.bulkPut(transactions)
+      await db.todos.bulkPut(todos)
+      await db.notes.bulkPut(notes)
+      await db.quickNotes.bulkPut(quickNotes)
+      await db.habits.bulkPut(habits)
+      await db.habitLogs.bulkPut(
+        habits.map(
+          (h, i): HabitLog => ({
+            id: `hl-${today}-${h.id}`,
+            habitId: h.id,
+            date: today,
+            completedAt: now - i * 600_000,
+            ...meta(),
+          }),
+        ),
+      )
+      await db.trophies.bulkPut(trophies)
+      await db.meta.put({ key: 'seeded', value: now })
+    },
+  )
+  return true
+}

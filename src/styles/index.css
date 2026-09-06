@@ -1,0 +1,84 @@
+@import 'tailwindcss';
+@import 'material-symbols/rounded.css';
+
+@theme {
+  /* ===== 寻鸽工作台设计 token（源自 design/DESIGN.md） ===== */
+  --color-surface: #f8f9ff;
+  --color-on-surface: #0b1c30;
+  --color-on-surface-variant: #434655;
+  --color-outline: #737686;
+  --color-outline-variant: #c3c6d7;
+
+  --color-primary: #004ac6;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #2563eb;
+  --color-on-primary-container: #eeefff;
+  --color-primary-fixed: #dbe1ff;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #eff4ff;
+  --color-surface-container: #e5eeff;
+  --color-surface-container-high: #dce9ff;
+
+  --color-success: #006c49;
+  --color-success-container: #6cf8bb;
+  --color-warning: #943700;
+  --color-warning-container: #ffede6;
+  --color-danger: #ba1a1a;
+  --color-danger-container: #ffdad6;
+
+  --font-sans: 'Inter', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC',
+    sans-serif;
+
+  --radius-card: 8px;
+  --radius-xl-card: 12px;
+}
+
+/* ===== 全局基础 ===== */
+html {
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+body {
+  @apply bg-surface text-on-surface font-sans antialiased;
+}
+
+/* 卡片层级（DESIGN.md: Level 1 白卡 + 柔和阴影） */
+.card {
+  @apply rounded-lg border border-outline-variant/40 bg-surface-container-lowest;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.card-hover {
+  @apply transition-shadow hover:shadow-[0_4px_12px_rgba(0,0,0,0.08)];
+}
+
+/* Material Symbols 对齐 */
+.material-symbols-rounded {
+  font-variation-settings:
+    'FILL' 0,
+    'wght' 400,
+    'GRAD' 0,
+    'opsz' 24;
+  font-size: 20px;
+  line-height: 1;
+  vertical-align: middle;
+}
+
+.msr-fill {
+  font-variation-settings:
+    'FILL' 1,
+    'wght' 400;
+}
+
+/* 滚动条 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  @apply rounded-full bg-outline-variant;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
