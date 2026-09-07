@@ -79,3 +79,4 @@
 | 30 | 2026-09-07 | 建立进度文档 docs/PROGRESS.md（阶段/里程碑/架构定案/待办全量快照+更新规则）；README 协作约定补进度文档维护要求（同 commit 更新，最高优先） | yingshu0218 |
 | 31 | 2026-09-07 | 笔记模块 3 项增强/修复（Issue #4）：新增文件夹文件树体系（noteFolders 表 + notes.folderId，Dexie v6，PB collections 同步升级）、空文档首行 placeholder 撑高修复（改单行文案）、笔记列表进入只读查看态（?edit=1 显式编辑，新建笔记默认编辑）；PROGRESS.md / 部署指南同步更新 | cnb.cMPXRmKswEA |
 | 32 | 2026-09-07 | 同步机制 P0 修复入库（Issue #2，PR #6）：P0-1 墓碑清理竞态修复 + P0-2 推送侧 LWW 服务端校验 + P1-3 服务端墓碑 cron；合并 main（笔记文件夹改动），解决 PROGRESS/部署指南冲突，Changelog 编号修正 | npc/CodeBuddy |
+| 33 | 2026-09-07 | 笔记模块 3 项交互修复（Issue #4 二轮验证反馈）：列表行固定行高不再随 hover 变化、tag/关联/文件夹等属性统一移到行尾、查看改为弹窗（背景虚化 + 居中卡片，卡片上编辑按钮跳转编辑视图，关闭/Esc 返回列表）；进度文档同步更新 | cnb.cMPXRmKswEA |

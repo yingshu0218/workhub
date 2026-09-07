@@ -1,11 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Icon } from '@/design-system/Icon'
 import { useNavigate } from 'react-router-dom'
 import { noteRepo, newId } from '@/repositories'
 import { Button, Card, EmptyState, PageHeader, inputCls } from '@/design-system/ui'
 import dayjs from 'dayjs'
-import { tagStyle } from './shared'
-import { useNoteList, useNoteFolders, createNoteFolder, renameNoteFolder, deleteNoteFolderCascade, moveNoteToFolder } from './hooks'
+import { NOTE_PROSE_CSS, renderMarkdown, tagStyle, wordCount } from './shared'
+import { useNoteList, useNoteFolders, useNoteRecord, createNoteFolder, renameNoteFolder, deleteNoteFolderCascade, moveNoteToFolder } from './hooks'
 import type { NoteFolder } from '@/db/types'
 
 /** 相对时间（列表行右侧） */
@@ -30,6 +30,8 @@ export default function NotesPage() {
   const [scope, setScope] = useState<Scope>({ kind: 'all' })
   const [newFolderName, setNewFolderName] = useState('')
   const [addingFolder, setAddingFolder] = useState(false)
+  // 查看弹窗：当前正在弹窗预览的笔记 id（null=关闭）
+  const [viewId, setViewId] = useState<string | null>(null)
 
   /** 标签聚合（含计数），按引用次数降序 */
   const tagCloud = useMemo(() => {
@@ -251,7 +253,7 @@ export default function NotesPage() {
           )}
         </Card>
 
-        {/* 右侧：笔记列表（updatedAt 降序），点击进入只读查看页 */}
+        {/* 右侧：笔记列表（updatedAt 降序），点击行打开查看弹窗 */}
         {list.length === 0 ? (
           <Card className="flex-1 p-6">
             <EmptyState
@@ -263,7 +265,7 @@ export default function NotesPage() {
             />
           </Card>
         ) : (
-          <Card className="flex-1 divide-y divide-outline-variant/30 px-5">
+          <Card className="flex-1 divide-y divide-outline-variant/30 px-5 py-1">
             <div className="flex items-center justify-between py-2 text-[12px] text-outline">
               <span>
                 当前范围：<span className="font-medium text-on-surface-variant">{scopeLabel()}</span>
@@ -273,85 +275,200 @@ export default function NotesPage() {
             {list.map((n) => (
               <div
                 key={n.id}
-                onClick={() => navigate(`/notes/${n.id}`)}
-                className="group cursor-pointer py-3.5 transition-colors hover:bg-surface-container-low/40"
+                onClick={() => setViewId(n.id)}
+                className="group flex h-11 shrink-0 cursor-pointer items-center gap-2 rounded-lg px-2 -mx-2 transition-colors hover:bg-surface-container-low/60"
               >
-                <div className="flex items-center gap-2">
-                  <Icon name="description" className="text-[18px] text-primary" />
-                  <span className="truncate text-[14px] font-medium group-hover:text-primary">{n.title}</span>
-                  <span className="ml-auto shrink-0 text-[11px] text-outline">{fmtTime(n.updatedAt)}</span>
-                </div>
-                {/* 投影行不含 markdown，摘要以关联实体替代（点击进入查看页阅读全文） */}
-                {n.mentions.length > 0 && (
-                  <p className="mt-0.5 line-clamp-1 pl-[26px] text-[12.5px] leading-relaxed text-on-surface-variant">
-                    关联：{n.mentions.map((m) => `@${m.label}`).join('、')}
-                  </p>
-                )}
-                <div className="mt-1.5 flex flex-wrap items-center gap-1.5 pl-[26px]">
-                  {n.tags.map((t) => (
+                <Icon name="description" className="shrink-0 text-[18px] text-primary" />
+                <span className="min-w-0 flex-1 truncate text-[14px] font-medium group-hover:text-primary">{n.title}</span>
+                {/* 属性区固定靠行尾：tag / 关联 / 文件夹 / 时间，不随 hover 变化 */}
+                <span className="flex shrink-0 items-center gap-1.5 overflow-hidden">
+                  {n.tags.slice(0, 3).map((t) => (
                     <span
                       key={t}
-                      className="rounded-full px-2 py-0.5 text-[11px] font-medium"
+                      className="hidden rounded-full px-2 py-0.5 text-[11px] font-medium leading-none sm:inline-block"
                       style={tagStyle(t)}
                     >
                       #{t}
                     </span>
                   ))}
+                  {n.tags.length > 3 && (
+                    <span className="hidden text-[11px] text-outline sm:inline">+{n.tags.length - 3}</span>
+                  )}
                   {n.mentions.length > 0 && (
                     <span
-                      className="flex items-center gap-0.5 text-[11px] text-outline"
+                      className="flex shrink-0 items-center gap-0.5 text-[11px] text-outline"
                       title={n.mentions.map((m) => m.label).join('、')}
                     >
                       <Icon name="hub" size={13} />
-                      {n.mentions.length} 个关联
+                      {n.mentions.length}
                     </span>
                   )}
                   {(() => {
                     const f = folders.find((x) => x.id === n.folderId)
                     if (!f) return null
                     return (
-                      <span className="flex items-center gap-0.5 rounded-full bg-surface-container-low px-2 py-0.5 text-[11px] text-on-surface-variant">
+                      <span className="hidden shrink-0 items-center gap-0.5 rounded-full bg-surface-container-low px-2 py-0.5 text-[11px] text-on-surface-variant md:flex">
                         <Icon name="folder" size={12} />
                         {f.name}
                       </span>
                     )
                   })()}
-                  {/* 归档/移动文件夹（阻止行点击冒泡） */}
-                  <button
-                    className="ml-auto hidden items-center gap-0.5 rounded-full px-2 py-0.5 text-[11px] text-outline transition-colors hover:bg-surface-container-high hover:text-on-surface group-hover:flex"
-                    title="移动到文件夹"
-                    onClick={async (e) => {
-                      e.stopPropagation()
-                      const options = [
-                        ...(n.folderId ? ['（移回未归档）'] : []),
-                        ...folders.filter((f) => f.id !== n.folderId).map((f) => f.name),
-                      ]
-                      if (options.length === 0) {
-                        window.alert('暂无文件夹，可先在左栏「新建文件夹」')
-                        return
-                      }
-                      const pick = window.prompt(
-                        `移动「${n.title}」到：\n${folders.map((f, i) => `${i + 1}. ${f.name}`).join('\n')}${n.folderId ? '\n0. 移回未归档' : ''}\n\n输入编号：`,
-                      )
-                      if (pick === null) return
-                      const idx = parseInt(pick, 10)
-                      const targets = folders.filter((f) => f.id !== n.folderId)
-                      if (n.folderId && idx === 0) {
-                        await moveNoteToFolder(n.id, undefined)
-                        return
-                      }
-                      const target = targets[idx - 1]
-                      if (target) await moveNoteToFolder(n.id, target.id)
-                    }}
-                  >
-                    <Icon name="drive_file_move" size={13} />
-                    移动
-                  </button>
-                </div>
+                  <span className="w-10 shrink-0 text-right text-[11px] text-outline">{fmtTime(n.updatedAt)}</span>
+                </span>
               </div>
             ))}
           </Card>
         )}
+      </div>
+
+      {/* 查看弹窗：背景虚化遮罩 + 居中卡片，关闭即返回列表 */}
+      {viewId && (
+        <NoteViewModal
+          noteId={viewId}
+          onClose={() => setViewId(null)}
+          onEdit={(id) => navigate(`/notes/${id}?edit=1`)}
+        />
+      )}
+    </div>
+  )
+}
+
+/**
+ * 笔记查看弹窗（非全屏）：遮罩 backdrop-blur 虚化背景，居中卡片渲染 markdown 成品。
+ * 卡片底部「编辑」跳转编辑视图，「关闭」/Esc/点遮罩返回列表。
+ */
+function NoteViewModal({
+  noteId,
+  onClose,
+  onEdit,
+}: {
+  noteId: string
+  onClose: () => void
+  onEdit: (id: string) => void
+}) {
+  const note = useNoteRecord(noteId)
+  const folders = useNoteFolders()
+  const html = useMemo(() => renderMarkdown(note?.markdown ?? ''), [note?.markdown])
+
+  // Esc 关闭 + 弹窗期间锁定背景滚动
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', onKey)
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prevOverflow
+    }
+  }, [onClose])
+
+  if (!note) return null
+  const cur = note // 局部常量：函数体内 TS 不保留 if 缩窄，改捕获非空引用
+  const folder = folders.find((f) => f.id === cur.folderId)
+
+  function exportMd() {
+    const blob = new Blob([cur.markdown], { type: 'text/markdown;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = (cur.title.trim() || '未命名笔记').replace(/[\\/:*?"<>|]/g, '_') + '.md'
+    link.click()
+    setTimeout(() => URL.revokeObjectURL(url), 3000)
+  }
+
+  async function handleDelete() {
+    if (!window.confirm(`确认删除笔记「${cur.title}」？`)) return
+    await noteRepo.softDelete(cur.id)
+    onClose()
+  }
+
+  async function handleMove() {
+    const targets = folders.filter((f) => f.id !== cur.folderId)
+    if (targets.length === 0 && !cur.folderId) {
+      window.alert('暂无文件夹，可先在左栏「新建文件夹」')
+      return
+    }
+    const pick = window.prompt(
+      `移动「${cur.title}」到：
+${folders.map((f, i) => `${i + 1}. ${f.name}`).join('\n')}${cur.folderId ? '\n0. 移回未归档' : ''}\n\n输入编号：`,
+    )
+    if (pick === null) return
+    const idx = parseInt(pick, 10)
+    if (cur.folderId && idx === 0) {
+      await moveNoteToFolder(cur.id, undefined)
+      return
+    }
+    const target = targets[idx - 1]
+    if (target) await moveNoteToFolder(cur.id, target.id)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8">
+      <style>{NOTE_PROSE_CSS}</style>
+      {/* 遮罩：背景虚化，点击返回 */}
+      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
+      {/* 卡片：非全屏居中，最大 3xl 宽 / 88vh 高，内部滚动 */}
+      <div className="relative flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-outline-variant/50 bg-surface-container-lowest shadow-[0_24px_64px_rgba(0,0,0,0.24)]">
+        {/* 卡片头：标题 + 关闭 */}
+        <div className="flex shrink-0 items-center gap-2 border-b border-outline-variant/40 px-5 py-3.5">
+          <Icon name="description" className="shrink-0 text-[20px] text-primary" />
+          <h2 className="min-w-0 flex-1 truncate text-[16px] font-bold tracking-tight">
+            {note.title.trim() || '未命名笔记'}
+          </h2>
+          <button
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface"
+            onClick={onClose}
+            title="关闭，返回上个页面"
+          >
+            <Icon name="close" />
+          </button>
+        </div>
+        {/* 属性行：标签 / 文件夹 / 关联 / 更新时间 / 字数（固定高度） */}
+        <div className="flex h-9 shrink-0 items-center gap-2 overflow-hidden border-b border-outline-variant/30 px-5 text-[12px] text-on-surface-variant">
+          {note.tags.map((t) => (
+            <span key={t} className="rounded-full px-2 py-0.5 text-[11px] font-medium leading-none" style={tagStyle(t)}>
+              #{t}
+            </span>
+          ))}
+          {note.tags.length === 0 && <span className="text-outline">暂无标签</span>}
+          <span className="ml-auto flex shrink-0 items-center gap-2 text-[11px] text-outline">
+            {folder && (
+              <span className="flex items-center gap-0.5">
+                <Icon name="folder" size={12} />
+                {folder.name}
+              </span>
+            )}
+            {note.mentions.length > 0 && (
+              <span className="flex items-center gap-0.5" title={note.mentions.map((m) => m.label).join('、')}>
+                <Icon name="hub" size={12} />
+                {note.mentions.length} 个关联
+              </span>
+            )}
+            <span>{dayjs(note.updatedAt).format('YYYY-MM-DD HH:mm')}</span>
+            <span>{wordCount(note.markdown).toLocaleString('zh-CN')} 字</span>
+          </span>
+        </div>
+        {/* 正文：markdown 最终预览成品 */}
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+          <div className="note-prose mx-auto max-w-[720px]" dangerouslySetInnerHTML={{ __html: html }} />
+        </div>
+        {/* 卡片底操作条 */}
+        <div className="flex shrink-0 items-center justify-end gap-2 border-t border-outline-variant/40 px-5 py-3">
+          <Button size="sm" variant="ghost" icon="drive_file_move" onClick={() => void handleMove()}>
+            移动
+          </Button>
+          <Button size="sm" variant="ghost" icon="download" onClick={exportMd}>
+            导出
+          </Button>
+          <Button size="sm" variant="ghost" icon="delete" onClick={() => void handleDelete()}>
+            删除
+          </Button>
+          <Button size="sm" icon="edit" onClick={() => onEdit(note.id)}>
+            编辑
+          </Button>
+        </div>
       </div>
     </div>
   )
