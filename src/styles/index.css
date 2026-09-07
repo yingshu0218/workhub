@@ -89,8 +89,17 @@ body {
 }
 
 /* Material Symbols 对齐 */
+/* ── 图标字体加载门控：就绪前隐藏图标（防裸文本 FOUC），宽度锁定 1em 防布局抖动 ── */
+html.icons-loading .material-symbols-rounded {
+  visibility: hidden;
+}
+
 .material-symbols-rounded {
   font-family: 'Material Symbols Rounded';
+  display: inline-block;
+  width: 1em;
+  overflow: hidden;
+  white-space: nowrap;
   font-variation-settings:
     'FILL' 0,
     'wght' 400,

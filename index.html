@@ -21,6 +21,10 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // 图标字体加载门控：首帧前即隐藏图标（main.tsx 字体就绪后移除，4s 超时兜底）
+      document.documentElement.classList.add('icons-loading')
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
