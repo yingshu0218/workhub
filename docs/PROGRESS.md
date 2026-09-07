@@ -2,7 +2,7 @@
 
 > **本仓库的唯一进度事实来源。** 所有人（含 AI 开发代理）推进或变更任何开发工作，必须在**同一个 commit** 里同步更新本文件对应状态。README 底部的 Changelog 记录"发生了什么"，本文档记录"现在处于什么状态"——前者追加式流水，后者始终反映最新全貌。
 
-**最后更新**：2026-09-07（账本左侧树 + 拖拽排序 + 记账模糊匹配，Issue #9） · 维护人：yingshu0218 / cnb.cMPXRmKswEA
+**最后更新**：2026-09-07（CRM 客户时间线：P1 三源统一时间轴投影（PR #15）+ P2 鱼骨视图（本 PR），Issue #11） · 维护人：yingshu0218 / cnb.cMPXRmKswEA
 
 ---
 
@@ -58,6 +58,16 @@
 | 绑定域名 + HTTPS | 激活 PWA 离线缓存/可安装、消除明文警告；绑好跑一次 certbot |
 | 双端真机日常使用 | 手机+电脑配同步各一次，用几天验证 LWW/断网补传实际体验 |
 | 服务端重导入 collections.json | 笔记文件夹上线需导入新表 noteFolders + notes.folderId 字段（Dexie v6），见部署指南「Schema 升级流程」；完成后执行一次「全量推送」 |
+
+### CRM 客户时间线（Issue #11，进行中）
+
+| 项 | 状态 |
+|---|---|
+| P1 三源统一时间轴投影（timeline.ts + 详情页日志卡片重构） | ✅ PR #15 已通过 R1 复核审计（🟢 无阻塞项），待合并 |
+| P2 客户时间线鱼骨视图（本 PR） | ✅ 已实装：CustomerTimelinePage（/crm/:id/timeline）+ usePanZoom 共享 hook + 路由/入口；纯 SVG 零新依赖，数据复用 useCustomerTimeline 投影；tsc/vite/eslint 通过，待 R2 复审 |
+| P3 打磨（刺点聚合密度 + 空态/移动端适配） | ⏳ 未开始 |
+| R2 整体复核审计 | ⏳ P2/P3 完成后由 deepseek-v4-flash 执行 |
+| 语义遗留 | 交易结算不刷新 lastContactAt（用户未拍板，随时可加一行事务内 update）；todo 拆 created/done 两个事件点（用户已确认接受） |
 
 ### 同步机制完善（Issue #2，P0/P1 已实装待验收）
 
