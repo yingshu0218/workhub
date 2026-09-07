@@ -5,10 +5,18 @@ import type { Habit } from '@/db/types'
 import { habitLogRepo, habitLogId, deleteHabitCascade } from '@/repositories'
 import { eventBus } from '@/shared/eventBus'
 import { Button, Card, Chip, EmptyState, PageHeader } from '@/design-system/ui'
-import { useHabitStats, useHabitMonthCounts, useCompletedHabitsOn, useTodayCheckCount } from './hooks'
+import { useHabitStats, useHabitMonthCounts, useCompletedHabitsOn, useTodayCheckCount, useHabitMood } from './hooks'
 import { HabitFormDrawer } from './HabitFormDrawer'
 
 const WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日']
+
+/** 稳态评语色点（对应设计系统语义色） */
+const MOOD_TONE_CLASS: Record<NonNullable<ReturnType<typeof useHabitMood>>['tone'], string> = {
+  green: 'bg-success',
+  amber: 'bg-warning',
+  red: 'bg-danger',
+  blue: 'bg-primary',
+}
 
 /** 当日完成习惯数 → 热力色阶（0=灰 / 1-2=浅绿 / 3+=深绿） */
 function heatClass(count: number): string {
@@ -27,6 +35,7 @@ export default function HabitsPage() {
   const counts = useHabitMonthCounts(month)
   const dayHabits = useCompletedHabitsOn(selectedDate)
   const todayDone = useTodayCheckCount()
+  const mood = useHabitMood()
 
   const todayStr = dayjs().format('YYYY-MM-DD')
   const monthLabel = dayjs(month + '-01').format('YYYY年M月')
@@ -91,7 +100,15 @@ export default function HabitsPage() {
       {/* 月历热力图 */}
       <Card className="mb-4 p-5">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-[15px] font-semibold">本月热力图</h2>
+          <div className="flex min-w-0 items-center gap-2">
+            <h2 className="text-[15px] font-semibold">本月热力图</h2>
+            {mood && (
+              <span className="flex items-center gap-1.5 text-[12px] text-on-surface-variant" title="基于近 7 天完成率与当前连击推导">
+                <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${MOOD_TONE_CLASS[mood.tone]}`} />
+                {mood.label}
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-1">
             <button className="rounded-md p-1.5 text-on-surface-variant hover:bg-surface-container-low" onClick={() => shiftMonth(-1)}>
               <Icon name="chevron_left" size={20} />

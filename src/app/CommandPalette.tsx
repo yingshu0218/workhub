@@ -83,9 +83,9 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
   }
 
   const quickActions = [
-    { icon: 'bolt', label: '灵感闪现', desc: '随机抽取待办 / 核心人脉', kbd: '⌘R', run: () => { onClose(); navigate('/inspiration') } },
-    { icon: 'post_add', label: '记一笔', desc: '录入应收/应付资金往来凭据', kbd: '⌘N', run: () => { onClose(); navigate('/finance') } },
-    { icon: 'edit_note', label: '新建笔记', desc: '双向链接与思维白板', kbd: '⌘⇧N', run: () => void createNote() },
+    { icon: 'bolt', label: '灵感闪现', desc: '随机抽取待办 / 核心人脉', kbd: '⌘I', run: () => { onClose(); navigate('/inspiration') } },
+    { icon: 'post_add', label: '记一笔', desc: '录入应收/应付资金往来凭据', kbd: '⌘E', run: () => { onClose(); navigate('/finance') } },
+    { icon: 'edit_note', label: '新建笔记', desc: '双向链接与思维白板', kbd: '⌘N', run: () => void createNote() },
   ]
 
   const onKeyDown = (e: React.KeyboardEvent) => {
@@ -193,7 +193,9 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
               >
                 <div className="flex items-center justify-between">
                   <Icon name={a.icon} className="text-[18px] text-primary" />
-                  <kbd className="rounded bg-surface-container-high px-1 text-[10px] text-outline">{a.kbd}</kbd>
+                  <kbd className="rounded-md border border-outline-variant/50 bg-surface-container-high px-1.5 py-px font-mono text-[10px] text-outline">
+                    {a.kbd}
+                  </kbd>
                 </div>
                 <div className="mt-1.5 text-[12.5px] font-semibold">{a.label}</div>
                 <div className="truncate text-[10.5px] text-outline">{a.desc}</div>

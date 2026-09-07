@@ -142,3 +142,64 @@ export function useTodayCheckCount(): number {
   }, [])
   return count ?? 0
 }
+
+export interface HabitMood {
+  /** 评语文案 */
+  label: string
+  /** 色点色调（对应设计系统语义色） */
+  tone: 'green' | 'amber' | 'red' | 'blue'
+}
+
+/** 某习惯当日期望权重：每日=1 / 工作日=周一至五 / 每周N次=N/7（完成率分母同源） */
+function dailyExpectedWeight(schedule: string, dow: number): number {
+  if (schedule === '工作日') return dow >= 1 && dow <= 5 ? 1 : 0
+  const m = schedule.match(/^每周(\d+)次$/)
+  if (m) return Math.min(7, Math.max(1, Number(m[1]))) / 7
+  return 1
+}
+
+/**
+ * 稳态评语（热力图卡片头部右侧，对齐原型 07）：
+ * 近 7 天完成率≥80% 且当前连击≥7 → 稳态保持中 🔥；连击 3-6 → 习惯巩固中；
+ * 近 7 天完成率<30% → 波动期，别放弃；其余 → 稳步积累中
+ */
+export function useHabitMood(): HabitMood | null {
+  const mood = useQuery<HabitMood | null>(async () => {
+    const [habits, logs] = await Promise.all([
+      db.habits.filter((h) => !h.deleted).toArray(),
+      db.habitLogs.filter((l) => !l.deleted).toArray(),
+    ])
+    if (habits.length === 0) return null
+    const today = dayjs()
+    const doneKeys = new Set(logs.map((l) => `${l.habitId}|${l.date}`))
+    // 近 7 天完成率：完成权重 / 期望权重（按 schedule 逐日推导）
+    let expected = 0
+    let done = 0
+    for (let i = 0; i < 7; i++) {
+      const d = today.subtract(i, 'day')
+      const dateStr = d.format('YYYY-MM-DD')
+      for (const h of habits) {
+        const need = dailyExpectedWeight(h.schedule, d.day())
+        if (need <= 0) continue
+        expected += need
+        if (doneKeys.has(`${h.id}|${dateStr}`)) done += need
+      }
+    }
+    const rate = expected > 0 ? done / expected : 0
+    // 当前连击：任一习惯的最大 calcStreak（与 useHabitStats 同源推导）
+    const byHabit = new Map<string, Set<string>>()
+    for (const l of logs) {
+      if (!byHabit.has(l.habitId)) byHabit.set(l.habitId, new Set())
+      byHabit.get(l.habitId)!.add(l.date)
+    }
+    let streak = 0
+    byHabit.forEach((dates) => {
+      streak = Math.max(streak, calcStreak(dates))
+    })
+    if (rate >= 0.8 && streak >= 7) return { label: '稳态保持中 🔥', tone: 'green' }
+    if (streak >= 3) return { label: '习惯巩固中', tone: 'amber' }
+    if (rate < 0.3) return { label: '波动期，别放弃', tone: 'red' }
+    return { label: '稳步积累中', tone: 'blue' }
+  }, [])
+  return mood ?? null
+}

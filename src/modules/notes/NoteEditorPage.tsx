@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Icon } from '@/design-system/Icon'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useCollection } from '@/queries/hooks'
@@ -31,6 +31,34 @@ const TYPE_META: Record<MentionType, { tab: string; cls: string }> = {
   todo: { tab: '待办', cls: 'md-mention-todo' },
   ledger: { tab: '账本', cls: 'md-mention-ledger' },
 }
+
+/** 工具栏动作：linePrefix=true 时按行加前缀（标题/列表/引用），否则前后包裹选区/占位文本 */
+interface MdAction {
+  id: string
+  title: string
+  prefix: string
+  suffix?: string
+  placeholder: string
+  linePrefix?: boolean
+  /** 按钮内容；缺省用 label 文本（B/I/H1 等原型同款文字符号） */
+  render?: () => ReactNode
+}
+
+const MD_ACTIONS: MdAction[] = [
+  { id: 'bold', title: '粗体 **文本**', prefix: '**', suffix: '**', placeholder: '粗体文本', render: () => <span className="font-bold">B</span> },
+  { id: 'italic', title: '斜体 *文本*', prefix: '*', suffix: '*', placeholder: '斜体文本', render: () => <span className="font-serif italic">I</span> },
+  { id: 'h1', title: '一级标题 #', prefix: '# ', placeholder: '标题文本', linePrefix: true, render: () => <span className="font-mono text-[11px] font-semibold">H1</span> },
+  { id: 'h2', title: '二级标题 ##', prefix: '## ', placeholder: '标题文本', linePrefix: true, render: () => <span className="font-mono text-[11px] font-semibold">H2</span> },
+  { id: 'ul', title: '无序列表 -', prefix: '- ', placeholder: '列表项', linePrefix: true, render: () => <span className="text-[13px] leading-none">≡</span> },
+  { id: 'ol', title: '有序列表 1.', prefix: '1. ', placeholder: '列表项', linePrefix: true, render: () => <span className="font-mono text-[11px]">1.</span> },
+  { id: 'quote', title: '引用 >', prefix: '> ', placeholder: '引用内容', linePrefix: true, render: () => <span className="font-serif text-[14px] leading-none">❝</span> },
+  { id: 'code', title: '行内代码 `', prefix: '`', suffix: '`', placeholder: '代码', render: () => <span className="font-mono text-[11px]">&lt;/&gt;</span> },
+  { id: 'codeblock', title: '代码块 ```', prefix: '```\n', suffix: '\n```', placeholder: '代码块', render: () => <Icon name="data_object" size={14} /> },
+  { id: 'link', title: '链接 [文本](url)', prefix: '[', suffix: '](https://)', placeholder: '链接文本', render: () => <Icon name="link" size={14} /> },
+]
+
+/** 分组边界（在哪些动作前插入分隔线）：标题组、列表组、代码组 */
+const MD_GROUP_BREAKS = new Set(['h1', 'ul', 'codeblock'])
 
 /** 笔记编辑页（对齐原型 12-team-notes 右侧工作区），路由 /notes/:id */
 export default function NoteEditorPage() {
@@ -179,6 +207,45 @@ function NoteEditor({ note }: { note: Note }) {
     })
     view.focus()
     closeMention()
+  }
+
+  // ===== 工具栏：在光标/选区处插入 Markdown 语法 =====
+  function applyMd(a: MdAction) {
+    const view = viewRef.current
+    if (!view) return
+    const { state } = view
+    const { from, to } = state.selection.main
+    const sel = state.doc.sliceString(from, to)
+
+    if (a.linePrefix) {
+      // 行前缀类：选区跨行时逐行加前缀
+      const lineFrom = state.doc.lineAt(from).from
+      const body = sel || a.placeholder
+      const inserted = body
+        .split('\n')
+        .map((l) => `${a.prefix}${l}`)
+        .join('\n')
+      view.dispatch({
+        changes: { from: lineFrom, to, insert: inserted },
+        selection: { anchor: lineFrom, head: lineFrom + inserted.length },
+      })
+    } else if (sel) {
+      // 有选区：包裹选区，选区保持选中
+      const inserted = `${a.prefix}${sel}${a.suffix ?? ''}`
+      view.dispatch({
+        changes: { from, to, insert: inserted },
+        selection: { anchor: from + a.prefix.length, head: from + a.prefix.length + sel.length },
+      })
+    } else {
+      // 无选区：插入占位文本并选中，方便直接输入覆盖
+      const inserted = `${a.prefix}${a.placeholder}${a.suffix ?? ''}`
+      view.dispatch({
+        changes: { from, to, insert: inserted },
+        selection: { anchor: from + a.prefix.length, head: from + a.prefix.length + a.placeholder.length },
+      })
+    }
+    view.focus()
+    // docChanged 由 updateListener 捕获 → 自动走 scheduleSave 防抖落库
   }
 
   const mentionItems = useMemo<MentionItem[]>(() => {
@@ -426,6 +493,23 @@ function NoteEditor({ note }: { note: Note }) {
           <div className="flex items-center justify-between border-b border-outline-variant/30 bg-surface-container-low/40 px-4 py-1.5 text-[11px] font-medium tracking-wide text-outline">
             <span>MARKDOWN SOURCE EDITOR</span>
             <span>键入 @ 提及实体</span>
+          </div>
+          {/* 格式工具栏（对齐原型 12）：onMouseDown 阻断默认行为，保持 CodeMirror 光标与选区 */}
+          <div className="flex flex-wrap items-center gap-0.5 border-b border-outline-variant/30 bg-surface-container-low/60 px-2 py-1">
+            {MD_ACTIONS.map((a) => (
+              <span key={a.id} className="flex items-center">
+                {MD_GROUP_BREAKS.has(a.id) && <span className="mx-1 h-4 w-px bg-outline-variant/40" />}
+                <button
+                  type="button"
+                  title={a.title}
+                  className="flex h-7 min-w-7 items-center justify-center rounded-md px-1.5 text-[12px] text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => applyMd(a)}
+                >
+                  {a.render ? a.render() : a.id}
+                </button>
+              </span>
+            ))}
           </div>
           <div id="note-cm-host" className="min-h-0 flex-1 overflow-hidden" />
         </div>

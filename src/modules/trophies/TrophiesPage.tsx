@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { Trophy, TrophyTier } from '@/db/types'
+import type { Trophy, TrophyTier, TrophyConditionType } from '@/db/types'
 import { Icon } from '@/design-system/Icon'
 import { Card, EmptyState, PageHeader } from '@/design-system/ui'
 import { useTrophyStats, useTrophyList, computeConditionValue, CONDITION_LABELS, deriveProfileSummary } from './hooks'
@@ -11,6 +11,16 @@ export const TIER_THEME: Record<TrophyTier, { border: string; gradient: string; 
   '银': { border: 'border-slate-400/50', gradient: 'from-slate-400 via-slate-300 to-slate-100', text: 'text-slate-500', label: '银杯' },
   '金': { border: 'border-amber-500/60', gradient: 'from-amber-500 via-yellow-400 to-amber-100', text: 'text-amber-600', label: '金杯' },
   '白金': { border: 'border-sky-400/60', gradient: 'from-cyan-600 via-sky-300 to-indigo-200', text: 'text-sky-700', label: '白金' },
+}
+
+/** 条件类型 → 还差单位的中文量词（下一里程碑卡用） */
+const CONDITION_UNITS: Record<TrophyConditionType, string> = {
+  focus_minutes_total: '分钟',
+  focus_once_minutes: '分钟',
+  habit_streak: '天',
+  habit_checks_total: '次',
+  transactions_total: '笔',
+  customers_total: '位',
 }
 
 /** PSN 风格解锁弹窗已全局化为 src/app/TrophyUnlockToast.tsx（Phase 6），任何页面解锁都能弹出 */
@@ -49,6 +59,18 @@ export default function TrophiesPage() {
     return (b.unlockedAt ?? 0) - (a.unlockedAt ?? 0)
   })
 
+  // 下一里程碑：未解锁且已登记条件的奖杯中进度百分比最高者（并列取目标更小的，更快解锁）
+  let milestone: { trophy: Trophy; pct: number; remaining: number } | null = null
+  for (const t of trophies) {
+    if (t.unlockedAt || !t.conditionType || !t.conditionValue) continue
+    const current = computeConditionValue(t.conditionType, stats)
+    const target = t.conditionValue
+    const pct = Math.min(100, Math.round((current / target) * 100))
+    if (!milestone || pct > milestone.pct || (pct === milestone.pct && target < milestone.trophy.conditionValue!)) {
+      milestone = { trophy: t, pct, remaining: Math.max(0, target - current) }
+    }
+  }
+
   return (
     <div className="mx-auto max-w-[1200px]">
       <PageHeader title="成就殿堂" subtitle="记录每一个卓越时刻 · 条件从源记录实时推导" />
@@ -77,6 +99,35 @@ export default function TrophiesPage() {
           ))}
         </div>
       </Card>
+
+      {/* 下一里程碑卡（对齐原型 16：最接近解锁的奖杯 + 进度） */}
+      {milestone ? (
+        <Card className="mb-4 flex items-center gap-4 p-5">
+          <div
+            className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr ${TIER_THEME[milestone.trophy.tier].gradient} text-white`}
+          >
+            <Icon name={milestone.trophy.icon} size={26} fill />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-outline">下一里程碑</div>
+            <div className="mt-0.5 truncate text-[14.5px] font-semibold">
+              {milestone.trophy.name}
+              <span className="ml-2 text-[12px] font-normal text-on-surface-variant">
+                还差 {milestone.remaining} {CONDITION_UNITS[milestone.trophy.conditionType!]}解锁
+              </span>
+            </div>
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-container">
+              <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${milestone.pct}%` }} />
+            </div>
+          </div>
+          <span className="shrink-0 text-[18px] font-bold tabular-nums text-primary">{milestone.pct}%</span>
+        </Card>
+      ) : trophies.length > 0 && unlocked.length === trophies.length ? (
+        <Card className="mb-4 flex items-center justify-center gap-2 p-4 text-[14px] font-semibold text-success">
+          <Icon name="emoji_events" size={20} fill />
+          已收集全部奖杯 🎉
+        </Card>
+      ) : null}
 
       {/* 奖杯墙 */}
       {trophies.length === 0 ? (
