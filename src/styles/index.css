@@ -1,5 +1,14 @@
 @import 'tailwindcss';
-@import 'material-symbols/rounded.css';
+
+/* 自托管图标字体（替代包内 4.6MB 全量 CSS）：preload 预加载 + block 显示，
+   加载期间图标空白而非裸文本，消除侧栏 FOUC */
+@font-face {
+  font-family: 'Material Symbols Rounded';
+  font-style: normal;
+  font-weight: 100 700;
+  font-display: block;
+  src: url('/fonts/material-symbols-rounded.woff2') format('woff2');
+}
 
 @theme {
   /* ===== 寻鸽工作台设计 token（源自 design/DESIGN.md） ===== */
@@ -81,6 +90,7 @@ body {
 
 /* Material Symbols 对齐 */
 .material-symbols-rounded {
+  font-family: 'Material Symbols Rounded';
   font-variation-settings:
     'FILL' 0,
     'wght' 400,

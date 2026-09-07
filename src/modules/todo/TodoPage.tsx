@@ -6,7 +6,7 @@ import { Button, Card, Chip, EmptyState, PageHeader, Drawer, Field, inputCls } f
 import dayjs from 'dayjs'
 import { useFocusStore } from '@/stores/focus'
 
-type Filter = 'today' | 'open' | 'done'
+type Filter = 'today' | 'open' | 'done' | 'p1'
 
 export default function TodoPage() {
   const todos = useCollection<Todo>('todos')
@@ -16,8 +16,10 @@ export default function TodoPage() {
   const focus = useFocusStore()
 
   const todayStr = dayjs().format('YYYY-MM-DD')
+  const openTodos = todos.filter((t) => t.status !== 'done')
   const filtered = todos.filter((t) => {
     if (filter === 'done') return t.status === 'done'
+    if (filter === 'p1') return t.status !== 'done' && t.priority === 'P1'
     if (filter === 'today')
       return t.status !== 'done' && (!t.dueAt || dayjs(t.dueAt).format('YYYY-MM-DD') === todayStr)
     return t.status !== 'done'
@@ -31,10 +33,12 @@ export default function TodoPage() {
     }
   }
 
-  const tabs: { key: Filter; label: string }[] = [
-    { key: 'today', label: '今日' },
-    { key: 'open', label: '全部待办' },
-    { key: 'done', label: '已完成' },
+  // 左侧「清单」列表（计数徽章实时推导）
+  const lists: { key: Filter; icon: string; label: string; count: number }[] = [
+    { key: 'today', icon: 'today', label: '今天', count: openTodos.filter((t) => !t.dueAt || dayjs(t.dueAt).format('YYYY-MM-DD') === todayStr).length },
+    { key: 'p1', icon: 'error', label: 'P1 紧急', count: openTodos.filter((t) => t.priority === 'P1').length },
+    { key: 'open', icon: 'list', label: '全部待办', count: openTodos.length },
+    { key: 'done', icon: 'check_circle', label: '已完成', count: todos.filter((t) => t.status === 'done').length },
   ]
 
   return (
@@ -49,30 +53,37 @@ export default function TodoPage() {
         }
       />
 
-      <div className="mb-4 flex gap-1 rounded-lg bg-surface-container p-1" style={{ width: 'fit-content' }}>
-        {tabs.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setFilter(tab.key)}
-            className={`rounded-md px-4 py-1.5 text-[13px] transition-colors ${
-              filter === tab.key
-                ? 'bg-surface-container-lowest font-semibold text-primary shadow-sm'
-                : 'text-on-surface-variant hover:text-on-surface'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {filtered.length === 0 ? (
-        <Card className="p-6">
-          <EmptyState icon="task_alt" title="这里空空如也" description="点击右上角新建待办" />
+      <div className="grid grid-cols-[230px_1fr] gap-4 items-start">
+        {/* 左侧清单列表 */}
+        <Card className="p-2">
+          <div className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-outline">清单</div>
+          {lists.map((l) => (
+            <button
+              key={l.key}
+              onClick={() => setFilter(l.key)}
+              className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13.5px] transition-colors ${
+                filter === l.key
+                  ? 'bg-primary-fixed font-semibold text-primary'
+                  : 'text-on-surface-variant hover:bg-surface-container'
+              }`}
+            >
+              <span className="material-symbols-rounded" style={{ fontSize: 19 }}>{l.icon}</span>
+              <span className="flex-1 text-left">{l.label}</span>
+              <span className="text-[11px] text-outline">{l.count}</span>
+            </button>
+          ))}
         </Card>
-      ) : (
-        <Card className="divide-y divide-outline-variant/30 px-5">
-          {filtered.map((t) => {
-            const isDoing = focus.todoId === t.id && focus.status === 'running'
+
+        {/* 右侧待办列表 */}
+        <div>
+        {filtered.length === 0 ? (
+          <Card className="p-6">
+            <EmptyState icon="task_alt" title="这里空空如也" description="点击右上角新建待办" />
+          </Card>
+        ) : (
+          <Card className="divide-y divide-outline-variant/30 px-5">
+            {filtered.map((t) => {
+              const isDoing = focus.todoId === t.id && focus.status === 'running'
             return (
               <div key={t.id} className="group flex items-center gap-3 py-3.5">
                 <button onClick={() => toggle(t)} className="shrink-0">
@@ -126,6 +137,8 @@ export default function TodoPage() {
           })}
         </Card>
       )}
+        </div>
+      </div>
 
       <TodoFormDrawer
         open={creating || editing !== null}
