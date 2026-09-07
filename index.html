@@ -9,6 +9,11 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="寻鸽工作台" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- CSP 纵深防御：禁止外链脚本/内联事件执行（审计 P2-12；style 允许内联因 Tailwind 运行时注入） -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' blob: https: http:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    />
     <meta name="description" content="寻鸽工作台 - 一体化数字工作台：CRM、财务、待办、笔记、习惯全链路闭环" />
     <title>寻鸽工作台 · Nexus Workspace</title>
   </head>

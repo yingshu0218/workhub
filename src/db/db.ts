@@ -104,6 +104,12 @@ export class NexusDB extends Dexie {
     this.version(4).stores({
       todoLists: 'id, sortOrder, updatedAt',
     })
+    // v5：todos 加 listId 索引（deleteTodoListCascade 级联查询走索引，避免全表扫描）；
+    // customers 移除已废弃的 workspaceId 残留索引（类型与业务代码均已不用，减少写放大）
+    this.version(5).stores({
+      todos: 'id, status, dueAt, priority, customerId, listId, updatedAt',
+      customers: 'id, tier, updatedAt',
+    })
   }
 }
 

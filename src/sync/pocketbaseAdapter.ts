@@ -91,6 +91,9 @@ function baseUrl(cfg: SyncSettingsView): string {
   return cfg.serverUrl
 }
 
+/** 网络超时：弱网/坏代理下请求悬挂会长期占用同步锁，超时即视为本次失败（等待下轮重试） */
+const REQUEST_TIMEOUT_MS = 10_000
+
 async function pbFetch(
   cfg: SyncSettingsView,
   path: string,
@@ -101,7 +104,13 @@ async function pbFetch(
   if (init.body && !(init.body instanceof FormData)) {
     headers.set('Content-Type', 'application/json')
   }
-  return fetch(`${baseUrl(cfg)}${path}`, { ...init, headers })
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS)
+  try {
+    return await fetch(`${baseUrl(cfg)}${path}`, { ...init, headers, signal: ctrl.signal })
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 /** 带 401 自动重登一次的请求（重登凭据来自本地 settings，绝不上传到任何第三方） */
@@ -118,10 +127,22 @@ async function pbAuthedFetch(
   return res
 }
 
+/** 检查缓存的 token 是否仍然可用（低成本校验：带 token 请求当前用户） */
+async function isTokenFresh(cfg: SyncSettingsView): Promise<boolean> {
+  if (!cfg.token) return false
+  try {
+    const res = await pbFetch(cfg, '/api/collections/users/records/' + encodeURIComponent(cfg.tokenUserId), {
+      method: 'GET',
+    })
+    return res.ok
+  } catch {
+    return false
+  }
+}
+
 async function login(cfg: SyncSettingsView): Promise<void> {
-  const res = await fetch(`${baseUrl(cfg)}/api/collections/users/auth-with-password`, {
+  const res = await pbFetch(cfg, '/api/collections/users/auth-with-password', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ identity: cfg.username, password: cfg.password }),
   })
   if (!res.ok) {
@@ -287,6 +308,31 @@ async function pbUpsert(
     throw new Error(`推送 ${table}/${localId} 失败（HTTP ${res.status}）：${(await res.text()).slice(0, 200)}`)
 }
 
+/** 服务端物理删除：按 localId 查 pb 记录 id 后 DELETE（用于墓碑收敛后的真删） */
+async function pbDeleteRemote(
+  cfg: SyncSettingsView,
+  table: string,
+  localId: string,
+): Promise<void> {
+  const filter = encodeURIComponent(`localId = '${localId.replace(/'/g, "\\'")}'`)
+  const found = await pbAuthedFetch(
+    cfg,
+    `/api/collections/${table}/records?filter=${filter}&fields=id`,
+    { method: 'GET' },
+  )
+  if (!found.ok) return // 查询失败不阻塞：墓碑记录仍在服务端，靠 LWW 墓碑兜底
+  const { items } = (await found.json()) as { items?: PbRecord[] }
+  if (!items || items.length === 0) return
+  const res = await pbAuthedFetch(
+    cfg,
+    `/api/collections/${table}/records/${encodeURIComponent(String(items[0].id))}`,
+    { method: 'DELETE' },
+  )
+  if (!res.ok && res.status !== 404) {
+    console.warn(`[sync] 服务端物理删除失败 ${table}/${localId}（HTTP ${res.status}）`)
+  }
+}
+
 interface PbListResult {
   items: PbRecord[]
 }
@@ -294,16 +340,21 @@ interface PbListResult {
 async function pbListAll(
   cfg: SyncSettingsView,
   table: string,
-  filter: string,
+  cursor: string,
 ): Promise<PbRecord[]> {
+  const { receivedAt, lastId } = parseCursor(cursor)
   const out: PbRecord[] = []
   for (let page = 1; page <= 500; page++) {
+    // 首拉（无游标）按 updatedAt 全量；有游标按 server_received_at 增量，带 id tiebreaker 防同毫秒丢记录
+    const filterExpr = receivedAt
+      ? `(server_received_at > '${receivedAt}' || (server_received_at = '${receivedAt}' && id > '${lastId}'))`
+      : ''
     const params = new URLSearchParams({
-      filter: `(updatedAt > ${filter})`,
-      sort: 'updatedAt,id',
       page: String(page),
       perPage: '200',
+      sort: 'server_received_at,id',
     })
+    if (filterExpr) params.set('filter', filterExpr)
     const res = await pbAuthedFetch(cfg, `/api/collections/${table}/records?${params}`, { method: 'GET' })
     if (!res.ok) throw new Error(`拉取 ${table} 失败（HTTP ${res.status}）`)
     const data = (await res.json()) as PbListResult & { totalPages?: number }
@@ -320,11 +371,12 @@ async function downloadAttachmentFile(
 ): Promise<Blob | undefined> {
   const filename = rec.file
   if (typeof filename !== 'string' || !filename) return undefined
-  const url = `${baseUrl(cfg)}/api/files/attachments/${encodeURIComponent(rec.id)}/${encodeURIComponent(filename)}`
-  const res = await fetch(`${url}?token=${encodeURIComponent(cfg.token)}`)
-  if (!res.ok) return undefined
   const size = typeof rec.size === 'number' ? rec.size : 0
   if (size > ATTACHMENT_FILE_MAX_SIZE) return undefined
+  // 安全：token 走 Authorization 头而非 URL query（避免进入历史/日志泄露凭据）
+  const url = `${baseUrl(cfg)}/api/files/attachments/${encodeURIComponent(rec.id)}/${encodeURIComponent(filename)}`
+  const res = await pbFetch(cfg, url.slice(baseUrl(cfg).length), { method: 'GET' })
+  if (!res.ok) return undefined
   return res.blob()
 }
 
@@ -334,13 +386,27 @@ function cursorKey(table: string): string {
   return `pb_cursor:${table}`
 }
 
-async function loadCursor(table: string): Promise<number> {
+/**
+ * 每表游标改用服务端接收时间 server_received_at（ISO 字符串，pb autodate 盖戳）：
+ * 客户端 updatedAt 依赖本机时钟，多设备同毫秒/时钟偏差会丢增量；
+ * server_received_at 单调（由服务端写入）且可排序，同毫秒冲突再以 id 作 tiebreaker。
+ * cursor = `${server_received_at}#${lastRemoteId}`。
+ */
+async function loadCursor(table: string): Promise<string> {
   const entry = await db.meta.get(cursorKey(table))
-  return typeof entry?.value === 'number' ? entry.value : 0
+  return typeof entry?.value === 'string' ? entry.value : ''
 }
 
-async function saveCursor(table: string, cursor: number): Promise<void> {
+async function saveCursor(table: string, cursor: string): Promise<void> {
   await db.meta.put({ key: cursorKey(table), value: cursor })
+}
+
+/** 解析旧版数值游标（updatedAt 口径）：迁移到 server_received_at 游标时作 0 时刻处理 */
+function parseCursor(cursor: string): { receivedAt: string; lastId: string } {
+  if (!cursor) return { receivedAt: '', lastId: '' }
+  const idx = cursor.indexOf('#')
+  if (idx < 0) return { receivedAt: '', lastId: '' } // 旧数值游标：重新按时间全量对账一次
+  return { receivedAt: cursor.slice(0, idx), lastId: cursor.slice(idx + 1) }
 }
 
 // ─────────────────────────── LWW 合并（远端 → 本地，盖 rev 不入队） ───────────────────────────
@@ -397,7 +463,8 @@ async function pushImpl(
     // 本地模式：与 stub 行为一致（队列照常出队，离线语义不阻塞界面）
     return items.map((it) => ({ recordId: it.recordId, ok: true }))
   }
-  await login(cfg)
+  // token 缓存优先：仅失效/缺失时才重新登录（避免每轮心跳都全量 auth-with-password）
+  if (!(await isTokenFresh(cfg))) await login(cfg)
   const results: { recordId: string; ok: boolean }[] = []
   for (const item of items) {
     try {
@@ -407,7 +474,14 @@ async function pushImpl(
         results.push({ recordId: item.recordId, ok: true })
         continue
       }
-      await pbUpsert(cfg, item.table, rec)
+      if (item.op === 'delete') {
+        // 墓碑记录：推送墓碑（对端 LWW 收敛）后对服务端做物理删除，
+        // 并跳过本地墓碑清理窗口，避免服务端墓碑无限膨胀
+        await pbUpsert(cfg, item.table, rec)
+        await pbDeleteRemote(cfg, item.table, rec.id as string)
+      } else {
+        await pbUpsert(cfg, item.table, rec)
+      }
       results.push({ recordId: item.recordId, ok: true })
     } catch (err) {
       console.warn(`[sync] 推送失败 ${item.table}/${item.recordId}`, err)
@@ -420,16 +494,20 @@ async function pushImpl(
 async function pullImpl(cursor: number): Promise<{ cursor: number; changes: unknown[] }> {
   const cfg = await readSyncSettings()
   if (!isSyncConfigured(cfg)) return { cursor, changes: [] }
-  await login(cfg)
-  let maxSeen = cursor
+  if (!(await isTokenFresh(cfg))) await login(cfg)
   const changes: unknown[] = []
   for (const table of SYNC_TABLES) {
     const cur = await loadCursor(table)
-    const remotes = await pbListAll(cfg, table, String(cur))
-    let tableMax = cur
+    const remotes = await pbListAll(cfg, table, cur)
+    let maxReceivedAt = parseCursor(cur).receivedAt
+    let maxRemoteId = parseCursor(cur).lastId
     for (const remote of remotes) {
-      const updatedAt = typeof remote.updatedAt === 'number' ? remote.updatedAt : 0
-      if (updatedAt > tableMax) tableMax = updatedAt
+      const receivedAt = typeof remote.server_received_at === 'string' ? remote.server_received_at : ''
+      const rid = String(remote.id)
+      if (receivedAt && (receivedAt > maxReceivedAt || (receivedAt === maxReceivedAt && rid > maxRemoteId))) {
+        maxReceivedAt = receivedAt
+        maxRemoteId = rid
+      }
       try {
         changes.push(await mergeRemote(cfg, table, remote))
       } catch (err) {
@@ -437,10 +515,9 @@ async function pullImpl(cursor: number): Promise<{ cursor: number; changes: unkn
         console.warn(`[sync] 合并失败 ${table}/${remote.id}`, err)
       }
     }
-    await saveCursor(table, tableMax)
-    if (tableMax > maxSeen) maxSeen = tableMax
+    if (maxReceivedAt) await saveCursor(table, `${maxReceivedAt}#${maxRemoteId}`)
   }
-  return { cursor: maxSeen, changes }
+  return { cursor, changes }
 }
 
 export const pocketBaseAdapter: SyncAdapter = {

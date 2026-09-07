@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Icon } from '@/design-system/Icon'
 import { useNavigate } from 'react-router-dom'
 import { useCollection } from '@/queries/hooks'
@@ -119,9 +119,12 @@ export default function InspirationPage() {
   }
 
   // 提醒到点：桌面通知（若已授权），否则应用内顶部 Toast
+  // 调度优化：单个 setTimeout 指向最近到期项，无到期项时零空转（替代 1s interval 轮询）
   useEffect(() => {
     if (reminders.length === 0) return
-    const timer = window.setInterval(() => {
+    const nextDue = Math.min(...reminders.map((r) => r.dueAt))
+    const delay = Math.max(0, nextDue - Date.now())
+    const timer = window.setTimeout(() => {
       const now = Date.now()
       const due = reminders.filter((r) => r.dueAt <= now)
       if (due.length === 0) return
@@ -133,8 +136,8 @@ export default function InspirationPage() {
         setReminderMsg(`稍后提醒到点：${msg}`)
         window.setTimeout(() => setReminderMsg(null), 6000)
       }
-    }, 1000)
-    return () => window.clearInterval(timer)
+    }, delay)
+    return () => window.clearTimeout(timer)
   }, [reminders])
 
   const startFocus = () => {
@@ -153,15 +156,17 @@ export default function InspirationPage() {
   }
 
   // 快捷键过统一注册表（Esc 退出 / Space 换一个 / Enter 开始专注）
+  // handler 经 ref 间接调用：注册一次，始终拿到最新闭包（避免挂载/卸载风暴）
+  const handlersRef = useRef({ next, startFocus, navigate })
+  handlersRef.current = { next, startFocus, navigate }
   useEffect(() => {
     const unsubs = [
-      registerShortcut({ combo: 'space', description: '灵感闪现：换一个', scope: 'page', handler: next }),
-      registerShortcut({ combo: 'enter', description: '灵感闪现：开始专注执行', scope: 'page', handler: startFocus }),
-      registerShortcut({ combo: 'esc', description: '灵感闪现：退出回工作台', scope: 'page', handler: () => navigate('/') }),
+      registerShortcut({ combo: 'space', description: '灵感闪现：换一个', scope: 'page', handler: () => handlersRef.current.next() }),
+      registerShortcut({ combo: 'enter', description: '灵感闪现：开始专注执行', scope: 'page', handler: () => handlersRef.current.startFocus() }),
+      registerShortcut({ combo: 'esc', description: '灵感闪现：退出回工作台', scope: 'page', handler: () => handlersRef.current.navigate('/') }),
     ]
     return () => unsubs.forEach((u) => u())
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [current?.id, candidates.length])
+  }, [])
 
   const kindMeta = current ? KIND_META[current.kind] : undefined
   const topMatch = candidates.length ? candidates[0].match : 0

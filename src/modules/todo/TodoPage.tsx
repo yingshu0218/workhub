@@ -55,7 +55,7 @@ export default function TodoPage() {
         if (selKind === 'done') return t.status === 'done'
         if (selKind === 'p1') return t.status !== 'done' && t.priority === 'P1'
         if (selKind === 'today')
-          return t.status !== 'done' && (!t.dueAt || dayjs(t.dueAt).format('YYYY-MM-DD') === todayStr)
+          return t.status !== 'done' && !!t.dueAt && dayjs(t.dueAt).format('YYYY-MM-DD') === todayStr
         return t.status !== 'done'
       })
 
@@ -68,7 +68,7 @@ export default function TodoPage() {
   }
 
   const smartLists: { key: Filter; icon: string; label: string; count: number }[] = [
-    { key: 'today', icon: 'today', label: '今天', count: openTodos.filter((t) => !t.dueAt || dayjs(t.dueAt).format('YYYY-MM-DD') === todayStr).length },
+    { key: 'today', icon: 'today', label: '今天', count: openTodos.filter((t) => t.dueAt && dayjs(t.dueAt).format('YYYY-MM-DD') === todayStr).length },
     { key: 'p1', icon: 'error', label: 'P1 紧急', count: openTodos.filter((t) => t.priority === 'P1').length },
     { key: 'open', icon: 'list', label: '全部待办', count: openTodos.length },
     { key: 'done', icon: 'check_circle', label: '已完成', count: doneTodos.length },
