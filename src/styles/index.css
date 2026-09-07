@@ -1,4 +1,5 @@
 @import 'tailwindcss';
+@import './inter.css';
 
 /* 自托管图标字体（替代包内 4.6MB 全量 CSS）：preload 预加载 + block 显示，
    加载期间图标空白而非裸文本，消除侧栏 FOUC */
