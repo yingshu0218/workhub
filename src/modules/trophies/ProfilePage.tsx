@@ -1,4 +1,5 @@
 import { Avatar, Card, Chip, EmptyState, PageHeader } from '@/design-system/ui'
+import { Icon } from '@/design-system/Icon'
 import {
   useProfileSummary,
   useRecentUnlockedTrophies,
@@ -61,7 +62,7 @@ export default function ProfilePage() {
         ].map((m) => (
           <Card key={m.label} className="flex items-center gap-3 p-4">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-fixed text-primary">
-              <span className="material-symbols-rounded" style={{ fontSize: 20 }}>{m.icon}</span>
+              <Icon name={m.icon} size={20} />
             </div>
             <div>
               <div className="text-[18px] font-bold leading-tight">{m.value}</div>
@@ -107,7 +108,7 @@ export default function ProfilePage() {
                 return (
                   <li key={t.id} className="flex items-center gap-3 rounded-lg bg-surface-container-low px-3 py-2.5">
                     <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-tr ${theme.gradient} text-white`}>
-                      <span className="material-symbols-rounded msr-fill" style={{ fontSize: 20 }}>{t.icon}</span>
+                      <Icon name={t.icon} size={20} fill />
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-[13.5px] font-medium">{t.name}</div>

@@ -1,4 +1,5 @@
 import { type ReactNode, useEffect } from 'react'
+import { Icon } from './Icon'
 
 /** 基础组件库（对齐 DESIGN.md：白卡/8px 圆角/1px 边框/柔和阴影/胶囊 Chip） */
 
@@ -33,7 +34,7 @@ export function Drawer({
         <div className="flex h-14 shrink-0 items-center justify-between border-b border-outline-variant/40 px-5">
           <h2 className="text-[15px] font-semibold">{title}</h2>
           <button className="text-outline hover:text-on-surface" onClick={onClose}>
-            <span className="material-symbols-rounded">close</span>
+            <Icon name="close" />
           </button>
         </div>
         <div className="flex-1 overflow-y-auto p-5">{children}</div>
@@ -83,7 +84,7 @@ export function Button({
   }[variant]
   return (
     <button className={`${base} ${sizes} ${variants} ${className}`} onClick={onClick} disabled={disabled}>
-      {icon && <span className="material-symbols-rounded" style={{ fontSize: 18 }}>{icon}</span>}
+      {icon && <Icon name={icon} size={18} />}
       {children}
     </button>
   )
@@ -131,7 +132,7 @@ export function Chip({
     <span
       className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[12px] font-medium ${chipTones[tone]}`}
     >
-      {icon && <span className="material-symbols-rounded" style={{ fontSize: 14 }}>{icon}</span>}
+      {icon && <Icon name={icon} size={14} />}
       {children}
     </span>
   )
@@ -167,7 +168,7 @@ export function EmptyState({
 }) {
   return (
     <div className="flex flex-col items-center justify-center gap-2 py-20 text-center">
-      <span className="material-symbols-rounded text-[40px] text-outline">{icon}</span>
+      <Icon name={icon} className="text-[40px] text-outline" />
       <div className="text-[15px] font-medium">{title}</div>
       {description && <div className="max-w-xs text-[13px] text-on-surface-variant">{description}</div>}
     </div>

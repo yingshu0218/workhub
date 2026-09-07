@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Icon } from '@/design-system/Icon'
 import { useNavigate } from 'react-router-dom'
 import { useCollection } from '@/queries/hooks'
 import type { Customer, Todo, Transaction, Note } from '@/db/types'
@@ -116,7 +117,7 @@ export default function InspirationPage() {
       <header className="relative z-10 flex items-center justify-between px-8 py-5">
         <div className="flex items-center gap-2.5">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white">
-            <span className="material-symbols-rounded msr-fill" style={{ fontSize: 18 }}>flight_takeoff</span>
+            <Icon name="flight_takeoff" size={18} fill />
           </div>
           <div>
             <div className="text-[13.5px] font-bold leading-tight">寻鸽工作台</div>
@@ -131,7 +132,7 @@ export default function InspirationPage() {
             className="flex h-8 items-center gap-1.5 rounded-lg border border-slate-700 px-3 text-[12px] text-slate-400 transition-colors hover:border-blue-500 hover:text-blue-300"
             onClick={() => navigate('/')}
           >
-            <span className="material-symbols-rounded" style={{ fontSize: 15 }}>keyboard_return</span>
+            <Icon name="keyboard_return" size={15} />
             返回工作台
           </button>
         </div>
@@ -141,7 +142,7 @@ export default function InspirationPage() {
       <main className="relative z-10 flex flex-1 items-start justify-center overflow-y-auto px-8 pb-4">
         {!current ? (
           <div className="mt-24 flex flex-col items-center gap-4 text-center">
-            <span className="material-symbols-rounded text-[52px] text-slate-600">auto_awesome</span>
+            <Icon name="auto_awesome" className="text-[52px] text-slate-600" />
             <div className="text-[17px] font-semibold">抽取池暂时是空的</div>
             <div className="max-w-sm text-[13px] leading-relaxed text-slate-500">
               没有发现逾期待办、到期日程、待对账流水或久未跟进的客户。去工作台记录一笔，或先享受片刻清闲。
@@ -160,7 +161,7 @@ export default function InspirationPage() {
               <div className="flex items-start justify-between gap-4">
                 <div className="flex items-start gap-4">
                   <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white">
-                    <span className="material-symbols-rounded msr-fill">bolt</span>
+                    <Icon name="bolt" fill />
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
@@ -179,7 +180,7 @@ export default function InspirationPage() {
                   className="flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-1.5 text-[12px] text-slate-400 hover:border-blue-500 hover:text-blue-300"
                   onClick={next}
                 >
-                  <span className="material-symbols-rounded" style={{ fontSize: 15 }}>shuffle</span>
+                  <Icon name="shuffle" size={15} />
                   抽取池
                 </button>
               </div>
@@ -191,7 +192,7 @@ export default function InspirationPage() {
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11.5px] font-medium ${kindMeta!.tone}`}>
-                      <span className="material-symbols-rounded" style={{ fontSize: 13 }}>{kindMeta!.icon}</span>
+                      <Icon name={kindMeta!.icon} size={13} />
                       {kindMeta!.chip}
                     </span>
                     <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/40 bg-emerald-500/10 px-2.5 py-0.5 text-[11.5px] text-emerald-300">
@@ -216,7 +217,7 @@ export default function InspirationPage() {
                   {current.context.map((ctx) => (
                     <div key={ctx.label} className="rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-3">
                       <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500">
-                        <span className="material-symbols-rounded" style={{ fontSize: 14 }}>{ctx.icon}</span>
+                        <Icon name={ctx.icon} size={14} />
                         {ctx.label}
                       </div>
                       <div className="mt-1 truncate text-[13px] font-medium text-slate-200">{ctx.value}</div>
@@ -231,7 +232,7 @@ export default function InspirationPage() {
                   className="flex h-11 items-center gap-2 rounded-xl bg-blue-600 px-5 text-[13.5px] font-semibold text-white transition-colors hover:bg-blue-500"
                   onClick={startFocus}
                 >
-                  <span className="material-symbols-rounded" style={{ fontSize: 17 }}>play_arrow</span>
+                  <Icon name="play_arrow" size={17} />
                   立即专注执行（锁定此任务）
                   <kbd className="rounded bg-blue-500/60 px-1.5 text-[10.5px]">Enter</kbd>
                 </button>
@@ -239,7 +240,7 @@ export default function InspirationPage() {
                   className="flex h-11 items-center gap-2 rounded-xl border border-slate-700 px-4 text-[13px] text-slate-300 transition-colors hover:border-slate-500"
                   onClick={next}
                 >
-                  <span className="material-symbols-rounded" style={{ fontSize: 16 }}>shuffle</span>
+                  <Icon name="shuffle" size={16} />
                   换一个
                   <kbd className="rounded bg-slate-800 px-1.5 text-[10.5px] text-slate-400">Space</kbd>
                 </button>
@@ -247,7 +248,7 @@ export default function InspirationPage() {
                   className="flex h-11 items-center gap-1.5 rounded-xl px-3 text-[13px] text-slate-400 transition-colors hover:text-slate-200"
                   onClick={remindLater}
                 >
-                  <span className="material-symbols-rounded" style={{ fontSize: 16 }}>schedule</span>
+                  <Icon name="schedule" size={16} />
                   稍后提醒
                 </button>
                 {current.todoId && (
@@ -255,7 +256,7 @@ export default function InspirationPage() {
                     className="flex h-11 items-center gap-1.5 rounded-xl px-3 text-[13px] text-emerald-400 transition-colors hover:text-emerald-300"
                     onClick={() => void completeTodo()}
                   >
-                    <span className="material-symbols-rounded" style={{ fontSize: 16 }}>check_circle</span>
+                    <Icon name="check_circle" size={16} />
                     直接完成
                   </button>
                 )}
@@ -292,7 +293,7 @@ export default function InspirationPage() {
       {/* 稍后提醒 Toast */}
       {reminderMsg && (
         <div className="fixed bottom-16 left-1/2 z-50 -translate-x-1/2 rounded-full border border-slate-700 bg-slate-900/95 px-5 py-2.5 text-[12.5px] text-slate-200 shadow-xl">
-          <span className="material-symbols-rounded mr-1.5 align-[-4px] text-[15px] text-amber-400">notifications_active</span>
+          <Icon name="notifications_active" className="mr-1.5 align-[-4px] text-[15px] text-amber-400" />
           {reminderMsg}
         </div>
       )}

@@ -13,16 +13,6 @@ dayjs.locale('zh-cn')
 
 function Bootstrap() {
   useEffect(() => {
-    // 图标字体就绪门控：就绪（或 4s 超时兜底）后显示图标，杜绝裸文本闪现
-    const showIcons = () => document.documentElement.classList.remove('icons-loading')
-    try {
-      Promise.race([
-        document.fonts.load('24px "Material Symbols Rounded"'),
-        new Promise((r) => setTimeout(r, 4000)),
-      ]).then(showIcons, showIcons)
-    } catch {
-      showIcons()
-    }
     // 持久化存储：防手机浏览器回收 IndexedDB（开发计划 2.3 多设备约定）
     if (navigator.storage?.persist) {
       void navigator.storage.persist().then((granted) => {

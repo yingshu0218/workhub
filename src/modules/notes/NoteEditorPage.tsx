@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Icon } from '@/design-system/Icon'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useCollection, useRecord } from '@/queries/hooks'
 import { noteRepo } from '@/repositories'
@@ -313,7 +314,7 @@ function NoteEditor({ note }: { note: Note }) {
           onClick={() => navigate('/notes')}
           title="返回列表"
         >
-          <span className="material-symbols-rounded">arrow_back</span>
+          <Icon name="arrow_back" />
         </button>
         <input
           className="min-w-0 flex-1 rounded-lg border border-transparent px-2 py-1 text-[18px] font-bold tracking-tight outline-none transition-colors hover:border-outline-variant/40 focus:border-primary"
@@ -351,9 +352,7 @@ function NoteEditor({ note }: { note: Note }) {
               onClick={() => removeTag(t)}
               title="移除标签"
             >
-              <span className="material-symbols-rounded" style={{ fontSize: 13 }}>
-                close
-              </span>
+              <Icon name="close" size={13} />
             </button>
           </span>
         ))}
@@ -419,7 +418,7 @@ function NoteEditor({ note }: { note: Note }) {
                   onClick={() => navigate(`/notes/${b.id}`)}
                   className="flex w-full items-center gap-1.5 rounded-lg border border-outline-variant/40 bg-surface-container-lowest px-2.5 py-1.5 text-left text-[12px] transition-colors hover:border-primary"
                 >
-                  <span className="material-symbols-rounded shrink-0 text-[14px] text-primary">link</span>
+                  <Icon name="link" className="shrink-0 text-[14px] text-primary" />
                   <span className="truncate">{b.title}</span>
                 </button>
               ))}

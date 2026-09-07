@@ -11,14 +11,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="寻鸽工作台 - 一体化数字工作台：CRM、财务、待办、笔记、习惯全链路闭环" />
     <title>寻鸽工作台 · Nexus Workspace</title>
-    <link rel="preload" href="/fonts/material-symbols-rounded.woff2" as="font" type="font/woff2" crossorigin />
   </head>
   <body>
     <div id="root"></div>
-    <script>
-      // 图标字体加载门控：首帧前即隐藏图标（main.tsx 字体就绪后移除，4s 超时兜底）
-      document.documentElement.classList.add('icons-loading')
-    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

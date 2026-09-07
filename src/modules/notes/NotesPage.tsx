@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { Icon } from '@/design-system/Icon'
 import { useNavigate } from 'react-router-dom'
 import { useCollection } from '@/queries/hooks'
 import { noteRepo, newId } from '@/repositories'
@@ -134,7 +135,7 @@ export default function NotesPage() {
                   className="group cursor-pointer py-3.5 transition-colors hover:bg-surface-container-low/40"
                 >
                   <div className="flex items-center gap-2">
-                    <span className="material-symbols-rounded text-[18px] text-primary">description</span>
+                    <Icon name="description" className="text-[18px] text-primary" />
                     <span className="truncate text-[14px] font-medium group-hover:text-primary">{n.title}</span>
                     <span className="ml-auto shrink-0 text-[11px] text-outline">{fmtTime(n.updatedAt)}</span>
                   </div>
@@ -157,9 +158,7 @@ export default function NotesPage() {
                         className="flex items-center gap-0.5 text-[11px] text-outline"
                         title={n.mentions.map((m) => m.label).join('、')}
                       >
-                        <span className="material-symbols-rounded" style={{ fontSize: 13 }}>
-                          hub
-                        </span>
+                        <Icon name="hub" size={13} />
                         {n.mentions.length} 个关联
                       </span>
                     )}

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Icon } from '@/design-system/Icon'
 import type { Habit } from '@/db/types'
 import { habitRepo, newId } from '@/repositories'
 import { Drawer, Field, inputCls, Button } from '@/design-system/ui'
@@ -121,7 +122,7 @@ export function HabitFormDrawer({
                   icon === ic ? 'border-primary bg-primary-fixed text-primary' : 'border-outline-variant text-on-surface-variant hover:bg-surface-container-low'
                 }`}
               >
-                <span className="material-symbols-rounded" style={{ fontSize: 22 }}>{ic}</span>
+                <Icon name={ic} size={22} />
               </button>
             ))}
           </div>
@@ -202,12 +203,11 @@ export function HabitFormDrawer({
             onClick={() => setCrossModuleSync(!crossModuleSync)}
             className="flex items-center gap-2 text-[13px]"
           >
-            <span
-              className={`material-symbols-rounded ${crossModuleSync ? 'text-success' : 'text-outline'}`}
-              style={{ fontSize: 24 }}
-            >
-              {crossModuleSync ? 'toggle_on' : 'toggle_off'}
-            </span>
+            <Icon
+              name={crossModuleSync ? 'toggle_on' : 'toggle_off'}
+              size={24}
+              className={crossModuleSync ? 'text-success' : 'text-outline'}
+            />
             <span className={crossModuleSync ? 'font-medium' : 'text-on-surface-variant'}>
               深度专注完成时自动打卡本习惯（需分类为「工作」且时长达标）
             </span>

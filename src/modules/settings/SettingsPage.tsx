@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Icon } from '@/design-system/Icon'
 import { Card, PageHeader, Button, inputCls } from '@/design-system/ui'
 import type { Settings, SettingsSync } from '@/db/types'
 import { settingsRepo, resetAndSeedLocalData, restoreFromJson } from '@/repositories'
@@ -60,7 +61,7 @@ function Section({ icon, title, desc, badge, children }: {
     <Card className="p-6">
       <div className="mb-4 flex items-center gap-2.5">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-fixed text-primary">
-          <span className="material-symbols-rounded" style={{ fontSize: 18 }}>{icon}</span>
+          <Icon name={icon} size={18} />
         </div>
         <div className="flex-1">
           <div className="flex items-center gap-2">
@@ -339,7 +340,7 @@ export default function SettingsPage() {
             }`}
             onClick={() => setTab(t.id)}
           >
-            <span className="material-symbols-rounded" style={{ fontSize: 16 }}>{t.icon}</span>
+            <Icon name={t.icon} size={16} />
             {t.label}
           </button>
         ))}
@@ -376,7 +377,7 @@ export default function SettingsPage() {
                 <div className="flex items-center justify-between">
                   <span className="text-[13px] font-semibold">{opt.label}</span>
                   {settings.appearance.mode === opt.id && (
-                    <span className="material-symbols-rounded msr-fill text-[18px] text-primary">check_circle</span>
+                    <Icon name="check_circle" fill className="text-[18px] text-primary" />
                   )}
                 </div>
                 <p className="mt-1 text-[11px] leading-snug text-on-surface-variant">{opt.desc}</p>
@@ -402,7 +403,7 @@ export default function SettingsPage() {
                   <span className="h-5 w-5 rounded-full" style={{ background: a.container }} />
                   <span className="text-[12.5px] font-medium">{a.label}</span>
                   {settings.appearance.accent === a.id && (
-                    <span className="material-symbols-rounded msr-fill text-[16px] text-primary">check</span>
+                    <Icon name="check" fill className="text-[16px] text-primary" />
                   )}
                 </button>
               ))}
@@ -577,15 +578,19 @@ export default function SettingsPage() {
           >
             <div className="mb-4 flex items-center justify-between rounded-xl border border-outline-variant/40 bg-surface-container-low/60 px-4 py-3">
               <div className="flex items-center gap-3">
-                <span className={`material-symbols-rounded msr-fill text-[20px] ${
-                  isSyncConfigured(syncForm)
-                    ? syncStatus.status === 'synced' ? 'text-success' : syncStatus.status === 'syncing' ? 'text-primary' : 'text-warning'
-                    : 'text-outline'
-                }`}>
-                  {isSyncConfigured(syncForm)
-                    ? syncStatus.status === 'synced' ? 'cloud_done' : syncStatus.status === 'syncing' ? 'cloud_sync' : 'cloud_off'
-                    : 'cloud_off'}
-                </span>
+                <Icon
+                  name={
+                    isSyncConfigured(syncForm)
+                      ? syncStatus.status === 'synced' ? 'cloud_done' : syncStatus.status === 'syncing' ? 'cloud_sync' : 'cloud_off'
+                      : 'cloud_off'
+                  }
+                  fill
+                  className={`text-[20px] ${
+                    isSyncConfigured(syncForm)
+                      ? syncStatus.status === 'synced' ? 'text-success' : syncStatus.status === 'syncing' ? 'text-primary' : 'text-warning'
+                      : 'text-outline'
+                  }`}
+                />
                 <div>
                   <div className="text-[13px] font-semibold">
                     {isSyncConfigured(syncForm)
@@ -678,7 +683,7 @@ export default function SettingsPage() {
       {tab === 'security' && (
         <div className="space-y-4">
           <div className="flex items-start gap-3 rounded-xl border border-success/30 bg-success-container/30 px-5 py-4">
-            <span className="material-symbols-rounded msr-fill text-[20px] text-success">verified_user</span>
+            <Icon name="verified_user" fill className="text-[20px] text-success" />
             <div>
               <div className="text-[13.5px] font-semibold">数据主权保障已激活 (Sovereignty Protocol v2.4)</div>
               <div className="mt-0.5 text-[11.5px] leading-relaxed text-on-surface-variant">
@@ -696,7 +701,7 @@ export default function SettingsPage() {
               ]).map((c) => (
                 <div key={c.title} className="rounded-xl border border-outline-variant/50 p-4">
                   <div className="flex items-center justify-between">
-                    <span className="material-symbols-rounded text-[20px] text-primary">{c.icon}</span>
+                    <Icon name={c.icon} className="text-[20px] text-primary" />
                     <span className="text-[9.5px] font-bold uppercase tracking-widest text-outline">{c.tag}</span>
                   </div>
                   <div className="mt-2 text-[13px] font-semibold">{c.title}</div>

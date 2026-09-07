@@ -3,13 +3,6 @@
 
 /* 自托管图标字体（替代包内 4.6MB 全量 CSS）：preload 预加载 + block 显示，
    加载期间图标空白而非裸文本，消除侧栏 FOUC */
-@font-face {
-  font-family: 'Material Symbols Rounded';
-  font-style: normal;
-  font-weight: 100 700;
-  font-display: block;
-  src: url('/fonts/material-symbols-rounded.woff2') format('woff2');
-}
 
 @theme {
   /* ===== 寻鸽工作台设计 token（源自 design/DESIGN.md） ===== */
@@ -90,26 +83,7 @@ body {
 }
 
 /* Material Symbols 对齐 */
-/* ── 图标字体加载门控：就绪前隐藏图标（防裸文本 FOUC），宽度锁定 1em 防布局抖动 ── */
-html.icons-loading .material-symbols-rounded {
-  visibility: hidden;
-}
 
-.material-symbols-rounded {
-  font-family: 'Material Symbols Rounded';
-  display: inline-block;
-  width: 1em;
-  overflow: hidden;
-  white-space: nowrap;
-  font-variation-settings:
-    'FILL' 0,
-    'wght' 400,
-    'GRAD' 0,
-    'opsz' 24;
-  font-size: 20px;
-  line-height: 1;
-  vertical-align: middle;
-}
 
 .msr-fill {
   font-variation-settings:

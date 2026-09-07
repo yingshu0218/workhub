@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Icon } from '@/design-system/Icon'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useRecord } from '@/queries/hooks'
 import type { Customer, Interaction } from '@/db/types'
@@ -140,7 +141,7 @@ export default function CustomerDetailPage() {
             </div>
             {customer.address && (
               <div className="mt-3 flex items-center gap-2 text-[12px] text-on-surface-variant">
-                <span className="material-symbols-rounded text-[16px] text-primary">location_on</span>
+                <Icon name="location_on" className="text-[16px] text-primary" />
                 {customer.address}
               </div>
             )}
@@ -150,7 +151,7 @@ export default function CustomerDetailPage() {
           <Card className="p-5">
             <div className="mb-2 flex items-center justify-between">
               <div className="flex items-center gap-1.5 text-[12px] font-medium uppercase tracking-wide text-on-surface-variant">
-                <span className="material-symbols-rounded text-[16px] text-primary">hub</span>
+                <Icon name="hub" className="text-[16px] text-primary" />
                 跨系统关系图谱
               </div>
               <button
@@ -175,7 +176,7 @@ export default function CustomerDetailPage() {
               <div className="rounded-xl bg-surface-container-low/60 p-4">
                 <div className="flex items-center justify-between">
                   <span className="text-[12px] text-on-surface-variant">关联交易流水</span>
-                  <span className="material-symbols-rounded text-[18px] text-success">payments</span>
+                  <Icon name="payments" className="text-[18px] text-success" />
                 </div>
                 <div className="mt-1 text-[20px] font-bold tracking-tight">{transactions.length} 笔</div>
                 {transactions.length > 0 ? (
@@ -200,7 +201,7 @@ export default function CustomerDetailPage() {
               <div className="rounded-xl bg-surface-container-low/60 p-4">
                 <div className="flex items-center justify-between">
                   <span className="text-[12px] text-on-surface-variant">关联待办</span>
-                  <span className="material-symbols-rounded text-[18px] text-primary">task_alt</span>
+                  <Icon name="task_alt" className="text-[18px] text-primary" />
                 </div>
                 <div className="mt-1 text-[20px] font-bold tracking-tight">
                   {todos.filter((t) => t.status !== 'done').length} 项
@@ -292,9 +293,7 @@ function ChannelCard({ icon, label, value, onCopy }: { icon: string; label: stri
   const [copied, setCopied] = useState(false)
   return (
     <div className="flex items-center gap-3 rounded-xl border border-outline-variant/40 px-3 py-2.5">
-      <span className="material-symbols-rounded flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary-fixed text-primary" style={{ fontSize: 18 }}>
-        {icon}
-      </span>
+      <Icon name={icon} size={18} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary-fixed text-primary" />
       <div className="min-w-0 flex-1">
         <div className="text-[11px] text-outline">{label}</div>
         <div className="truncate text-[13px] font-medium">{value || '—'}</div>
@@ -357,7 +356,7 @@ function QuickLog({ customerId }: { customerId: string }) {
   return (
     <div className="rounded-xl bg-surface-container-low/60 p-3">
       <div className="mb-2 flex items-center gap-1.5 text-[12px] font-semibold text-primary">
-        <span className="material-symbols-rounded text-[16px]">bolt</span>
+        <Icon name="bolt" className="text-[16px]" />
         快速记一笔
       </div>
       <div className="mb-2 flex gap-1.5">
@@ -371,9 +370,7 @@ function QuickLog({ customerId }: { customerId: string }) {
                 : 'border-outline-variant text-on-surface-variant hover:text-on-surface'
             }`}
           >
-            <span className="material-symbols-rounded" style={{ fontSize: 14 }}>
-              {TYPE_ICONS[t]}
-            </span>
+            <Icon name={TYPE_ICONS[t]} size={14} />
             {t}
           </button>
         ))}

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Icon } from '@/design-system/Icon'
 import { useCollection } from '@/queries/hooks'
 import { todoRepo, newId } from '@/repositories'
 import type { Todo, Customer } from '@/db/types'
@@ -67,7 +68,7 @@ export default function TodoPage() {
                   : 'text-on-surface-variant hover:bg-surface-container'
               }`}
             >
-              <span className="material-symbols-rounded" style={{ fontSize: 19 }}>{l.icon}</span>
+              <Icon name={l.icon} size={19} />
               <span className="flex-1 text-left">{l.label}</span>
               <span className="text-[11px] text-outline">{l.count}</span>
             </button>
@@ -87,13 +88,12 @@ export default function TodoPage() {
             return (
               <div key={t.id} className="group flex items-center gap-3 py-3.5">
                 <button onClick={() => toggle(t)} className="shrink-0">
-                  <span
-                    className={`material-symbols-rounded ${
-                      t.status === 'done' ? 'msr-fill text-success' : t.priority === 'P1' ? 'text-danger' : 'text-outline'
-                    }`}
-                  >
-                    {t.status === 'done' ? 'check_circle' : 'radio_button_unchecked'}
-                  </span>
+                  <Icon
+                    name={t.status === 'done' ? 'check_circle' : 'radio_button_unchecked'}
+                    size={20}
+                    fill={t.status === 'done'}
+                    className={t.status !== 'done' && t.priority === 'P1' ? 'text-danger' : t.status !== 'done' ? 'text-outline' : ''}
+                  />
                 </button>
                 <div className="min-w-0 flex-1">
                   <div
@@ -130,7 +130,7 @@ export default function TodoPage() {
                   className="text-outline opacity-0 transition-opacity hover:text-danger group-hover:opacity-100"
                   onClick={() => todoRepo.softDelete(t.id)}
                 >
-                  <span className="material-symbols-rounded" style={{ fontSize: 18 }}>delete</span>
+                  <Icon name="delete" size={18} />
                 </button>
               </div>
             )

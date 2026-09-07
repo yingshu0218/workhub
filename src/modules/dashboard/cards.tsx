@@ -1,4 +1,5 @@
 import { useCollection, useTodayFocusMinutes } from '@/queries/hooks'
+import { Icon } from '@/design-system/Icon'
 import { useFocusStore, FOCUS_TOTAL_SEC } from '@/stores/focus'
 import { Button, Card, Chip } from '@/design-system/ui'
 import { eventBus } from '@/shared/eventBus'
@@ -28,7 +29,7 @@ export function FocusCard() {
     <Card className="relative overflow-hidden p-6">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="flex items-center gap-2 text-[15px] font-semibold">
-          <span className="material-symbols-rounded msr-fill text-primary">track_changes</span>
+          <Icon name="track_changes" fill className="text-primary" />
           NOW DOING
         </h2>
         <Chip tone="green" icon="whatshot">
@@ -171,18 +172,18 @@ export function HabitLoopCard() {
           return (
             <li key={h.id} className="flex items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-surface-container-low">
               <button onClick={() => void toggle(h.id)}>
-                <span
-                  className={`material-symbols-rounded ${doneToday ? 'msr-fill text-success' : 'text-outline'}`}
-                  style={{ fontSize: 26 }}
-                >
-                  {doneToday ? 'check_circle' : 'circle'}
-                </span>
+                <Icon
+                  name={doneToday ? 'check_circle' : 'circle'}
+                  size={26}
+                  fill={doneToday}
+                  className={doneToday ? 'text-success' : 'text-outline'}
+                />
               </button>
               <span
                 className="flex h-7 w-7 items-center justify-center rounded-md text-white"
                 style={{ background: h.color }}
               >
-                <span className="material-symbols-rounded" style={{ fontSize: 16 }}>{h.icon}</span>
+                <Icon name={h.icon} size={16} />
               </span>
               <div className="flex-1">
                 <div className="text-[13.5px] font-medium">{h.name}</div>
@@ -235,7 +236,7 @@ export function TodayTodosCard() {
           title="新建待办"
           onClick={() => (location.href = '/todo?new=1')}
         >
-          <span className="material-symbols-rounded" style={{ fontSize: 20 }}>add</span>
+          <Icon name="add" size={20} />
         </button>
       </div>
 
@@ -246,9 +247,7 @@ export function TodayTodosCard() {
           {list.map((t) => (
             <li key={t.id} className="flex items-start gap-3 rounded-lg px-2 py-2 hover:bg-surface-container-low">
               <button onClick={() => void toggle(t)} className="mt-0.5 shrink-0">
-                <span className="material-symbols-rounded text-outline" style={{ fontSize: 20 }}>
-                  radio_button_unchecked
-                </span>
+                <Icon name="radio_button_unchecked" size={20} className="text-outline" />
               </button>
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[13.5px] font-medium">{t.title}</div>
@@ -267,9 +266,7 @@ export function TodayTodosCard() {
           {doneToday.slice(0, 3).map((t) => (
             <li key={t.id} className="flex items-center gap-3 rounded-lg px-2 py-1.5">
               <button onClick={() => void toggle(t)} className="shrink-0">
-                <span className="material-symbols-rounded msr-fill text-success" style={{ fontSize: 20 }}>
-                  check_box
-                </span>
+                <Icon name="check_box" size={20} fill className="text-success" />
               </button>
               <span className="min-w-0 flex-1 truncate text-[12.5px] text-outline line-through">{t.title}</span>
               <Chip tone="green">已完成</Chip>

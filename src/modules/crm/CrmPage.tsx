@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { Icon } from '@/design-system/Icon'
 import { useNavigate } from 'react-router-dom'
 import { useCollection } from '@/queries/hooks'
 import type { Customer } from '@/db/types'
@@ -151,9 +152,7 @@ function StatCard({
     <div className="card p-4">
       <div className="flex items-center justify-between">
         <span className="text-[12px] font-medium uppercase tracking-wide text-on-surface-variant">{label}</span>
-        <span className={`material-symbols-rounded flex h-8 w-8 items-center justify-center rounded-xl ${iconCls}`} style={{ fontSize: 18 }}>
-          {icon}
-        </span>
+        <Icon name={icon} className={`flex h-8 w-8 items-center justify-center rounded-xl ${iconCls}`} size={18} />
       </div>
       <div className="mt-1 text-[22px] font-bold tracking-tight">{value}</div>
       <div className="mt-0.5 text-[11px] text-outline">{sub}</div>
@@ -232,9 +231,7 @@ function CustomerRow({ customer: c, onOpen }: { customer: Customer; onOpen: () =
         <div className="text-[12px] text-on-surface-variant">最近联系</div>
         <div className="text-[12px] font-medium">{fmtRelative(c.lastContactAt)}</div>
       </div>
-      <span className="material-symbols-rounded text-[18px] text-outline opacity-0 transition-opacity group-hover:opacity-100">
-        chevron_right
-      </span>
+      <Icon name="chevron_right" className="text-[18px] text-outline opacity-0 transition-opacity group-hover:opacity-100" />
     </div>
   )
 }

@@ -1,4 +1,5 @@
 import type { TrophyTier } from '@/db/types'
+import { Icon } from '@/design-system/Icon'
 import { Card, EmptyState, PageHeader } from '@/design-system/ui'
 import { useTrophyStats, useTrophyList, computeConditionValue, CONDITION_LABELS } from './hooks'
 
@@ -38,7 +39,7 @@ export default function TrophiesPage() {
       <Card className="mb-4 flex flex-wrap items-center justify-between gap-6 p-6">
         <div className="flex items-center gap-4">
           <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-primary via-primary-container to-secondary text-on-primary">
-            <span className="material-symbols-rounded msr-fill" style={{ fontSize: 32 }}>emoji_events</span>
+            <Icon name="emoji_events" size={32} fill />
           </div>
           <div>
             <div className="text-[20px] font-bold">
@@ -82,9 +83,7 @@ export default function TrophiesPage() {
                       t.unlockedAt ? `bg-gradient-to-tr ${theme.gradient} text-white` : 'bg-surface-container text-outline'
                     }`}
                   >
-                    <span className={`material-symbols-rounded ${t.unlockedAt ? 'msr-fill' : ''}`} style={{ fontSize: 24 }}>
-                      {t.unlockedAt ? t.icon : 'lock'}
-                    </span>
+                    <Icon name={t.unlockedAt ? t.icon : 'lock'} size={24} fill className="t.unlockedAt ? '' : ''}" />
                   </div>
                   <span
                     className={`rounded px-2 py-0.5 text-[11px] font-medium ${

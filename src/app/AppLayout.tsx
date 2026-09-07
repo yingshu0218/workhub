@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Icon } from '@/design-system/Icon'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { Avatar, Chip } from '@/design-system/ui'
 import { useSyncStore } from '@/sync/store'
@@ -92,7 +93,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <aside className="flex w-[232px] shrink-0 flex-col border-r border-outline-variant/40 bg-surface-container-lowest">
         <div className="flex items-center gap-2.5 px-5 py-5">
           <div className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-primary text-on-primary">
-            <span className="material-symbols-rounded msr-fill">flight_takeoff</span>
+            <Icon name="flight_takeoff" fill />
           </div>
           <div>
             <div className="text-[15px] font-bold leading-tight">寻鸽工作台</div>
@@ -106,7 +107,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             to="/inspiration"
             className="mb-3 flex items-center gap-2.5 rounded-xl bg-gradient-to-r from-primary to-primary-container px-3.5 py-2.5 text-on-primary transition-transform hover:scale-[1.01]"
           >
-            <span className="material-symbols-rounded msr-fill">auto_awesome</span>
+            <Icon name="auto_awesome" fill />
             <div className="flex-1">
               <div className="text-[13px] font-semibold leading-tight">灵感闪现</div>
               <div className="text-[11px] opacity-80">下一件最值得推进的事</div>
@@ -128,7 +129,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 }`
               }
             >
-              <span className="material-symbols-rounded">{item.icon}</span>
+              <Icon name={item.icon} />
               {item.label}
             </NavLink>
           ))}
@@ -145,7 +146,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               }`
             }
           >
-            <span className="material-symbols-rounded">settings</span>
+            <Icon name="settings" />
             系统设置
           </NavLink>
 
@@ -164,9 +165,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   {WORKSPACES.find((w) => w.id === activeWs)?.sub ?? '青枫工作室 · Owner'}
                 </div>
               </div>
-              <span className="material-symbols-rounded text-[18px] text-outline">
-                {wsOpen ? 'expand_less' : 'expand_more'}
-              </span>
+              <Icon name={wsOpen ? 'expand_less' : 'expand_more'} className="text-[18px] text-outline" />
             </button>
 
             {wsOpen && (
@@ -185,15 +184,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                       setWsOpen(false)
                     }}
                   >
-                    <span className="material-symbols-rounded text-[18px] text-primary">
-                      {w.role === 'Personal' ? 'person' : 'diversity_3'}
-                    </span>
+                    <Icon name={w.role === 'Personal' ? 'person' : 'diversity_3'} className="text-[18px] text-primary" />
                     <span className="flex-1">
                       <span className="block text-[12.5px] font-medium leading-tight">{w.name}</span>
                       <span className="block text-[10.5px] text-outline">{w.sub}</span>
                     </span>
                     {activeWs === w.id && (
-                      <span className="material-symbols-rounded msr-fill text-[16px] text-primary">check_circle</span>
+                      <Icon name="check_circle" fill className="text-[16px] text-primary" />
                     )}
                   </button>
                 ))}
@@ -205,7 +202,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     setWsOpen(false)
                   }}
                 >
-                  <span className="material-symbols-rounded text-[18px] text-primary">manage_accounts</span>
+                  <Icon name="manage_accounts" className="text-[18px] text-primary" />
                   <span className="text-[12.5px] font-medium">账号偏好设置</span>
                 </button>
                 <div className="border-t border-outline-variant/30 px-3.5 py-2 text-[11px] text-outline">
@@ -227,7 +224,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               onClick={() => setPaletteOpen(true)}
               title="全局搜索（⌘K）"
             >
-              <span className="material-symbols-rounded" style={{ fontSize: 16 }}>search</span>
+              <Icon name="search" size={16} />
               搜索
               <kbd className="rounded bg-surface-container-high px-1 text-[10px]">⌘K</kbd>
             </button>

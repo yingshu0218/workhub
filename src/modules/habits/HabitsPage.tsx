@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Icon } from '@/design-system/Icon'
 import dayjs from 'dayjs'
 import type { Habit } from '@/db/types'
 import { habitLogRepo, habitLogId, deleteHabitCascade } from '@/repositories'
@@ -93,11 +94,11 @@ export default function HabitsPage() {
           <h2 className="text-[15px] font-semibold">本月热力图</h2>
           <div className="flex items-center gap-1">
             <button className="rounded-md p-1.5 text-on-surface-variant hover:bg-surface-container-low" onClick={() => shiftMonth(-1)}>
-              <span className="material-symbols-rounded" style={{ fontSize: 20 }}>chevron_left</span>
+              <Icon name="chevron_left" size={20} />
             </button>
             <span className="min-w-[88px] text-center text-[13px] font-medium">{monthLabel}</span>
             <button className="rounded-md p-1.5 text-on-surface-variant hover:bg-surface-container-low" onClick={() => shiftMonth(1)}>
-              <span className="material-symbols-rounded" style={{ fontSize: 20 }}>chevron_right</span>
+              <Icon name="chevron_right" size={20} />
             </button>
           </div>
         </div>
@@ -148,7 +149,7 @@ export default function HabitsPage() {
                 {dayjs(selectedDate).format('M月D日')} 完成明细 · {dayHabits.length} 项
               </span>
               <button className="text-outline hover:text-on-surface" onClick={() => setSelectedDate(undefined)}>
-                <span className="material-symbols-rounded" style={{ fontSize: 16 }}>close</span>
+                <Icon name="close" size={16} />
               </button>
             </div>
             {dayHabits.length === 0 ? (
@@ -161,7 +162,7 @@ export default function HabitsPage() {
                       className="flex h-6 w-6 items-center justify-center rounded-md text-white"
                       style={{ background: h.color }}
                     >
-                      <span className="material-symbols-rounded" style={{ fontSize: 14 }}>{h.icon}</span>
+                      <Icon name={h.icon} size={14} />
                     </span>
                     {h.name}
                     <span className="text-[11px] text-outline">{h.targetMinutes} 分钟</span>
@@ -185,18 +186,18 @@ export default function HabitsPage() {
             {stats.map(({ habit, streak, monthChecks, monthRate, doneToday, totalChecks }) => (
               <li key={habit.id} className="group flex items-center gap-3 py-3">
                 <button onClick={() => void toggleCheck(habit, doneToday)} className="shrink-0" title={doneToday ? '取消打卡' : '今日打卡'}>
-                  <span
-                    className={`material-symbols-rounded ${doneToday ? 'msr-fill text-success' : 'text-outline'}`}
-                    style={{ fontSize: 26 }}
-                  >
-                    {doneToday ? 'check_circle' : 'circle'}
-                  </span>
+                  <Icon
+                    name={doneToday ? 'check_circle' : 'circle'}
+                    size={26}
+                    fill={doneToday}
+                    className={doneToday ? 'text-success' : 'text-outline'}
+                  />
                 </button>
                 <span
                   className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-white"
                   style={{ background: habit.color }}
                 >
-                  <span className="material-symbols-rounded" style={{ fontSize: 18 }}>{habit.icon}</span>
+                  <Icon name={habit.icon} size={18} />
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-[13.5px] font-medium">{habit.name}</div>
@@ -228,14 +229,14 @@ export default function HabitsPage() {
                   title="编辑"
                   onClick={() => setEditing(habit)}
                 >
-                  <span className="material-symbols-rounded" style={{ fontSize: 18 }}>edit</span>
+                  <Icon name="edit" size={18} />
                 </button>
                 <button
                   className="rounded-md p-1.5 text-outline opacity-0 transition-opacity hover:bg-surface-container-low hover:text-danger group-hover:opacity-100"
                   title="删除习惯"
                   onClick={() => removeHabit(habit, totalChecks)}
                 >
-                  <span className="material-symbols-rounded" style={{ fontSize: 18 }}>delete</span>
+                  <Icon name="delete" size={18} />
                 </button>
               </li>
             ))}

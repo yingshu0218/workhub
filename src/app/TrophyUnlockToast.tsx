@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Icon } from '@/design-system/Icon'
 import type { Trophy } from '@/db/types'
 import { eventBus } from '@/shared/eventBus'
 import { Button } from '@/design-system/ui'
@@ -33,9 +34,7 @@ export default function TrophyUnlockToast() {
         <div className="flex w-[340px] flex-col items-center gap-4 rounded-2xl bg-surface-container-lowest px-8 py-10">
           <div className={`rounded-xl bg-gradient-to-tr ${theme.gradient} p-1`}>
             <div className="flex h-24 w-24 items-center justify-center rounded-xl bg-surface-container-lowest">
-              <span className={`material-symbols-rounded msr-fill ${theme.text}`} style={{ fontSize: 56 }}>
-                {trophy.icon}
-              </span>
+              <Icon name={trophy.icon} fill size={56} className={theme.text} />
             </div>
           </div>
           <div className="text-center">

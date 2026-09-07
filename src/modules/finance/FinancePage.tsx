@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Icon } from '@/design-system/Icon'
 import { useNavigate } from 'react-router-dom'
 import { useCollection, useRecord } from '@/queries/hooks'
 import type { Customer, Ledger, Todo, Transaction } from '@/db/types'
@@ -145,18 +146,14 @@ export default function FinancePage() {
               onClick={() => setEditingLedger(activeLedger)}
               className="flex h-7 w-7 items-center justify-center rounded-md text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-primary"
             >
-              <span className="material-symbols-rounded" style={{ fontSize: 16 }}>
-                edit
-              </span>
+              <Icon name="edit" size={16} />
             </button>
             <button
               title="删除账本"
               onClick={() => handleDeleteLedger(activeLedger)}
               className="flex h-7 w-7 items-center justify-center rounded-md text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-danger"
             >
-              <span className="material-symbols-rounded" style={{ fontSize: 16 }}>
-                delete
-              </span>
+              <Icon name="delete" size={16} />
             </button>
           </div>
         )}
@@ -199,9 +196,7 @@ export default function FinancePage() {
             <span className="text-[12px] font-medium uppercase tracking-wide text-on-surface-variant">
               待对账核验
             </span>
-            <span className="material-symbols-rounded bg-warning-container text-warning" style={{ fontSize: 18 }}>
-              fact_check
-            </span>
+            <Icon name="fact_check" size={18} className="bg-warning-container text-warning" />
           </div>
           <div className="mt-1 text-[22px] font-bold tracking-tight text-warning">
             {pending.length}
@@ -337,12 +332,11 @@ function SummaryCard({
     <Card className="p-4">
       <div className="flex items-center justify-between">
         <span className="text-[12px] font-medium uppercase tracking-wide text-on-surface-variant">{label}</span>
-        <span
-          className={`material-symbols-rounded flex h-8 w-8 items-center justify-center rounded-xl ${iconCls}`}
-          style={{ fontSize: 18 }}
-        >
-          {icon}
-        </span>
+        <Icon
+          name={icon}
+          className={`flex h-8 w-8 items-center justify-center rounded-xl ${iconCls}`}
+          size={18}
+        />
       </div>
       <div className={`mt-1 text-[22px] font-bold tracking-tight ${valueCls}`}>{value}</div>
       <div className="mt-0.5 text-[11px] text-outline">{sub}</div>
@@ -405,9 +399,7 @@ function TransactionRow({
           isIncome ? 'bg-success-container/60 text-success' : 'bg-danger-container/60 text-danger'
         }`}
       >
-        <span className="material-symbols-rounded" style={{ fontSize: 20 }}>
-          {isIncome ? 'call_received' : 'call_made'}
-        </span>
+        <Icon name={isIncome ? 'call_received' : 'call_made'} size={20} />
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
@@ -578,7 +570,7 @@ function TransactionDetailDrawer({
                     className="flex items-center justify-between rounded-lg border border-outline-variant/40 px-3 py-2"
                   >
                     <div className="flex min-w-0 items-center gap-2">
-                      <span className="material-symbols-rounded text-[18px] text-primary">description</span>
+                      <Icon name="description" className="text-[18px] text-primary" />
                       <div className="min-w-0">
                         <div className="truncate text-[13px]">{a.name}</div>
                         <div className="text-[11px] text-outline">{(a.size / 1024).toFixed(0)} KB</div>
@@ -616,9 +608,7 @@ function TransactionDetailDrawer({
                     </div>
                     <span className="flex shrink-0 items-center gap-0.5 pl-2 text-[12px] font-semibold text-primary">
                       前往 CRM 档案
-                      <span className="material-symbols-rounded" style={{ fontSize: 14 }}>
-                        open_in_new
-                      </span>
+                      <Icon name="open_in_new" size={14} />
                     </span>
                   </button>
                 )}
@@ -628,9 +618,7 @@ function TransactionDetailDrawer({
                     className="flex w-full items-center justify-between rounded-xl bg-surface-container-low/60 p-3 text-left transition-colors hover:bg-surface-container-low"
                   >
                     <div className="flex min-w-0 items-center gap-3">
-                      <span className="material-symbols-rounded flex h-9 w-9 items-center justify-center rounded-xl bg-success-container/40 text-success">
-                        task_alt
-                      </span>
+                      <Icon name="task_alt" className="flex h-9 w-9 items-center justify-center rounded-xl bg-success-container/40 text-success" />
                       <div className="min-w-0">
                         <div className="truncate text-[13px] font-medium">{todo.title}</div>
                         <div className="truncate text-[12px] text-on-surface-variant">
@@ -640,9 +628,7 @@ function TransactionDetailDrawer({
                     </div>
                     <span className="flex shrink-0 items-center gap-0.5 pl-2 text-[12px] font-semibold text-primary">
                       查看待办详情
-                      <span className="material-symbols-rounded" style={{ fontSize: 14 }}>
-                        open_in_new
-                      </span>
+                      <Icon name="open_in_new" size={14} />
                     </span>
                   </button>
                 )}

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Icon } from '@/design-system/Icon'
 import { useNavigate } from 'react-router-dom'
 import { useCollection } from '@/queries/hooks'
 import { buildSearchIndex, searchAll } from '@/shared/search'
@@ -111,7 +112,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
       >
         {/* 搜索输入 */}
         <div className="flex h-14 items-center gap-3 border-b border-outline-variant/40 px-5">
-          <span className="material-symbols-rounded text-primary">search</span>
+          <Icon name="search" className="text-primary" />
           <input
             ref={inputRef}
             value={query}
@@ -121,7 +122,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
             className="h-full flex-1 bg-transparent text-[14.5px] outline-none placeholder:text-outline"
           />
           <button className="text-outline hover:text-on-surface" onClick={onClose}>
-            <span className="material-symbols-rounded" style={{ fontSize: 18 }}>close</span>
+            <Icon name="close" size={18} />
           </button>
         </div>
 
@@ -149,9 +150,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
                       onMouseEnter={() => setActive(idx)}
                       onClick={() => go(it)}
                     >
-                      <span className={`material-symbols-rounded text-[18px] ${idx === active ? 'text-primary' : 'text-outline'}`}>
-                        {g.icon}
-                      </span>
+                      <Icon name={g.icon} className={`text-[18px] ${idx === active ? 'text-primary' : 'text-outline'}`} />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-[13.5px] font-medium">{it.title}</span>
                         {it.subtitle && (
@@ -183,7 +182,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
                 onClick={a.run}
               >
                 <div className="flex items-center justify-between">
-                  <span className="material-symbols-rounded text-[18px] text-primary">{a.icon}</span>
+                  <Icon name={a.icon} className="text-[18px] text-primary" />
                   <kbd className="rounded bg-surface-container-high px-1 text-[10px] text-outline">{a.kbd}</kbd>
                 </div>
                 <div className="mt-1.5 text-[12.5px] font-semibold">{a.label}</div>
