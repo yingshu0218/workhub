@@ -64,9 +64,9 @@
 | 项 | 状态 |
 |---|---|
 | P1 三源统一时间轴投影（timeline.ts + 详情页日志卡片重构） | ✅ PR #15 已通过 R1/R2 复核审计（🟢 无阻塞项），待合并 |
-| P2 客户时间线鱼骨视图（PR #17） | ✅ 已实装：CustomerTimelinePage（/crm/:id/timeline）+ usePanZoom 共享 hook + 路由/入口；纯 SVG 零新依赖，数据复用 useCustomerTimeline 投影；tsc/vite/eslint 通过 |
+| P2 客户时间线鱼骨视图（PR #17） | ✅ 已实装并通过 R2 复核（🟢 净层通过）：CustomerTimelinePage（/crm/:id/timeline）+ usePanZoom hook + 路由/入口；纯 SVG 零新依赖，数据复用 useCustomerTimeline 投影；tsc/vite/eslint 通过。🔴-1 已处置：采用方案甲——usePanZoom 抽取为单向（画布迁移列 P3），hook 头注释已如实更正 |
 | P3 打磨（刺点聚合密度 + 空态/移动端适配 + 画布入口/共享 hook 回流） | ⏳ 未开始 |
-| R2 整体复核审计（deepseek-v4-flash） | ✅ 已发布：P2 净实现 🟢（单源投影/零依赖/边界齐全）；2 项 🔴 待处置——① usePanZoom 未回流 CrmCanvasPage 且注释与事实不符；② P2 分支叠于未合并 P1 之上致 PR #17 与 #15 diff 重叠，需固定合并顺序 #15→#17 或重建纯增量分支。处置由 glm/用户拍板 |
+| R2 整体复核审计（deepseek-v4-flash） | ✅ 已通过，2 项 🔴 均按方案甲处置完毕：① usePanZoom 单向抽取已如实注明（画布迁移列 P3）；② PR #17/#15 diff 重叠以固定合并顺序解决——**严格先合 #15 再合 #17**，不做分支重建。🟡 建议项：画布双击跳时间线、鱼头 HealthRing 替换、fitView 包络盒垂直居中，均记入 P3 |
 | 语义遗留 | 交易结算不刷新 lastContactAt（用户未拍板，随时可加一行事务内 update）；todo 拆 created/done 两个事件点（用户已确认接受） |
 
 ### 同步机制完善（Issue #2，P0/P1 已实装待验收）

@@ -1,11 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 /**
- * 通用 SVG 画布缩放平移 Hook（Issue #11 P2：从 CrmCanvasPage 抽取共享）
+ * 通用 SVG 画布缩放平移 Hook（Issue #11 P2：自 CrmCanvasPage 内联实现提炼）
  *
  * 视图变换：scale 缩放 + tx/ty 平移（SVG 用户坐标 → 屏幕坐标 = world * scale + t）
  * 能力：滚轮缩放（trackpad 捏合 ctrl+wheel 同样生效）/ 背景拖拽平移 / 视口中心锚定缩放
- * 使用方：CrmCanvasPage（力导向画布）、CustomerTimelinePage（鱼骨时间线）
+ *
+ * 使用方说明（R2 审计后如实更正）：
+ * - 当前仅 CustomerTimelinePage（鱼骨时间线）接入本 hook，抽取为单向。
+ * - CrmCanvasPage 暂沿用其内联 view 变换（与早期实现同源），迁移共享 hook
+ *   列入 P3（已知差异：画布 SCALE_MAX=2，本 hook 默认 maxScale=2.5，迁移时需对齐缩放边界）。
  */
 
 export interface PanZoomView {
