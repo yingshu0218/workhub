@@ -16,10 +16,18 @@ import {
 } from '@/design-system/ui'
 import dayjs from 'dayjs'
 import CustomerFormDrawer from './CustomerFormDrawer'
-import { useCustomerInteractions, useCustomerTodos, useCustomerTransactions } from './hooks'
+import { useCustomerTodos, useCustomerTransactions } from './hooks'
 import { fmtRelative, healthColor, tierChipTone } from './shared'
+import {
+  TIMELINE_FILTERS,
+  fmtTimelineTime,
+  filterTimeline,
+  fmtMoney,
+  type TimelineEvent,
+  type TimelineFilter,
+  useCustomerTimeline,
+} from './timeline'
 
-const INTERACTION_TYPES: Interaction['type'][] = ['电话', '会议', '邮件', '拜访']
 const TYPE_ICONS: Record<Interaction['type'], string> = {
   电话: 'call',
   会议: 'groups',
@@ -27,8 +35,14 @@ const TYPE_ICONS: Record<Interaction['type'], string> = {
   拜访: 'directions_walk',
 }
 
-const fmtMoney = (n: number) => `¥${n.toLocaleString('zh-CN')}`
+/** 时间轴系统事件的 kind → 图标映射（与手写日志的 TYPE_ICONS 分开，不复用不混用） */
+const KIND_ICONS: Record<Exclude<TimelineEvent['kind'], 'interaction'>, string> = {
+  transaction: 'payments',
+  todo: 'task_alt',
+}
 
+/** 沟通日志类型选择仍需 4 种类型常量（QuickLog 使用） */
+const INTERACTION_TYPE_OPTIONS = Object.keys(TYPE_ICONS) as Interaction['type'][]
 /** 客户智能管家详情页（对齐原型 10-crm-detail），路由 /crm/:id */
 export default function CustomerDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -36,9 +50,16 @@ export default function CustomerDetailPage() {
   const customer = useRecord<Customer>('customers', id)
   const transactions = useCustomerTransactions(id)
   const todos = useCustomerTodos(id)
-  const interactions = useCustomerInteractions(id)
+  const timeline = useCustomerTimeline(id)
+  const [timelineFilter, setTimelineFilter] = useState<TimelineFilter>('all')
   // 关联待办口径：计数与列表统一只统计未完成项
   const openTodos = todos.filter((t) => t.status !== 'done')
+  const visibleTimeline = filterTimeline(timeline, timelineFilter)
+  const counts = {
+    interaction: timeline.filter((e) => e.kind === 'interaction').length,
+    transaction: timeline.filter((e) => e.kind === 'transaction').length,
+    todo: timeline.filter((e) => e.kind === 'todo').length,
+  }
   const [editing, setEditing] = useState(false)
 
   if (!customer) {
@@ -57,7 +78,7 @@ export default function CustomerDetailPage() {
   function handleDelete(name: string, id: string) {
     const ok = confirm(
       `确定删除客户「${name}」？\n\n` +
-        `将同时删除其名下 ${interactions.length} 条沟通日志，` +
+        `将同时删除其名下 ${counts.interaction} 条沟通日志，` +
         `并解绑 ${transactions.length} 笔交易流水与 ${todos.length} 项待办。`,
     )
     if (!ok) return
@@ -225,34 +246,39 @@ export default function CustomerDetailPage() {
             </div>
           </Card>
 
-          {/* 沟通日志 */}
+          {/* 统一时间轴：手写沟通 + 关联财务 + 关联事件动态投影 */}
           <Card className="p-5">
-            <div className="mb-3 text-[12px] font-medium uppercase tracking-wide text-on-surface-variant">
-              深度跟进与沟通日志
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="text-[12px] font-medium uppercase tracking-wide text-on-surface-variant">
+                深度跟进与沟通日志
+              </div>
+              <div className="flex gap-1">
+                {TIMELINE_FILTERS.map((f) => (
+                  <button
+                    key={f.key}
+                    onClick={() => setTimelineFilter(f.key)}
+                    className={`rounded-full border px-2.5 py-0.5 text-[11px] transition-colors ${
+                      timelineFilter === f.key
+                        ? 'border-primary bg-primary-fixed font-semibold text-primary'
+                        : 'border-outline-variant text-on-surface-variant hover:text-on-surface'
+                    }`}
+                  >
+                    {f.label}
+                    {f.key !== 'all' ? ` ${counts[f.key as keyof typeof counts]}` : ''}
+                  </button>
+                ))}
+              </div>
             </div>
             <QuickLog customerId={customer.id} />
             <div className="mt-4">
-              {interactions.length === 0 ? (
+              {visibleTimeline.length === 0 ? (
                 <div className="py-6 text-center text-[12px] text-outline">
-                  暂无沟通记录，用上方「快速记一笔」开始跟进
+                  暂无记录，用上方「快速记一笔」开始跟进；记账或建待办时关联该客户也会同步显示在这里
                 </div>
               ) : (
                 <div className="relative space-y-4 border-l border-outline-variant/40 pl-4">
-                  {interactions.map((it) => (
-                    <div key={it.id} className="relative">
-                      <span className="absolute -left-[22px] top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-primary-fixed">
-                        <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-                      </span>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Chip tone="blue" icon={TYPE_ICONS[it.type]}>
-                          {it.type}
-                        </Chip>
-                        <span className="text-[12px] text-outline">{dayjs(it.at).format('YYYY-MM-DD HH:mm')}</span>
-                      </div>
-                      <p className="mt-1 rounded-lg bg-surface-container-low/50 px-3 py-2 text-[13px] leading-relaxed">
-                        {it.content}
-                      </p>
-                    </div>
+                  {visibleTimeline.map((e) => (
+                    <TimelineItem key={e.id} event={e} />
                   ))}
                 </div>
               )}
@@ -262,6 +288,72 @@ export default function CustomerDetailPage() {
       </div>
 
       <CustomerFormDrawer open={editing} customer={customer} onClose={() => setEditing(false)} />
+    </div>
+  )
+}
+
+/** 时间轴单条：手写沟通保持原蓝 Chip；关联财务/事件渲染为系统样式（金额色 / 优先级色） */
+function TimelineItem({ event }: { event: TimelineEvent }) {
+  if (event.kind === 'transaction') {
+    const income = event.direction === 'income'
+    return (
+      <div className="relative">
+        <span className="absolute -left-[22px] top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-surface-container-low">
+          <Icon name={KIND_ICONS.transaction} size={12} className={income ? 'text-success' : 'text-danger'} />
+        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <Chip tone={income ? 'green' : 'red'} icon={KIND_ICONS.transaction}>
+            关联记账 · {income ? '收入' : '支出'}
+          </Chip>
+          {event.status === '待对账' && <Chip tone="gray">待对账</Chip>}
+          <span className="text-[12px] text-outline">{fmtTimelineTime(event.at)}</span>
+        </div>
+        <p className="mt-1 flex flex-wrap items-center gap-2 rounded-lg bg-surface-container-low/50 px-3 py-2 text-[13px] leading-relaxed">
+          <span className="truncate">{event.summary}</span>
+          <span className={`ml-auto shrink-0 font-bold ${income ? 'text-success' : 'text-danger'}`}>
+            {income ? '+' : '-'}
+            {fmtMoney(event.amount)}
+          </span>
+        </p>
+      </div>
+    )
+  }
+  if (event.kind === 'todo') {
+    const done = event.event === 'done'
+    return (
+      <div className="relative">
+        <span className="absolute -left-[22px] top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-surface-container-low">
+          <Icon name={KIND_ICONS.todo} size={12} className={done ? 'text-success' : 'text-primary'} />
+        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <Chip tone={done ? 'green' : 'amber'} icon={KIND_ICONS.todo}>
+            {done ? '完成待办' : '新增待办'}
+          </Chip>
+          <Chip tone={event.priority === 'P1' ? 'red' : event.priority === 'P2' ? 'amber' : 'gray'}>
+            {event.priority}
+          </Chip>
+          <span className="text-[12px] text-outline">{fmtTimelineTime(event.at)}</span>
+        </div>
+        <p className="mt-1 rounded-lg bg-surface-container-low/50 px-3 py-2 text-[13px] leading-relaxed">
+          {event.title}
+        </p>
+      </div>
+    )
+  }
+  return (
+    <div className="relative">
+      <span className="absolute -left-[22px] top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-primary-fixed">
+        <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+      </span>
+      <div className="flex flex-wrap items-center gap-2">
+        <Chip tone="blue" icon={TYPE_ICONS[event.type]}>
+          {event.type}
+        </Chip>
+        <span className="text-[12px] text-outline">{fmtTimelineTime(event.at)}</span>
+      </div>
+      <p className="mt-1 rounded-lg bg-surface-container-low/50 px-3 py-2 text-[13px] leading-relaxed">
+        {event.content}
+      </p>
     </div>
   )
 }
@@ -362,7 +454,7 @@ function QuickLog({ customerId }: { customerId: string }) {
         快速记一笔
       </div>
       <div className="mb-2 flex gap-1.5">
-        {INTERACTION_TYPES.map((t) => (
+        {INTERACTION_TYPE_OPTIONS.map((t) => (
           <button
             key={t}
             onClick={() => setType(t)}
