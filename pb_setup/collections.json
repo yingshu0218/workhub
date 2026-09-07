@@ -597,6 +597,73 @@
     ]
   },
   {
+    "name": "noteFolders",
+    "type": "base",
+    "system": false,
+    "listRule": "@request.auth.id != ''",
+    "viewRule": "@request.auth.id != ''",
+    "createRule": "@request.auth.id != ''",
+    "updateRule": "@request.auth.id != ''",
+    "deleteRule": "@request.auth.id != ''",
+    "fields": [
+      {
+        "name": "id",
+        "type": "text",
+        "primaryKey": true,
+        "required": true,
+        "autogeneratePattern": ""
+      },
+      {
+        "name": "localId",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "name",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "createdAt",
+        "type": "number"
+      },
+      {
+        "name": "updatedAt",
+        "type": "number",
+        "required": true
+      },
+      {
+        "name": "deleted",
+        "type": "number"
+      },
+      {
+        "name": "rev",
+        "type": "number"
+      },
+      {
+        "name": "created",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": false
+      },
+      {
+        "name": "updated",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "server_received_at",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      }
+    ],
+    "indexes": [
+      "CREATE UNIQUE INDEX idx_noteFolders_localId ON noteFolders (localId)"
+    ]
+  },
+  {
     "name": "notes",
     "type": "base",
     "system": false,
@@ -637,6 +704,10 @@
       {
         "name": "mentions",
         "type": "json"
+      },
+      {
+        "name": "folderId",
+        "type": "text"
       },
       {
         "name": "createdAt",

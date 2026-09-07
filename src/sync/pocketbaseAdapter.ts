@@ -33,6 +33,7 @@ export const SYNC_TABLES = [
   'transactions',
   'todos',
   'todoLists',
+  'noteFolders',
   'notes',
   'quickNotes',
   'habits',

@@ -72,6 +72,7 @@ export class NexusDB extends Dexie {
   syncQueue!: Table<SyncQueueItem, number>
   meta!: Table<MetaEntry, string>
   todoLists!: Table<import('./types').TodoList, string>
+  noteFolders!: Table<import('./types').NoteFolder, string>
   focusSessions!: Table<FocusSession, string>
   settings!: Table<Settings, string>
 
@@ -109,6 +110,11 @@ export class NexusDB extends Dexie {
     this.version(5).stores({
       todos: 'id, status, dueAt, priority, customerId, listId, updatedAt',
       customers: 'id, tier, updatedAt',
+    })
+    // v6（笔记文件夹）：笔记文件树体系
+    this.version(6).stores({
+      noteFolders: 'id, updatedAt',
+      notes: 'id, folderId, updatedAt',
     })
   }
 }

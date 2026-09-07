@@ -35,6 +35,7 @@ export const habitRepo = createRepository<Habit>('habits')
 export const habitLogRepo = createRepository<HabitLog>('habitLogs')
 export const trophyRepo = createRepository<Trophy>('trophies')
 export const todoListRepo = createRepository<import('@/db/types').TodoList>('todoLists')
+export const noteFolderRepo = createRepository<import('@/db/types').NoteFolder>('noteFolders')
 export const attachmentRepo = createRepository<Attachment>('attachments')
 
 /**
