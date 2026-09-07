@@ -10,6 +10,7 @@ import TrophyUnlockToast from './TrophyUnlockToast'
 const NAV_ITEMS = [
   { to: '/', icon: 'dashboard', label: '工作台' },
   { to: '/todo', icon: 'check_circle', label: '待办事项' },
+  { to: '/projects', icon: 'hub', label: '项目' },
   { to: '/crm', icon: 'group', label: '客户管理' },
   { to: '/finance', icon: 'account_balance_wallet', label: '财务中心' },
   { to: '/notes', icon: 'description', label: '团队笔记' },
@@ -20,6 +21,7 @@ const NAV_ITEMS = [
 const TITLES: Record<string, string> = {
   '/': 'Focus Synchronizer',
   '/todo': '待办事项',
+  '/projects': '项目',
   '/crm': '客户管理',
   '/finance': '财务中心',
   '/notes': '团队笔记',

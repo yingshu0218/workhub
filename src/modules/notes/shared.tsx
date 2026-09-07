@@ -32,7 +32,7 @@ export function tagStyle(tag: string): CSSProperties {
 // ===== @提及语法 =====
 
 /** 提及语法：@[名称](type:id) */
-export const MENTION_RE = /@\[([^\]]+)\]\((customer|todo|ledger):([^)\s]+)\)/g
+export const MENTION_RE = /@\[([^\]]+)\]\((customer|todo|ledger|project):([^)\s]+)\)/g
 
 /** 从 markdown 提取去重后的 mentions 数组（保存时随笔记落库） */
 export function extractMentions(markdown: string): NoteMention[] {
@@ -127,4 +127,5 @@ export const NOTE_PROSE_CSS = `
 .note-prose .md-mention-customer { background: var(--color-primary-fixed); color: var(--color-primary); }
 .note-prose .md-mention-todo { background: var(--color-success-container); color: var(--color-success); }
 .note-prose .md-mention-ledger { background: var(--color-warning-container); color: var(--color-warning); }
+.note-prose .md-mention-project { background: color-mix(in srgb, #6d43c4 14%, transparent); color: #6d43c4; }
 `

@@ -13,6 +13,8 @@ import HabitsPage from '@/modules/habits/HabitsPage'
 import TrophiesPage from '@/modules/trophies/TrophiesPage'
 import ProfilePage from '@/modules/trophies/ProfilePage'
 import SettingsPage from '@/modules/settings/SettingsPage'
+import ProjectsPage from '@/modules/projects/ProjectsPage'
+import ProjectDetailPage from '@/modules/projects/ProjectDetailPage'
 import InspirationPage from '@/modules/inspiration/InspirationPage'
 
 /** 路由映射见 docs/寻鸽工作台-开发计划.md 第四节 */
@@ -34,6 +36,8 @@ const router = createBrowserRouter([
     children: [
       { path: '/', element: <DashboardPage /> },
       { path: '/todo', element: <TodoPage /> },
+      { path: '/projects', element: <ProjectsPage /> },
+      { path: '/projects/:id', element: <ProjectDetailPage /> },
       { path: '/crm', element: <CrmPage /> },
       { path: '/crm/canvas', element: <CrmCanvasPage /> },
       { path: '/crm/:id', element: <CustomerDetailPage /> },

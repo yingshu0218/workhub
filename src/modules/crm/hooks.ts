@@ -12,17 +12,19 @@ import type { Customer, Interaction, Todo, Transaction } from '@/db/types'
 /** 关系画布聚合数据（节点仅保留渲染所需字段） */
 export interface CanvasGraph {
   customers: { id: string; name: string; company: string; tier: 'S' | 'A' | 'B' | '潜在'; healthScore: number }[]
+  projects: { id: string; name: string; customerId: string }[]
   transactions: { id: string; customerId: string; type: 'income' | 'expense'; amount: number; summary: string }[]
   todos: { id: string; customerId: string; title: string; priority: 'P1' | 'P2' | 'P3'; status: 'todo' | 'doing' | 'done' }[]
   notes: { id: string; customerId: string; title: string }[]
 }
 
-const EMPTY_GRAPH: CanvasGraph = { customers: [], transactions: [], todos: [], notes: [] }
+const EMPTY_GRAPH: CanvasGraph = { customers: [], projects: [], transactions: [], todos: [], notes: [] }
 
 export function useCanvasGraph(): CanvasGraph {
   const graph = useQuery<CanvasGraph>(async () => {
-    const [customers, txns, todos] = await Promise.all([
+    const [customers, projects, txns, todos] = await Promise.all([
       db.customers.filter((c) => !c.deleted).toArray(),
+      db.projects.filter((p) => !p.deleted).toArray(),
       // customerId 建有索引：直接走索引取关联流水，跳过无关联的记录
       db.transactions.where('customerId').notEqual('').filter((t) => !t.deleted).toArray(),
       db.todos.where('customerId').notEqual('').filter((t) => !t.deleted).toArray(),
@@ -40,6 +42,7 @@ export function useCanvasGraph(): CanvasGraph {
         tier: c.tier,
         healthScore: c.healthScore,
       })),
+      projects: projects.map((p) => ({ id: p.id, name: p.name, customerId: p.customerId ?? '' })),
       transactions: txns.map((t) => ({
         id: t.id,
         customerId: t.customerId ?? '',
