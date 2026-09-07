@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ledgerRepo, newId } from '@/repositories'
+import { nextLedgerSortOrder } from './hooks'
 import type { Ledger } from '@/db/types'
 import { Button, Drawer, Field, inputCls } from '@/design-system/ui'
 
@@ -38,9 +39,11 @@ export default function LedgerFormDrawer({
     if (open) {
       if (editLedger) {
         setName(editLedger.name)
-        setCurrency((CURRENCIES as readonly string[]).includes(editLedger.currency)
-          ? (editLedger.currency as (typeof CURRENCIES)[number])
-          : 'CNY')
+        setCurrency(
+          (CURRENCIES as readonly string[]).includes(editLedger.currency)
+            ? (editLedger.currency as (typeof CURRENCIES)[number])
+            : 'CNY',
+        )
         setOpening(String(editLedger.openingBalance))
         setCycle(editLedger.closingCycle)
       } else {
@@ -79,6 +82,8 @@ export default function LedgerFormDrawer({
         currency,
         openingBalance: openingNum,
         closingCycle: cycle,
+        // 新账本排到左侧树末尾
+        sortOrder: await nextLedgerSortOrder(),
         createdAt: Date.now(),
       })
     }

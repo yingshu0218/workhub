@@ -16,7 +16,12 @@ import {
 import dayjs from 'dayjs'
 import LedgerFormDrawer from './LedgerFormDrawer'
 import TransactionFormDrawer from './TransactionFormDrawer'
-import { useAttachmentCount, useTransactionAttachments, deleteTransactionCascade } from './hooks'
+import {
+  useAttachmentCount,
+  useTransactionAttachments,
+  deleteTransactionCascade,
+  reorderLedgers,
+} from './hooks'
 import { ledgerRepo, transactionRepo } from '@/repositories'
 
 type TypeFilter = 'all' | 'income' | 'expense'
@@ -50,6 +55,7 @@ export default function FinancePage() {
   const [ledgerError, setLedgerError] = useState('')
   const [detailId, setDetailId] = useState<string | null>(null)
   const [page, setPage] = useState(0)
+  const [dragLedgerId, setDragLedgerId] = useState<string | null>(null)
 
   // 筛选口径变化时回到第一页
   useEffect(() => {
@@ -57,6 +63,10 @@ export default function FinancePage() {
   }, [scope, typeFilter, statusFilter, keyword])
 
   const ledgerMap = new Map(ledgers.map((l) => [l.id, l]))
+  // 左侧账本树顺序：sortOrder 升序，旧记录（无 sortOrder）按 createdAt 兜底
+  const sortedLedgers = [...ledgers].sort(
+    (a, b) => (a.sortOrder ?? a.createdAt) - (b.sortOrder ?? b.createdAt),
+  )
   const activeLedger = scope === 'all' ? undefined : ledgerMap.get(scope)
   // 当前口径币种：「全部账本」仅汇总 CNY 账本，按 CNY 展示
   const currency = scope === 'all' ? 'CNY' : (activeLedger?.currency ?? 'CNY')
@@ -92,6 +102,18 @@ export default function FinancePage() {
     setScope('all')
   }
 
+  function handleLedgerDrop(e: React.DragEvent, targetId: string) {
+    e.preventDefault()
+    if (!dragLedgerId || dragLedgerId === targetId) return
+    const ids = sortedLedgers.map((l) => l.id)
+    const from = ids.indexOf(dragLedgerId)
+    const to = ids.indexOf(targetId)
+    if (from < 0 || to < 0) return
+    ids.splice(to, 0, ids.splice(from, 1)[0])
+    void reorderLedgers(ids)
+    setDragLedgerId(null)
+  }
+
   const list = scoped
     .filter((t) => {
       if (typeFilter !== 'all' && t.type !== typeFilter) return false
@@ -119,9 +141,6 @@ export default function FinancePage() {
         subtitle="多账本资金流水管控，跨业务凭证溯源与关联追踪"
         actions={
           <>
-            <Button variant="ghost" icon="add_circle" onClick={() => setNewLedgerOpen(true)}>
-              新建账本
-            </Button>
             <Button icon="payments" onClick={() => setCreating(true)}>
               记一笔
             </Button>
@@ -129,179 +148,214 @@ export default function FinancePage() {
         }
       />
 
-      {/* 账本穿透 Tabs */}
-      <div className="mb-4 flex items-center gap-1 overflow-x-auto rounded-lg bg-surface-container p-1" style={{ width: 'fit-content', maxWidth: '100%' }}>
-        <LedgerTab
-          label="全部账本"
-          count={transactions.length}
-          active={scope === 'all'}
-          onClick={() => {
-            setScope('all')
-            setLedgerError('')
-          }}
-        />
-        {ledgers.map((l) => (
-          <LedgerTab
-            key={l.id}
-            label={l.name}
-            count={transactions.filter((t) => t.ledgerId === l.id).length}
-            active={scope === l.id}
-            onClick={() => {
-              setScope(l.id)
-              setLedgerError('')
-            }}
-          />
-        ))}
-        {activeLedger && (
-          <div className="ml-1 flex shrink-0 items-center gap-0.5 pl-1">
+      {ledgerError && <div className="mb-3 text-[12px] text-danger">{ledgerError}</div>}
+
+      <div className="flex items-start gap-4">
+        {/* 左栏：账本树（全部账本 + 各账本，支持拖拽排序，hover 显示编辑/删除） */}
+        <Card className="w-64 shrink-0 self-start p-4">
+          <div className="mb-3 flex items-center justify-between text-[12px] font-medium uppercase tracking-wide text-on-surface-variant">
+            <span>账本（{ledgers.length}）</span>
             <button
-              title="编辑账本"
-              onClick={() => setEditingLedger(activeLedger)}
-              className="flex h-7 w-7 items-center justify-center rounded-md text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-primary"
+              className="rounded p-0.5 text-outline transition-colors hover:bg-surface-container-high hover:text-on-surface"
+              title="新建账本"
+              onClick={() => setNewLedgerOpen(true)}
             >
-              <Icon name="edit" size={16} />
-            </button>
-            <button
-              title="删除账本"
-              onClick={() => handleDeleteLedger(activeLedger)}
-              className="flex h-7 w-7 items-center justify-center rounded-md text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-danger"
-            >
-              <Icon name="delete" size={16} />
+              <Icon name="create_new_folder" size={16} />
             </button>
           </div>
-        )}
-      </div>
-      {ledgerError && (
-        <div className="-mt-2 mb-3 text-[12px] text-danger">{ledgerError}</div>
-      )}
-
-      {/* 汇总卡 4 张 */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <SummaryCard
-          label={`累计收入${currency !== 'CNY' ? `（${currency}）` : ''}`}
-          icon="trending_up"
-          iconCls="bg-success-container/60 text-success"
-          value={fmtMoney(income, symbol)}
-          valueCls="text-success"
-          sub={`共 ${scoped.filter((t) => t.type === 'income').length} 笔流入${scopeNote}`}
-        />
-        <SummaryCard
-          label={`累计支出${currency !== 'CNY' ? `（${currency}）` : ''}`}
-          icon="trending_down"
-          iconCls="bg-danger-container/60 text-danger"
-          value={fmtMoney(expense, symbol)}
-          valueCls="text-danger"
-          sub={`共 ${scoped.filter((t) => t.type === 'expense').length} 笔流出${scopeNote}`}
-        />
-        <SummaryCard
-          label={`净结余${currency !== 'CNY' ? `（${currency}）` : ''}`}
-          icon="account_balance"
-          iconCls="bg-surface-container-high text-primary"
-          value={`${net >= 0 ? '+' : '-'}${fmtMoney(net, symbol)}`}
-          valueCls={net < 0 ? 'text-danger' : 'text-primary'}
-          sub={`含期初结转 ${fmtMoney(opening, symbol)}${scopeNote}`}
-        />
-        <div
-          className={`card card-hover cursor-pointer p-4 transition-colors ${
-            statusFilter === '待对账' ? 'ring-2 ring-warning bg-warning-container/30' : ''
-          }`}
-          onClick={() => setStatusFilter(statusFilter === '待对账' ? 'all' : '待对账')}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-[12px] font-medium uppercase tracking-wide text-on-surface-variant">
-              待对账核验
-            </span>
-            <Icon name="fact_check" size={18} className="bg-warning-container text-warning" />
-          </div>
-          <div className="mt-1 text-[22px] font-bold tracking-tight text-warning">
-            {pending.length}
-            <span className="ml-1 text-[13px] font-normal text-on-surface-variant">笔待确认</span>
-          </div>
-          <div className="mt-0.5 text-[11px] text-outline">
-            {statusFilter === '待对账' ? '已筛选：仅显示待对账流水' : '点击仅查看待对账流水'}
-            {scopeNote}
-          </div>
-        </div>
-      </div>
-
-      {/* 筛选工具栏 */}
-      <div className="mb-3 mt-5 flex flex-wrap items-center gap-2">
-        <Segmented
-          options={[
-            { key: 'all', label: '全部流水' },
-            { key: 'income', label: '仅看收入' },
-            { key: 'expense', label: '仅看支出' },
-          ]}
-          value={typeFilter}
-          onChange={(v) => setTypeFilter(v as TypeFilter)}
-        />
-        <Segmented
-          options={[
-            { key: 'all', label: '全部状态' },
-            { key: '已结算', label: '已结算' },
-            { key: '待对账', label: '待对账' },
-          ]}
-          value={statusFilter}
-          onChange={(v) => setStatusFilter(v as StatusFilter)}
-        />
-        <div className="ml-auto w-56">
-          <input
-            className={inputCls}
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-            placeholder="按交易名称、发票号、标签检索…"
-          />
-        </div>
-      </div>
-
-      {/* 流水列表 */}
-      {list.length === 0 ? (
-        <Card className="p-6">
-          <EmptyState
-            icon="account_balance_wallet"
-            title={ledgers.length === 0 ? '还没有账本' : '没有符合条件的流水'}
-            description={ledgers.length === 0 ? '点击右上角「新建账本」开始记账' : '调整筛选条件，或点「记一笔」新增流水'}
-          />
-        </Card>
-      ) : (
-        <Card className="divide-y divide-outline-variant/30 px-5">
-          {pageItems.map((t) => (
-            <TransactionRow
-              key={t.id}
-              txn={t}
-              ledger={ledgerMap.get(t.ledgerId)}
-              customer={customers.find((c) => c.id === t.customerId)}
-              showLedger={scope === 'all'}
-              onOpen={() => setDetailId(t.id)}
+          <div className="flex flex-col gap-0.5">
+            <LedgerNode
+              icon="account_balance"
+              label="全部账本"
+              count={transactions.length}
+              active={scope === 'all'}
+              onClick={() => {
+                setScope('all')
+                setLedgerError('')
+              }}
             />
-          ))}
+            {sortedLedgers.map((l) => (
+              <LedgerNode
+                key={l.id}
+                icon="account_balance_wallet"
+                label={l.name}
+                count={transactions.filter((t) => t.ledgerId === l.id).length}
+                active={scope === l.id}
+                draggable
+                onDragStart={() => setDragLedgerId(l.id)}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => handleLedgerDrop(e, l.id)}
+                onClick={() => {
+                  setScope(l.id)
+                  setLedgerError('')
+                }}
+                actions={
+                  <>
+                    <button
+                      className="rounded p-0.5 text-outline transition-colors hover:bg-surface-container-high hover:text-primary"
+                      title="编辑账本"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setEditingLedger(l)
+                      }}
+                    >
+                      <Icon name="edit" size={13} />
+                    </button>
+                    <button
+                      className="rounded p-0.5 text-outline transition-colors hover:bg-error-container hover:text-error"
+                      title="删除账本"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        void handleDeleteLedger(l)
+                      }}
+                    >
+                      <Icon name="delete" size={13} />
+                    </button>
+                  </>
+                }
+              />
+            ))}
+          </div>
+          <div className="mt-2 text-[11px] leading-relaxed text-outline">拖动账本可调整排序</div>
         </Card>
-      )}
-      {list.length > 0 && (
-        <div className="mt-3 flex items-center justify-center gap-3 text-[13px] text-on-surface-variant">
-          <Button
-            size="sm"
-            variant="tonal"
-            icon="chevron_left"
-            disabled={safePage === 0}
-            onClick={() => setPage(safePage - 1)}
-          >
-            上一页
-          </Button>
-          <span className="text-outline">
-            共 {list.length} 条 · 第 {safePage + 1} / {pageCount} 页
-          </span>
-          <Button
-            size="sm"
-            variant="tonal"
-            icon="chevron_right"
-            disabled={safePage >= pageCount - 1}
-            onClick={() => setPage(safePage + 1)}
-          >
-            下一页
-          </Button>
+
+        {/* 右侧：汇总 + 流水 */}
+        <div className="min-w-0 flex-1">
+          {/* 汇总卡 4 张 */}
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <SummaryCard
+              label={`累计收入${currency !== 'CNY' ? `（${currency}）` : ''}`}
+              icon="trending_up"
+              iconCls="bg-success-container/60 text-success"
+              value={fmtMoney(income, symbol)}
+              valueCls="text-success"
+              sub={`共 ${scoped.filter((t) => t.type === 'income').length} 笔流入${scopeNote}`}
+            />
+            <SummaryCard
+              label={`累计支出${currency !== 'CNY' ? `（${currency}）` : ''}`}
+              icon="trending_down"
+              iconCls="bg-danger-container/60 text-danger"
+              value={fmtMoney(expense, symbol)}
+              valueCls="text-danger"
+              sub={`共 ${scoped.filter((t) => t.type === 'expense').length} 笔流出${scopeNote}`}
+            />
+            <SummaryCard
+              label={`净结余${currency !== 'CNY' ? `（${currency}）` : ''}`}
+              icon="account_balance"
+              iconCls="bg-surface-container-high text-primary"
+              value={`${net >= 0 ? '+' : '-'}${fmtMoney(net, symbol)}`}
+              valueCls={net < 0 ? 'text-danger' : 'text-primary'}
+              sub={`含期初结转 ${fmtMoney(opening, symbol)}${scopeNote}`}
+            />
+            <div
+              className={`card card-hover cursor-pointer p-4 transition-colors ${
+                statusFilter === '待对账' ? 'ring-2 ring-warning bg-warning-container/30' : ''
+              }`}
+              onClick={() => setStatusFilter(statusFilter === '待对账' ? 'all' : '待对账')}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[12px] font-medium uppercase tracking-wide text-on-surface-variant">
+                  待对账核验
+                </span>
+                <Icon name="fact_check" size={18} className="bg-warning-container text-warning" />
+              </div>
+              <div className="mt-1 text-[22px] font-bold tracking-tight text-warning">
+                {pending.length}
+                <span className="ml-1 text-[13px] font-normal text-on-surface-variant">
+                  笔待确认
+                </span>
+              </div>
+              <div className="mt-0.5 text-[11px] text-outline">
+                {statusFilter === '待对账' ? '已筛选：仅显示待对账流水' : '点击仅查看待对账流水'}
+                {scopeNote}
+              </div>
+            </div>
+          </div>
+
+          {/* 筛选工具栏 */}
+          <div className="mb-3 mt-5 flex flex-wrap items-center gap-2">
+            <Segmented
+              options={[
+                { key: 'all', label: '全部流水' },
+                { key: 'income', label: '仅看收入' },
+                { key: 'expense', label: '仅看支出' },
+              ]}
+              value={typeFilter}
+              onChange={(v) => setTypeFilter(v as TypeFilter)}
+            />
+            <Segmented
+              options={[
+                { key: 'all', label: '全部状态' },
+                { key: '已结算', label: '已结算' },
+                { key: '待对账', label: '待对账' },
+              ]}
+              value={statusFilter}
+              onChange={(v) => setStatusFilter(v as StatusFilter)}
+            />
+            <div className="ml-auto w-56">
+              <input
+                className={inputCls}
+                value={keyword}
+                onChange={(e) => setKeyword(e.target.value)}
+                placeholder="按交易名称、发票号、标签检索…"
+              />
+            </div>
+          </div>
+
+          {/* 流水列表 */}
+          {list.length === 0 ? (
+            <Card className="p-6">
+              <EmptyState
+                icon="account_balance_wallet"
+                title={ledgers.length === 0 ? '还没有账本' : '没有符合条件的流水'}
+                description={
+                  ledgers.length === 0
+                    ? '点击左栏「+」新建账本开始记账'
+                    : '调整筛选条件，或点「记一笔」新增流水'
+                }
+              />
+            </Card>
+          ) : (
+            <Card className="divide-y divide-outline-variant/30 px-5">
+              {pageItems.map((t) => (
+                <TransactionRow
+                  key={t.id}
+                  txn={t}
+                  ledger={ledgerMap.get(t.ledgerId)}
+                  customer={customers.find((c) => c.id === t.customerId)}
+                  showLedger={scope === 'all'}
+                  onOpen={() => setDetailId(t.id)}
+                />
+              ))}
+            </Card>
+          )}
+          {list.length > 0 && (
+            <div className="mt-3 flex items-center justify-center gap-3 text-[13px] text-on-surface-variant">
+              <Button
+                size="sm"
+                variant="tonal"
+                icon="chevron_left"
+                disabled={safePage === 0}
+                onClick={() => setPage(safePage - 1)}
+              >
+                上一页
+              </Button>
+              <span className="text-outline">
+                共 {list.length} 条 · 第 {safePage + 1} / {pageCount} 页
+              </span>
+              <Button
+                size="sm"
+                variant="tonal"
+                icon="chevron_right"
+                disabled={safePage >= pageCount - 1}
+                onClick={() => setPage(safePage + 1)}
+              >
+                下一页
+              </Button>
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       <TransactionFormDrawer
         open={creating}
@@ -321,35 +375,66 @@ export default function FinancePage() {
   )
 }
 
-function LedgerTab({
+/** 左栏账本树节点（对齐笔记页 TreeNode：hover 出操作钮，计数随 hover 隐藏） */
+function LedgerNode({
+  icon,
   label,
   count,
   active,
   onClick,
+  draggable,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  actions,
 }: {
+  icon: string
   label: string
   count: number
   active: boolean
   onClick: () => void
+  draggable?: boolean
+  onDragStart?: () => void
+  onDragOver?: (e: React.DragEvent) => void
+  onDrop?: (e: React.DragEvent) => void
+  actions?: React.ReactNode
 }) {
   return (
-    <button
+    <div
       onClick={onClick}
-      className={`flex items-center gap-1.5 whitespace-nowrap rounded-md px-3.5 py-1.5 text-[13px] transition-colors ${
+      draggable={draggable}
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+      className={`group flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1.5 text-[13px] transition-colors ${
         active
-          ? 'bg-primary font-semibold text-on-primary shadow-sm'
-          : 'text-on-surface-variant hover:text-on-surface'
+          ? 'bg-primary-fixed font-semibold text-primary'
+          : 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'
       }`}
     >
-      {label}
-      <span
-        className={`rounded-full px-1.5 text-[11px] ${
-          active ? 'bg-white/20' : 'bg-surface-container-high text-on-surface-variant'
-        }`}
-      >
-        {count}
-      </span>
-    </button>
+      {draggable && (
+        <span
+          className="cursor-grab text-[14px] leading-none text-outline/60 group-hover:text-outline"
+          title="拖动排序"
+        >
+          ⠿
+        </span>
+      )}
+      <Icon name={icon} size={16} className={active ? 'text-primary' : 'text-outline'} />
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      {actions && (
+        <span
+          className="hidden items-center gap-0.5 group-hover:flex"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {actions}
+        </span>
+      )}
+      <span className="shrink-0 text-[11px] text-outline group-hover:hidden">{count}</span>
+      {actions && (
+        <span className="hidden shrink-0 text-[11px] text-outline group-hover:hidden">{count}</span>
+      )}
+    </div>
   )
 }
 
@@ -371,7 +456,9 @@ function SummaryCard({
   return (
     <Card className="p-4">
       <div className="flex items-center justify-between">
-        <span className="text-[12px] font-medium uppercase tracking-wide text-on-surface-variant">{label}</span>
+        <span className="text-[12px] font-medium uppercase tracking-wide text-on-surface-variant">
+          {label}
+        </span>
         <Icon
           name={icon}
           className={`flex h-8 w-8 items-center justify-center rounded-xl ${iconCls}`}
@@ -468,10 +555,15 @@ function TransactionRow({
         </div>
       </div>
       <div className="flex shrink-0 flex-col items-end gap-1">
-        <span className={`text-[15px] font-bold tracking-tight ${isIncome ? 'text-success' : 'text-danger'}`}>
+        <span
+          className={`text-[15px] font-bold tracking-tight ${isIncome ? 'text-success' : 'text-danger'}`}
+        >
           {fmtSigned(txn, symbol)}
         </span>
-        <Chip tone={txn.status === '已结算' ? 'green' : 'amber'} icon={txn.status === '已结算' ? 'check_circle' : 'fact_check'}>
+        <Chip
+          tone={txn.status === '已结算' ? 'green' : 'amber'}
+          icon={txn.status === '已结算' ? 'check_circle' : 'fact_check'}
+        >
           {txn.status}
         </Chip>
       </div>
@@ -525,7 +617,12 @@ function TransactionDetailDrawer({
   }
 
   return (
-    <Drawer open={transactionId !== null && !editing} title="财务流水凭证详情" onClose={onClose} width={460}>
+    <Drawer
+      open={transactionId !== null && !editing}
+      title="财务流水凭证详情"
+      onClose={onClose}
+      width={460}
+    >
       {!txn ? null : (
         <div className="space-y-5">
           {/* 金额主卡 */}
@@ -569,7 +666,12 @@ function TransactionDetailDrawer({
             <Button variant="ghost" icon="edit" onClick={() => setEditing(true)}>
               编辑
             </Button>
-            <Button variant="danger" icon="delete" className="ml-auto" onClick={() => void handleDelete()}>
+            <Button
+              variant="danger"
+              icon="delete"
+              className="ml-auto"
+              onClick={() => void handleDelete()}
+            >
               删除此笔
             </Button>
           </div>
@@ -578,7 +680,9 @@ function TransactionDetailDrawer({
           <div className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-xl bg-surface-container-low/50 p-4">
             <DetailField label="交易类型">{txn.type === 'income' ? '收入' : '支出'}</DetailField>
             <DetailField label="结算渠道">{txn.channel}</DetailField>
-            <DetailField label="记账时间">{dayjs(txn.occurredAt).format('YYYY-MM-DD HH:mm')}</DetailField>
+            <DetailField label="记账时间">
+              {dayjs(txn.occurredAt).format('YYYY-MM-DD HH:mm')}
+            </DetailField>
             <DetailField label="归属账本">{ledger?.name ?? '—'}</DetailField>
             <DetailField label="发票号">{txn.invoiceNo ?? '—'}</DetailField>
             <DetailField label="关联客户">
@@ -625,10 +729,17 @@ function TransactionDetailDrawer({
                       <Icon name="description" className="text-[18px] text-primary" />
                       <div className="min-w-0">
                         <div className="truncate text-[13px]">{a.name}</div>
-                        <div className="text-[11px] text-outline">{(a.size / 1024).toFixed(0)} KB</div>
+                        <div className="text-[11px] text-outline">
+                          {(a.size / 1024).toFixed(0)} KB
+                        </div>
                       </div>
                     </div>
-                    <Button size="sm" variant="tonal" icon="download" onClick={() => downloadAttachment(a)}>
+                    <Button
+                      size="sm"
+                      variant="tonal"
+                      icon="download"
+                      onClick={() => downloadAttachment(a)}
+                    >
                       下载
                     </Button>
                   </div>
@@ -655,7 +766,9 @@ function TransactionDetailDrawer({
                         <div className="truncate text-[13px] font-semibold">
                           {customer.company} · {customer.name}
                         </div>
-                        <div className="truncate text-[12px] text-on-surface-variant">{customer.title}</div>
+                        <div className="truncate text-[12px] text-on-surface-variant">
+                          {customer.title}
+                        </div>
                       </div>
                     </div>
                     <span className="flex shrink-0 items-center gap-0.5 pl-2 text-[12px] font-semibold text-primary">
@@ -670,7 +783,10 @@ function TransactionDetailDrawer({
                     className="flex w-full items-center justify-between rounded-xl bg-surface-container-low/60 p-3 text-left transition-colors hover:bg-surface-container-low"
                   >
                     <div className="flex min-w-0 items-center gap-3">
-                      <Icon name="task_alt" className="flex h-9 w-9 items-center justify-center rounded-xl bg-success-container/40 text-success" />
+                      <Icon
+                        name="task_alt"
+                        className="flex h-9 w-9 items-center justify-center rounded-xl bg-success-container/40 text-success"
+                      />
                       <div className="min-w-0">
                         <div className="truncate text-[13px] font-medium">{todo.title}</div>
                         <div className="truncate text-[12px] text-on-surface-variant">

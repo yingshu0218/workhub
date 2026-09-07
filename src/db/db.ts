@@ -116,6 +116,10 @@ export class NexusDB extends Dexie {
       noteFolders: 'id, updatedAt',
       notes: 'id, folderId, updatedAt',
     })
+    // v7（账本左侧树）：账本清单化，加 sortOrder 索引支持拖拽排序
+    this.version(7).stores({
+      ledgers: 'id, sortOrder, updatedAt',
+    })
   }
 }
 

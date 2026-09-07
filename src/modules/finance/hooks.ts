@@ -1,6 +1,8 @@
 import type { Attachment } from '@/db/db'
 import { db } from '@/db/db'
+
 import { useQuery } from '@/queries/hooks'
+import type { Ledger } from '@/db/types'
 import { syncEngine } from '@/sync/engine'
 import type { SyncMeta } from '@/db/types'
 
@@ -25,10 +27,7 @@ export function useTransactionAttachments(transactionId: string | undefined): At
 /** 某条记录的附件计数角标（count() 只走索引计数，不反序列化 Blob） */
 export function useAttachmentCount(refId: string | undefined): number {
   const count = useQuery<number>(
-    () =>
-      refId
-        ? db.attachments.where('refId').equals(refId).count()
-        : Promise.resolve(0),
+    () => (refId ? db.attachments.where('refId').equals(refId).count() : Promise.resolve(0)),
     [refId],
   )
   return count ?? 0
@@ -73,6 +72,30 @@ export async function deleteTransactionCascade(txnId: string): Promise<void> {
         op: 'delete',
         createdAt: now,
       })
+    }
+  })
+  syncEngine.requestSync()
+}
+
+// ===== 账本左侧树（数据层与 todo 自定义清单同款事务纪律） =====
+
+/** 新建账本的排序尾值 */
+export async function nextLedgerSortOrder(): Promise<number> {
+  const all = await db.ledgers.toArray()
+  return all.filter((l) => !l.deleted).length
+}
+
+/** 拖拽排序：按传入的 id 顺序重写 sortOrder（事务 + 入同步队列，同 todoLists） */
+export async function reorderLedgers(orderedIds: string[]): Promise<void> {
+  const now = Date.now()
+  const all = await db.ledgers.toArray()
+  await db.transaction('rw', [db.ledgers, db.syncQueue], async () => {
+    for (let i = 0; i < orderedIds.length; i++) {
+      const l = all.find((x) => x.id === orderedIds[i])
+      if (!l || l.deleted || l.sortOrder === i) continue
+      const row: Ledger = { ...l, sortOrder: i, updatedAt: now, rev: l.rev + 1 }
+      await db.ledgers.put(row)
+      await db.syncQueue.add({ table: 'ledgers', recordId: l.id, op: 'upsert', createdAt: now })
     }
   })
   syncEngine.requestSync()

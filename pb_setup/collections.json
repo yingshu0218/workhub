@@ -324,6 +324,10 @@
         "type": "text"
       },
       {
+        "name": "sortOrder",
+        "type": "number"
+      },
+      {
         "name": "createdAt",
         "type": "number"
       },
