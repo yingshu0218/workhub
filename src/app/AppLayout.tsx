@@ -21,6 +21,8 @@ const TITLES: Record<string, string> = {
   '/': 'Focus Synchronizer',
   '/todo': '待办事项',
   '/crm': '客户管理',
+  '/crm/canvas': '客户关系画布',
+  '/crm/:id/timeline': '客户时间线',
   '/finance': '财务中心',
   '/notes': '团队笔记',
   '/habits': '打卡习惯',
@@ -60,8 +62,12 @@ function SyncBadge() {
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation()
   const navigate = useNavigate()
+  // /crm/:id/timeline 为动态段路由，TITLES 精确匹配不到，先按后缀识别
   const title =
-    TITLES[pathname] ?? NAV_ITEMS.find((n) => pathname.startsWith(n.to))?.label ?? '寻鸽工作台'
+    (pathname.match(/^\/crm\/[^/]+\/timeline$/) ? TITLES['/crm/:id/timeline'] : undefined) ??
+    TITLES[pathname] ??
+    NAV_ITEMS.find((n) => pathname.startsWith(n.to))?.label ??
+    '寻鸽工作台'
 
   // ⌘K 命令面板（走统一快捷键注册表）
   const [paletteOpen, setPaletteOpen] = useState(false)
