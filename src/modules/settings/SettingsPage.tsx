@@ -491,8 +491,8 @@ export default function SettingsPage() {
       {/* ── 字体与排版 ── */}
       {tab === 'typography' && (
         <div className="space-y-4">
-          <Section icon="text_fields" title="字体组合" desc="切换全局 font-sans 字体栈（Inter 优先 / 系统优先 / 衬线优先）" badge="实时生效">
-            <div className="grid grid-cols-3 gap-3">
+          <Section icon="text_fields" title="字体组合" desc="切换全局 font-sans 字体栈，12 组风格预设（黑体/衬线/楷体/等宽/仿宋/草体等）" badge="实时生效">
+            <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
               {FONT_PRESETS.map((p) => (
                 <button
                   key={p.id}

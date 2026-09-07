@@ -202,7 +202,7 @@ export interface SettingsTypography {
   /** 行高倍数 */
   lineHeight: number
   /** 字体组合预设（取 FONT_PRESETS 的 id，见 shared/theme；缺省 inter，映射 --font-sans 栈） */
-  fontPreset?: 'inter' | 'system' | 'serif' | 'hei' | 'kai' | 'rounded'
+  fontPreset?: 'inter' | 'system' | 'serif' | 'hei' | 'kai' | 'rounded' | 'mono' | 'fangsong' | 'cursive' | 'gothic' | 'songti' | 'yozai'
 }
 
 export interface SettingsNotifications {

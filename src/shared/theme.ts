@@ -465,6 +465,12 @@ export const FONT_PRESETS = [
   { id: 'hei', label: '现代黑体', desc: '鸿蒙黑体 / 微软雅黑优先，笔画硬朗清晰' },
   { id: 'kai', label: '楷体手写', desc: '楷体 / Kaiti SC，温润亲和的手写气质' },
   { id: 'rounded', label: '圆润可爱', desc: '圆体 / 幼圆优先，轻松愉悦的圆润风格' },
+  { id: 'mono', label: '等宽极客', desc: 'JetBrains Mono / 源码等宽，代码感与对齐控最爱' },
+  { id: 'fangsong', label: '仿宋公文', desc: '仿宋 / 仿宋 GB2312，公文与古籍排版韵味' },
+  { id: 'cursive', label: '飘逸草体', desc: '行楷 / 草书体，潇洒随性的手写笔触' },
+  { id: 'gothic', label: '凌厉黑体', desc: '思源黑体 Heavy 优先，海报级粗壮标题感' },
+  { id: 'songti', label: '典丽宋体', desc: '华文宋体 / 思源宋体，典雅正式的印刷质感' },
+  { id: 'yozai', label: '元气圆黑', desc: '站酷快乐体 / 圆润黑体，活泼跳脱的元气感' },
 ] as const
 
 export type FontPresetId = (typeof FONT_PRESETS)[number]['id']
@@ -477,4 +483,10 @@ export const FONT_STACKS: Record<FontPresetId, string> = {
   hei: `'HarmonyOS Sans SC', 'MiSans', 'Microsoft YaHei', 'PingFang SC', sans-serif`,
   kai: `'Kaiti SC', 'STKaiti', 'KaiTi', 'DFKai-SB', 'serif'`,
   rounded: `'Yuanti SC', 'YouYuan', 'Hiragino Maru Gothic ProN', 'PingFang SC', sans-serif`,
+  mono: `'JetBrains Mono', 'Cascadia Code', 'Fira Code', 'Source Code Pro', 'Menlo', 'Consolas', monospace`,
+  fangsong: `'FangSong', 'STFangsong', 'FangSong_GB2312', 'PingFang SC', serif`,
+  cursive: `'Xingkai SC', 'STXingkai', 'XingKai', 'LiSu', 'Comic Sans MS', cursive`,
+  gothic: `'Source Han Sans SC Heavy', 'Noto Sans SC', 'MiSans', 'Microsoft YaHei', sans-serif`,
+  songti: `'Songti SC', 'STSong', 'Noto Serif SC', 'SimSun', serif`,
+  yozai: `'Yozai', 'ZCOOL KuaiLe', 'HYWenHei', 'Yuanti SC', 'YouYuan', sans-serif`,
 }
