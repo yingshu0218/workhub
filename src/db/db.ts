@@ -71,6 +71,7 @@ export class NexusDB extends Dexie {
   attachments!: Table<Attachment, string>
   syncQueue!: Table<SyncQueueItem, number>
   meta!: Table<MetaEntry, string>
+  todoLists!: Table<import('./types').TodoList, string>
   focusSessions!: Table<FocusSession, string>
   settings!: Table<Settings, string>
 
@@ -98,6 +99,10 @@ export class NexusDB extends Dexie {
     // v3（Phase 6）：settings singleton 表 —— 本地偏好，不进同步队列
     this.version(3).stores({
       settings: 'key',
+    })
+    // v4（清单系统）：用户自定义清单
+    this.version(4).stores({
+      todoLists: 'id, sortOrder, updatedAt',
     })
   }
 }

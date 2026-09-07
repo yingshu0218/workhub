@@ -80,7 +80,17 @@ export interface Todo extends SyncMeta {
   customerId?: string
   ledgerId?: string
   habitId?: string
+  /** 所属自定义清单（智能清单不落此字段） */
+  listId?: string
   completedAt?: number
+  createdAt: number
+}
+
+/** 用户自定义清单（左侧「我的清单」，可增删改排序，参与同步） */
+export interface TodoList extends SyncMeta {
+  id: string
+  name: string
+  sortOrder: number
   createdAt: number
 }
 

@@ -9,17 +9,61 @@
     "updateRule": "@request.auth.id != ''",
     "deleteRule": "@request.auth.id != ''",
     "fields": [
-      { "name": "id", "type": "text", "primaryKey": true, "required": true, "autogeneratePattern": "" },
-      { "name": "localId", "type": "text", "required": true },
-      { "name": "name", "type": "text" },
-      { "name": "role", "type": "text" },
-      { "name": "createdAt", "type": "number" },
-      { "name": "updatedAt", "type": "number", "required": true },
-      { "name": "deleted", "type": "number" },
-      { "name": "rev", "type": "number" },
-      { "name": "created", "type": "autodate", "onCreate": true, "onUpdate": false },
-      { "name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true },
-      { "name": "server_received_at", "type": "autodate", "onCreate": true, "onUpdate": true }
+      {
+        "name": "id",
+        "type": "text",
+        "primaryKey": true,
+        "required": true,
+        "autogeneratePattern": ""
+      },
+      {
+        "name": "localId",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "name",
+        "type": "text"
+      },
+      {
+        "name": "role",
+        "type": "text"
+      },
+      {
+        "name": "createdAt",
+        "type": "number"
+      },
+      {
+        "name": "updatedAt",
+        "type": "number",
+        "required": true
+      },
+      {
+        "name": "deleted",
+        "type": "number"
+      },
+      {
+        "name": "rev",
+        "type": "number"
+      },
+      {
+        "name": "created",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": false
+      },
+      {
+        "name": "updated",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "server_received_at",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      }
     ],
     "indexes": [
       "CREATE INDEX idx_workspaces_updatedAt ON workspaces (updatedAt)",
@@ -36,29 +80,109 @@
     "updateRule": "@request.auth.id != ''",
     "deleteRule": "@request.auth.id != ''",
     "fields": [
-      { "name": "id", "type": "text", "primaryKey": true, "required": true, "autogeneratePattern": "" },
-      { "name": "localId", "type": "text", "required": true },
-      { "name": "name", "type": "text" },
-      { "name": "company", "type": "text" },
-      { "name": "industry", "type": "text" },
-      { "name": "title", "type": "text" },
-      { "name": "decisionLevel", "type": "text" },
-      { "name": "tier", "type": "text" },
-      { "name": "stage", "type": "text" },
-      { "name": "tags", "type": "json" },
-      { "name": "phone", "type": "text" },
-      { "name": "wechat", "type": "text" },
-      { "name": "email", "type": "text" },
-      { "name": "address", "type": "text" },
-      { "name": "healthScore", "type": "number" },
-      { "name": "lastContactAt", "type": "number" },
-      { "name": "createdAt", "type": "number" },
-      { "name": "updatedAt", "type": "number", "required": true },
-      { "name": "deleted", "type": "number" },
-      { "name": "rev", "type": "number" },
-      { "name": "created", "type": "autodate", "onCreate": true, "onUpdate": false },
-      { "name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true },
-      { "name": "server_received_at", "type": "autodate", "onCreate": true, "onUpdate": true }
+      {
+        "name": "id",
+        "type": "text",
+        "primaryKey": true,
+        "required": true,
+        "autogeneratePattern": ""
+      },
+      {
+        "name": "localId",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "name",
+        "type": "text"
+      },
+      {
+        "name": "company",
+        "type": "text"
+      },
+      {
+        "name": "industry",
+        "type": "text"
+      },
+      {
+        "name": "title",
+        "type": "text"
+      },
+      {
+        "name": "decisionLevel",
+        "type": "text"
+      },
+      {
+        "name": "tier",
+        "type": "text"
+      },
+      {
+        "name": "stage",
+        "type": "text"
+      },
+      {
+        "name": "tags",
+        "type": "json"
+      },
+      {
+        "name": "phone",
+        "type": "text"
+      },
+      {
+        "name": "wechat",
+        "type": "text"
+      },
+      {
+        "name": "email",
+        "type": "text"
+      },
+      {
+        "name": "address",
+        "type": "text"
+      },
+      {
+        "name": "healthScore",
+        "type": "number"
+      },
+      {
+        "name": "lastContactAt",
+        "type": "number"
+      },
+      {
+        "name": "createdAt",
+        "type": "number"
+      },
+      {
+        "name": "updatedAt",
+        "type": "number",
+        "required": true
+      },
+      {
+        "name": "deleted",
+        "type": "number"
+      },
+      {
+        "name": "rev",
+        "type": "number"
+      },
+      {
+        "name": "created",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": false
+      },
+      {
+        "name": "updated",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "server_received_at",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      }
     ],
     "indexes": [
       "CREATE INDEX idx_customers_updatedAt ON customers (updatedAt)",
@@ -75,18 +199,65 @@
     "updateRule": "@request.auth.id != ''",
     "deleteRule": "@request.auth.id != ''",
     "fields": [
-      { "name": "id", "type": "text", "primaryKey": true, "required": true, "autogeneratePattern": "" },
-      { "name": "localId", "type": "text", "required": true },
-      { "name": "customerId", "type": "text" },
-      { "name": "type", "type": "text" },
-      { "name": "content", "type": "text" },
-      { "name": "at", "type": "number" },
-      { "name": "updatedAt", "type": "number", "required": true },
-      { "name": "deleted", "type": "number" },
-      { "name": "rev", "type": "number" },
-      { "name": "created", "type": "autodate", "onCreate": true, "onUpdate": false },
-      { "name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true },
-      { "name": "server_received_at", "type": "autodate", "onCreate": true, "onUpdate": true }
+      {
+        "name": "id",
+        "type": "text",
+        "primaryKey": true,
+        "required": true,
+        "autogeneratePattern": ""
+      },
+      {
+        "name": "localId",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "customerId",
+        "type": "text"
+      },
+      {
+        "name": "type",
+        "type": "text"
+      },
+      {
+        "name": "content",
+        "type": "text"
+      },
+      {
+        "name": "at",
+        "type": "number"
+      },
+      {
+        "name": "updatedAt",
+        "type": "number",
+        "required": true
+      },
+      {
+        "name": "deleted",
+        "type": "number"
+      },
+      {
+        "name": "rev",
+        "type": "number"
+      },
+      {
+        "name": "created",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": false
+      },
+      {
+        "name": "updated",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "server_received_at",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      }
     ],
     "indexes": [
       "CREATE INDEX idx_interactions_updatedAt ON interactions (updatedAt)",
@@ -103,19 +274,69 @@
     "updateRule": "@request.auth.id != ''",
     "deleteRule": "@request.auth.id != ''",
     "fields": [
-      { "name": "id", "type": "text", "primaryKey": true, "required": true, "autogeneratePattern": "" },
-      { "name": "localId", "type": "text", "required": true },
-      { "name": "name", "type": "text" },
-      { "name": "currency", "type": "text" },
-      { "name": "openingBalance", "type": "number" },
-      { "name": "closingCycle", "type": "text" },
-      { "name": "createdAt", "type": "number" },
-      { "name": "updatedAt", "type": "number", "required": true },
-      { "name": "deleted", "type": "number" },
-      { "name": "rev", "type": "number" },
-      { "name": "created", "type": "autodate", "onCreate": true, "onUpdate": false },
-      { "name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true },
-      { "name": "server_received_at", "type": "autodate", "onCreate": true, "onUpdate": true }
+      {
+        "name": "id",
+        "type": "text",
+        "primaryKey": true,
+        "required": true,
+        "autogeneratePattern": ""
+      },
+      {
+        "name": "localId",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "name",
+        "type": "text"
+      },
+      {
+        "name": "currency",
+        "type": "text"
+      },
+      {
+        "name": "openingBalance",
+        "type": "number"
+      },
+      {
+        "name": "closingCycle",
+        "type": "text"
+      },
+      {
+        "name": "createdAt",
+        "type": "number"
+      },
+      {
+        "name": "updatedAt",
+        "type": "number",
+        "required": true
+      },
+      {
+        "name": "deleted",
+        "type": "number"
+      },
+      {
+        "name": "rev",
+        "type": "number"
+      },
+      {
+        "name": "created",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": false
+      },
+      {
+        "name": "updated",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "server_received_at",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      }
     ],
     "indexes": [
       "CREATE INDEX idx_ledgers_updatedAt ON ledgers (updatedAt)",
@@ -132,26 +353,97 @@
     "updateRule": "@request.auth.id != ''",
     "deleteRule": "@request.auth.id != ''",
     "fields": [
-      { "name": "id", "type": "text", "primaryKey": true, "required": true, "autogeneratePattern": "" },
-      { "name": "localId", "type": "text", "required": true },
-      { "name": "ledgerId", "type": "text" },
-      { "name": "type", "type": "text" },
-      { "name": "amount", "type": "number" },
-      { "name": "summary", "type": "text" },
-      { "name": "channel", "type": "text" },
-      { "name": "occurredAt", "type": "number" },
-      { "name": "tags", "type": "json" },
-      { "name": "invoiceNo", "type": "text" },
-      { "name": "note", "type": "text" },
-      { "name": "customerId", "type": "text" },
-      { "name": "todoId", "type": "text" },
-      { "name": "status", "type": "text" },
-      { "name": "updatedAt", "type": "number", "required": true },
-      { "name": "deleted", "type": "number" },
-      { "name": "rev", "type": "number" },
-      { "name": "created", "type": "autodate", "onCreate": true, "onUpdate": false },
-      { "name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true },
-      { "name": "server_received_at", "type": "autodate", "onCreate": true, "onUpdate": true }
+      {
+        "name": "id",
+        "type": "text",
+        "primaryKey": true,
+        "required": true,
+        "autogeneratePattern": ""
+      },
+      {
+        "name": "localId",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "ledgerId",
+        "type": "text"
+      },
+      {
+        "name": "type",
+        "type": "text"
+      },
+      {
+        "name": "amount",
+        "type": "number"
+      },
+      {
+        "name": "summary",
+        "type": "text"
+      },
+      {
+        "name": "channel",
+        "type": "text"
+      },
+      {
+        "name": "occurredAt",
+        "type": "number"
+      },
+      {
+        "name": "tags",
+        "type": "json"
+      },
+      {
+        "name": "invoiceNo",
+        "type": "text"
+      },
+      {
+        "name": "note",
+        "type": "text"
+      },
+      {
+        "name": "customerId",
+        "type": "text"
+      },
+      {
+        "name": "todoId",
+        "type": "text"
+      },
+      {
+        "name": "status",
+        "type": "text"
+      },
+      {
+        "name": "updatedAt",
+        "type": "number",
+        "required": true
+      },
+      {
+        "name": "deleted",
+        "type": "number"
+      },
+      {
+        "name": "rev",
+        "type": "number"
+      },
+      {
+        "name": "created",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": false
+      },
+      {
+        "name": "updated",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "server_received_at",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      }
     ],
     "indexes": [
       "CREATE INDEX idx_transactions_updatedAt ON transactions (updatedAt)",
@@ -168,24 +460,94 @@
     "updateRule": "@request.auth.id != ''",
     "deleteRule": "@request.auth.id != ''",
     "fields": [
-      { "name": "id", "type": "text", "primaryKey": true, "required": true, "autogeneratePattern": "" },
-      { "name": "localId", "type": "text", "required": true },
-      { "name": "title", "type": "text" },
-      { "name": "desc", "type": "text" },
-      { "name": "priority", "type": "text" },
-      { "name": "dueAt", "type": "number" },
-      { "name": "status", "type": "text" },
-      { "name": "customerId", "type": "text" },
-      { "name": "ledgerId", "type": "text" },
-      { "name": "habitId", "type": "text" },
-      { "name": "completedAt", "type": "number" },
-      { "name": "createdAt", "type": "number" },
-      { "name": "updatedAt", "type": "number", "required": true },
-      { "name": "deleted", "type": "number" },
-      { "name": "rev", "type": "number" },
-      { "name": "created", "type": "autodate", "onCreate": true, "onUpdate": false },
-      { "name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true },
-      { "name": "server_received_at", "type": "autodate", "onCreate": true, "onUpdate": true }
+      {
+        "name": "id",
+        "type": "text",
+        "primaryKey": true,
+        "required": true,
+        "autogeneratePattern": ""
+      },
+      {
+        "name": "localId",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "title",
+        "type": "text"
+      },
+      {
+        "name": "desc",
+        "type": "text"
+      },
+      {
+        "name": "priority",
+        "type": "text"
+      },
+      {
+        "name": "dueAt",
+        "type": "number"
+      },
+      {
+        "name": "status",
+        "type": "text"
+      },
+      {
+        "name": "customerId",
+        "type": "text"
+      },
+      {
+        "name": "ledgerId",
+        "type": "text"
+      },
+      {
+        "name": "habitId",
+        "type": "text"
+      },
+      {
+        "name": "completedAt",
+        "type": "number"
+      },
+      {
+        "name": "createdAt",
+        "type": "number"
+      },
+      {
+        "name": "updatedAt",
+        "type": "number",
+        "required": true
+      },
+      {
+        "name": "deleted",
+        "type": "number"
+      },
+      {
+        "name": "rev",
+        "type": "number"
+      },
+      {
+        "name": "created",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": false
+      },
+      {
+        "name": "updated",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "server_received_at",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "listId",
+        "type": "text",
+        "required": false
+      }
     ],
     "indexes": [
       "CREATE INDEX idx_todos_updatedAt ON todos (updatedAt)",
@@ -202,20 +564,73 @@
     "updateRule": "@request.auth.id != ''",
     "deleteRule": "@request.auth.id != ''",
     "fields": [
-      { "name": "id", "type": "text", "primaryKey": true, "required": true, "autogeneratePattern": "" },
-      { "name": "localId", "type": "text", "required": true },
-      { "name": "title", "type": "text" },
-      { "name": "markdown", "type": "text" },
-      { "name": "tags", "type": "json" },
-      { "name": "backlinks", "type": "json" },
-      { "name": "mentions", "type": "json" },
-      { "name": "createdAt", "type": "number" },
-      { "name": "updatedAt", "type": "number", "required": true },
-      { "name": "deleted", "type": "number" },
-      { "name": "rev", "type": "number" },
-      { "name": "created", "type": "autodate", "onCreate": true, "onUpdate": false },
-      { "name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true },
-      { "name": "server_received_at", "type": "autodate", "onCreate": true, "onUpdate": true }
+      {
+        "name": "id",
+        "type": "text",
+        "primaryKey": true,
+        "required": true,
+        "autogeneratePattern": ""
+      },
+      {
+        "name": "localId",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "title",
+        "type": "text"
+      },
+      {
+        "name": "markdown",
+        "type": "text"
+      },
+      {
+        "name": "tags",
+        "type": "json"
+      },
+      {
+        "name": "backlinks",
+        "type": "json"
+      },
+      {
+        "name": "mentions",
+        "type": "json"
+      },
+      {
+        "name": "createdAt",
+        "type": "number"
+      },
+      {
+        "name": "updatedAt",
+        "type": "number",
+        "required": true
+      },
+      {
+        "name": "deleted",
+        "type": "number"
+      },
+      {
+        "name": "rev",
+        "type": "number"
+      },
+      {
+        "name": "created",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": false
+      },
+      {
+        "name": "updated",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "server_received_at",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      }
     ],
     "indexes": [
       "CREATE INDEX idx_notes_updatedAt ON notes (updatedAt)",
@@ -232,17 +647,61 @@
     "updateRule": "@request.auth.id != ''",
     "deleteRule": "@request.auth.id != ''",
     "fields": [
-      { "name": "id", "type": "text", "primaryKey": true, "required": true, "autogeneratePattern": "" },
-      { "name": "localId", "type": "text", "required": true },
-      { "name": "content", "type": "text" },
-      { "name": "convertedTo", "type": "text" },
-      { "name": "createdAt", "type": "number" },
-      { "name": "updatedAt", "type": "number", "required": true },
-      { "name": "deleted", "type": "number" },
-      { "name": "rev", "type": "number" },
-      { "name": "created", "type": "autodate", "onCreate": true, "onUpdate": false },
-      { "name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true },
-      { "name": "server_received_at", "type": "autodate", "onCreate": true, "onUpdate": true }
+      {
+        "name": "id",
+        "type": "text",
+        "primaryKey": true,
+        "required": true,
+        "autogeneratePattern": ""
+      },
+      {
+        "name": "localId",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "content",
+        "type": "text"
+      },
+      {
+        "name": "convertedTo",
+        "type": "text"
+      },
+      {
+        "name": "createdAt",
+        "type": "number"
+      },
+      {
+        "name": "updatedAt",
+        "type": "number",
+        "required": true
+      },
+      {
+        "name": "deleted",
+        "type": "number"
+      },
+      {
+        "name": "rev",
+        "type": "number"
+      },
+      {
+        "name": "created",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": false
+      },
+      {
+        "name": "updated",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "server_received_at",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      }
     ],
     "indexes": [
       "CREATE INDEX idx_quickNotes_updatedAt ON quickNotes (updatedAt)",
@@ -259,23 +718,85 @@
     "updateRule": "@request.auth.id != ''",
     "deleteRule": "@request.auth.id != ''",
     "fields": [
-      { "name": "id", "type": "text", "primaryKey": true, "required": true, "autogeneratePattern": "" },
-      { "name": "localId", "type": "text", "required": true },
-      { "name": "name", "type": "text" },
-      { "name": "icon", "type": "text" },
-      { "name": "color", "type": "text" },
-      { "name": "category", "type": "text" },
-      { "name": "schedule", "type": "text" },
-      { "name": "targetMinutes", "type": "number" },
-      { "name": "motivationNote", "type": "text" },
-      { "name": "crossModuleSync", "type": "bool" },
-      { "name": "createdAt", "type": "number" },
-      { "name": "updatedAt", "type": "number", "required": true },
-      { "name": "deleted", "type": "number" },
-      { "name": "rev", "type": "number" },
-      { "name": "created", "type": "autodate", "onCreate": true, "onUpdate": false },
-      { "name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true },
-      { "name": "server_received_at", "type": "autodate", "onCreate": true, "onUpdate": true }
+      {
+        "name": "id",
+        "type": "text",
+        "primaryKey": true,
+        "required": true,
+        "autogeneratePattern": ""
+      },
+      {
+        "name": "localId",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "name",
+        "type": "text"
+      },
+      {
+        "name": "icon",
+        "type": "text"
+      },
+      {
+        "name": "color",
+        "type": "text"
+      },
+      {
+        "name": "category",
+        "type": "text"
+      },
+      {
+        "name": "schedule",
+        "type": "text"
+      },
+      {
+        "name": "targetMinutes",
+        "type": "number"
+      },
+      {
+        "name": "motivationNote",
+        "type": "text"
+      },
+      {
+        "name": "crossModuleSync",
+        "type": "bool"
+      },
+      {
+        "name": "createdAt",
+        "type": "number"
+      },
+      {
+        "name": "updatedAt",
+        "type": "number",
+        "required": true
+      },
+      {
+        "name": "deleted",
+        "type": "number"
+      },
+      {
+        "name": "rev",
+        "type": "number"
+      },
+      {
+        "name": "created",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": false
+      },
+      {
+        "name": "updated",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "server_received_at",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      }
     ],
     "indexes": [
       "CREATE INDEX idx_habits_updatedAt ON habits (updatedAt)",
@@ -292,18 +813,65 @@
     "updateRule": "@request.auth.id != ''",
     "deleteRule": "@request.auth.id != ''",
     "fields": [
-      { "name": "id", "type": "text", "primaryKey": true, "required": true, "autogeneratePattern": "" },
-      { "name": "localId", "type": "text", "required": true },
-      { "name": "habitId", "type": "text" },
-      { "name": "date", "type": "text" },
-      { "name": "completedAt", "type": "number" },
-      { "name": "evidence", "type": "text" },
-      { "name": "updatedAt", "type": "number", "required": true },
-      { "name": "deleted", "type": "number" },
-      { "name": "rev", "type": "number" },
-      { "name": "created", "type": "autodate", "onCreate": true, "onUpdate": false },
-      { "name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true },
-      { "name": "server_received_at", "type": "autodate", "onCreate": true, "onUpdate": true }
+      {
+        "name": "id",
+        "type": "text",
+        "primaryKey": true,
+        "required": true,
+        "autogeneratePattern": ""
+      },
+      {
+        "name": "localId",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "habitId",
+        "type": "text"
+      },
+      {
+        "name": "date",
+        "type": "text"
+      },
+      {
+        "name": "completedAt",
+        "type": "number"
+      },
+      {
+        "name": "evidence",
+        "type": "text"
+      },
+      {
+        "name": "updatedAt",
+        "type": "number",
+        "required": true
+      },
+      {
+        "name": "deleted",
+        "type": "number"
+      },
+      {
+        "name": "rev",
+        "type": "number"
+      },
+      {
+        "name": "created",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": false
+      },
+      {
+        "name": "updated",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "server_received_at",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      }
     ],
     "indexes": [
       "CREATE INDEX idx_habitLogs_updatedAt ON habitLogs (updatedAt)",
@@ -321,22 +889,81 @@
     "updateRule": "@request.auth.id != ''",
     "deleteRule": "@request.auth.id != ''",
     "fields": [
-      { "name": "id", "type": "text", "primaryKey": true, "required": true, "autogeneratePattern": "" },
-      { "name": "localId", "type": "text", "required": true },
-      { "name": "name", "type": "text" },
-      { "name": "tier", "type": "text" },
-      { "name": "rarity", "type": "text" },
-      { "name": "description", "type": "text" },
-      { "name": "icon", "type": "text" },
-      { "name": "unlockedAt", "type": "number" },
-      { "name": "conditionType", "type": "text" },
-      { "name": "conditionValue", "type": "number" },
-      { "name": "updatedAt", "type": "number", "required": true },
-      { "name": "deleted", "type": "number" },
-      { "name": "rev", "type": "number" },
-      { "name": "created", "type": "autodate", "onCreate": true, "onUpdate": false },
-      { "name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true },
-      { "name": "server_received_at", "type": "autodate", "onCreate": true, "onUpdate": true }
+      {
+        "name": "id",
+        "type": "text",
+        "primaryKey": true,
+        "required": true,
+        "autogeneratePattern": ""
+      },
+      {
+        "name": "localId",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "name",
+        "type": "text"
+      },
+      {
+        "name": "tier",
+        "type": "text"
+      },
+      {
+        "name": "rarity",
+        "type": "text"
+      },
+      {
+        "name": "description",
+        "type": "text"
+      },
+      {
+        "name": "icon",
+        "type": "text"
+      },
+      {
+        "name": "unlockedAt",
+        "type": "number"
+      },
+      {
+        "name": "conditionType",
+        "type": "text"
+      },
+      {
+        "name": "conditionValue",
+        "type": "number"
+      },
+      {
+        "name": "updatedAt",
+        "type": "number",
+        "required": true
+      },
+      {
+        "name": "deleted",
+        "type": "number"
+      },
+      {
+        "name": "rev",
+        "type": "number"
+      },
+      {
+        "name": "created",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": false
+      },
+      {
+        "name": "updated",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "server_received_at",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      }
     ],
     "indexes": [
       "CREATE INDEX idx_trophies_updatedAt ON trophies (updatedAt)",
@@ -353,21 +980,81 @@
     "updateRule": "@request.auth.id != ''",
     "deleteRule": "@request.auth.id != ''",
     "fields": [
-      { "name": "id", "type": "text", "primaryKey": true, "required": true, "autogeneratePattern": "" },
-      { "name": "localId", "type": "text", "required": true },
-      { "name": "refType", "type": "text" },
-      { "name": "refId", "type": "text" },
-      { "name": "name", "type": "text" },
-      { "name": "mime", "type": "text" },
-      { "name": "size", "type": "number" },
-      { "name": "createdAt", "type": "number" },
-      { "name": "file", "type": "file", "maxSelect": 1, "maxSize": 20971520, "thumbs": [], "protected": false },
-      { "name": "updatedAt", "type": "number", "required": true },
-      { "name": "deleted", "type": "number" },
-      { "name": "rev", "type": "number" },
-      { "name": "created", "type": "autodate", "onCreate": true, "onUpdate": false },
-      { "name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true },
-      { "name": "server_received_at", "type": "autodate", "onCreate": true, "onUpdate": true }
+      {
+        "name": "id",
+        "type": "text",
+        "primaryKey": true,
+        "required": true,
+        "autogeneratePattern": ""
+      },
+      {
+        "name": "localId",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "refType",
+        "type": "text"
+      },
+      {
+        "name": "refId",
+        "type": "text"
+      },
+      {
+        "name": "name",
+        "type": "text"
+      },
+      {
+        "name": "mime",
+        "type": "text"
+      },
+      {
+        "name": "size",
+        "type": "number"
+      },
+      {
+        "name": "createdAt",
+        "type": "number"
+      },
+      {
+        "name": "file",
+        "type": "file",
+        "maxSelect": 1,
+        "maxSize": 20971520,
+        "thumbs": [],
+        "protected": false
+      },
+      {
+        "name": "updatedAt",
+        "type": "number",
+        "required": true
+      },
+      {
+        "name": "deleted",
+        "type": "number"
+      },
+      {
+        "name": "rev",
+        "type": "number"
+      },
+      {
+        "name": "created",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": false
+      },
+      {
+        "name": "updated",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "server_received_at",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      }
     ],
     "indexes": [
       "CREATE INDEX idx_attachments_updatedAt ON attachments (updatedAt)",
@@ -384,19 +1071,114 @@
     "updateRule": "@request.auth.id != ''",
     "deleteRule": "@request.auth.id != ''",
     "fields": [
-      { "name": "id", "type": "text", "primaryKey": true, "required": true, "autogeneratePattern": "" },
-      { "name": "localId", "type": "text", "required": true },
-      { "name": "user", "type": "text" },
-      { "name": "device", "type": "text" },
-      { "name": "cursor", "type": "number" },
-      { "name": "syncedAt", "type": "number" },
-      { "name": "created", "type": "autodate", "onCreate": true, "onUpdate": false },
-      { "name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true },
-      { "name": "server_received_at", "type": "autodate", "onCreate": true, "onUpdate": true }
+      {
+        "name": "id",
+        "type": "text",
+        "primaryKey": true,
+        "required": true,
+        "autogeneratePattern": ""
+      },
+      {
+        "name": "localId",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "user",
+        "type": "text"
+      },
+      {
+        "name": "device",
+        "type": "text"
+      },
+      {
+        "name": "cursor",
+        "type": "number"
+      },
+      {
+        "name": "syncedAt",
+        "type": "number"
+      },
+      {
+        "name": "created",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": false
+      },
+      {
+        "name": "updated",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "server_received_at",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      }
     ],
     "indexes": [
       "CREATE INDEX idx_sync_state_user ON sync_state (user)",
       "CREATE UNIQUE INDEX idx_sync_state_localId ON sync_state (localId)"
+    ]
+  },
+  {
+    "name": "todoLists",
+    "type": "base",
+    "system": false,
+    "listRule": "@request.auth.id != ''",
+    "viewRule": "@request.auth.id != ''",
+    "createRule": "@request.auth.id != ''",
+    "updateRule": "@request.auth.id != ''",
+    "deleteRule": "@request.auth.id != ''",
+    "fields": [
+      {
+        "name": "id",
+        "type": "text",
+        "primaryKey": true,
+        "required": true,
+        "autogeneratePattern": ""
+      },
+      {
+        "name": "localId",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "name",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "sortOrder",
+        "type": "number"
+      },
+      {
+        "name": "createdAt",
+        "type": "number"
+      },
+      {
+        "name": "updatedAt",
+        "type": "number"
+      },
+      {
+        "name": "deleted",
+        "type": "bool"
+      },
+      {
+        "name": "rev",
+        "type": "number"
+      },
+      {
+        "name": "server_received_at",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": false
+      }
+    ],
+    "indexes": [
+      "CREATE UNIQUE INDEX idx_todoLists_localId ON todoLists (localId)"
     ]
   }
 ]

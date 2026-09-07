@@ -34,6 +34,7 @@ export const quickNoteRepo = createRepository<QuickNote>('quickNotes')
 export const habitRepo = createRepository<Habit>('habits')
 export const habitLogRepo = createRepository<HabitLog>('habitLogs')
 export const trophyRepo = createRepository<Trophy>('trophies')
+export const todoListRepo = createRepository<import('@/db/types').TodoList>('todoLists')
 export const attachmentRepo = createRepository<Attachment>('attachments')
 
 /**

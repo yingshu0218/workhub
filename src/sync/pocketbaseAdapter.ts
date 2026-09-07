@@ -32,6 +32,7 @@ export const SYNC_TABLES = [
   'ledgers',
   'transactions',
   'todos',
+  'todoLists',
   'notes',
   'quickNotes',
   'habits',

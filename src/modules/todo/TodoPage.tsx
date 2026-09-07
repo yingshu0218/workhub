@@ -7,15 +7,34 @@ import type { Todo, Customer } from '@/db/types'
 import { Button, Card, Chip, EmptyState, PageHeader, Drawer, Field, inputCls } from '@/design-system/ui'
 import dayjs from 'dayjs'
 import { useFocusStore } from '@/stores/focus'
+import {
+  useTodoLists,
+  useTodoListCounts,
+  useTodoListOptions,
+  createTodoList,
+  renameTodoList,
+  deleteTodoListCascade,
+  reorderTodoLists,
+} from './hooks'
 
 type Filter = 'today' | 'open' | 'done' | 'p1'
 
 export default function TodoPage() {
   const todos = useCollection<Todo>('todos')
-  const [filter, setFilter] = useState<Filter>('today')
+  const lists = useTodoLists()
+  const listCounts = useTodoListCounts()
+  const [selKind, setSelKind] = useState<Filter>('today')
+  const [selListId, setSelListId] = useState<string | null>(null)
   const [editing, setEditing] = useState<Todo | null>(null)
   const [creating, setCreating] = useState(false)
   const focus = useFocusStore()
+
+  // 清单管理交互态
+  const [creatingList, setCreatingList] = useState(false)
+  const [newListName, setNewListName] = useState('')
+  const [renamingId, setRenamingId] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
+  const [dragId, setDragId] = useState<string | null>(null)
 
   // 全局快捷指令入口：/todo?new=1 自动打开新建抽屉，打开后立即清掉参数避免返回/刷新重复触发
   const [searchParams, setSearchParams] = useSearchParams()
@@ -28,13 +47,17 @@ export default function TodoPage() {
 
   const todayStr = dayjs().format('YYYY-MM-DD')
   const openTodos = todos.filter((t) => t.status !== 'done')
-  const filtered = todos.filter((t) => {
-    if (filter === 'done') return t.status === 'done'
-    if (filter === 'p1') return t.status !== 'done' && t.priority === 'P1'
-    if (filter === 'today')
-      return t.status !== 'done' && (!t.dueAt || dayjs(t.dueAt).format('YYYY-MM-DD') === todayStr)
-    return t.status !== 'done'
-  })
+  const doneTodos = todos.filter((t) => t.status === 'done')
+
+  const filtered = selListId
+    ? todos.filter((t) => t.listId === selListId)
+    : todos.filter((t) => {
+        if (selKind === 'done') return t.status === 'done'
+        if (selKind === 'p1') return t.status !== 'done' && t.priority === 'P1'
+        if (selKind === 'today')
+          return t.status !== 'done' && (!t.dueAt || dayjs(t.dueAt).format('YYYY-MM-DD') === todayStr)
+        return t.status !== 'done'
+      })
 
   async function toggle(t: Todo) {
     if (t.status === 'done') {
@@ -44,13 +67,63 @@ export default function TodoPage() {
     }
   }
 
-  // 左侧「清单」列表（计数徽章实时推导）
-  const lists: { key: Filter; icon: string; label: string; count: number }[] = [
+  const smartLists: { key: Filter; icon: string; label: string; count: number }[] = [
     { key: 'today', icon: 'today', label: '今天', count: openTodos.filter((t) => !t.dueAt || dayjs(t.dueAt).format('YYYY-MM-DD') === todayStr).length },
     { key: 'p1', icon: 'error', label: 'P1 紧急', count: openTodos.filter((t) => t.priority === 'P1').length },
     { key: 'open', icon: 'list', label: '全部待办', count: openTodos.length },
-    { key: 'done', icon: 'check_circle', label: '已完成', count: todos.filter((t) => t.status === 'done').length },
+    { key: 'done', icon: 'check_circle', label: '已完成', count: doneTodos.length },
   ]
+  const selSmart = smartLists.find((l) => l.key === selKind)
+  const selCustom = lists.find((l) => l.id === selListId)
+  const selLabel = selCustom ? selCustom.name : selSmart?.label ?? '待办'
+
+  function selectSmart(key: Filter) {
+    setSelListId(null)
+    setSelKind(key)
+  }
+  function selectList(id: string) {
+    setSelListId(id)
+  }
+
+  async function submitCreateList() {
+    const name = newListName.trim()
+    if (!name) return
+    const list = await createTodoList(name)
+    setNewListName('')
+    setCreatingList(false)
+    selectList(list.id)
+  }
+
+  async function submitRename() {
+    if (!renamingId) return
+    const name = renameValue.trim()
+    if (name) await renameTodoList(renamingId, name)
+    setRenamingId(null)
+  }
+
+  async function removeList(id: string) {
+    const list = lists.find((l) => l.id === id)
+    if (!list) return
+    const n = todos.filter((t) => t.listId === id && t.status !== 'done').length
+    if (!window.confirm(`删除清单「${list.name}」？名下 ${n} 条未完成待办将移入「全部待办」。`)) return
+    await deleteTodoListCascade(id)
+    if (selListId === id) {
+      setSelListId(null)
+      setSelKind('open')
+    }
+  }
+
+  function handleDrop(e: React.DragEvent, targetId: string) {
+    e.preventDefault()
+    if (!dragId || dragId === targetId) return
+    const ids = lists.map((l) => l.id)
+    const from = ids.indexOf(dragId)
+    const to = ids.indexOf(targetId)
+    if (from < 0 || to < 0) return
+    ids.splice(to, 0, ids.splice(from, 1)[0])
+    void reorderTodoLists(ids)
+    setDragId(null)
+  }
 
   return (
     <div className="mx-auto max-w-[1200px]">
@@ -64,16 +137,16 @@ export default function TodoPage() {
         }
       />
 
-      <div className="grid grid-cols-[230px_1fr] gap-4 items-start">
-        {/* 左侧清单列表 */}
+      <div className="grid grid-cols-[240px_1fr] gap-4 items-start">
+        {/* 左侧清单：智能清单 + 我的清单（增删改/拖拽排序） */}
         <Card className="p-2">
-          <div className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-outline">清单</div>
-          {lists.map((l) => (
+          <div className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-outline">智能清单</div>
+          {smartLists.map((l) => (
             <button
               key={l.key}
-              onClick={() => setFilter(l.key)}
+              onClick={() => selectSmart(l.key)}
               className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13.5px] transition-colors ${
-                filter === l.key
+                !selListId && selKind === l.key
                   ? 'bg-primary-fixed font-semibold text-primary'
                   : 'text-on-surface-variant hover:bg-surface-container'
               }`}
@@ -83,10 +156,105 @@ export default function TodoPage() {
               <span className="text-[11px] text-outline">{l.count}</span>
             </button>
           ))}
+
+          <div className="mt-3 flex items-center justify-between border-t border-outline-variant/40 px-3 pt-2 pb-1">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-outline">我的清单</span>
+            <button
+              className="text-outline hover:text-primary"
+              title="新建清单"
+              onClick={() => {
+                setCreatingList(true)
+                setNewListName('')
+              }}
+            >
+              <Icon name="add" size={16} />
+            </button>
+          </div>
+
+          {lists.map((l) => (
+            <div
+              key={l.id}
+              draggable={renamingId !== l.id}
+              onDragStart={(e) => {
+                setDragId(l.id)
+                e.dataTransfer.effectAllowed = 'move'
+              }}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => handleDrop(e, l.id)}
+              className={`group/list flex w-full items-center gap-2 rounded-lg px-3 py-2 text-[13.5px] transition-colors ${
+                selListId === l.id
+                  ? 'bg-primary-fixed font-semibold text-primary'
+                  : 'text-on-surface-variant hover:bg-surface-container'
+              }`}
+            >
+              <span className="cursor-grab text-[14px] leading-none text-outline/60 group-hover/list:text-outline" title="拖动排序">
+                ⠿
+              </span>
+              {renamingId === l.id ? (
+                <input
+                  autoFocus
+                  className="min-w-0 flex-1 rounded border border-primary px-1.5 py-0.5 text-[13px] outline-none"
+                  value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  onBlur={() => void submitRename()}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void submitRename()
+                    if (e.key === 'Escape') setRenamingId(null)
+                  }}
+                />
+              ) : (
+                <button className="min-w-0 flex-1 truncate text-left" onClick={() => selectList(l.id)} onDoubleClick={() => {
+                  setRenamingId(l.id)
+                  setRenameValue(l.name)
+                }}>
+                  {l.name}
+                </button>
+              )}
+              <span className="text-[11px] text-outline">{listCounts[l.id] ?? 0}</span>
+              <span className="hidden shrink-0 items-center gap-1 group-hover/list:flex">
+                <button
+                  title="重命名"
+                  className="text-outline hover:text-primary"
+                  onClick={() => {
+                    setRenamingId(l.id)
+                    setRenameValue(l.name)
+                  }}
+                >
+                  <Icon name="edit" size={14} />
+                </button>
+                <button title="删除清单" className="text-outline hover:text-danger" onClick={() => void removeList(l.id)}>
+                  <Icon name="delete" size={14} />
+                </button>
+              </span>
+            </div>
+          ))}
+
+          {creatingList && (
+            <div className="px-2 py-1">
+              <input
+                autoFocus
+                placeholder="清单名称，回车保存"
+                className="w-full rounded border border-primary px-2 py-1.5 text-[13px] outline-none"
+                value={newListName}
+                onChange={(e) => setNewListName(e.target.value)}
+                onBlur={() => void submitCreateList()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void submitCreateList()
+                  if (e.key === 'Escape') setCreatingList(false)
+                }}
+              />
+            </div>
+          )}
         </Card>
 
         {/* 右侧待办列表 */}
         <div>
+          <Card className="mb-3 flex items-center justify-between px-4 py-2.5">
+            <span className="text-[13px] font-semibold">{selLabel}</span>
+            <span className="text-[11px] text-outline">
+              {selListId ? `${filtered.length} 条` : `${filtered.length} 条未完成`}
+            </span>
+          </Card>
         {filtered.length === 0 ? (
           <Card className="p-6">
             <EmptyState icon="task_alt" title="这里空空如也" description="点击右上角新建待办" />
@@ -177,6 +345,8 @@ export function TodoFormDrawer({
   const [priority, setPriority] = useState<Todo['priority']>('P2')
   const [dueAt, setDueAt] = useState('')
   const [customerId, setCustomerId] = useState('')
+  const [listId, setListId] = useState('')
+  const listOptions = useTodoListOptions()
   const [error, setError] = useState('')
   const [seedKey, setSeedKey] = useState(0)
 
@@ -190,6 +360,7 @@ export function TodoFormDrawer({
     setPriority(todo?.priority ?? 'P2')
     setDueAt(todo?.dueAt ? dayjs(todo.dueAt).format('YYYY-MM-DDTHH:mm') : '')
     setCustomerId(todo?.customerId ?? '')
+    setListId(todo?.listId ?? '')
     setError('')
     setSeedKey((k) => k + 1)
   }
@@ -209,6 +380,7 @@ export function TodoFormDrawer({
       status: todo?.status ?? 'todo',
       dueAt: dueAt ? dayjs(dueAt).valueOf() : undefined,
       customerId: customerId || undefined,
+      listId: listId || undefined,
       createdAt: todo?.createdAt ?? Date.now(),
       updatedAt: 0,
       deleted: 0,
@@ -244,6 +416,16 @@ export function TodoFormDrawer({
         </Field>
         <Field label="截止时间">
           <input type="datetime-local" className={inputCls} value={dueAt} onChange={(e) => setDueAt(e.target.value)} />
+        </Field>
+        <Field label="所属清单">
+          <select className={inputCls} value={listId} onChange={(e) => setListId(e.target.value)}>
+            <option value="">无（仅出现在智能清单）</option>
+            {listOptions.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.name}
+              </option>
+            ))}
+          </select>
         </Field>
         <Field label="关联客户">
           <select className={inputCls} value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
