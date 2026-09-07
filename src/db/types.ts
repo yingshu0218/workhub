@@ -1,3 +1,5 @@
+import type { ThemeStyleId } from '@/shared/theme'
+
 /**
  * 全局实体类型定义
  * 所有业务表统一携带同步元数据：updatedAt / deleted / rev（见开发计划 2.3）
@@ -187,7 +189,7 @@ export interface SettingsAppearance {
   /** 深浅模式：light / dark / 跟随系统 */
   mode: 'light' | 'dark' | 'system'
   /** 风格主题包（取 THEME_STYLES 的 id，见 shared/theme），换整套界面气质而非仅强调色 */
-  theme?: string
+  theme?: ThemeStyleId
   /** 强调色（取 ACCENT_PRESETS 的 id，见 SettingsPage） */
   accent: string
   /** 圆角档位：sharp 4px / medium 8px / large 14px */

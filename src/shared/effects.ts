@@ -37,6 +37,7 @@ export function applySettingsToDom(settings: import('@/db/types').Settings): voi
     'surface', 'surface-container-lowest', 'surface-container-low', 'surface-container', 'surface-container-high',
     'on-surface', 'on-surface-variant', 'outline', 'outline-variant', 'primary-fixed',
     'success', 'success-container', 'warning', 'warning-container', 'danger', 'danger-container',
+    'samesite-success', 'samesite-warning', 'samesite-danger',
   ] as const
   for (const name of VARS) root.style.removeProperty(`--color-${name}`)
   const styleVars = (dark ? style.dark : style.light) as Partial<Record<(typeof VARS)[number], string>>

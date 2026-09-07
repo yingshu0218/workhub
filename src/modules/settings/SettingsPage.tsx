@@ -382,7 +382,7 @@ export default function SettingsPage() {
                   }`}
                   onClick={() => {
                     const mode = t.mode === 'dark' ? 'dark' : 'light'
-                    const radius = t.radius ?? settings.appearance.radius
+                    const radius = ('radius' in t ? t.radius : undefined) ?? settings.appearance.radius
                     save({ appearance: { ...settings.appearance, theme: t.id, mode, radius } })
                   }}
                 >

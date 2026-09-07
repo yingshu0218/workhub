@@ -70,9 +70,13 @@ export interface ThemeVars {
   'warning-container': string
   danger: string
   'danger-container': string
+  /** 同侧表面情绪色（浅色按钮/徽章底色，浅侧为浅色调、深侧为深色调） */
+  'samesite-success': string
+  'samesite-warning': string
+  'samesite-danger': string
 }
 
-export const THEME_STYLES: ThemeStylePreset[] = [
+export const THEME_STYLES = [
   {
     id: 'classic',
     label: '经典晴空',
@@ -99,6 +103,9 @@ export const THEME_STYLES: ThemeStylePreset[] = [
       outline: '#857a68',
       'outline-variant': '#e0d5bf',
       'primary-fixed': '#f6e7cd',
+      'samesite-success': '#e4edc3',
+      'samesite-warning': '#ffe3bd',
+      'samesite-danger': '#ffdad2',
       success: '#5c7a29',
       'success-container': '#e4edc3',
       warning: '#9a5b13',
@@ -112,6 +119,9 @@ export const THEME_STYLES: ThemeStylePreset[] = [
       'surface-container-low': '#2b251a',
       'surface-container': '#332c1f',
       'surface-container-high': '#3d3425',
+      'samesite-success': '#3a451a',
+      'samesite-warning': '#4d2e08',
+      'samesite-danger': '#5d180b',
       'on-surface': '#eddcbf',
       'on-surface-variant': '#cfc0a3',
       outline: '#998d74',
@@ -142,6 +152,9 @@ export const THEME_STYLES: ThemeStylePreset[] = [
       outline: '#6f8377',
       'outline-variant': '#bed8c7',
       'primary-fixed': '#d0e9dc',
+      'samesite-success': '#bbf7d0',
+      'samesite-warning': '#ffedd5',
+      'samesite-danger': '#fecdd3',
       success: '#166534',
       'success-container': '#bbf7d0',
       warning: '#a16207',
@@ -155,6 +168,9 @@ export const THEME_STYLES: ThemeStylePreset[] = [
       'surface-container-low': '#182420',
       'surface-container': '#1e2c26',
       'surface-container-high': '#26362f',
+      'samesite-success': '#0c3d22',
+      'samesite-warning': '#3f2305',
+      'samesite-danger': '#450a0a',
       'on-surface': '#dce8e0',
       'on-surface-variant': '#a8bcb0',
       outline: '#748c7e',
@@ -186,6 +202,9 @@ export const THEME_STYLES: ThemeStylePreset[] = [
       outline: '#847a64',
       'outline-variant': '#d6cfba',
       'primary-fixed': '#e8e0ca',
+      'samesite-success': '#bbf7d0',
+      'samesite-warning': '#ffedd5',
+      'samesite-danger': '#fecdd3',
       success: '#4d7c0f',
       'success-container': '#d9f99d',
       warning: '#b45309',
@@ -199,6 +218,9 @@ export const THEME_STYLES: ThemeStylePreset[] = [
       'surface-container-low': '#25231a',
       'surface-container': '#2d2a1f',
       'surface-container-high': '#363225',
+      'samesite-success': '#2c4105',
+      'samesite-warning': '#3f2305',
+      'samesite-danger': '#4c0519',
       'on-surface': '#e8e2cf',
       'on-surface-variant': '#c0b89f',
       outline: '#8b8369',
@@ -224,6 +246,9 @@ export const THEME_STYLES: ThemeStylePreset[] = [
       'surface-container-low': '#131e31',
       'surface-container': '#18253c',
       'surface-container-high': '#1e2e4a',
+      'samesite-success': '#0c3b56',
+      'samesite-warning': '#3f2305',
+      'samesite-danger': '#450a0a',
       'on-surface': '#dfe8f6',
       'on-surface-variant': '#9db0cc',
       outline: '#64789a',
@@ -247,6 +272,15 @@ export const THEME_STYLES: ThemeStylePreset[] = [
       outline: '#6f7f99',
       'outline-variant': '#bcd0e8',
       'primary-fixed': '#cfe2fa',
+      'samesite-success': '#6cf8bb',
+      'samesite-warning': '#ffede6',
+      'samesite-danger': '#ffdad6',
+      success: '#006c49',
+      'success-container': '#6cf8bb',
+      warning: '#943700',
+      'warning-container': '#ffede6',
+      danger: '#ba1a1a',
+      'danger-container': '#ffdad6',
     },
   },
   {
@@ -261,6 +295,9 @@ export const THEME_STYLES: ThemeStylePreset[] = [
       'surface-container-low': '#1f1830',
       'surface-container': '#271e3b',
       'surface-container-high': '#30254a',
+      'samesite-success': '#14532d',
+      'samesite-warning': '#14532d',
+      'samesite-danger': '#14532d',
       'on-surface': '#e6dff5',
       'on-surface-variant': '#ae9fca',
       outline: '#7a6b99',
@@ -284,6 +321,15 @@ export const THEME_STYLES: ThemeStylePreset[] = [
       outline: '#776e8c',
       'outline-variant': '#d4c9e8',
       'primary-fixed': '#e4d9f9',
+      'samesite-success': '#6cf8bb',
+      'samesite-warning': '#ffede6',
+      'samesite-danger': '#ffdad6',
+      success: '#006c49',
+      'success-container': '#6cf8bb',
+      warning: '#943700',
+      'warning-container': '#ffede6',
+      danger: '#ba1a1a',
+      'danger-container': '#ffdad6',
     },
   },
   {
@@ -303,6 +349,9 @@ export const THEME_STYLES: ThemeStylePreset[] = [
       outline: '#8c616b',
       'outline-variant': '#e5c3cb',
       'primary-fixed': '#f6d5dc',
+      'samesite-success': '#bbf7d0',
+      'samesite-warning': '#ffedd5',
+      'samesite-danger': '#fecdd3',
       success: '#15803d',
       'success-container': '#bbf7d0',
       warning: '#c2410c',
@@ -316,6 +365,9 @@ export const THEME_STYLES: ThemeStylePreset[] = [
       'surface-container-low': '#2a1b1e',
       'surface-container': '#322125',
       'surface-container-high': '#3d292e',
+      'samesite-success': '#0c3d22',
+      'samesite-warning': '#0c3d22',
+      'samesite-danger': '#0c3d22',
       'on-surface': '#f3dfe3',
       'on-surface-variant': '#cdb3ba',
       outline: '#99767f',
@@ -342,6 +394,9 @@ export const THEME_STYLES: ThemeStylePreset[] = [
       'surface-container-low': '#1c1c1c',
       'surface-container': '#222222',
       'surface-container-high': '#2a2a2a',
+      'samesite-success': '#053b26',
+      'samesite-warning': '#3f2305',
+      'samesite-danger': '#450a0a',
       'on-surface': '#ededed',
       'on-surface-variant': '#a3a3a3',
       outline: '#737373',
@@ -365,6 +420,15 @@ export const THEME_STYLES: ThemeStylePreset[] = [
       outline: '#737373',
       'outline-variant': '#d4d4d4',
       'primary-fixed': '#e5e5e5',
+      'samesite-success': '#6cf8bb',
+      'samesite-warning': '#ffede6',
+      'samesite-danger': '#ffdad6',
+      success: '#006c49',
+      'success-container': '#6cf8bb',
+      warning: '#943700',
+      'warning-container': '#ffede6',
+      danger: '#ba1a1a',
+      'danger-container': '#ffdad6',
     },
   },
   {
@@ -385,6 +449,9 @@ export const THEME_STYLES: ThemeStylePreset[] = [
       outline: '#3b5dc9',
       'outline-variant': '#94b0c2',
       'primary-fixed': '#cdedff',
+      'samesite-success': '#c8f0d0',
+      'samesite-warning': '#ffe9b0',
+      'samesite-danger': '#ffd0cc',
       success: '#38b764',
       'success-container': '#c8f0d0',
       warning: '#f7a41d',
@@ -398,6 +465,9 @@ export const THEME_STYLES: ThemeStylePreset[] = [
       'surface-container-low': '#282a44',
       'surface-container': '#2f314e',
       'surface-container-high': '#383a5e',
+      'samesite-success': '#1c4023',
+      'samesite-warning': '#1c4023',
+      'samesite-danger': '#1c4023',
       'on-surface': '#f4f4f4',
       'on-surface-variant': '#94b0c2',
       outline: '#41a6f6',
@@ -429,6 +499,9 @@ export const THEME_STYLES: ThemeStylePreset[] = [
       outline: '#d061a8',
       'outline-variant': '#ffcbe4',
       'primary-fixed': '#ffd9ef',
+      'samesite-success': '#d3f8df',
+      'samesite-warning': '#ffedc4',
+      'samesite-danger': '#ffdbe3',
       success: '#16a34a',
       'success-container': '#d3f8df',
       warning: '#f59e0b',
@@ -442,6 +515,9 @@ export const THEME_STYLES: ThemeStylePreset[] = [
       'surface-container-low': '#3d2137',
       'surface-container': '#47283f',
       'surface-container-high': '#542f4a',
+      'samesite-success': '#14532d',
+      'samesite-warning': '#14532d',
+      'samesite-danger': '#14532d',
       'on-surface': '#ffe4f3',
       'on-surface-variant': '#d9a4c6',
       outline: '#f472b6',
@@ -455,7 +531,7 @@ export const THEME_STYLES: ThemeStylePreset[] = [
       'danger-container': '#4c0519',
     },
   },
-]
+] as const satisfies readonly ThemeStylePreset[]
 
 /** 字体组合预设（Phase 6 设置页 · 字体与排版）—— 映射 --font-sans 栈，应用逻辑见 shared/effects.ts */
 export const FONT_PRESETS = [
@@ -468,12 +544,15 @@ export const FONT_PRESETS = [
   { id: 'mono', label: '等宽极客', desc: 'JetBrains Mono / 源码等宽，代码感与对齐控最爱' },
   { id: 'fangsong', label: '仿宋公文', desc: '仿宋 / 仿宋 GB2312，公文与古籍排版韵味' },
   { id: 'cursive', label: '飘逸草体', desc: '行楷 / 草书体，潇洒随性的手写笔触' },
-  { id: 'gothic', label: '凌厉黑体', desc: '思源黑体 Heavy 优先，海报级粗壮标题感' },
+  { id: 'gothic', label: '凌厉黑体', desc: '思源黑体 / 鸿蒙黑体优先，海报级粗壮标题感' },
   { id: 'songti', label: '典丽宋体', desc: '华文宋体 / 思源宋体，典雅正式的印刷质感' },
   { id: 'yozai', label: '元气圆黑', desc: '站酷快乐体 / 圆润黑体，活泼跳脱的元气感' },
 ] as const
 
 export type FontPresetId = (typeof FONT_PRESETS)[number]['id']
+
+/** 风格主题包 id 联合类型（从 THEME_STYLES 派生，新增主题时编译期自动收口） */
+export type ThemeStyleId = (typeof THEME_STYLES)[number]['id']
 
 /** 各字体预设 → --font-sans 字体栈（effects.ts 与设置页预览共用） */
 export const FONT_STACKS: Record<FontPresetId, string> = {
@@ -486,7 +565,7 @@ export const FONT_STACKS: Record<FontPresetId, string> = {
   mono: `'JetBrains Mono', 'Cascadia Code', 'Fira Code', 'Source Code Pro', 'Menlo', 'Consolas', monospace`,
   fangsong: `'FangSong', 'STFangsong', 'FangSong_GB2312', 'PingFang SC', serif`,
   cursive: `'Xingkai SC', 'STXingkai', 'XingKai', 'LiSu', 'Comic Sans MS', cursive`,
-  gothic: `'Source Han Sans SC Heavy', 'Noto Sans SC', 'MiSans', 'Microsoft YaHei', sans-serif`,
+  gothic: `'Source Han Sans SC', 'Noto Sans SC', 'MiSans', 'Microsoft YaHei', sans-serif`,
   songti: `'Songti SC', 'STSong', 'Noto Serif SC', 'SimSun', serif`,
   yozai: `'Yozai', 'ZCOOL KuaiLe', 'HYWenHei', 'Yuanti SC', 'YouYuan', sans-serif`,
 }
