@@ -250,7 +250,7 @@ export function TodayTodosCard() {
   const todos = useCollection<Todo>('todos')
   const todayStr = dayjs().format('YYYY-MM-DD')
   const list = todos
-    .filter((t) => t.status !== 'done' && (!t.dueAt || dayjs(t.dueAt).format('YYYY-MM-DD') === todayStr))
+    .filter((t) => t.status !== 'done' && !!t.dueAt && dayjs(t.dueAt).format('YYYY-MM-DD') === todayStr)
     .sort((a, b) => (a.dueAt ?? Infinity) - (b.dueAt ?? Infinity))
   const doneToday = todos.filter(
     (t) => t.status === 'done' && t.completedAt && dayjs(t.completedAt).format('YYYY-MM-DD') === todayStr,

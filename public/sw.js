@@ -5,8 +5,10 @@
  * - 页面导航 → network-first，失败回退缓存 index.html（离线可用）
  * - API（/api/ 同步请求）→ 永远走网络，绝不缓存（数据一致性由 Dexie 本地库保证）
  * 注意：仅在生产构建注册（main.tsx），开发模式不受影响。
+ * 版本：缓存名随发布 bump（nexus-static-vN），activate 时清理旧缓存；
+ * SW 文件更新会触发 install → skipWaiting → clients.claim 的自动接管。
  */
-const CACHE = 'nexus-static-v1'
+const CACHE = 'nexus-static-v2'
 const PRECACHE = ['/', '/index.html', '/favicon.svg', '/manifest.webmanifest']
 
 self.addEventListener('install', (event) => {

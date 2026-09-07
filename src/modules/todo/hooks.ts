@@ -2,6 +2,7 @@ import { db } from '@/db/db'
 import { newId } from '@/repositories'
 import type { TodoList, Todo } from '@/db/types'
 import { useQuery } from '@/queries/hooks'
+import { syncEngine } from '@/sync/engine'
 import dayjs from 'dayjs'
 
 /**
@@ -38,6 +39,7 @@ export async function createTodoList(name: string): Promise<TodoList> {
     await db.todoLists.put({ ...list, updatedAt: now, rev: 1 })
     await db.syncQueue.add({ table: 'todoLists', recordId: list.id, op: 'upsert', createdAt: now })
   })
+  syncEngine.requestSync()
   return list
 }
 
@@ -50,6 +52,7 @@ export async function renameTodoList(id: string, name: string): Promise<void> {
     await db.todoLists.put({ ...prev, name: name.trim(), updatedAt: now, rev: prev.rev + 1 })
     await db.syncQueue.add({ table: 'todoLists', recordId: id, op: 'upsert', createdAt: now })
   })
+  syncEngine.requestSync()
 }
 
 /** 删除清单（级联：名下待办解绑 listId 归入「全部待办」） */
@@ -68,6 +71,7 @@ export async function deleteTodoListCascade(id: string): Promise<void> {
       await db.syncQueue.add({ table: 'todos', recordId: t.id, op: 'upsert', createdAt: now })
     }
   })
+  syncEngine.requestSync()
 }
 
 /** 拖拽排序：按传入的 id 顺序重写 sortOrder */
@@ -82,6 +86,7 @@ export async function reorderTodoLists(orderedIds: string[]): Promise<void> {
       await db.syncQueue.add({ table: 'todoLists', recordId: l.id, op: 'upsert', createdAt: now })
     }
   })
+  syncEngine.requestSync()
 }
 
 /** 各清单的未完成计数 */
@@ -123,6 +128,7 @@ export async function assignTodoToList(todoId: string, listId: string | undefine
     await db.todos.put({ ...t, listId, updatedAt: now, rev: (t.rev ?? 0) + 1 })
     await db.syncQueue.add({ table: 'todos', recordId: todoId, op: 'upsert', createdAt: now })
   })
+  syncEngine.requestSync()
 }
 
 /** 类型 占位（Todo 引用防 tree-shake 误报） */

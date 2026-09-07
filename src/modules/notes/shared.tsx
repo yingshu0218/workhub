@@ -87,7 +87,7 @@ export function markdownToPlain(md: string): string {
   return md
     .replace(/```[\s\S]*?```/g, ' ')
     .replace(MENTION_RE, (_m, label) => `@${label}`)
-    .replace(/[#>*`~_\-\[\]()!|]/g, ' ')
+    .replace(/[#>*`~_\-[\]()!|]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
 }

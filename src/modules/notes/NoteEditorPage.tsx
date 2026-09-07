@@ -132,12 +132,14 @@ function NoteEditor({ note }: { note: Note }) {
   const dirtyRef = useRef(false)
 
   // ===== 自动保存：停顿 800ms 防抖 noteRepo.put =====
+  const scheduleSaveRef = useRef<() => void>(() => {})
   function scheduleSave() {
     dirtyRef.current = true
     setSaveState('dirty')
     clearTimeout(timerRef.current)
     timerRef.current = setTimeout(() => void flushSave(), 800)
   }
+  scheduleSaveRef.current = scheduleSave
 
   async function flushSave() {
     clearTimeout(timerRef.current)
@@ -168,7 +170,6 @@ function NoteEditor({ note }: { note: Note }) {
       if (dirtyRef.current) void flushSave()
       clearTimeout(timerRef.current)
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   )
 
@@ -186,7 +187,6 @@ function NoteEditor({ note }: { note: Note }) {
       window.removeEventListener('pagehide', flush)
       document.removeEventListener('visibilitychange', onVisibility)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // ===== @提及浮层 =====
@@ -296,7 +296,7 @@ function NoteEditor({ note }: { note: Note }) {
               const text = u.state.doc.toString()
               mdRef.current = text
               setMdText(text)
-              scheduleSave()
+              scheduleSaveRef.current()
             }
             if (!u.docChanged && !u.selectionSet) return
             const pos = u.state.selection.main.head
@@ -342,7 +342,6 @@ function NoteEditor({ note }: { note: Note }) {
       view.destroy()
       viewRef.current = null
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // 浮层打开时：点击外部 / Esc 关闭（面板内 mousedown 已阻止默认，不丢 CM 焦点）
