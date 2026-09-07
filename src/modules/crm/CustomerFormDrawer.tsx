@@ -1,11 +1,13 @@
 import { useState } from 'react'
+import { useCollection } from '@/queries/hooks'
 import { customerRepo, newId } from '@/repositories'
-import type { Customer } from '@/db/types'
+import type { Customer, Transaction } from '@/db/types'
 import { Button, Chip, Drawer, Field, inputCls } from '@/design-system/ui'
+import { createCustomerWithInit } from './hooks'
 
 const DECISION_LEVELS: Customer['decisionLevel'][] = ['决策人', '影响者', '使用者', '把关人']
 const TIERS: Customer['tier'][] = ['S', 'A', 'B', '潜在']
-const STAGES = ['潜在接触', '需求确认', '方案沟通中', '合同 negotiation', '已成交 · 维护期', '久未跟进']
+const STAGES = ['潜在接触', '需求确认', '方案沟通中', '合同谈判', '已成交 · 维护期', '久未跟进']
 
 /** 新建/编辑客户抽屉（复用；编辑以旧记录展开为基底，仅覆盖表单字段 —— 审计戒点 P0-2） */
 export default function CustomerFormDrawer({
@@ -31,6 +33,10 @@ export default function CustomerFormDrawer({
   const [email, setEmail] = useState('')
   const [address, setAddress] = useState('')
   const [healthScore, setHealthScore] = useState(60)
+  // 第 4 步「跨模块关联初始化」状态（仅新建模式展示）
+  const [initTodo, setInitTodo] = useState(true)
+  const [initLog, setInitLog] = useState(false)
+  const [initTxnId, setInitTxnId] = useState('')
   const [error, setError] = useState('')
   const [seedKey, setSeedKey] = useState(0)
 
@@ -53,15 +59,24 @@ export default function CustomerFormDrawer({
       setEmail(customer?.email ?? '')
       setAddress(customer?.address ?? '')
       setHealthScore(customer?.healthScore ?? 60)
+      setInitTodo(true)
+      setInitLog(false)
+      setInitTxnId('')
       setError('')
       setSeedKey((k) => k + 1)
     }
   }
 
-  const tags = tagsRaw
-    .split(/[,,]/)
-    .map((t) => t.trim().replace(/^#/, ''))
-    .filter(Boolean)
+  const tags = [...new Set(
+    tagsRaw
+      .split(/[,,]/)
+      .map((t) => t.trim().replace(/^#/, ''))
+      .filter(Boolean),
+  )]
+
+  // 第 4 步可关联的交易：仅列出尚未归属任何客户的流水（已关联的可通过财务侧改）
+  const transactions = useCollection<Transaction>('transactions')
+  const linkableTxns = transactions.filter((t) => !t.customerId).slice(0, 50)
 
   async function save() {
     if (!name.trim()) {
@@ -88,7 +103,7 @@ export default function CustomerFormDrawer({
         healthScore: score,
       })
     } else {
-      await customerRepo.put({
+      const record = {
         id: newId('cus'),
         name: name.trim(),
         company: company.trim(),
@@ -105,6 +120,12 @@ export default function CustomerFormDrawer({
         healthScore: score,
         lastContactAt: Date.now(),
         createdAt: Date.now(),
+      }
+      // 新建走「建档 + 关联初始化」同事务数据层函数，杜绝多步写半成品
+      await createCustomerWithInit(record as Customer, {
+        firstContactTodo: initTodo,
+        openingLog: initLog,
+        linkTransactionId: initTxnId || undefined,
       })
     }
     onClose()
@@ -113,6 +134,7 @@ export default function CustomerFormDrawer({
   return (
     <Drawer open={open} title={customer ? '编辑客户档案' : '新建客户档案'} onClose={onClose} width={460}>
       <div key={seedKey}>
+        <StepHeader n={1} title="基础信息" />
         <Field label="客户姓名 *">
           <input
             className={inputCls}
@@ -163,6 +185,7 @@ export default function CustomerFormDrawer({
             </select>
           </Field>
         </div>
+        <StepHeader n={2} title="分层与标签" />
         <Field label="客户分层">
           <div className="flex gap-2">
             {TIERS.map((t) => (
@@ -211,6 +234,7 @@ export default function CustomerFormDrawer({
             </div>
           )}
         </Field>
+        <StepHeader n={3} title="联系方式与客情" />
         <div className="grid grid-cols-2 gap-3">
           <Field label="电话">
             <input
@@ -262,10 +286,45 @@ export default function CustomerFormDrawer({
               max={100}
               className={`${inputCls} w-20`}
               value={Math.round(healthScore)}
-              onChange={(e) => setHealthScore(Number(e.target.value))}
+              onChange={(e) => setHealthScore(Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
             />
           </div>
         </Field>
+        {/* 第 4 步：跨模块关联初始化（仅新建模式，审计 Phase 3 P2-8） */}
+        {!customer && (
+          <div className="mt-4 rounded-xl bg-surface-container-low/60 p-3">
+            <StepHeader n={4} title="跨模块关联初始化" />
+            <label className="flex cursor-pointer items-center gap-2 py-1.5 text-[13px]">
+              <input
+                type="checkbox"
+                className="accent-primary"
+                checked={initTodo}
+                onChange={(e) => setInitTodo(e.target.checked)}
+              />
+              创建首联待办「首联跟进：{name.trim() || '该客户'}」（P2 · 今天）
+            </label>
+            <label className="flex cursor-pointer items-center gap-2 py-1.5 text-[13px]">
+              <input
+                type="checkbox"
+                className="accent-primary"
+                checked={initLog}
+                onChange={(e) => setInitLog(e.target.checked)}
+              />
+              创建一条 opening 沟通日志（类型：拜访）
+            </label>
+            <Field label="关联已有交易（可选）">
+              <select className={inputCls} value={initTxnId} onChange={(e) => setInitTxnId(e.target.value)}>
+                <option value="">暂不关联</option>
+                {linkableTxns.length === 0 && <option disabled>暂无未归属客户的流水</option>}
+                {linkableTxns.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.summary} · {t.type === 'income' ? '+' : '-'}¥{t.amount.toLocaleString('zh-CN')}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </div>
+        )}
         {error && <div className="mb-3 text-[12px] text-danger">{error}</div>}
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="tonal" onClick={onClose}>
@@ -277,5 +336,19 @@ export default function CustomerFormDrawer({
         </div>
       </div>
     </Drawer>
+  )
+}
+
+/** 四步表单分组指示器（1 基础信息 / 2 分层标签 / 3 联系客情 / 4 关联初始化） */
+function StepHeader({ n, title }: { n: number; title: string }) {
+  return (
+    <div className="mb-2.5 mt-4 flex items-center gap-2">
+      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary-fixed text-[11px] font-bold text-primary">
+        {n}
+      </span>
+      <span className="text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant">
+        {title}
+      </span>
+    </div>
   )
 }

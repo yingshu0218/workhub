@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Icon } from '@/design-system/Icon'
+import { useSearchParams } from 'react-router-dom'
 import { useCollection } from '@/queries/hooks'
 import { todoRepo, newId } from '@/repositories'
 import type { Todo, Customer } from '@/db/types'
@@ -15,6 +16,15 @@ export default function TodoPage() {
   const [editing, setEditing] = useState<Todo | null>(null)
   const [creating, setCreating] = useState(false)
   const focus = useFocusStore()
+
+  // 全局快捷指令入口：/todo?new=1 自动打开新建抽屉，打开后立即清掉参数避免返回/刷新重复触发
+  const [searchParams, setSearchParams] = useSearchParams()
+  useEffect(() => {
+    if (searchParams.get('new') === '1') {
+      setCreating(true)
+      setSearchParams({}, { replace: true })
+    }
+  }, [searchParams, setSearchParams])
 
   const todayStr = dayjs().format('YYYY-MM-DD')
   const openTodos = todos.filter((t) => t.status !== 'done')

@@ -37,6 +37,8 @@ export default function CustomerDetailPage() {
   const transactions = useCustomerTransactions(id)
   const todos = useCustomerTodos(id)
   const interactions = useCustomerInteractions(id)
+  // 关联待办口径：计数与列表统一只统计未完成项
+  const openTodos = todos.filter((t) => t.status !== 'done')
   const [editing, setEditing] = useState(false)
 
   if (!customer) {
@@ -204,12 +206,12 @@ export default function CustomerDetailPage() {
                   <Icon name="task_alt" className="text-[18px] text-primary" />
                 </div>
                 <div className="mt-1 text-[20px] font-bold tracking-tight">
-                  {todos.filter((t) => t.status !== 'done').length} 项
+                  {openTodos.length} 项
                   <span className="ml-1.5 text-[12px] font-normal text-on-surface-variant">进行中</span>
                 </div>
-                {todos.length > 0 ? (
+                {openTodos.length > 0 ? (
                   <div className="mt-2 space-y-1.5">
-                    {todos.slice(0, 3).map((t) => (
+                    {openTodos.slice(0, 3).map((t) => (
                       <div key={t.id} className="flex items-center justify-between gap-2 text-[12px]">
                         <span className="truncate">{t.title}</span>
                         <Chip tone={t.priority === 'P1' ? 'red' : t.priority === 'P2' ? 'amber' : 'gray'}>{t.priority}</Chip>
@@ -217,7 +219,7 @@ export default function CustomerDetailPage() {
                     ))}
                   </div>
                 ) : (
-                  <div className="mt-2 text-[11px] text-outline">暂无关联待办</div>
+                  <div className="mt-2 text-[11px] text-outline">暂无进行中的关联待办</div>
                 )}
               </div>
             </div>

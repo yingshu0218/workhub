@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Icon } from '@/design-system/Icon'
 import { useNavigate } from 'react-router-dom'
 import { useCollection, useRecord } from '@/queries/hooks'
@@ -16,11 +16,14 @@ import {
 import dayjs from 'dayjs'
 import LedgerFormDrawer from './LedgerFormDrawer'
 import TransactionFormDrawer from './TransactionFormDrawer'
-import { useAttachmentCount, useTransactionAttachments } from './hooks'
+import { useAttachmentCount, useTransactionAttachments, deleteTransactionCascade } from './hooks'
 import { ledgerRepo, transactionRepo } from '@/repositories'
 
 type TypeFilter = 'all' | 'income' | 'expense'
 type StatusFilter = 'all' | '已结算' | '待对账'
+
+/** 流水客户端分页每页条数 */
+const PAGE_SIZE = 20
 
 /** 币种 → 符号映射（未登记币种回落 ¥） */
 const CURRENCY_SYMBOLS: Record<string, string> = { CNY: '¥', USD: '$', EUR: '€' }
@@ -46,6 +49,12 @@ export default function FinancePage() {
   const [editingLedger, setEditingLedger] = useState<Ledger | null>(null)
   const [ledgerError, setLedgerError] = useState('')
   const [detailId, setDetailId] = useState<string | null>(null)
+  const [page, setPage] = useState(0)
+
+  // 筛选口径变化时回到第一页
+  useEffect(() => {
+    setPage(0)
+  }, [scope, typeFilter, statusFilter, keyword])
 
   const ledgerMap = new Map(ledgers.map((l) => [l.id, l]))
   const activeLedger = scope === 'all' ? undefined : ledgerMap.get(scope)
@@ -69,7 +78,6 @@ export default function FinancePage() {
       : (ledgerMap.get(scope)?.openingBalance ?? 0)
   const net = opening + income - expense
   const pending = scoped.filter((t) => t.status === '待对账')
-  const pendingAmount = pending.reduce((s, t) => s + t.amount, 0)
 
   /** 删除账本：有未删流水则阻止（useCollection 已过滤软删记录） */
   async function handleDeleteLedger(l: Ledger) {
@@ -98,6 +106,11 @@ export default function FinancePage() {
       return true
     })
     .sort((a, b) => b.occurredAt - a.occurredAt)
+
+  // 客户端分页：每页 20 条，筛选变化时由 useEffect 重置回第一页
+  const pageCount = Math.max(1, Math.ceil(list.length / PAGE_SIZE))
+  const safePage = Math.min(page, pageCount - 1)
+  const pageItems = list.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE)
 
   return (
     <div className="mx-auto max-w-[1200px]">
@@ -185,12 +198,14 @@ export default function FinancePage() {
           icon="account_balance"
           iconCls="bg-surface-container-high text-primary"
           value={`${net >= 0 ? '+' : '-'}${fmtMoney(net, symbol)}`}
-          valueCls="text-primary"
+          valueCls={net < 0 ? 'text-danger' : 'text-primary'}
           sub={`含期初结转 ${fmtMoney(opening, symbol)}${scopeNote}`}
         />
         <div
-          className="card card-hover cursor-pointer p-4"
-          onClick={() => setStatusFilter(pending.length > 0 ? '待对账' : 'all')}
+          className={`card card-hover cursor-pointer p-4 transition-colors ${
+            statusFilter === '待对账' ? 'ring-2 ring-warning bg-warning-container/30' : ''
+          }`}
+          onClick={() => setStatusFilter(statusFilter === '待对账' ? 'all' : '待对账')}
         >
           <div className="flex items-center justify-between">
             <span className="text-[12px] font-medium uppercase tracking-wide text-on-surface-variant">
@@ -203,7 +218,7 @@ export default function FinancePage() {
             <span className="ml-1 text-[13px] font-normal text-on-surface-variant">笔待确认</span>
           </div>
           <div className="mt-0.5 text-[11px] text-outline">
-            涉及金额 {fmtMoney(pendingAmount, symbol)}
+            {statusFilter === '待对账' ? '已筛选：仅显示待对账流水' : '点击仅查看待对账流水'}
             {scopeNote}
           </div>
         </div>
@@ -250,7 +265,7 @@ export default function FinancePage() {
         </Card>
       ) : (
         <Card className="divide-y divide-outline-variant/30 px-5">
-          {list.map((t) => (
+          {pageItems.map((t) => (
             <TransactionRow
               key={t.id}
               txn={t}
@@ -261,6 +276,31 @@ export default function FinancePage() {
             />
           ))}
         </Card>
+      )}
+      {list.length > 0 && (
+        <div className="mt-3 flex items-center justify-center gap-3 text-[13px] text-on-surface-variant">
+          <Button
+            size="sm"
+            variant="tonal"
+            icon="chevron_left"
+            disabled={safePage === 0}
+            onClick={() => setPage(safePage - 1)}
+          >
+            上一页
+          </Button>
+          <span className="text-outline">
+            共 {list.length} 条 · 第 {safePage + 1} / {pageCount} 页
+          </span>
+          <Button
+            size="sm"
+            variant="tonal"
+            icon="chevron_right"
+            disabled={safePage >= pageCount - 1}
+            onClick={() => setPage(safePage + 1)}
+          >
+            下一页
+          </Button>
+        </div>
       )}
 
       <TransactionFormDrawer
@@ -475,6 +515,15 @@ function TransactionDetailDrawer({
     await transactionRepo.put({ ...txn, status })
   }
 
+  /** 删除此笔流水：级联软删其全部附件存根，成功后关闭抽屉 */
+  async function handleDelete() {
+    if (!txn) return
+    if (!window.confirm(`确认删除流水「${txn.summary}」？其全部附件存根将一并删除。`)) return
+    await deleteTransactionCascade(txn.id)
+    setEditing(false)
+    onClose()
+  }
+
   return (
     <Drawer open={transactionId !== null && !editing} title="财务流水凭证详情" onClose={onClose} width={460}>
       {!txn ? null : (
@@ -506,7 +555,7 @@ function TransactionDetailDrawer({
             <div className="mt-1 text-[13px] font-medium">{txn.summary}</div>
           </div>
 
-          {/* 状态流转 + 编辑 */}
+          {/* 状态流转 + 编辑 + 删除 */}
           <div className="flex gap-2">
             {txn.status === '待对账' ? (
               <Button icon="check_circle" onClick={() => changeStatus('已结算')}>
@@ -519,6 +568,9 @@ function TransactionDetailDrawer({
             )}
             <Button variant="ghost" icon="edit" onClick={() => setEditing(true)}>
               编辑
+            </Button>
+            <Button variant="danger" icon="delete" className="ml-auto" onClick={() => void handleDelete()}>
+              删除此笔
             </Button>
           </div>
 
@@ -594,7 +646,7 @@ function TransactionDetailDrawer({
               <div className="space-y-2">
                 {customer && (
                   <button
-                    onClick={() => navigate('/crm')}
+                    onClick={() => navigate(`/crm/${customer.id}`)}
                     className="flex w-full items-center justify-between rounded-xl bg-surface-container-low/60 p-3 text-left transition-colors hover:bg-surface-container-low"
                   >
                     <div className="flex min-w-0 items-center gap-3">

@@ -20,11 +20,13 @@ import { useCanvasGraph } from './hooks'
 
 interface CanvasNode extends SimulationNodeDatum {
   id: string
-  kind: 'customer' | 'txn' | 'todo'
+  kind: 'customer' | 'txn' | 'todo' | 'note'
   label: string
   color: string
   fill: string
   radius: number
+  /** 双击穿透目标路由（交易/待办/笔记节点） */
+  to?: string
 }
 
 interface CanvasLink {
@@ -37,6 +39,7 @@ const COLORS = {
   income: { stroke: '#006c49', fill: '#6cf8bb', text: '#006c49' },
   expense: { stroke: '#ba1a1a', fill: '#ffdad6', text: '#ba1a1a' },
   todo: { stroke: '#943700', fill: '#ffede6', text: '#943700' },
+  note: { stroke: '#4a4458', fill: '#e8def8', text: '#4a4458' },
 }
 
 const fmtMoney = (n: number) => `¥${n.toLocaleString('zh-CN')}`
@@ -102,6 +105,19 @@ export default function CrmCanvasPage() {
         radius: 9,
       })
       ls.push({ source: t.customerId, target: `todo:${t.id}` })
+    }
+    // 笔记节点：mentions 反查关联客户的笔记投影（数据来自 useCanvasGraph）
+    for (const n of graph.notes) {
+      ns.push({
+        id: `note:${n.id}`,
+        kind: 'note',
+        to: `/notes/${n.id}`,
+        label: n.title.length > 8 ? `${n.title.slice(0, 8)}…` : n.title,
+        color: COLORS.note.stroke,
+        fill: COLORS.note.fill,
+        radius: 7,
+      })
+      ls.push({ source: n.customerId, target: `note:${n.id}` })
     }
     // 随机初始位置打散，避免同批节点重叠抖动
     ns.forEach((n, i) => {
@@ -183,6 +199,9 @@ export default function CrmCanvasPage() {
     simRef.current?.alphaTarget(0)
   }
 
+  // 触摸拖拽被系统手势/来电等中断时：pointerup 不会派发，必须用 pointercancel 兜底清理 fx/fy
+  const onPointerCancel = onPointerUp
+
   function reheat() {
     nodes.forEach((n) => {
       n.fx = null
@@ -215,7 +234,10 @@ export default function CrmCanvasPage() {
         <Chip tone="blue" icon="person">{`客户 ${graph.customers.length}`}</Chip>
         <Chip tone="green" icon="payments">{`交易 ${graph.transactions.length}`}</Chip>
         <Chip tone="amber" icon="task_alt">{`待办 ${graph.todos.length}`}</Chip>
-        <span className="ml-2 text-[11px] text-outline">按住节点拖拽 · 松手后物理布局自动恢复</span>
+        <Chip tone="gray" icon="description">{`笔记 ${graph.notes.length}`}</Chip>
+        <span className="ml-2 text-[11px] text-outline">
+          单击客户节点跳转 · 双击交易/待办/笔记节点穿透 · 按住拖拽
+        </span>
       </div>
 
       <Card className="overflow-hidden p-0">
@@ -225,6 +247,7 @@ export default function CrmCanvasPage() {
           style={{ height: 'calc(100vh - 14rem)', minHeight: 320 }}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
+          onPointerCancel={onPointerCancel}
         >
           {empty ? (
             <div className="flex h-full items-center justify-center">
@@ -241,7 +264,8 @@ export default function CrmCanvasPage() {
                 {links.map((l, i) => {
                   const s = l.source as CanvasNode
                   const t = l.target as CanvasNode
-                  if (!s.x || !t.x) return null
+                  // 坐标 0 是合法位置：用 == null 判缺失，避免原点节点边闪断
+                  if (s.x == null || t.x == null) return null
                   return (
                     <line
                       key={i}
@@ -272,7 +296,11 @@ export default function CrmCanvasPage() {
                             draggedRef.current = false
                             return
                           }
+                          // 客户节点单击即跳转；其余节点走双击穿透（避免误触）
                           if (n.kind === 'customer') navigate(`/crm/${n.id}`)
+                        }}
+                        onDoubleClick={() => {
+                          if (n.to) navigate(n.to)
                         }}
                       >
                         <circle
@@ -292,7 +320,7 @@ export default function CrmCanvasPage() {
                           </>
                         ) : (
                           <text textAnchor="middle" dy="3.5" style={{ fontSize: 8, fontWeight: 600 }} fill={n.color}>
-                            {n.kind === 'txn' ? (n.label.startsWith('+') ? '¥' : '支') : '!'}
+                            {n.kind === 'txn' ? (n.label.startsWith('+') ? '¥' : '支') : n.kind === 'note' ? '✎' : '!'}
                           </text>
                         )}
                         {n.kind !== 'customer' && (

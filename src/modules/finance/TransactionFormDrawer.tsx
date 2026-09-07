@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useCollection } from '@/queries/hooks'
 import { newId, saveTransactionWithAttachments } from '@/repositories'
+import { eventBus } from '@/shared/eventBus'
 import type { PutInput } from '@/repositories/repository'
 import type { Attachment } from '@/db/db'
 import type { Customer, Ledger, Todo, Transaction } from '@/db/types'
@@ -9,6 +10,8 @@ import dayjs from 'dayjs'
 
 const CHANNELS = ['微信', '支付宝', '银行卡', '现金', '对公转账'] as const
 const MAX_ATTACHMENT_SIZE = 5 * 1024 * 1024
+/** 金额上限（元）：10 位数封顶 */
+const MAX_AMOUNT = 9999999999
 
 /** 记一笔账 / 编辑流水抽屉（对齐原型 04-finance-new-transaction） */
 export default function TransactionFormDrawer({
@@ -82,19 +85,31 @@ export default function TransactionFormDrawer({
     }
   }
 
-  const tags = tagsRaw
-    .split(/[,,]/)
-    .map((t) => t.trim().replace(/^#/, ''))
-    .filter(Boolean)
+  const tags = [...new Set(
+    tagsRaw
+      .split(/[,,]/)
+      .map((t) => t.trim().replace(/^#/, ''))
+      .filter(Boolean),
+  )]
 
   async function save() {
     if (!summary.trim()) {
       setError('请填写交易名称')
       return
     }
-    const amountNum = Number(amount)
-    if (!amount.trim() || Number.isNaN(amountNum) || amountNum <= 0) {
+    const rawAmount = Number(amount.trim())
+    if (!amount.trim() || !Number.isFinite(rawAmount) || rawAmount <= 0) {
       setError('金额必须为正数')
+      return
+    }
+    if (rawAmount > MAX_AMOUNT) {
+      setError(`单笔金额不能超过 ${MAX_AMOUNT.toLocaleString('zh-CN')}`)
+      return
+    }
+    // 按分归整；归整后与输入不一致说明超过两位小数精度（如 0.001），拒绝保存
+    const amountNum = Math.round(rawAmount * 100) / 100
+    if (Math.abs(amountNum - rawAmount) > 1e-9) {
+      setError('金额最多支持两位小数（如 0.01），请调整后重试')
       return
     }
     if (!ledgerId) {
@@ -151,6 +166,8 @@ export default function TransactionFormDrawer({
     }))
     try {
       await saveTransactionWithAttachments(record, attachments)
+      // 广播交易创建事件，供跨模块联动（如规则引擎、战成就）消费
+      eventBus.emit('transaction:created', { transactionId: txnId, customerId: customerId || undefined })
       onClose()
     } catch (e) {
       setError(e instanceof Error ? `保存失败：${e.message}` : '保存失败，请重试')
