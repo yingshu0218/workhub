@@ -76,3 +76,4 @@
 | 28 | 2026-09-07 | 清单系统上线：待办页左栏支持自定义清单（新建/重命名/删除/拖拽排序/待办归入），全链路同步实测通过；部署指南补 Schema 升级流程 | yingshu0218 |
 | 29 | 2026-09-07 | 原型对齐批次：画布缩放控件/热力图稳态评语/下一里程碑卡/⌘K kbd 角标/笔记 Markdown 工具栏；PWA 补 192/512 PNG 图标 | yingshu0218 |
 | 30 | 2026-09-07 | 建立进度文档 docs/PROGRESS.md（阶段/里程碑/架构定案/待办全量快照+更新规则）；README 协作约定补进度文档维护要求（同 commit 更新，最高优先） | yingshu0218 |
+| 31 | 2026-09-07 | 笔记模块 3 项增强/修复（Issue #4）：新增文件夹文件树体系（noteFolders 表 + notes.folderId，Dexie v6，PB collections 同步升级）、空文档首行 placeholder 撑高修复（改单行文案）、笔记列表进入只读查看态（?edit=1 显式编辑，新建笔记默认编辑）；PROGRESS.md / 部署指南同步更新 | cnb.cMPXRmKswEA |
