@@ -2,7 +2,7 @@
 
 > **本仓库的唯一进度事实来源。** 所有人（含 AI 开发代理）推进或变更任何开发工作，必须在**同一个 commit** 里同步更新本文件对应状态。README 底部的 Changelog 记录"发生了什么"，本文档记录"现在处于什么状态"——前者追加式流水，后者始终反映最新全貌。
 
-**最后更新**：2026-09-07（CRM 客户时间线：P1 三源统一时间轴投影（PR #15）+ P2 鱼骨视图（本 PR），Issue #11） · 维护人：yingshu0218 / cnb.cMPXRmKswEA
+**最后更新**：2026-09-07（CRM 客户时间线：P1 PR #15 + P2 PR #17 已实装并通过 R2 复核，Issue #11） · 维护人：yingshu0218 / cnb.cMPXRmKswEA
 
 ---
 
@@ -63,10 +63,10 @@
 
 | 项 | 状态 |
 |---|---|
-| P1 三源统一时间轴投影（timeline.ts + 详情页日志卡片重构） | ✅ PR #15 已通过 R1 复核审计（🟢 无阻塞项），待合并 |
-| P2 客户时间线鱼骨视图（本 PR） | ✅ 已实装：CustomerTimelinePage（/crm/:id/timeline）+ usePanZoom 共享 hook + 路由/入口；纯 SVG 零新依赖，数据复用 useCustomerTimeline 投影；tsc/vite/eslint 通过，待 R2 复审 |
-| P3 打磨（刺点聚合密度 + 空态/移动端适配） | ⏳ 未开始 |
-| R2 整体复核审计 | ⏳ P2/P3 完成后由 deepseek-v4-flash 执行 |
+| P1 三源统一时间轴投影（timeline.ts + 详情页日志卡片重构） | ✅ PR #15 已通过 R1/R2 复核审计（🟢 无阻塞项），待合并 |
+| P2 客户时间线鱼骨视图（PR #17） | ✅ 已实装：CustomerTimelinePage（/crm/:id/timeline）+ usePanZoom 共享 hook + 路由/入口；纯 SVG 零新依赖，数据复用 useCustomerTimeline 投影；tsc/vite/eslint 通过 |
+| P3 打磨（刺点聚合密度 + 空态/移动端适配 + 画布入口/共享 hook 回流） | ⏳ 未开始 |
+| R2 整体复核审计（deepseek-v4-flash） | ✅ 已发布：P2 净实现 🟢（单源投影/零依赖/边界齐全）；2 项 🔴 待处置——① usePanZoom 未回流 CrmCanvasPage 且注释与事实不符；② P2 分支叠于未合并 P1 之上致 PR #17 与 #15 diff 重叠，需固定合并顺序 #15→#17 或重建纯增量分支。处置由 glm/用户拍板 |
 | 语义遗留 | 交易结算不刷新 lastContactAt（用户未拍板，随时可加一行事务内 update）；todo 拆 created/done 两个事件点（用户已确认接受） |
 
 ### 同步机制完善（Issue #2，P0/P1 已实装待验收）
