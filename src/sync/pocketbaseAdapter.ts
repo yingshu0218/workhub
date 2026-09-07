@@ -261,15 +261,28 @@ async function pbUpsert(
   const localId = String(rec.id)
   const pbRecordId = await pbId(localId)
   const filter = encodeURIComponent(`localId = '${localId.replace(/'/g, "\\'")}'`)
+  // fields 附带 updatedAt：推送侧 LWW 校验需要与本地记录比较（P0-2）
   const found = await pbAuthedFetch(
     cfg,
-    `/api/collections/${table}/records?filter=${filter}&fields=id`,
+    `/api/collections/${table}/records?filter=${filter}&fields=id,updatedAt`,
     { method: 'GET' },
   )
   if (!found.ok) throw new Error(`查询 ${table}/${localId} 失败（HTTP ${found.status}）`)
   const { items } = (await found.json()) as { items?: PbRecord[] }
   const exists = !!items && items.length > 0
   const remoteId = exists ? String(items![0].id) : ''
+
+  // 推送侧 LWW（P0-2）：服务端已有 updatedAt 更新的记录 → 本条是旧数据迟到，
+  // 跳过推送（否则会以「后到覆盖」污染服务端新数据），交由 pull 的 LWW 把远端新值拉回本地。
+  // 删除墓碑除外：墓碑 updatedAt 已在 softDelete 时盖章，正常总是最新；且必须推出去才能收敛删除。
+  if (exists) {
+    const remoteUpdatedAt = typeof items![0].updatedAt === 'number' ? items![0].updatedAt : 0
+    const localUpdatedAt = typeof rec.updatedAt === 'number' ? rec.updatedAt : 0
+    if (remoteUpdatedAt > localUpdatedAt && rec.deleted !== 1) {
+      console.info(`[sync] 跳过旧数据推送 ${table}/${localId}（远端更新：${remoteUpdatedAt} > ${localUpdatedAt}）`)
+      return
+    }
+  }
 
   // 载荷 = 业务字段 + localId 映射字段（不带本地 id；仅 POST 时带派生的 pbRecordId）
   const payload = { ...toPayload(rec), localId }
@@ -475,10 +488,13 @@ async function pushImpl(
         continue
       }
       if (item.op === 'delete') {
-        // 墓碑记录：推送墓碑（对端 LWW 收敛）后对服务端做物理删除，
-        // 并跳过本地墓碑清理窗口，避免服务端墓碑无限膨胀
+        // 墓碑记录：推送墓碑（对端 LWW 收敛）后对服务端做物理删除。
+        // 服务端钩子对墓碑写入统一盖 tombstonePushed=1（供服务端 cron 定向清理墓碑）。
         await pbUpsert(cfg, item.table, rec)
         await pbDeleteRemote(cfg, item.table, rec.id as string)
+        // 打「delete 已推送」标记（P0-1）：cleanupTombstones 只物理删除带此标记的墓碑，
+        // 避免墓碑先被本地清理而 delete 从未送达服务端、远端数据永不删除的竞态。
+        await db.meta.put({ key: tombstonePushedKey(item.table, String(rec.id)), value: 1 })
       } else {
         await pbUpsert(cfg, item.table, rec)
       }
@@ -564,17 +580,37 @@ export async function enqueueAllForPush(): Promise<number> {
   return count
 }
 
-/** 清理两端 30 天前的软删除墓碑（开发计划 2.3：防墓碑膨胀） */
+/** 墓碑「delete 已推送」标记的 meta key（P0-1：只清理确认推过的墓碑，避免删除丢失） */
+function tombstonePushedKey(table: string, localId: string): string {
+  return `tombstone_pushed:${table}:${localId}`
+}
+
+/**
+ * 清理两端 30 天前的软删除墓碑（开发计划 2.3：防墓碑膨胀）。
+ * 竞态防护（P0-1）：只物理删除带 tombstonePushed 标记的墓碑——
+ * 若墓碑对应的 delete 变更尚未成功推送，保留本地墓碑并继续重试推送，
+ * 否则服务端对应记录将永远不会被标记删除。
+ * 已确认推送的墓碑清理时对服务端做物理删除（服务端墓碑膨胀由 pb_hooks cron 兜底）。
+ */
 export async function cleanupTombstones(): Promise<number> {
   const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000
   let removed = 0
+  const cfg = await readSyncSettings()
+  const syncEnabled = isSyncConfigured(cfg)
   for (const table of SYNC_TABLES) {
     const t = bizTable(table)
     const stale = (await t.toArray()).filter(
       (r) => r.deleted === 1 && typeof r.updatedAt === 'number' && (r.updatedAt as number) < cutoff,
     )
     for (const rec of stale) {
-      await t.delete(String(rec.id))
+      const localId = String(rec.id)
+      const pushed = await db.meta.get(tombstonePushedKey(table, localId))
+      if (!pushed || pushed.value !== 1) continue // delete 尚未送达服务端：保留墓碑待重试
+      if (syncEnabled) {
+        await pbDeleteRemote(cfg, table, localId) // 服务端墓碑同步物理清理，防远端膨胀
+      }
+      await db.meta.delete(tombstonePushedKey(table, localId))
+      await t.delete(localId)
       removed++
     }
   }
