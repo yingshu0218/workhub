@@ -3,11 +3,11 @@ import type { Customer, Todo, Transaction, Note } from '@/db/types'
 
 /**
  * 灵感闪现规则引擎（Phase 6 · 戒点①：权重一律从源记录推导，不存快照）
- * 候选源：逾期待办（P1 权重最高）/ 到期日程 / 待对账交易 / 久未跟进客户（距今天数 × 分层权重 S>A>B）
+ * 候选源：逾期待办（P1 权重最高）/ 到期日程 / 待对账交易 / 久未跟进客户（距今天数 × 分层权重 S>A>B）/ 沉睡笔记（30 天未更新）
  * 每类候选输出 理由文案 + 关联实体上下文 + 匹配合度%（原始分对最高分归一化）
  */
 
-export type CandidateKind = 'overdue-todo' | 'due-todo' | 'reconciliation' | 'stale-customer'
+export type CandidateKind = 'overdue-todo' | 'due-todo' | 'reconciliation' | 'stale-customer' | 'stale-note'
 
 export interface CandidateContext {
   icon: string
@@ -27,6 +27,8 @@ export interface InspirationCandidate {
   /** 可执行动作挂点 */
   todoId?: string
   customerId?: string
+  /** 沉睡笔记候选：跳转 /notes/:id */
+  noteId?: string
   /** 关联实体上下文（客户 · 款项 · 笔记） */
   context: CandidateContext[]
 }
@@ -150,6 +152,27 @@ function buildCandidates(input: EngineInput): InspirationCandidate[] {
       score,
       match: 0,
       customerId: c.id,
+      context,
+    })
+  }
+
+  // ── 沉睡笔记：updatedAt 距今 > 30 天的笔记作为候选类型补充 ──
+  for (const n of input.notes) {
+    if (!n.updatedAt) continue
+    const days = Math.floor((now - n.updatedAt) / 86400_000)
+    if (days <= 30) continue
+    const score = Math.min(55, days * 1.5)
+    const context: CandidateContext[] = []
+    if (n.tags.length > 0)
+      context.push({ icon: 'sell', label: '笔记标签', value: n.tags.map((t) => `#${t}`).join(' ') })
+    candidates.push({
+      id: `cand-note-${n.id}`,
+      kind: 'stale-note',
+      title: n.title || '未命名笔记',
+      reason: `笔记已沉睡 ${days} 天 · 回顾沉淀或归档，保持文库活性`,
+      score,
+      match: 0,
+      noteId: n.id,
       context,
     })
   }

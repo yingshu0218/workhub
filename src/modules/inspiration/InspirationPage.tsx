@@ -19,7 +19,28 @@ const KIND_META: Record<CandidateKind, { chip: string; tone: string; icon: strin
   'due-todo': { chip: '待办日程 · 今日到期', tone: 'bg-amber-500/15 text-amber-300 border-amber-400/40', icon: 'schedule' },
   reconciliation: { chip: '财务灵感 · 待对账', tone: 'bg-emerald-500/15 text-emerald-300 border-emerald-400/40', icon: 'account_balance_wallet' },
   'stale-customer': { chip: '人脉灵感 · 久未跟进', tone: 'bg-sky-500/15 text-sky-300 border-sky-400/40', icon: 'handshake' },
+  'stale-note': { chip: '笔记灵感 · 沉睡文库', tone: 'bg-violet-500/15 text-violet-300 border-violet-400/40', icon: 'auto_stories' },
 }
+
+/** 候选池开关（对齐原型 02 底部）：kind → 池 key 归组 */
+const POOLS = [
+  { key: 'todo', label: '紧急待办' },
+  { key: 'reconciliation', label: '待对账' },
+  { key: 'customer', label: '久未联系客户' },
+  { key: 'note', label: '沉睡笔记' },
+] as const
+
+type PoolKey = (typeof POOLS)[number]['key']
+
+function poolOfKind(kind: CandidateKind): PoolKey {
+  if (kind === 'overdue-todo' || kind === 'due-todo') return 'todo'
+  if (kind === 'stale-customer') return 'customer'
+  if (kind === 'reconciliation') return 'reconciliation'
+  return 'note'
+}
+
+/** 稍后提醒间隔：15 分钟 */
+const REMIND_DELAY_MS = 15 * 60_000
 
 /** 合度环（SVG） */
 function MatchRing({ pct }: { pct: number }) {
@@ -55,12 +76,22 @@ export default function InspirationPage() {
   const customers = useCollection<Customer>('customers')
   const notes = useCollection<Note>('notes')
 
+  // 候选池开关（组件态即可，不落库）
+  const [pools, setPools] = useState<Record<PoolKey, boolean>>({
+    todo: true,
+    reconciliation: true,
+    customer: true,
+    note: true,
+  })
+
   const candidates = useMemo(
-    () => buildCandidates({ todos, transactions, customers, notes }),
-    [todos, transactions, customers, notes],
+    () => buildCandidates({ todos, transactions, customers, notes }).filter((c) => pools[poolOfKind(c.kind)]),
+    [todos, transactions, customers, notes, pools],
   )
   const [idx, setIdx] = useState(0)
   const [reminderMsg, setReminderMsg] = useState<string | null>(null)
+  // 稍后提醒调度队列（审计 P2-1：记录提醒时间，到点真实唤起）
+  const [reminders, setReminders] = useState<{ title: string; dueAt: number }[]>([])
 
   // 队列收缩时归位
   const safeIdx = candidates.length ? idx % candidates.length : 0
@@ -70,12 +101,41 @@ export default function InspirationPage() {
     if (candidates.length) setIdx((i) => (i + 1) % candidates.length)
   }
 
+  const togglePool = (key: PoolKey) => {
+    setPools((prev) => ({ ...prev, [key]: !prev[key] }))
+    setIdx(0)
+  }
+
   const remindLater = () => {
     if (!current) return
+    // 首次使用时顺手申请桌面通知权限（拒绝则走应用内 Toast）
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+      void Notification.requestPermission()
+    }
+    setReminders((prev) => [...prev, { title: current.title, dueAt: Date.now() + REMIND_DELAY_MS }])
     setReminderMsg(`已稍后提醒：${current.title}（15 分钟后再来唤起你）`)
     window.setTimeout(() => setReminderMsg(null), 3000)
     next()
   }
+
+  // 提醒到点：桌面通知（若已授权），否则应用内顶部 Toast
+  useEffect(() => {
+    if (reminders.length === 0) return
+    const timer = window.setInterval(() => {
+      const now = Date.now()
+      const due = reminders.filter((r) => r.dueAt <= now)
+      if (due.length === 0) return
+      setReminders((prev) => prev.filter((r) => r.dueAt > now))
+      const msg = due.map((r) => r.title).join('、')
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        new Notification('寻鸽工作台 · 稍后提醒', { body: `该回来处理了：${msg}` })
+      } else {
+        setReminderMsg(`稍后提醒到点：${msg}`)
+        window.setTimeout(() => setReminderMsg(null), 6000)
+      }
+    }, 1000)
+    return () => window.clearInterval(timer)
+  }, [reminders])
 
   const startFocus = () => {
     if (!current) return
@@ -249,8 +309,17 @@ export default function InspirationPage() {
                   onClick={remindLater}
                 >
                   <Icon name="schedule" size={16} />
-                  稍后提醒
+                  稍后提醒（15 分钟后）
                 </button>
+                {current.noteId && (
+                  <button
+                    className="flex h-11 items-center gap-1.5 rounded-xl px-3 text-[13px] text-violet-300 transition-colors hover:text-violet-200"
+                    onClick={() => navigate(`/notes/${current.noteId}`)}
+                  >
+                    <Icon name="auto_stories" size={16} />
+                    打开笔记
+                  </button>
+                )}
                 {current.todoId && (
                   <button
                     className="flex h-11 items-center gap-1.5 rounded-xl px-3 text-[13px] text-emerald-400 transition-colors hover:text-emerald-300"
@@ -261,6 +330,29 @@ export default function InspirationPage() {
                   </button>
                 )}
               </div>
+            </div>
+
+            {/* 候选池开关（对齐原型 02 底部） */}
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-3 rounded-xl border border-slate-800/80 bg-[#0d1524]/80 px-4 py-2.5">
+              <span className="text-[11px] font-medium uppercase tracking-widest text-slate-500">候选池</span>
+              {POOLS.map((p) => (
+                <label
+                  key={p.key}
+                  className={`flex cursor-pointer select-none items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11.5px] transition-colors ${
+                    pools[p.key]
+                      ? 'border-blue-500/50 bg-blue-500/10 text-blue-300'
+                      : 'border-slate-700 text-slate-500'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    className="h-3 w-3 accent-blue-500"
+                    checked={pools[p.key]}
+                    onChange={() => togglePool(p.key)}
+                  />
+                  {p.label}
+                </label>
+              ))}
             </div>
 
             {/* 队列圆点 */}

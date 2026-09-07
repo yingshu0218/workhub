@@ -212,7 +212,7 @@ export default function HabitsPage() {
                 )}
                 <div className="hidden w-28 shrink-0 text-right sm:block">
                   <div className="text-[11px] text-outline">
-                    {monthLabel.slice(0, -1)}完成 {monthChecks} 次 · {monthRate === null ? '—' : `${monthRate}%`}
+                    {monthLabel}完成 {monthChecks} 次 · {monthRate === null ? '—' : `${monthRate}%`}
                   </div>
                   <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-surface-container">
                     <div

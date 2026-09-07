@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Icon } from '@/design-system/Icon'
 import { useNavigate, useParams } from 'react-router-dom'
-import { useCollection, useRecord } from '@/queries/hooks'
+import { useCollection } from '@/queries/hooks'
 import { noteRepo } from '@/repositories'
 import type { Note, NoteMention } from '@/db/types'
 import type { Customer, Ledger, Todo } from '@/db/types'
@@ -12,8 +12,8 @@ import { EditorView, keymap, lineNumbers, placeholder } from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
 import { markdown } from '@codemirror/lang-markdown'
 import { defaultHighlightStyle, syntaxHighlighting } from '@codemirror/language'
-import { useBacklinks } from './hooks'
-import { NOTE_PROSE_CSS, extractMentions, renderMarkdown, tagStyle, wordCount } from './shared'
+import { useBacklinks, useNoteRecord } from './hooks'
+import { NOTE_PROSE_CSS, extractMentions, renderMarkdown, safeMentionLabel, tagStyle, wordCount } from './shared'
 
 type SaveState = 'saved' | 'dirty' | 'saving'
 
@@ -36,9 +36,26 @@ const TYPE_META: Record<MentionType, { tab: string; cls: string }> = {
 export default function NoteEditorPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const note = useRecord<Note>('notes', id)
+  // 三态：undefined=加载中（直链首帧，不闪「不存在」）；null=确实不存在/已删除
+  const note = useNoteRecord(id)
 
-  if (!note) {
+  if (note === undefined) {
+    return (
+      <div className="mx-auto max-w-[1200px]">
+        <Button variant="ghost" icon="arrow_back" onClick={() => navigate('/notes')}>
+          返回列表
+        </Button>
+        <Card className="mt-4 p-10">
+          <div className="flex flex-col items-center gap-3 text-on-surface-variant">
+            <span className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            <span className="text-[13px]">笔记加载中…</span>
+          </div>
+        </Card>
+      </div>
+    )
+  }
+
+  if (note === null) {
     return (
       <div className="mx-auto max-w-[1200px]">
         <Button variant="ghost" icon="arrow_back" onClick={() => navigate('/notes')}>
@@ -50,6 +67,7 @@ export default function NoteEditorPage() {
       </div>
     )
   }
+
   // note 已就绪才挂载编辑器：CodeMirror 以首载 markdown 为初始文档，此后不再受外部刷新干扰
   return <NoteEditor key={note.id} note={note} />
 }
@@ -99,14 +117,21 @@ function NoteEditor({ note }: { note: Note }) {
     if (!dirtyRef.current || !base) return
     dirtyRef.current = false
     setSaveState('saving')
+    // 删除竞态防复活（审计 P2-4）：put 前复查最新记录，若已被软删则放弃写入
+    const latest = await noteRepo.get(base.id)
+    if (!latest) {
+      setSaveState('saved')
+      return
+    }
     await noteRepo.put({
-      ...base,
+      ...latest,
       title: titleRef.current.trim() || '未命名笔记',
       markdown: mdRef.current,
       tags: tagsRef.current,
       mentions: extractMentions(mdRef.current),
     })
-    setSaveState('saved')
+    // 保存徽章防虚报（审计 P2-5）：await 期间可能有新输入，复查 dirty 再定态
+    setSaveState(dirtyRef.current ? 'dirty' : 'saved')
   }
 
   // 卸载前兜底：有未保存改动立即落库（fire-and-forget）
@@ -119,6 +144,23 @@ function NoteEditor({ note }: { note: Note }) {
     [],
   )
 
+  // 刷新/关闭页面/切后台时兜底 flush（审计 P2-3：不丢尾部输入）
+  useEffect(() => {
+    const flush = () => {
+      if (dirtyRef.current) void flushSave()
+    }
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') flush()
+    }
+    window.addEventListener('pagehide', flush)
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      window.removeEventListener('pagehide', flush)
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // ===== @提及浮层 =====
   function closeMention() {
     setMention(null)
@@ -129,7 +171,8 @@ function NoteEditor({ note }: { note: Note }) {
     const m = mentionRef.current
     if (!view || !m) return
     const pos = view.state.selection.main.head
-    const insert = `@[${item.label}](${item.type}:${item.id}) `
+    // label 剔除 ]/) 防止 MENTION_RE 解析断裂（审计 P2-1）
+    const insert = `@[${safeMentionLabel(item.label)}](${item.type}:${item.id}) `
     view.dispatch({
       changes: { from: m.from, to: pos, insert },
       selection: { anchor: m.from + insert.length },

@@ -1,11 +1,12 @@
 import { useCollection, useTodayFocusMinutes } from '@/queries/hooks'
 import { Icon } from '@/design-system/Icon'
+import { useNavigate } from 'react-router-dom'
 import { useFocusStore, FOCUS_TOTAL_SEC } from '@/stores/focus'
 import { Button, Card, Chip } from '@/design-system/ui'
 import { eventBus } from '@/shared/eventBus'
 import { todoRepo, habitLogRepo, habitLogId, newId } from '@/repositories'
 import { useState } from 'react'
-import type { Todo } from '@/db/types'
+import type { Todo, Customer, Ledger } from '@/db/types'
 import dayjs from 'dayjs'
 
 function fmt(sec: number) {
@@ -15,9 +16,21 @@ function fmt(sec: number) {
 /** NOW DOING · 25min 深度专注计时器 */
 export function FocusCard() {
   const focus = useFocusStore()
+  const navigate = useNavigate()
   const todos = useCollection<Todo>('todos')
+  const customers = useCollection<Customer>('customers')
+  const ledgers = useCollection<Ledger>('ledgers')
   const doing = todos.find((t) => t.id === focus.todoId)
   const openTodos = todos.filter((t) => t.status !== 'done' && t.id !== focus.todoId)
+
+  // 专注进行中时的关联实体引用（对齐原型 01）：无关联则不显示
+  const refCustomer = doing?.customerId ? customers.find((c) => c.id === doing.customerId) : undefined
+  const refLedger = doing?.ledgerId ? ledgers.find((l) => l.id === doing.ledgerId) : undefined
+  const customerLabel = refCustomer
+    ? refCustomer.company
+      ? `${refCustomer.company} · ${refCustomer.name}`
+      : refCustomer.name
+    : ''
 
   // 今日专注分钟数（本地推导，不参与同步）
   const todayMinutes = useTodayFocusMinutes()
@@ -101,6 +114,33 @@ export function FocusCard() {
               <div className="mb-3 text-[12px] text-on-surface-variant">
                 完成后自动打卡「深度专注」习惯
               </div>
+              {/* 关联引用小卡（对齐原型 01）：客户 / 财务账本 */}
+              {(refCustomer || refLedger) && (
+                <div className="mb-3 flex flex-wrap gap-2">
+                  {refCustomer && (
+                    <button
+                      className="flex max-w-full min-w-0 items-center gap-1.5 rounded-lg border border-outline-variant/60 bg-surface-container-low px-2.5 py-1.5 text-left transition-colors hover:border-primary"
+                      title="打开客户详情"
+                      onClick={() => navigate(`/crm/${refCustomer.id}`)}
+                    >
+                      <Icon name="group" size={14} className="shrink-0 text-primary" />
+                      <span className="shrink-0 text-[10.5px] font-medium text-outline">关联客户</span>
+                      <span className="truncate text-[11.5px] font-medium text-primary">{customerLabel}</span>
+                    </button>
+                  )}
+                  {refLedger && (
+                    <button
+                      className="flex max-w-full min-w-0 items-center gap-1.5 rounded-lg border border-outline-variant/60 bg-surface-container-low px-2.5 py-1.5 text-left transition-colors hover:border-primary"
+                      title="打开财务账本"
+                      onClick={() => navigate('/finance')}
+                    >
+                      <Icon name="account_balance_wallet" size={14} className="shrink-0 text-warning" />
+                      <span className="shrink-0 text-[10.5px] font-medium text-outline">关联账本</span>
+                      <span className="truncate text-[11.5px] font-medium text-primary">{refLedger.name}</span>
+                    </button>
+                  )}
+                </div>
+              )}
               <div className="flex gap-2">
                 {focus.status === 'running' ? (
                   <Button size="sm" variant="tonal" icon="pause" onClick={focus.pause}>
@@ -340,7 +380,7 @@ export function QuickNoteCard() {
   return (
     <Card className="flex flex-col p-5">
       <h2 className="mb-3 text-[15px] font-semibold">随手速记</h2>
-      <div className="mb-3 flex gap-2">
+      <div className="mb-2 flex gap-2">
         <input
           className="flex-1 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-[13px] outline-none focus:border-primary"
           placeholder="灵感一闪，先记下来…"
@@ -349,6 +389,10 @@ export function QuickNoteCard() {
           onKeyDown={(e) => e.key === 'Enter' && void add()}
         />
         <Button size="sm" icon="add" onClick={() => void add()} />
+      </div>
+      {/* 字符计数（对齐原型 01：N 字符已录入 · 本地缓存已就绪） */}
+      <div className="mb-3 text-right text-[11px] text-outline">
+        {draft.length} 字符已录入 · 本地缓存已就绪
       </div>
       {pending.length === 0 ? (
         <div className="py-6 text-center text-[12px] text-outline">暂存区已清空</div>

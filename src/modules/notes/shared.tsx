@@ -48,6 +48,15 @@ export function extractMentions(markdown: string): NoteMention[] {
   return list
 }
 
+/**
+ * 提及 label 净化（审计 P2-1）：剔除会截断 MENTION_RE 解析的字符。
+ * label 段为 [^\]]+，含 `]` 会让语法在 label 中间提前闭合；
+ * `)` 会与 type:id 段后的收尾括号混淆。实体名/待办标题来自用户输入，插入前必须过滤。
+ */
+export function safeMentionLabel(label: string): string {
+  return label.replace(/[\])]/g, '')
+}
+
 // ===== Markdown 渲染 =====
 
 marked.use({ gfm: true, breaks: true })
@@ -58,9 +67,13 @@ function escapeHtml(s: string): string {
 
 /** 提及语法 → 彩色胶囊（内联 HTML，marked 原样保留） */
 function preprocessMentions(md: string): string {
-  return md.replace(MENTION_RE, (_m, label: string, type: string) =>
-    `<span class="md-mention md-mention-${type}">@${escapeHtml(label)}</span>`,
-  )
+  const pill = (_m: string, label: string, type: string) =>
+    `<span class="md-mention md-mention-${type}">@${escapeHtml(label)}</span>`
+  // 审计 P2-2：按 ``` 围栏切分，仅对非代码段做提及替换（代码块内的 @语法保持字面原样）
+  return md
+    .split(/(```[\s\S]*?(?:```|$))/g)
+    .map((seg) => (seg.startsWith('```') ? seg : seg.replace(MENTION_RE, pill)))
+    .join('')
 }
 
 /** 渲染为 HTML：markdown → 提及胶囊预处理 → DOMPurify 净化后再进预览 */

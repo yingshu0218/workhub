@@ -1,12 +1,11 @@
 import { useMemo, useState } from 'react'
 import { Icon } from '@/design-system/Icon'
 import { useNavigate } from 'react-router-dom'
-import { useCollection } from '@/queries/hooks'
 import { noteRepo, newId } from '@/repositories'
-import type { Note } from '@/db/types'
 import { Button, Card, EmptyState, PageHeader, inputCls } from '@/design-system/ui'
 import dayjs from 'dayjs'
-import { markdownToPlain, tagStyle, wordCount } from './shared'
+import { tagStyle } from './shared'
+import { useNoteList } from './hooks'
 
 /** 相对时间（列表行右侧） */
 function fmtTime(ts: number): string {
@@ -19,7 +18,8 @@ function fmtTime(ts: number): string {
 /** 团队笔记列表页（对齐原型 12-team-notes 左栏文件体系），路由 /notes */
 export default function NotesPage() {
   const navigate = useNavigate()
-  const notes = useCollection<Note>('notes')
+  // 投影查询（审计 P2-6）：只取 id/title/tags/mentions/updatedAt，markdown 不进列表内存
+  const notes = useNoteList()
   const [keyword, setKeyword] = useState('')
   const [activeTag, setActiveTag] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
@@ -37,7 +37,11 @@ export default function NotesPage() {
       .filter((n) => {
         if (activeTag && !n.tags.includes(activeTag)) return false
         if (!kw) return true
-        return [n.title, n.markdown, n.tags.join(' ')].join(' ').toLowerCase().includes(kw)
+        // 搜索范围：标题 + 标签 + 提及实体名（投影行不含 markdown 正文）
+        return [n.title, n.tags.join(' '), n.mentions.map((m) => m.label).join(' ')]
+          .join(' ')
+          .toLowerCase()
+          .includes(kw)
       })
       .sort((a, b) => b.updatedAt - a.updatedAt)
   }, [notes, keyword, activeTag])
@@ -46,18 +50,21 @@ export default function NotesPage() {
   async function createNote() {
     if (creating) return
     setCreating(true)
-    const id = newId('note')
-    await noteRepo.put({
-      id,
-      title: '未命名笔记',
-      markdown: '',
-      tags: [],
-      backlinks: [],
-      mentions: [],
-      createdAt: Date.now(),
-    })
-    setCreating(false)
-    navigate(`/notes/${id}`)
+    try {
+      const id = newId('note')
+      await noteRepo.put({
+        id,
+        title: '未命名笔记',
+        markdown: '',
+        tags: [],
+        backlinks: [],
+        mentions: [],
+        createdAt: Date.now(),
+      })
+      navigate(`/notes/${id}`)
+    } finally {
+      setCreating(false)
+    }
   }
 
   return (
@@ -126,46 +133,45 @@ export default function NotesPage() {
           </Card>
         ) : (
           <Card className="flex-1 divide-y divide-outline-variant/30 px-5">
-            {list.map((n) => {
-              const words = wordCount(n.markdown)
-              return (
-                <div
-                  key={n.id}
-                  onClick={() => navigate(`/notes/${n.id}`)}
-                  className="group cursor-pointer py-3.5 transition-colors hover:bg-surface-container-low/40"
-                >
-                  <div className="flex items-center gap-2">
-                    <Icon name="description" className="text-[18px] text-primary" />
-                    <span className="truncate text-[14px] font-medium group-hover:text-primary">{n.title}</span>
-                    <span className="ml-auto shrink-0 text-[11px] text-outline">{fmtTime(n.updatedAt)}</span>
-                  </div>
-                  <p className="mt-0.5 line-clamp-2 pl-[26px] text-[12.5px] leading-relaxed text-on-surface-variant">
-                    {markdownToPlain(n.markdown) || '（空笔记）'}
-                  </p>
-                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5 pl-[26px]">
-                    {n.tags.map((t) => (
-                      <span
-                        key={t}
-                        className="rounded-full px-2 py-0.5 text-[11px] font-medium"
-                        style={tagStyle(t)}
-                      >
-                        #{t}
-                      </span>
-                    ))}
-                    <span className="text-[11px] text-outline">{words.toLocaleString('zh-CN')} 字</span>
-                    {n.mentions.length > 0 && (
-                      <span
-                        className="flex items-center gap-0.5 text-[11px] text-outline"
-                        title={n.mentions.map((m) => m.label).join('、')}
-                      >
-                        <Icon name="hub" size={13} />
-                        {n.mentions.length} 个关联
-                      </span>
-                    )}
-                  </div>
+            {list.map((n) => (
+              <div
+                key={n.id}
+                onClick={() => navigate(`/notes/${n.id}`)}
+                className="group cursor-pointer py-3.5 transition-colors hover:bg-surface-container-low/40"
+              >
+                <div className="flex items-center gap-2">
+                  <Icon name="description" className="text-[18px] text-primary" />
+                  <span className="truncate text-[14px] font-medium group-hover:text-primary">{n.title}</span>
+                  <span className="ml-auto shrink-0 text-[11px] text-outline">{fmtTime(n.updatedAt)}</span>
                 </div>
-              )
-            })}
+                {/* 投影行不含 markdown，摘要以关联实体替代（正文点击进入编辑页查看） */}
+                {n.mentions.length > 0 && (
+                  <p className="mt-0.5 line-clamp-1 pl-[26px] text-[12.5px] leading-relaxed text-on-surface-variant">
+                    关联：{n.mentions.map((m) => `@${m.label}`).join('、')}
+                  </p>
+                )}
+                <div className="mt-1.5 flex flex-wrap items-center gap-1.5 pl-[26px]">
+                  {n.tags.map((t) => (
+                    <span
+                      key={t}
+                      className="rounded-full px-2 py-0.5 text-[11px] font-medium"
+                      style={tagStyle(t)}
+                    >
+                      #{t}
+                    </span>
+                  ))}
+                  {n.mentions.length > 0 && (
+                    <span
+                      className="flex items-center gap-0.5 text-[11px] text-outline"
+                      title={n.mentions.map((m) => m.label).join('、')}
+                    >
+                      <Icon name="hub" size={13} />
+                      {n.mentions.length} 个关联
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
           </Card>
         )}
       </div>

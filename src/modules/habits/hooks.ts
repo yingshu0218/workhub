@@ -97,12 +97,19 @@ export function useHabitStats(month: string): HabitRowStat[] {
   return stats ?? []
 }
 
-/** 月历热力图数据：日期(YYYY-MM-DD) → 当日完成习惯数 */
+/** 月历热力图数据：日期(YYYY-MM-DD) → 当日完成习惯数（仅统计现存习惯，孤儿日志不计入） */
 export function useHabitMonthCounts(month: string): Record<string, number> {
   const counts = useQuery<Record<string, number>>(async () => {
-    const logs = await db.habitLogs.filter((l) => !l.deleted && l.date.startsWith(month)).toArray()
+    const [habits, logs] = await Promise.all([
+      db.habits.filter((h) => !h.deleted).toArray(),
+      db.habitLogs.filter((l) => !l.deleted && l.date.startsWith(month)).toArray(),
+    ])
+    const aliveIds = new Set(habits.map((h) => h.id))
     const map: Record<string, number> = {}
-    for (const l of logs) map[l.date] = (map[l.date] ?? 0) + 1
+    for (const l of logs) {
+      if (!aliveIds.has(l.habitId)) continue
+      map[l.date] = (map[l.date] ?? 0) + 1
+    }
     return map
   }, [month])
   return counts ?? {}
@@ -122,11 +129,16 @@ export function useCompletedHabitsOn(date: string | undefined): Habit[] {
   return habits ?? []
 }
 
-/** 今日已打卡习惯数（头部进度用） */
+/** 今日已打卡习惯数（头部进度用；仅统计现存习惯，孤儿日志不计入） */
 export function useTodayCheckCount(): number {
   const count = useQuery<number>(async () => {
     const todayStr = dayjs().format('YYYY-MM-DD')
-    return db.habitLogs.filter((l) => !l.deleted && l.date === todayStr).count()
+    const [habits, logs] = await Promise.all([
+      db.habits.filter((h) => !h.deleted).toArray(),
+      db.habitLogs.filter((l) => !l.deleted && l.date === todayStr).toArray(),
+    ])
+    const aliveIds = new Set(habits.map((h) => h.id))
+    return logs.filter((l) => aliveIds.has(l.habitId)).length
   }, [])
   return count ?? 0
 }
