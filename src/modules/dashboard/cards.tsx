@@ -204,6 +204,90 @@ export function HabitLoopCard() {
 }
 
 /** 随手速记 · 转待办 / 归笔记 */
+/** 今日待办日程（对齐原型 01：时间轴待办 + 已完成划线 + 进入待办中心） */
+export function TodayTodosCard() {
+  const todos = useCollection<Todo>('todos')
+  const todayStr = dayjs().format('YYYY-MM-DD')
+  const list = todos
+    .filter((t) => t.status !== 'done' && (!t.dueAt || dayjs(t.dueAt).format('YYYY-MM-DD') === todayStr))
+    .sort((a, b) => (a.dueAt ?? Infinity) - (b.dueAt ?? Infinity))
+  const doneToday = todos.filter(
+    (t) => t.status === 'done' && t.completedAt && dayjs(t.completedAt).format('YYYY-MM-DD') === todayStr,
+  )
+
+  async function toggle(t: Todo) {
+    if (t.status === 'done') {
+      await todoRepo.put({ ...t, status: 'todo', completedAt: undefined })
+    } else {
+      await todoRepo.put({ ...t, status: 'done', completedAt: Date.now() })
+    }
+  }
+
+  return (
+    <Card className="flex flex-col p-5">
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="flex items-center gap-2 text-[15px] font-semibold">
+          今日待办日程
+          <Chip tone="blue">{list.length} 待完成</Chip>
+        </h2>
+        <button
+          className="text-outline hover:text-primary"
+          title="新建待办"
+          onClick={() => (location.href = '/todo?new=1')}
+        >
+          <span className="material-symbols-rounded" style={{ fontSize: 20 }}>add</span>
+        </button>
+      </div>
+
+      {list.length === 0 && doneToday.length === 0 ? (
+        <div className="py-6 text-center text-[12px] text-outline">今日暂无安排，去待办中心创建 →</div>
+      ) : (
+        <ul className="space-y-1 overflow-y-auto">
+          {list.map((t) => (
+            <li key={t.id} className="flex items-start gap-3 rounded-lg px-2 py-2 hover:bg-surface-container-low">
+              <button onClick={() => void toggle(t)} className="mt-0.5 shrink-0">
+                <span className="material-symbols-rounded text-outline" style={{ fontSize: 20 }}>
+                  radio_button_unchecked
+                </span>
+              </button>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[13.5px] font-medium">{t.title}</div>
+                {t.dueAt && (
+                  <div className={`text-[11px] ${dayjs(t.dueAt).isBefore(dayjs()) ? 'text-danger' : 'text-outline'}`}>
+                    {dayjs(t.dueAt).format('HH:mm')}
+                    {t.priority === 'P1' && <span className="ml-1.5 font-medium">P1 紧急</span>}
+                  </div>
+                )}
+              </div>
+              <button className="shrink-0 text-[11px] text-primary hover:underline" onClick={() => void toggle(t)}>
+                完成
+              </button>
+            </li>
+          ))}
+          {doneToday.slice(0, 3).map((t) => (
+            <li key={t.id} className="flex items-center gap-3 rounded-lg px-2 py-1.5">
+              <button onClick={() => void toggle(t)} className="shrink-0">
+                <span className="material-symbols-rounded msr-fill text-success" style={{ fontSize: 20 }}>
+                  check_box
+                </span>
+              </button>
+              <span className="min-w-0 flex-1 truncate text-[12.5px] text-outline line-through">{t.title}</span>
+              <Chip tone="green">已完成</Chip>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <button
+        className="mt-3 border-t border-outline-variant/40 pt-3 text-left text-[12px] text-primary hover:underline"
+        onClick={() => (location.href = '/todo')}
+      >
+        进入待办事项中心查看全部（{todos.filter((t) => t.status !== 'done').length}）→
+      </button>
+    </Card>
+  )
+}
+
 export function QuickNoteCard() {
   const notes = useCollection<import('@/db/types').QuickNote>('quickNotes')
   const [draft, setDraft] = useState('')

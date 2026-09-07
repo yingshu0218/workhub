@@ -1,7 +1,7 @@
 import { useCollection, useTodayFocusMinutes, useBestHabitStreak } from '@/queries/hooks'
 import { Card, PageHeader, Button } from '@/design-system/ui'
 import type { Todo, Customer, Transaction } from '@/db/types'
-import { FocusCard, HabitLoopCard, QuickNoteCard } from './cards'
+import { FocusCard, HabitLoopCard, QuickNoteCard, TodayTodosCard } from './cards'
 import dayjs from 'dayjs'
 
 /** Focus Synchronizer 仪表盘（Phase 1 实装版） */
@@ -66,9 +66,12 @@ export default function DashboardPage() {
       <div className="mt-5 grid grid-cols-[1fr_360px] gap-4">
         <div className="space-y-4">
           <FocusCard />
+          <HabitLoopCard />
+        </div>
+        <div className="space-y-4">
+          <TodayTodosCard />
           <QuickNoteCard />
         </div>
-        <HabitLoopCard />
       </div>
     </div>
   )
