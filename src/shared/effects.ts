@@ -1,7 +1,7 @@
 import { eventBus } from './eventBus'
 import { habitRepo, habitLogRepo, habitLogId, settingsRepo } from '@/repositories'
 import { installTrophyEngine } from '@/modules/trophies/trophyEngine'
-import { ACCENT_PRESETS } from './theme'
+import { ACCENT_PRESETS, THEME_STYLES, FONT_STACKS, type FontPresetId } from './theme'
 import dayjs from 'dayjs'
 
 /**
@@ -29,13 +29,24 @@ export function applySettingsToDom(settings: import('@/db/types').Settings): voi
       window.matchMedia('(prefers-color-scheme: dark)').matches)
   root.classList.toggle('dark', dark)
 
+  // 风格主题包（Issue #14）：整套界面气质——容器色阶/灰阶轮廓/情绪色按所选风格覆盖；
+  // mode=system 时仍按当前深浅取对应侧变量。classic 为默认，无覆盖即回退 index.css token。
+  const style = THEME_STYLES.find((t) => t.id === settings.appearance.theme) ?? THEME_STYLES[0]
+  const styleVars = (dark ? style.dark : style.light) as Record<string, string>
+  for (const [name, value] of Object.entries(styleVars)) {
+    root.style.setProperty(`--color-${name}`, value)
+  }
+
   // 强调色 → 覆盖 primary 系变量（fixed 为浅色容器底，用 color-mix 派生）
   const accent = ACCENT_PRESETS.find((a) => a.id === settings.appearance.accent) ?? ACCENT_PRESETS[0]
   root.style.setProperty('--color-primary', accent.primary)
   root.style.setProperty('--color-primary-container', accent.container)
+  const mixBase = dark
+    ? (styleVars['surface-container'] ?? '#0f172a')
+    : (styleVars['surface-container-lowest'] ?? '#ffffff')
   root.style.setProperty(
     '--color-primary-fixed',
-    `color-mix(in srgb, ${accent.container} 16%, ${dark ? '#0f172a' : '#ffffff'})`,
+    `color-mix(in srgb, ${accent.container} 16%, ${mixBase})`,
   )
 
   // 圆角档位 → 覆盖 rounded-lg/rounded-xl 引用的半径变量（.card 用 rounded-lg）
@@ -49,13 +60,8 @@ export function applySettingsToDom(settings: import('@/db/types').Settings): voi
   // 字体排版 → html 基准字号 / 行高 / font-sans 字体栈（字体组合预设）
   root.style.fontSize = `${settings.typography.fontSize}px`
   root.style.lineHeight = String(settings.typography.lineHeight)
-  const FONT_STACKS = {
-    inter: `'Inter', 'HarmonyOS Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif`,
-    system: `system-ui, -apple-system, 'PingFang SC', 'HarmonyOS Sans SC', 'Microsoft YaHei', sans-serif`,
-    serif: `'Noto Serif SC', 'Songti SC', 'SimSun', Georgia, serif`,
-  } as const
-  const preset = settings.typography.fontPreset ?? 'inter'
-  root.style.setProperty('--font-sans', FONT_STACKS[preset])
+  const preset = (settings.typography.fontPreset ?? 'inter') as FontPresetId
+  root.style.setProperty('--font-sans', FONT_STACKS[preset] ?? FONT_STACKS.inter)
 }
 
 function watchSystemTheme(): void {

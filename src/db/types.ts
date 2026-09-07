@@ -186,6 +186,8 @@ export interface Trophy extends SyncMeta {
 export interface SettingsAppearance {
   /** 深浅模式：light / dark / 跟随系统 */
   mode: 'light' | 'dark' | 'system'
+  /** 风格主题包（取 THEME_STYLES 的 id，见 shared/theme），换整套界面气质而非仅强调色 */
+  theme?: string
   /** 强调色（取 ACCENT_PRESETS 的 id，见 SettingsPage） */
   accent: string
   /** 圆角档位：sharp 4px / medium 8px / large 14px */
@@ -199,8 +201,8 @@ export interface SettingsTypography {
   fontSize: number
   /** 行高倍数 */
   lineHeight: number
-  /** 字体组合预设：inter 优先 / system 系统优先 / serif 衬线优先（缺省 inter，映射 --font-sans 栈） */
-  fontPreset?: 'inter' | 'system' | 'serif'
+  /** 字体组合预设（取 FONT_PRESETS 的 id，见 shared/theme；缺省 inter，映射 --font-sans 栈） */
+  fontPreset?: 'inter' | 'system' | 'serif' | 'hei' | 'kai' | 'rounded'
 }
 
 export interface SettingsNotifications {
