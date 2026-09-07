@@ -21,7 +21,8 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
   const customers = useCollection<Customer>('customers')
   const todos = useCollection<Todo>('todos')
   const transactions = useCollection<Transaction>('transactions')
-  const notes = useCollection<Note>('notes')
+  // 搜索投影下沉：笔记仅取 id/title/tags，整篇 markdown 不进内存
+  const notes = useCollection<Note>('notes', ['id', 'title', 'tags'])
   const habits = useCollection<Habit>('habits')
 
   const groups = useMemo(
@@ -36,6 +37,8 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
     () => groups.flatMap((g) => g.items.map((it) => ({ ...it, icon: g.icon }))),
     [groups],
   )
+  // active 随结果收缩钳制，避免越界高亮/Enter 空跳
+  const activeIndex = Math.min(active, Math.max(0, flat.length - 1))
 
   // 打开时重置并聚焦
   useEffect(() => {
@@ -70,6 +73,10 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
       })
       onClose()
       navigate(`/notes/${id}`)
+    } catch (err) {
+      // 写入失败（如配额超限）不再静默穿透
+      console.error('[CommandPalette] 新建笔记失败', err)
+      window.alert(`新建笔记失败：${err instanceof Error ? err.message : '请稍后重试'}`)
     } finally {
       setCreatingNote(false)
     }
@@ -92,7 +99,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
       setActive((i) => (flat.length ? (i - 1 + flat.length) % flat.length : 0))
     } else if (e.key === 'Enter') {
       e.preventDefault()
-      const item = flat[active]
+      const item = flat[activeIndex]
       if (item) go(item)
     } else if (e.key === 'Escape') {
       e.preventDefault()
@@ -104,7 +111,11 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
   let cursor = -1
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[12vh]" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center pt-[12vh]"
+      onClick={onClose}
+      onKeyDown={onKeyDown}
+    >
       <div className="absolute inset-0 bg-black/30" />
       <div
         className="relative w-[640px] max-w-[92vw] overflow-hidden rounded-2xl border border-outline-variant/40 bg-surface-container-lowest shadow-2xl"
@@ -117,7 +128,6 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
             ref={inputRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={onKeyDown}
             placeholder="全局搜索任务、客户或笔记…"
             className="h-full flex-1 bg-transparent text-[14.5px] outline-none placeholder:text-outline"
           />
@@ -145,19 +155,19 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
                     <button
                       key={`${it.type}-${it.id}`}
                       className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors ${
-                        idx === active ? 'bg-primary-fixed' : 'hover:bg-surface-container'
+                        idx === activeIndex ? 'bg-primary-fixed' : 'hover:bg-surface-container'
                       }`}
                       onMouseEnter={() => setActive(idx)}
                       onClick={() => go(it)}
                     >
-                      <Icon name={g.icon} className={`text-[18px] ${idx === active ? 'text-primary' : 'text-outline'}`} />
+                      <Icon name={g.icon} className={`text-[18px] ${idx === activeIndex ? 'text-primary' : 'text-outline'}`} />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-[13.5px] font-medium">{it.title}</span>
                         {it.subtitle && (
                           <span className="block truncate text-[11.5px] text-on-surface-variant">{it.subtitle}</span>
                         )}
                       </span>
-                      {idx === active && (
+                      {idx === activeIndex && (
                         <kbd className="shrink-0 rounded bg-surface-container-high px-1.5 text-[10px] text-outline">↵</kbd>
                       )}
                     </button>

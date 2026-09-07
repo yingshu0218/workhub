@@ -52,12 +52,13 @@ export default function ProfilePage() {
         </div>
       </Card>
 
-      {/* 源统计速览 */}
-      <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
+      {/* 源统计速览（历史最长连击与当前连击分开展示，审计 P2-8） */}
+      <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-5">
         {[
           { icon: 'timer', label: '累计专注分钟', value: stats.focusMinutesTotal },
           { icon: 'event_repeat', label: '累计打卡次数', value: stats.habitChecksTotal },
-          { icon: 'local_fire_department', label: '最长连击天数', value: stats.habitStreak },
+          { icon: 'workspace_premium', label: '最长连续打卡', value: stats.habitStreak },
+          { icon: 'local_fire_department', label: '当前连击', value: stats.habitCurrentStreak },
           { icon: 'receipt_long', label: '累计交易笔数', value: stats.transactionsTotal },
         ].map((m) => (
           <Card key={m.label} className="flex items-center gap-3 p-4">

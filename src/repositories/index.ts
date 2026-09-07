@@ -19,7 +19,7 @@ import type {
 } from '@/db/types'
 import { DEFAULT_SETTINGS } from '@/db/types'
 import type { SyncMeta } from '@/db/types'
-import type { Attachment } from '@/db/db'
+import type { Attachment, FocusSession } from '@/db/db'
 import { eventBus } from '@/shared/eventBus'
 
 /** 模块统一从这里拿仓储实例，不直接触碰 Dexie */
@@ -35,6 +35,22 @@ export const habitRepo = createRepository<Habit>('habits')
 export const habitLogRepo = createRepository<HabitLog>('habitLogs')
 export const trophyRepo = createRepository<Trophy>('trophies')
 export const attachmentRepo = createRepository<Attachment>('attachments')
+
+/**
+ * 专注会话瞬态仓储（本地推导数据，不进同步队列 —— 开发计划 2.3）
+ * 仅供导出/恢复使用，写入不走 repository.put（避免误盖章入队）
+ */
+export const focusSessionRepo = {
+  list(): Promise<FocusSession[]> {
+    return db.focusSessions.toArray()
+  },
+  async bulkPut(items: FocusSession[]): Promise<void> {
+    if (items.length === 0) return
+    await db.transaction('rw', [db.focusSessions], async () => {
+      await db.focusSessions.bulkPut(items)
+    })
+  },
+}
 
 export { newId }
 
@@ -68,27 +84,55 @@ export const settingsRepo = {
     return mergeSettings(await SETTINGS_TABLE().get('singleton'))
   },
 
-  /** patch 为段级整体替换（调用方传完整段对象），段内字段由本函数与旧值合并兜底 */
+  /**
+   * 契约修复（审计 Phase 6 P2-7）：
+   * 1. get 移入 db.transaction 内 —— 读-并-写同事务，杜绝并发写互相覆盖；
+   * 2. 段合并改为「DEFAULT 兜底 ← 旧值段展开 ← patch 段」三层合并，
+   *    调用方只传段内单字段（如 { appearance: { accent } }）时不再抹掉段内其他字段。
+   */
   async save(patch: Partial<Omit<Settings, 'key'>>): Promise<Settings> {
-    const merged = mergeSettings({
-      ...mergeSettings(await SETTINGS_TABLE().get('singleton')),
-      ...patch,
-    })
-    await db.transaction('rw', [db.settings], async () => {
+    return db.transaction('rw', [db.settings], async () => {
+      const prev = await SETTINGS_TABLE().get('singleton')
+      const merged: Settings = {
+        ...DEFAULT_SETTINGS,
+        ...prev,
+        key: 'singleton',
+        appearance: { ...DEFAULT_SETTINGS.appearance, ...prev?.appearance, ...patch.appearance },
+        typography: { ...DEFAULT_SETTINGS.typography, ...prev?.typography, ...patch.typography },
+        notifications: { ...DEFAULT_SETTINGS.notifications, ...prev?.notifications, ...patch.notifications },
+        security: { ...DEFAULT_SETTINGS.security, ...prev?.security, ...patch.security },
+        sync: { ...DEFAULT_SETTINGS.sync, ...prev?.sync, ...patch.sync },
+      }
       await SETTINGS_TABLE().put(merged)
+      eventBus.emit('settings:changed', { settings: merged })
+      return merged
     })
-    eventBus.emit('settings:changed', { settings: merged })
-    return merged
   },
 }
 
 /**
  * 危险区：清空本地数据库并重新写入演示种子（设置页「数据与安全」用）
+ * 契约修复（审计 Phase 6 P2-8）：
+ * 1. settings 表豁免清空 —— 保留同步配置（serverUrl/账号）与外观偏好，清空后无需重新配置；
+ * 2. 若同步队列存在未推送条目，先执行一次 syncNow 清空队列再重置，
+ *    避免尚未推送的本地增量随库被清（配置同步后丢数据）；推送后仍有积压则中止清空。
  * 动态 import 规避 db.ts ↔ seed.ts 的模块环；调用方负责自行 reload 刷新界面态
  */
 export async function resetAndSeedLocalData(): Promise<void> {
-  await db.delete()
-  await db.open()
+  const pendingBefore = await db.syncQueue.filter((p) => !p.sentAt).count()
+  if (pendingBefore > 0) {
+    await syncEngine.syncNow('pre-reset')
+    const pendingAfter = await db.syncQueue.filter((p) => !p.sentAt).count()
+    if (pendingAfter > 0) {
+      throw new Error(`仍有 ${pendingAfter} 条变更未能推送到服务器，已中止清空以保护数据。请检查网络或同步配置后重试。`)
+    }
+  }
+  // 逐表清空（settings 豁免），替代整库 delete，保留设置 singleton
+  await Promise.all(
+    db.tables
+      .filter((t) => t.name !== 'settings')
+      .map((t) => t.clear()),
+  )
   const { seedIfEmpty } = await import('@/db/seed')
   await seedIfEmpty()
 }
@@ -102,6 +146,8 @@ export function habitLogId(habitId: string, date: string): string {
  * JSON 存档恢复（设置页「数据与安全」导入迁移用）：
  * 校验导出格式 → 单事务逐表 bulkPut（保留记录自带的 updatedAt/rev/deleted 盖章）。
  * 覆盖语义：与本地同 id 的记录整体被存档版本覆盖。
+ * 附件恢复：存档中附件以 base64 dataUrl 承载（导出时 Blob 不可 JSON 序列化），
+ * 恢复时转回 Blob 写入 attachments 表。
  * 同步说明：最简恢复不逐条入同步队列（避免恢复一次洪泛队列），
  * 跨设备传播依赖「全量推送」入口（enqueueAllForPush）。
  * @returns 实际写入的记录总数
@@ -109,7 +155,37 @@ export function habitLogId(habitId: string, date: string): string {
 const RESTORE_TABLES = [
   'workspaces', 'customers', 'interactions', 'ledgers', 'transactions',
   'todos', 'notes', 'quickNotes', 'habits', 'habitLogs', 'trophies',
+  'attachments', 'focusSessions',
 ] as const
+
+/** base64 dataUrl → Blob（附件恢复用，不依赖网络） */
+function dataUrlToBlob(dataUrl: string): Blob {
+  const [head, body] = dataUrl.split(',')
+  const mime = /:(.*?);/.exec(head)?.[1] ?? 'application/octet-stream'
+  const bin = atob(body)
+  const bytes = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+  return new Blob([bytes], { type: mime })
+}
+
+/** 存档附件行（dataUrl 承载）→ 本地附件记录（blob 承载） */
+function attachmentRowToRecord(row: Record<string, unknown>): Attachment | null {
+  const { dataUrl, ...rest } = row
+  const blob = typeof dataUrl === 'string' && dataUrl.startsWith('data:')
+    ? dataUrlToBlob(dataUrl)
+    : (rest.blob instanceof Blob ? rest.blob : null)
+  if (!blob || typeof rest.id !== 'string') return null
+  return {
+    id: rest.id,
+    refType: typeof rest.refType === 'string' ? rest.refType : '',
+    refId: typeof rest.refId === 'string' ? rest.refId : '',
+    name: typeof rest.name === 'string' ? rest.name : 'attachment',
+    mime: typeof rest.mime === 'string' ? rest.mime : blob.type,
+    size: typeof rest.size === 'number' ? rest.size : blob.size,
+    blob,
+    createdAt: typeof rest.createdAt === 'number' ? rest.createdAt : 0,
+  }
+}
 
 export async function restoreFromJson(payload: unknown): Promise<number> {
   const parsed = payload as {
@@ -128,8 +204,18 @@ export async function restoreFromJson(payload: unknown): Promise<number> {
         const rows = parsed.data?.[name]
         if (!Array.isArray(rows) || rows.length === 0) continue
         const table = db[name] as unknown as { bulkPut(items: unknown[]): Promise<unknown> }
-        await table.bulkPut(rows)
-        count += rows.length
+        if (name === 'attachments') {
+          // 附件特殊通道：dataUrl → Blob 后写入，跳过无法落库的存档原行
+          const records = rows
+            .map((r) => attachmentRowToRecord(r as Record<string, unknown>))
+            .filter((r): r is Attachment => r !== null)
+          if (records.length === 0) continue
+          await table.bulkPut(records)
+          count += records.length
+        } else {
+          await table.bulkPut(rows)
+          count += rows.length
+        }
       }
     },
   )

@@ -178,6 +178,8 @@ export interface SettingsTypography {
   fontSize: number
   /** 行高倍数 */
   lineHeight: number
+  /** 字体组合预设：inter 优先 / system 系统优先 / serif 衬线优先（缺省 inter，映射 --font-sans 栈） */
+  fontPreset?: 'inter' | 'system' | 'serif'
 }
 
 export interface SettingsNotifications {

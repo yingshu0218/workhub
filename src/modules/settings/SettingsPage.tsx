@@ -6,9 +6,10 @@ import { settingsRepo, resetAndSeedLocalData, restoreFromJson } from '@/reposito
 import {
   workspaceRepo, customerRepo, interactionRepo, ledgerRepo, transactionRepo,
   todoRepo, noteRepo, quickNoteRepo, habitRepo, habitLogRepo, trophyRepo,
+  attachmentRepo, focusSessionRepo,
 } from '@/repositories'
 import { listShortcuts } from '@/shared/shortcuts'
-import { ACCENT_PRESETS, RADIUS_PRESETS, FONT_SIZE_STEPS, LINE_HEIGHT_STEPS } from '@/shared/theme'
+import { ACCENT_PRESETS, RADIUS_PRESETS, FONT_SIZE_STEPS, LINE_HEIGHT_STEPS, FONT_PRESETS } from '@/shared/theme'
 import { pbPing, isSyncConfigured, enqueueAllForPush } from '@/sync/pocketbaseAdapter'
 import { syncEngine } from '@/sync/engine'
 import { useSyncStore } from '@/sync/store'
@@ -48,6 +49,16 @@ function toCsv(headers: string[], rows: (string | number)[][]): string {
     return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
   }
   return '\uFEFF' + [headers, ...rows].map((r) => r.map(esc).join(',')).join('\r\n')
+}
+
+/** Blob → base64 dataUrl（附件导出用：Blob 不可 JSON 序列化） */
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result))
+    reader.onerror = () => reject(reader.error)
+    reader.readAsDataURL(blob)
+  })
 }
 
 function Section({ icon, title, desc, badge, children }: {
@@ -154,23 +165,33 @@ export default function SettingsPage() {
     void settingsRepo.save(patch).then(setSettings)
   }
 
-  // ── 数据导出：全部业务表走 repository.list 汇总 ──
+  // ── 数据导出：全部业务表走 repository.list 汇总；附件 Blob 转 base64 dataUrl、专注会话随档 ──
   const exportJson = async () => {
     setExporting(true)
     try {
       const [
         workspaces, customers, interactions, ledgers, transactions,
-        todos, notes, quickNotes, habits, habitLogs, trophies,
+        todos, notes, quickNotes, habits, habitLogs, trophies, attachments, focusSessions,
       ] = await Promise.all([
         workspaceRepo.list(), customerRepo.list(), interactionRepo.list(), ledgerRepo.list(),
         transactionRepo.list(), todoRepo.list(), noteRepo.list(), quickNoteRepo.list(),
         habitRepo.list(), habitLogRepo.list(), trophyRepo.list(),
+        attachmentRepo.list(), focusSessionRepo.list(),
       ])
+      const attachmentRows = await Promise.all(
+        attachments.map(async ({ blob, ...meta }) => ({
+          ...meta,
+          dataUrl: await blobToDataUrl(blob),
+        })),
+      )
       const payload = {
         app: 'nexus-workspace',
-        schemaVersion: 3,
+        schemaVersion: 4,
         exportedAt: new Date().toISOString(),
-        data: { workspaces, customers, interactions, ledgers, transactions, todos, notes, quickNotes, habits, habitLogs, trophies },
+        data: {
+          workspaces, customers, interactions, ledgers, transactions, todos, notes,
+          quickNotes, habits, habitLogs, trophies, attachments: attachmentRows, focusSessions,
+        },
       }
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
       const url = URL.createObjectURL(blob)
@@ -435,7 +456,45 @@ export default function SettingsPage() {
 
       {/* ── 字体与排版 ── */}
       {tab === 'typography' && (
-        <div className="grid grid-cols-[1fr_380px] items-start gap-4">
+        <div className="space-y-4">
+          <Section icon="text_fields" title="字体组合" desc="切换全局 font-sans 字体栈（Inter 优先 / 系统优先 / 衬线优先）" badge="实时生效">
+            <div className="grid grid-cols-3 gap-3">
+              {FONT_PRESETS.map((p) => (
+                <button
+                  key={p.id}
+                  className={`rounded-xl border p-4 text-left transition-colors ${
+                    (settings.typography.fontPreset ?? 'inter') === p.id
+                      ? 'border-primary bg-primary-fixed/40'
+                      : 'border-outline-variant/50 hover:border-primary/50'
+                  }`}
+                  onClick={() => save({ typography: { ...settings.typography, fontPreset: p.id } })}
+                >
+                  <div
+                    className="text-[15px] font-semibold"
+                    style={{
+                      fontFamily:
+                        p.id === 'serif'
+                          ? `'Noto Serif SC', 'Songti SC', Georgia, serif`
+                          : p.id === 'system'
+                            ? `system-ui, -apple-system, 'PingFang SC', sans-serif`
+                            : `'Inter', 'PingFang SC', sans-serif`,
+                    }}
+                  >
+                    字体预设 Aa
+                  </div>
+                  <div className="mt-2 flex items-center gap-1.5 text-[13px] font-medium">
+                    {p.label}
+                    {(settings.typography.fontPreset ?? 'inter') === p.id && (
+                      <Icon name="check_circle" fill className="text-[15px] text-primary" />
+                    )}
+                  </div>
+                  <p className="mt-1 text-[11px] leading-snug text-on-surface-variant">{p.desc}</p>
+                </button>
+              ))}
+            </div>
+          </Section>
+
+          <div className="grid grid-cols-[1fr_380px] items-start gap-4">
           <Section icon="text_fields" title="基准字号与阅读间距" desc="调整全局文本物理渲染阶梯与行距倍数" badge="实时生效">
             <div className="mb-5">
               <div className="mb-2 flex items-center justify-between">
@@ -481,6 +540,7 @@ export default function SettingsPage() {
               <span>字符高宽比 <b>0.72 : 1</b></span>
             </div>
           </Section>
+          </div>
         </div>
       )}
 
@@ -521,8 +581,8 @@ export default function SettingsPage() {
                 </tr>
               </thead>
               <tbody>
-                {shortcuts.map((s) => (
-                  <tr key={s.combo} className="border-b border-outline-variant/20 last:border-0">
+                {shortcuts.map((s, i) => (
+                  <tr key={`${s.combo}-${i}`} className="border-b border-outline-variant/20 last:border-0">
                     <td className="py-2.5 pr-4 font-medium">{s.description}</td>
                     <td className="py-2.5 pr-4 text-on-surface-variant">{s.scope === 'global' ? '任何页面生效' : '激活页面内生效'}</td>
                     <td className="py-2.5 text-right">
@@ -757,11 +817,65 @@ export default function SettingsPage() {
                       : '未持久化：存储空间紧张时浏览器可能回收本地数据，建议将本站添加到主屏幕'}
                 </div>
               </div>
-              <span className={`rounded px-2.5 py-1 text-[11.5px] font-semibold ${
+              <span className={`mr-4 rounded px-2.5 py-1 text-[11.5px] font-semibold ${
                 persisted ? 'bg-success-container/60 text-success' : persisted === false ? 'bg-warning-container text-warning' : 'bg-surface-container text-outline'
               }`}>
                 {persisted === null ? '读取中' : persisted ? '● Already Active' : '○ 未授予'}
               </span>
+              <Toggle
+                checked={settings.security.persistCache}
+                onChange={(v) => {
+                  if (v && navigator.storage?.persist) {
+                    // 先向浏览器申请持久化授权，按实际授予结果落库
+                    void navigator.storage
+                      .persist()
+                      .then((granted) => {
+                        setPersisted(granted)
+                        save({ security: { ...settings.security, persistCache: true } })
+                      })
+                      .catch(() => save({ security: { ...settings.security, persistCache: true } }))
+                  } else {
+                    // 浏览器无主动撤销 persist 的 API：仅记录偏好，重置需清空站点数据
+                    save({ security: { ...settings.security, persistCache: false } })
+                  }
+                }}
+              />
+            </div>
+          </Section>
+
+          <Section
+            icon="security"
+            title="端侧加密与同步策略"
+            desc="偏好即刻持久化保存；端侧加密与同步频率的真实生效通道随同步引擎迭代接入"
+            badge="即将生效"
+          >
+            <div className="flex items-center justify-between border-b border-outline-variant/20 pb-4">
+              <div className="flex-1">
+                <div className="text-[13.5px] font-medium">端侧数据加密 (AES-256-GCM)</div>
+                <div className="mt-0.5 text-[11.5px] text-on-surface-variant">
+                  开启后本地数据库敏感字段将加密落盘，密钥驻留本机不上传
+                </div>
+              </div>
+              <span className="mr-4 rounded bg-warning-container px-2 py-0.5 text-[10.5px] font-medium text-warning">即将生效</span>
+              <Toggle
+                checked={settings.security.encryption}
+                onChange={(v) => save({ security: { ...settings.security, encryption: v } })}
+              />
+            </div>
+            <div className="flex items-center justify-between pt-4">
+              <div className="flex-1">
+                <div className="text-[13.5px] font-medium">同步频率</div>
+                <div className="mt-0.5 text-[11.5px] text-on-surface-variant">
+                  云端同步的自动触发节奏（当前引擎为写入防抖 + 30s 心跳）
+                </div>
+              </div>
+              <span className="mr-4 rounded bg-warning-container px-2 py-0.5 text-[10.5px] font-medium text-warning">即将生效</span>
+              <Segmented
+                options={['realtime', '5min', 'manual'] as const}
+                value={settings.security.syncFrequency}
+                format={(v) => (v === 'realtime' ? '实时' : v === '5min' ? '每 5 分钟' : '手动')}
+                onChange={(v) => save({ security: { ...settings.security, syncFrequency: v } })}
+              />
             </div>
           </Section>
 

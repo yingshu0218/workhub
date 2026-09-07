@@ -1,5 +1,6 @@
-import { createBrowserRouter, RouterProvider, Outlet } from 'react-router-dom'
+import { createBrowserRouter, RouterProvider, Outlet, useLocation } from 'react-router-dom'
 import AppLayout from './AppLayout'
+import ErrorBoundary from './ErrorBoundary'
 import DashboardPage from '@/modules/dashboard/DashboardPage'
 import TodoPage from '@/modules/todo/TodoPage'
 import FinancePage from '@/modules/finance/FinancePage'
@@ -16,9 +17,13 @@ import InspirationPage from '@/modules/inspiration/InspirationPage'
 
 /** 路由映射见 docs/寻鸽工作台-开发计划.md 第四节 */
 function Shell() {
+  const { pathname } = useLocation()
   return (
     <AppLayout>
-      <Outlet />
+      {/* 页面级错误边界：单模块崩溃只降级当前页，侧栏与全局能力不受影响；key 随路由重置错误态 */}
+      <ErrorBoundary key={pathname}>
+        <Outlet />
+      </ErrorBoundary>
     </AppLayout>
   )
 }

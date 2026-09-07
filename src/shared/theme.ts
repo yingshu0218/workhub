@@ -24,3 +24,10 @@ export const RADIUS_PRESETS = [
 
 export const FONT_SIZE_STEPS = [13, 14, 15, 16]
 export const LINE_HEIGHT_STEPS = [1.4, 1.6, 1.8]
+
+/** 字体组合预设（Phase 6 设置页 · 字体与排版）—— 映射 --font-sans 栈，应用逻辑见 shared/effects.ts */
+export const FONT_PRESETS = [
+  { id: 'inter', label: 'Inter 优先', desc: '西文 Inter 内核 + 中文黑体，工作台默认' },
+  { id: 'system', label: '系统优先', desc: '跟随系统 UI 字体（苹方 / 鸿蒙黑体），原生质感' },
+  { id: 'serif', label: '衬线优先', desc: '宋体 / Noto Serif，长文阅读的书卷氛围' },
+] as const

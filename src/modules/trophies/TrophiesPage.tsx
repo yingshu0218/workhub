@@ -1,7 +1,9 @@
-import type { TrophyTier } from '@/db/types'
+import { useState } from 'react'
+import type { Trophy, TrophyTier } from '@/db/types'
 import { Icon } from '@/design-system/Icon'
 import { Card, EmptyState, PageHeader } from '@/design-system/ui'
-import { useTrophyStats, useTrophyList, computeConditionValue, CONDITION_LABELS } from './hooks'
+import { useTrophyStats, useTrophyList, computeConditionValue, CONDITION_LABELS, deriveProfileSummary } from './hooks'
+import { downloadTrophyPoster } from './poster'
 
 /** tier → 主题配色（边框/渐变/文字/标签）；ProfilePage 复用 */
 export const TIER_THEME: Record<TrophyTier, { border: string; gradient: string; text: string; label: string }> = {
@@ -16,6 +18,22 @@ export const TIER_THEME: Record<TrophyTier, { border: string; gradient: string; 
 export default function TrophiesPage() {
   const trophies = useTrophyList()
   const stats = useTrophyStats()
+  const level = deriveProfileSummary(stats, trophies).level
+  // 分享海报生成中状态（按奖杯 id 记录，按钮防重入）
+  const [posterId, setPosterId] = useState<string | null>(null)
+
+  const sharePoster = async (t: Trophy) => {
+    if (posterId) return
+    setPosterId(t.id)
+    try {
+      await downloadTrophyPoster(t, level)
+    } catch (err) {
+      console.error('[TrophiesPage] 海报生成失败', err)
+      window.alert(`海报生成失败：${err instanceof Error ? err.message : '请稍后重试'}`)
+    } finally {
+      setPosterId(null)
+    }
+  }
 
   const unlocked = trophies.filter((t) => t.unlockedAt)
   const tierOrder: TrophyTier[] = ['白金', '金', '银', '铜']
@@ -92,6 +110,17 @@ export default function TrophiesPage() {
                   >
                     {t.unlockedAt ? '已解锁' : '未解锁'}
                   </span>
+                  {t.unlockedAt && (
+                    <button
+                      className="ml-2 flex items-center gap-1 rounded px-2 py-0.5 text-[11px] text-primary transition-colors hover:bg-primary-fixed disabled:opacity-50"
+                      title="生成分享海报（Canvas 绘制 · 下载 PNG）"
+                      disabled={posterId === t.id}
+                      onClick={() => void sharePoster(t)}
+                    >
+                      <Icon name={posterId === t.id ? 'sync' : 'download'} size={13} />
+                      {posterId === t.id ? '生成中' : '分享海报'}
+                    </button>
+                  )}
                 </div>
                 <div>
                   <div className={`text-[14px] font-semibold ${t.unlockedAt ? theme.text : ''}`}>{t.name}</div>

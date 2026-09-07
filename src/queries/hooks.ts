@@ -8,16 +8,32 @@ import dayjs from 'dayjs'
  * 将来切 SQLite WASM / Tauri SQLite 时只改本文件实现。
  */
 
-/** 订阅一张表的未删除记录列表 */
+/**
+ * 订阅一张表的未删除记录列表。
+ * pick（审计 P2-9 搜索投影下沉）：可选字段投影 —— 命中后立即裁剪到指定字段再交给响应层，
+ * 大字段（如笔记整篇 markdown）不进入 React 状态与内存； Dexie 层无原生投影索引，
+ * 此处取回后立即裁剪并保持 liveQuery 响应式。
+ */
 export function useCollection<T extends { id: string; deleted?: 0 | 1 }>(
   tableName: keyof typeof db,
+  pick?: string[],
 ): T[] {
+  const pickKey = pick?.join(',') ?? ''
   const data = useLiveQuery(
     () =>
       (db[tableName] as unknown as { toArray(): Promise<T[]> })
         .toArray()
-        .then((rows) => rows.filter((r) => !r.deleted)),
-    [tableName],
+        .then((rows) => {
+          const alive = rows.filter((r) => !r.deleted)
+          if (!pickKey) return alive
+          const fields = pickKey.split(',')
+          return alive.map((r) => {
+            const out = {} as Record<string, unknown>
+            for (const k of fields) out[k] = (r as unknown as Record<string, unknown>)[k]
+            return out as T
+          })
+        }),
+    [tableName, pickKey],
     [] as T[],
   )
   return data ?? []

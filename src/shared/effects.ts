@@ -46,9 +46,16 @@ export function applySettingsToDom(settings: import('@/db/types').Settings): voi
   // 信息密度 → Tailwind v4 spacing 基数（4px 基线；紧凑 3.5px）
   root.style.setProperty('--spacing', settings.appearance.density === 'compact' ? '0.21875rem' : '0.25rem')
 
-  // 字体排版 → html 基准字号 / 行高
+  // 字体排版 → html 基准字号 / 行高 / font-sans 字体栈（字体组合预设）
   root.style.fontSize = `${settings.typography.fontSize}px`
   root.style.lineHeight = String(settings.typography.lineHeight)
+  const FONT_STACKS = {
+    inter: `'Inter', 'HarmonyOS Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif`,
+    system: `system-ui, -apple-system, 'PingFang SC', 'HarmonyOS Sans SC', 'Microsoft YaHei', sans-serif`,
+    serif: `'Noto Serif SC', 'Songti SC', 'SimSun', Georgia, serif`,
+  } as const
+  const preset = settings.typography.fontPreset ?? 'inter'
+  root.style.setProperty('--font-sans', FONT_STACKS[preset])
 }
 
 function watchSystemTheme(): void {

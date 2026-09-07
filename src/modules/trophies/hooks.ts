@@ -2,7 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import dayjs from 'dayjs'
 import { db, type FocusSession } from '@/db/db'
 import { useCollection } from '@/queries/hooks'
-import { calcStreak } from '@/shared/streak'
+import { calcStreak, calcLongestStreak } from '@/shared/streak'
 import type { HabitLog, Transaction, Customer, Trophy, TrophyConditionType } from '@/db/types'
 
 /**
@@ -17,7 +17,10 @@ export const EXP_PER_LEVEL = 100
 export interface TrophyStats {
   focusMinutesTotal: number
   focusOnceMinutes: number
+  /** 历史最长连续打卡天数（任一习惯，calcLongestStreak 推导） */
   habitStreak: number
+  /** 当前连击天数（任一习惯，calcStreak 推导；与历史最长分开展示） */
+  habitCurrentStreak: number
   habitChecksTotal: number
   transactionsTotal: number
   customersTotal: number
@@ -37,15 +40,19 @@ export function computeTrophyStats({ focusSessions, habitLogs, transactions, cus
     if (!byHabit.has(l.habitId)) byHabit.set(l.habitId, new Set())
     byHabit.get(l.habitId)!.add(l.date)
   }
+  // 历史最长与当前连击分开推导（审计 P2-8：calcStreak 是当前连击，不能当「最长连击」展示）
   let bestStreak = 0
+  let currentStreak = 0
   byHabit.forEach((dates) => {
-    bestStreak = Math.max(bestStreak, calcStreak(dates))
+    bestStreak = Math.max(bestStreak, calcLongestStreak(dates))
+    currentStreak = Math.max(currentStreak, calcStreak(dates))
   })
 
   return {
     focusMinutesTotal: focusSessions.reduce((sum, s) => sum + s.minutes, 0),
     focusOnceMinutes: focusSessions.reduce((max, s) => Math.max(max, s.minutes), 0),
     habitStreak: bestStreak,
+    habitCurrentStreak: currentStreak,
     habitChecksTotal: habitLogs.length,
     transactionsTotal: transactions.length,
     customersTotal: customers.length,
@@ -114,6 +121,7 @@ export function useTrophyStats(): TrophyStats {
     focusMinutesTotal: 0,
     focusOnceMinutes: 0,
     habitStreak: 0,
+    habitCurrentStreak: 0,
     habitChecksTotal: 0,
     transactionsTotal: 0,
     customersTotal: 0,

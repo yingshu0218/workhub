@@ -4,9 +4,14 @@ import type { Customer, Todo, Transaction, Note, Habit } from '@/db/types'
  * ⌘K 全局搜索检索层（Phase 6 · 戒点②：选择性投影，不拉整字段）
  * 每个实体只投影 { id, title, subtitle, path } 参与匹配与跳转，
  * 组件层零数据面扩张；将来换存储只改本文件的取数来源。
+ * 投影下沉（审计 P2-6）：笔记实体仅投影 { id, title, tags }，
+ * 整篇 markdown 不再进入搜索内存；摘要改用标签行。
  */
 
 export type SearchEntityType = 'customer' | 'todo' | 'transaction' | 'note' | 'habit'
+
+/** 搜索用笔记投影（不含 markdown 大字段，与 useCollection pick 对齐） */
+export type NoteSearchProjection = Pick<Note, 'id' | 'title' | 'tags'>
 
 export interface SearchItem {
   id: string
@@ -31,12 +36,12 @@ function fmtAmount(amount: number): string {
   return `¥${amount.toLocaleString('zh-CN')}`
 }
 
-/** 选择性投影：五实体 → 精简检索条目 */
+/** 选择性投影：五实体 → 精简检索条目（notes 为投影类型，不携带 markdown） */
 export function buildSearchIndex(inputs: {
   customers: Customer[]
   todos: Todo[]
   transactions: Transaction[]
-  notes: Note[]
+  notes: NoteSearchProjection[]
   habits: Habit[]
 }): SearchItem[] {
   const items: SearchItem[] = []
@@ -68,13 +73,12 @@ export function buildSearchIndex(inputs: {
     })
   }
   for (const n of inputs.notes) {
-    // 摘要：剥掉 Markdown 标记取前 48 字
-    const digest = n.markdown.replace(/[#>*`\-\[\]]/g, '').replace(/\s+/g, ' ').trim().slice(0, 48)
+    // 摘要：标签行（投影下沉后 markdown 不在内存，不再从正文截取）
     items.push({
       id: n.id,
       type: 'note',
       title: n.title,
-      subtitle: digest,
+      subtitle: n.tags.join(' · '),
       path: `/notes/${n.id}`,
     })
   }
