@@ -481,7 +481,7 @@ export const FONT_STACKS: Record<FontPresetId, string> = {
   system: `system-ui, -apple-system, 'PingFang SC', 'HarmonyOS Sans SC', 'Microsoft YaHei', sans-serif`,
   serif: `'Noto Serif SC', 'Songti SC', 'SimSun', Georgia, serif`,
   hei: `'HarmonyOS Sans SC', 'MiSans', 'Microsoft YaHei', 'PingFang SC', sans-serif`,
-  kai: `'Kaiti SC', 'STKaiti', 'KaiTi', 'DFKai-SB', 'serif'`,
+  kai: `'Kaiti SC', 'STKaiti', 'KaiTi', 'DFKai-SB', serif`,
   rounded: `'Yuanti SC', 'YouYuan', 'Hiragino Maru Gothic ProN', 'PingFang SC', sans-serif`,
   mono: `'JetBrains Mono', 'Cascadia Code', 'Fira Code', 'Source Code Pro', 'Menlo', 'Consolas', monospace`,
   fangsong: `'FangSong', 'STFangsong', 'FangSong_GB2312', 'PingFang SC', serif`,
