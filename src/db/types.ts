@@ -51,6 +51,8 @@ export interface Ledger extends SyncMeta {
   currency: string
   openingBalance: number
   closingCycle: '月结' | '季结' | '年结' | '不封账'
+  /** 左侧账本树排序（拖拽重写；旧记录缺省按 createdAt 兜底） */
+  sortOrder?: number
   createdAt: number
 }
 
