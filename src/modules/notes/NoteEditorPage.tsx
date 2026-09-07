@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Icon } from '@/design-system/Icon'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useCollection } from '@/queries/hooks'
 import { noteRepo } from '@/repositories'
 import type { Note, NoteMention } from '@/db/types'
@@ -60,10 +60,11 @@ const MD_ACTIONS: MdAction[] = [
 /** 分组边界（在哪些动作前插入分隔线）：标题组、列表组、代码组 */
 const MD_GROUP_BREAKS = new Set(['h1', 'ul', 'codeblock'])
 
-/** 笔记编辑页（对齐原型 12-team-notes 右侧工作区），路由 /notes/:id */
+/** 笔记查看/编辑页（对齐原型 12-team-notes 右侧工作区），路由 /notes/:id（?edit=1 进编辑，缺省只读查看） */
 export default function NoteEditorPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   // 三态：undefined=加载中（直链首帧，不闪「不存在」）；null=确实不存在/已删除
   const note = useNoteRecord(id)
 
@@ -97,11 +98,34 @@ export default function NoteEditorPage() {
   }
 
   // note 已就绪才挂载编辑器：CodeMirror 以首载 markdown 为初始文档，此后不再受外部刷新干扰
-  return <NoteEditor key={note.id} note={note} />
+  // 列表/跳转默认进入只读查看态；?edit=1（新建/显式编辑）才进入编辑态
+  const editing = searchParams.get('edit') === '1'
+  return <NoteEditor key={note.id} note={note} initialEditing={editing} />
 }
 
-function NoteEditor({ note }: { note: Note }) {
+function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: boolean }) {
   const navigate = useNavigate()
+  const setSearchParams = useSearchParams()[1]
+  // 查看态/编辑态：查看态隐藏编辑工具、渲染 markdown 成品；点「编辑」切换
+  const [editing, setEditing] = useState(() => initialEditing)
+
+  function enterEdit() {
+    setEditing(true)
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      next.set('edit', '1')
+      return next
+    }, { replace: true })
+  }
+
+  function exitEdit() {
+    setEditing(false)
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      next.delete('edit')
+      return next
+    }, { replace: true })
+  }
   const customers = useCollection<Customer>('customers')
   const todos = useCollection<Todo>('todos')
   const ledgers = useCollection<Ledger>('ledgers')
@@ -165,13 +189,12 @@ function NoteEditor({ note }: { note: Note }) {
   }
 
   // 卸载前兜底：有未保存改动立即落库（fire-and-forget）
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    return () => {
       if (dirtyRef.current) void flushSave()
       clearTimeout(timerRef.current)
-    },
-    [],
-  )
+    }
+  })
 
   // 刷新/关闭页面/切后台时兜底 flush（审计 P2-3：不丢尾部输入）
   useEffect(() => {
@@ -268,8 +291,9 @@ function NoteEditor({ note }: { note: Note }) {
     ].filter((it) => it.type === mentionTab && match(it.label))
   }, [customers, todos, ledgers, mentionTab, mention?.query])
 
-  // ===== CodeMirror 初始化 =====
+  // ===== CodeMirror 初始化（仅编辑态挂载，退出编辑即销毁，卸载前 flush 兜底已覆盖） =====
   useEffect(() => {
+    if (!editing) return
     const parent = document.getElementById('note-cm-host')
     if (!parent) return
     const view = new EditorView({
@@ -277,7 +301,8 @@ function NoteEditor({ note }: { note: Note }) {
         doc: mdRef.current,
         extensions: [
           lineNumbers(),
-          placeholder('开始写点什么…\n键入 @ 唤起 客户 / 待办 / 账本 选择器'),
+          // placeholder 必须单行：CodeMirror 以 inline-block widget 插入空文档行首，两行文本会把首行行盒撑成 2 行高
+          placeholder('开始写点什么… 键入 @ 唤起 客户 / 待办 / 账本 选择器'),
           EditorView.lineWrapping,
           markdown(),
           syntaxHighlighting(defaultHighlightStyle),
@@ -342,7 +367,7 @@ function NoteEditor({ note }: { note: Note }) {
       view.destroy()
       viewRef.current = null
     }
-  }, [])
+  }, [editing])
 
   // 浮层打开时：点击外部 / Esc 关闭（面板内 mousedown 已阻止默认，不丢 CM 焦点）
   useEffect(() => {
@@ -425,29 +450,54 @@ function NoteEditor({ note }: { note: Note }) {
         >
           <Icon name="arrow_back" />
         </button>
-        <input
-          className="min-w-0 flex-1 rounded-lg border border-transparent px-2 py-1 text-[18px] font-bold tracking-tight outline-none transition-colors hover:border-outline-variant/40 focus:border-primary"
-          value={title}
-          onChange={(e) => {
-            titleRef.current = e.target.value
-            setTitle(e.target.value)
-            scheduleSave()
-          }}
-          placeholder="笔记标题…"
-        />
-        <SaveBadge state={saveState} at={note.updatedAt} />
+        {editing ? (
+          <input
+            className="min-w-0 flex-1 rounded-lg border border-transparent px-2 py-1 text-[18px] font-bold tracking-tight outline-none transition-colors hover:border-outline-variant/40 focus:border-primary"
+            value={title}
+            onChange={(e) => {
+              titleRef.current = e.target.value
+              setTitle(e.target.value)
+              scheduleSave()
+            }}
+            placeholder="笔记标题…"
+          />
+        ) : (
+          <h1 className="min-w-0 flex-1 truncate px-2 text-[20px] font-bold tracking-tight">
+            {title.trim() || '未命名笔记'}
+          </h1>
+        )}
+        {editing && <SaveBadge state={saveState} at={note.updatedAt} />}
         <span className="shrink-0 rounded bg-surface-container-high px-2 py-1 text-[11px] font-medium text-on-surface-variant">
           {words.toLocaleString('zh-CN')} 字
         </span>
-        <Button size="sm" variant="ghost" icon="download" onClick={exportMd}>
-          导出
-        </Button>
-        <Button size="sm" variant="ghost" icon="delete" onClick={() => void handleDelete()}>
-          删除
-        </Button>
+        {editing ? (
+          <>
+            <Button size="sm" variant="ghost" icon="visibility" onClick={exitEdit}>
+              完成
+            </Button>
+            <Button size="sm" variant="ghost" icon="download" onClick={exportMd}>
+              导出
+            </Button>
+            <Button size="sm" variant="ghost" icon="delete" onClick={() => void handleDelete()}>
+              删除
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button size="sm" icon="edit" onClick={enterEdit}>
+              编辑
+            </Button>
+            <Button size="sm" variant="ghost" icon="download" onClick={exportMd}>
+              导出
+            </Button>
+            <Button size="sm" variant="ghost" icon="delete" onClick={() => void handleDelete()}>
+              删除
+            </Button>
+          </>
+        )}
       </div>
 
-      {/* 标签编辑行：彩色 Chip + 逗号分隔输入 */}
+      {/* 标签行：编辑态可增删（彩色 Chip + 逗号分隔输入），查看态只读展示 */}
       <div className="flex shrink-0 flex-wrap items-center gap-1.5 pb-3">
         {tags.map((t) => (
           <span
@@ -456,38 +506,43 @@ function NoteEditor({ note }: { note: Note }) {
             style={tagStyle(t)}
           >
             #{t}
-            <button
-              className="opacity-60 transition-opacity hover:opacity-100"
-              onClick={() => removeTag(t)}
-              title="移除标签"
-            >
-              <Icon name="close" size={13} />
-            </button>
+            {editing && (
+              <button
+                className="opacity-60 transition-opacity hover:opacity-100"
+                onClick={() => removeTag(t)}
+                title="移除标签"
+              >
+                <Icon name="close" size={13} />
+              </button>
+            )}
           </span>
         ))}
-        <input
-          className="w-44 rounded-full bg-surface-container-low px-2.5 py-0.5 text-[12px] outline-none transition-colors placeholder:text-outline focus:bg-surface-container-high"
-          value={tagInput}
-          onChange={(e) => {
-            const v = e.target.value
-            // 逗号即提交（支持连续粘贴多个）
-            if (/[,，]/.test(v)) addTagsFromInput(v)
-            else setTagInput(v)
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') addTagsFromInput(tagInput)
-            if (e.key === 'Backspace' && tagInput === '' && tagsRef.current.length > 0) {
-              removeTag(tagsRef.current[tagsRef.current.length - 1])
-            }
-          }}
-          onBlur={() => tagInput.trim() && addTagsFromInput(tagInput)}
-          placeholder="+ 回车或逗号添加标签"
-        />
+        {tags.length === 0 && !editing && <span className="text-[12px] text-outline">暂无标签</span>}
+        {editing && (
+          <input
+            className="w-44 rounded-full bg-surface-container-low px-2.5 py-0.5 text-[12px] outline-none transition-colors placeholder:text-outline focus:bg-surface-container-high"
+            value={tagInput}
+            onChange={(e) => {
+              const v = e.target.value
+              // 逗号即提交（支持连续粘贴多个）
+              if (/[,，]/.test(v)) addTagsFromInput(v)
+              else setTagInput(v)
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') addTagsFromInput(tagInput)
+              if (e.key === 'Backspace' && tagInput === '' && tagsRef.current.length > 0) {
+                removeTag(tagsRef.current[tagsRef.current.length - 1])
+              }
+            }}
+            onBlur={() => tagInput.trim() && addTagsFromInput(tagInput)}
+            placeholder="+ 回车或逗号添加标签"
+          />
+        )}
       </div>
 
-      {/* 双栏编辑 + 预览 + 侧栏 */}
+      {/* 编辑态：双栏源码 + 实时预览；查看态：整宽最终渲染 */}
       <div className="flex min-h-0 flex-1 overflow-hidden rounded-xl border border-outline-variant/40 bg-surface-container-lowest shadow-sm">
-        {/* 左：CodeMirror 源码 */}
+        {editing && (
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
           <div className="flex items-center justify-between border-b border-outline-variant/30 bg-surface-container-low/40 px-4 py-1.5 text-[11px] font-medium tracking-wide text-outline">
             <span>MARKDOWN SOURCE EDITOR</span>
@@ -512,18 +567,26 @@ function NoteEditor({ note }: { note: Note }) {
           </div>
           <div id="note-cm-host" className="min-h-0 flex-1 overflow-hidden" />
         </div>
+        )}
 
-        {/* 右：marked 实时预览 */}
-        <div className="flex min-w-0 flex-1 flex-col overflow-hidden border-l border-outline-variant/30">
+        {/* 预览：编辑态右栏实时渲染；查看态整宽（最终成品阅读） */}
+        <div className={`flex min-w-0 flex-1 flex-col overflow-hidden ${editing ? 'border-l border-outline-variant/30' : ''}`}>
           <div className="flex items-center justify-between border-b border-outline-variant/30 bg-surface-container-low/40 px-4 py-1.5 text-[11px] font-medium tracking-wide text-outline">
-            <span>LIVE PREVIEW</span>
-            <span className="flex items-center gap-1 text-success">
-              <span className="h-1.5 w-1.5 rounded-full bg-success" />
-              实时渲染
-            </span>
+            <span>{editing ? 'LIVE PREVIEW' : 'PREVIEW'}</span>
+            {editing ? (
+              <span className="flex items-center gap-1 text-success">
+                <span className="h-1.5 w-1.5 rounded-full bg-success" />
+                实时渲染
+              </span>
+            ) : (
+              <span className="flex items-center gap-1 text-outline">
+                <Icon name="visibility" size={13} />
+                查看模式
+              </span>
+            )}
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
-            <div className="note-prose" dangerouslySetInnerHTML={{ __html: html }} />
+            <div className="note-prose mx-auto max-w-[760px]" dangerouslySetInnerHTML={{ __html: html }} />
           </div>
         </div>
 

@@ -107,6 +107,15 @@ export interface Note extends SyncMeta {
   tags: string[]
   backlinks: string[]
   mentions: NoteMention[]
+  /** 所属文件夹（缺省为未归档根层） */
+  folderId?: string
+  createdAt: number
+}
+
+/** 笔记文件夹（左栏文件树节点，单层平铺；参与同步） */
+export interface NoteFolder extends SyncMeta {
+  id: string
+  name: string
   createdAt: number
 }
 
