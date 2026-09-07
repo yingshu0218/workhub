@@ -4,8 +4,8 @@
 
 | 文件 | 用途 |
 |---|---|
-| `collections.json` | 13 张 collection 定义（12 张业务镜像表 + `sync_state` 预留），可直接导入 |
-| `pb_hooks/main.pb.js` | 可选 JS 钩子：server_received_at 服务端兜底盖戳 + 简单共享令牌校验示例 |
+| `collections.json` | 14 张 collection 定义（13 张业务镜像表 + `sync_state` 预留），可直接导入 |
+| `pb_hooks/main.pb.js` | 可选 JS 钩子：server_received_at 服务端兜底盖戳 + tombstonePushed 墓碑标记 + 每日墓碑 cron 清理 + 简单共享令牌校验示例 |
 | `backup.sh` | SQLite 主库 + 附件目录的定时备份脚本（含恢复方法与 cron 示例） |
 
 完整云服务器部署步骤（systemd / Nginx / HTTPS）见 **docs/部署指南.md**，本文件只讲 PocketBase 自身。
@@ -38,7 +38,7 @@ cp pb_setup/backup.sh /opt/nexus/pocketbase/
 
 1. 打开 `http://<服务器IP>:8090/_/`，用超管账号登录；
 2. Settings → **Import collections**；
-3. 粘贴 `collections.json` 全文 → 确认导入（会列出新增的 13 张表，confirm 后落库）。
+3. 粘贴 `collections.json` 全文 → 确认导入（会列出新增的 14 张表，confirm 后落库）。
 
 **方式 B · pb migrate（命令行）**
 
@@ -47,7 +47,7 @@ cp pb_setup/backup.sh /opt/nexus/pocketbase/
 ```bash
 cd /opt/nexus/pocketbase
 # 若你选择手写迁移，可执行后按提示在 pb_migrations/ 生成空模板，
-# 参照 collections.json 里的字段定义用 $app.newCollection() 填写 13 张表
+# 参照 collections.json 里的字段定义用 $app.newCollection() 填写 14 张表
 ./pocketbase migrate create init_sync_collections
 ./pocketbase migrate up     # serve 启动时也会自动执行未应用的迁移
 ```

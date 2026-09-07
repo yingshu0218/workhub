@@ -14,7 +14,8 @@
 | 线上地址 | http://8.153.19.221:9001（PocketBase 同域托管） |
 | 里程碑 | M1-M6 全部验收 ✅ |
 | 审计问题 | P0×2 / P1×19 / P2×60 **全部清零** |
-| Changelog | 第 31 条（README 底部） |
+| 同步机制完善 | P0-1 墓碑清理竞态修复 + P0-2 推送侧 LWW ✅（PR #6 评审中）；P1-3 服务端墓碑 cron ✅；P1-4 HTTPS（待用户操作） |
+| Changelog | 第 32 条（README 底部） |
 
 ## 二、阶段进度（Phase 0-7）
 
@@ -57,6 +58,16 @@
 | 绑定域名 + HTTPS | 激活 PWA 离线缓存/可安装、消除明文警告；绑好跑一次 certbot |
 | 双端真机日常使用 | 手机+电脑配同步各一次，用几天验证 LWW/断网补传实际体验 |
 | 服务端重导入 collections.json | 笔记文件夹上线需导入新表 noteFolders + notes.folderId 字段（Dexie v6），见部署指南「Schema 升级流程」；完成后执行一次「全量推送」 |
+
+### 同步机制完善（Issue #2，P0/P1 已实装待验收）
+
+| 项 | 状态 |
+|---|---|
+| P0-1 墓碑清理与 delete 推送竞态 | ✅ tombstonePushed meta 标记：delete 推送成功才打标；cleanupTombstones 只清理带标记且超 30 天的墓碑，未推送的保留重试；确认推送的墓碑清理时对服务端同步物理删除 |
+| P0-2 推送侧 LWW 服务端校验 | ✅ pbUpsert 查远端附带 updatedAt：远端更新且非墓碑 → 跳过推送（防旧数据迟到覆盖），由 pull 的 LWW 拉回新值 |
+| P1-3 服务端墓碑定时清理 | ✅ pb_hooks 新增 tombstonePushed 盖戳钩子 + 每日 04:00 cron（清 tombstonePushed=1 且 updated 超 30 天的墓碑）；collections.json 13 张业务表加 tombstonePushed 字段（需重导入 Schema） |
+| P1-4 HTTPS 部署补齐 PWA | ⏳ 需用户操作（绑域名 + certbot），代码无需改动 |
+| PR #6 评审遗留（后续迭代，不阻塞合并） | ① pull 合并来的墓碑缺 tombstone_pushed 标记不会被本地清理；② delete 推送后立即物理删服务端记录，离线设备收敛窗口短——建议改为靠 cron 30 天清理 |
 
 ### 未来项（已定但不急）
 

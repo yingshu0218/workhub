@@ -75,5 +75,7 @@
 | 27 | 2026-09-07 | 批次C：笔记+习惯+工作台+灵感 P2 修复 14 项（提及转义/代码块跳过/pagehide flush/删除竞态/徽章虚报/列表投影/直链loading/孤儿日志/月字文案/NOW DOING 关联引用卡/速记字符计数/稍后提醒真实调度/抽取池筛选+沉睡笔记候选） | yingshu0218 |
 | 28 | 2026-09-07 | 清单系统上线：待办页左栏支持自定义清单（新建/重命名/删除/拖拽排序/待办归入），全链路同步实测通过；部署指南补 Schema 升级流程 | yingshu0218 |
 | 29 | 2026-09-07 | 原型对齐批次：画布缩放控件/热力图稳态评语/下一里程碑卡/⌘K kbd 角标/笔记 Markdown 工具栏；PWA 补 192/512 PNG 图标 | yingshu0218 |
+| 30 | 2026-09-07 | 同步机制完善：修复墓碑清理与 delete 推送竞态（tombstonePushed 标记）、推送侧接入 LWW 服务端校验、pb_hooks 新增墓碑盖戳钩子与每日 cron 清理、collections.json 13 表加 tombstonePushed 字段 | yingshu0218 |
 | 30 | 2026-09-07 | 建立进度文档 docs/PROGRESS.md（阶段/里程碑/架构定案/待办全量快照+更新规则）；README 协作约定补进度文档维护要求（同 commit 更新，最高优先） | yingshu0218 |
 | 31 | 2026-09-07 | 笔记模块 3 项增强/修复（Issue #4）：新增文件夹文件树体系（noteFolders 表 + notes.folderId，Dexie v6，PB collections 同步升级）、空文档首行 placeholder 撑高修复（改单行文案）、笔记列表进入只读查看态（?edit=1 显式编辑，新建笔记默认编辑）；PROGRESS.md / 部署指南同步更新 | cnb.cMPXRmKswEA |
+| 32 | 2026-09-07 | 同步机制 P0 修复入库（Issue #2，PR #6）：P0-1 墓碑清理竞态修复 + P0-2 推送侧 LWW 服务端校验 + P1-3 服务端墓碑 cron；合并 main（笔记文件夹改动），解决 PROGRESS/部署指南冲突，Changelog 编号修正 | npc/CodeBuddy |

@@ -63,11 +63,18 @@
         "type": "autodate",
         "onCreate": true,
         "onUpdate": true
+      },
+      {
+        "name": "tombstonePushed",
+        "type": "number",
+        "required": false,
+        "presentable": false
       }
     ],
     "indexes": [
       "CREATE INDEX idx_workspaces_updatedAt ON workspaces (updatedAt)",
-      "CREATE UNIQUE INDEX idx_workspaces_localId ON workspaces (localId)"
+      "CREATE UNIQUE INDEX idx_workspaces_localId ON workspaces (localId)",
+      "CREATE INDEX idx_workspaces_tombstonePushed ON workspaces (tombstonePushed)"
     ]
   },
   {
@@ -182,11 +189,18 @@
         "type": "autodate",
         "onCreate": true,
         "onUpdate": true
+      },
+      {
+        "name": "tombstonePushed",
+        "type": "number",
+        "required": false,
+        "presentable": false
       }
     ],
     "indexes": [
       "CREATE INDEX idx_customers_updatedAt ON customers (updatedAt)",
-      "CREATE UNIQUE INDEX idx_customers_localId ON customers (localId)"
+      "CREATE UNIQUE INDEX idx_customers_localId ON customers (localId)",
+      "CREATE INDEX idx_customers_tombstonePushed ON customers (tombstonePushed)"
     ]
   },
   {
@@ -257,11 +271,18 @@
         "type": "autodate",
         "onCreate": true,
         "onUpdate": true
+      },
+      {
+        "name": "tombstonePushed",
+        "type": "number",
+        "required": false,
+        "presentable": false
       }
     ],
     "indexes": [
       "CREATE INDEX idx_interactions_updatedAt ON interactions (updatedAt)",
-      "CREATE UNIQUE INDEX idx_interactions_localId ON interactions (localId)"
+      "CREATE UNIQUE INDEX idx_interactions_localId ON interactions (localId)",
+      "CREATE INDEX idx_interactions_tombstonePushed ON interactions (tombstonePushed)"
     ]
   },
   {
@@ -336,11 +357,18 @@
         "type": "autodate",
         "onCreate": true,
         "onUpdate": true
+      },
+      {
+        "name": "tombstonePushed",
+        "type": "number",
+        "required": false,
+        "presentable": false
       }
     ],
     "indexes": [
       "CREATE INDEX idx_ledgers_updatedAt ON ledgers (updatedAt)",
-      "CREATE UNIQUE INDEX idx_ledgers_localId ON ledgers (localId)"
+      "CREATE UNIQUE INDEX idx_ledgers_localId ON ledgers (localId)",
+      "CREATE INDEX idx_ledgers_tombstonePushed ON ledgers (tombstonePushed)"
     ]
   },
   {
@@ -443,11 +471,18 @@
         "type": "autodate",
         "onCreate": true,
         "onUpdate": true
+      },
+      {
+        "name": "tombstonePushed",
+        "type": "number",
+        "required": false,
+        "presentable": false
       }
     ],
     "indexes": [
       "CREATE INDEX idx_transactions_updatedAt ON transactions (updatedAt)",
-      "CREATE UNIQUE INDEX idx_transactions_localId ON transactions (localId)"
+      "CREATE UNIQUE INDEX idx_transactions_localId ON transactions (localId)",
+      "CREATE INDEX idx_transactions_tombstonePushed ON transactions (tombstonePushed)"
     ]
   },
   {
@@ -547,11 +582,18 @@
         "name": "listId",
         "type": "text",
         "required": false
+      },
+      {
+        "name": "tombstonePushed",
+        "type": "number",
+        "required": false,
+        "presentable": false
       }
     ],
     "indexes": [
       "CREATE INDEX idx_todos_updatedAt ON todos (updatedAt)",
-      "CREATE UNIQUE INDEX idx_todos_localId ON todos (localId)"
+      "CREATE UNIQUE INDEX idx_todos_localId ON todos (localId)",
+      "CREATE INDEX idx_todos_tombstonePushed ON todos (tombstonePushed)"
     ]
   },
   {
@@ -701,11 +743,18 @@
         "type": "autodate",
         "onCreate": true,
         "onUpdate": true
+      },
+      {
+        "name": "tombstonePushed",
+        "type": "number",
+        "required": false,
+        "presentable": false
       }
     ],
     "indexes": [
       "CREATE INDEX idx_notes_updatedAt ON notes (updatedAt)",
-      "CREATE UNIQUE INDEX idx_notes_localId ON notes (localId)"
+      "CREATE UNIQUE INDEX idx_notes_localId ON notes (localId)",
+      "CREATE INDEX idx_notes_tombstonePushed ON notes (tombstonePushed)"
     ]
   },
   {
@@ -772,11 +821,18 @@
         "type": "autodate",
         "onCreate": true,
         "onUpdate": true
+      },
+      {
+        "name": "tombstonePushed",
+        "type": "number",
+        "required": false,
+        "presentable": false
       }
     ],
     "indexes": [
       "CREATE INDEX idx_quickNotes_updatedAt ON quickNotes (updatedAt)",
-      "CREATE UNIQUE INDEX idx_quickNotes_localId ON quickNotes (localId)"
+      "CREATE UNIQUE INDEX idx_quickNotes_localId ON quickNotes (localId)",
+      "CREATE INDEX idx_quickNotes_tombstonePushed ON quickNotes (tombstonePushed)"
     ]
   },
   {
@@ -867,11 +923,18 @@
         "type": "autodate",
         "onCreate": true,
         "onUpdate": true
+      },
+      {
+        "name": "tombstonePushed",
+        "type": "number",
+        "required": false,
+        "presentable": false
       }
     ],
     "indexes": [
       "CREATE INDEX idx_habits_updatedAt ON habits (updatedAt)",
-      "CREATE UNIQUE INDEX idx_habits_localId ON habits (localId)"
+      "CREATE UNIQUE INDEX idx_habits_localId ON habits (localId)",
+      "CREATE INDEX idx_habits_tombstonePushed ON habits (tombstonePushed)"
     ]
   },
   {
@@ -942,12 +1005,19 @@
         "type": "autodate",
         "onCreate": true,
         "onUpdate": true
+      },
+      {
+        "name": "tombstonePushed",
+        "type": "number",
+        "required": false,
+        "presentable": false
       }
     ],
     "indexes": [
       "CREATE INDEX idx_habitLogs_updatedAt ON habitLogs (updatedAt)",
       "CREATE INDEX idx_habitLogs_habitId_date ON habitLogs (habitId, date)",
-      "CREATE UNIQUE INDEX idx_habitLogs_localId ON habitLogs (localId)"
+      "CREATE UNIQUE INDEX idx_habitLogs_localId ON habitLogs (localId)",
+      "CREATE INDEX idx_habitLogs_tombstonePushed ON habitLogs (tombstonePushed)"
     ]
   },
   {
@@ -1034,11 +1104,18 @@
         "type": "autodate",
         "onCreate": true,
         "onUpdate": true
+      },
+      {
+        "name": "tombstonePushed",
+        "type": "number",
+        "required": false,
+        "presentable": false
       }
     ],
     "indexes": [
       "CREATE INDEX idx_trophies_updatedAt ON trophies (updatedAt)",
-      "CREATE UNIQUE INDEX idx_trophies_localId ON trophies (localId)"
+      "CREATE UNIQUE INDEX idx_trophies_localId ON trophies (localId)",
+      "CREATE INDEX idx_trophies_tombstonePushed ON trophies (tombstonePushed)"
     ]
   },
   {
@@ -1125,11 +1202,18 @@
         "type": "autodate",
         "onCreate": true,
         "onUpdate": true
+      },
+      {
+        "name": "tombstonePushed",
+        "type": "number",
+        "required": false,
+        "presentable": false
       }
     ],
     "indexes": [
       "CREATE INDEX idx_attachments_updatedAt ON attachments (updatedAt)",
-      "CREATE UNIQUE INDEX idx_attachments_localId ON attachments (localId)"
+      "CREATE UNIQUE INDEX idx_attachments_localId ON attachments (localId)",
+      "CREATE INDEX idx_attachments_tombstonePushed ON attachments (tombstonePushed)"
     ]
   },
   {
@@ -1187,11 +1271,18 @@
         "type": "autodate",
         "onCreate": true,
         "onUpdate": true
+      },
+      {
+        "name": "tombstonePushed",
+        "type": "number",
+        "required": false,
+        "presentable": false
       }
     ],
     "indexes": [
       "CREATE INDEX idx_sync_state_user ON sync_state (user)",
-      "CREATE UNIQUE INDEX idx_sync_state_localId ON sync_state (localId)"
+      "CREATE UNIQUE INDEX idx_sync_state_localId ON sync_state (localId)",
+      "CREATE INDEX idx_sync_state_tombstonePushed ON sync_state (tombstonePushed)"
     ]
   },
   {
@@ -1246,10 +1337,17 @@
         "type": "autodate",
         "onCreate": true,
         "onUpdate": false
+      },
+      {
+        "name": "tombstonePushed",
+        "type": "number",
+        "required": false,
+        "presentable": false
       }
     ],
     "indexes": [
-      "CREATE UNIQUE INDEX idx_todoLists_localId ON todoLists (localId)"
+      "CREATE UNIQUE INDEX idx_todoLists_localId ON todoLists (localId)",
+      "CREATE INDEX idx_todoLists_tombstonePushed ON todoLists (tombstonePushed)"
     ]
   }
 ]
