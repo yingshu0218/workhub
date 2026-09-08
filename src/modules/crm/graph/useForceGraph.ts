@@ -26,13 +26,17 @@ export interface ForceGraphOptions {
   mode?: GraphMode
   /** 关系归类筛选（customer-only 模式生效） */
   categories?: RelationCategory[]
+  /** 布局稳定回调（仿真自然收敛时触发一次，供调用方做首屏适应/聚焦，Issue #34） */
+  onLayoutSettled?: () => void
 }
 
-export function useForceGraph({ graph, size, focusId, mode, categories }: ForceGraphOptions) {
+export function useForceGraph({ graph, size, focusId, mode, categories, onLayoutSettled }: ForceGraphOptions) {
   const [nodes, setNodes] = useState<GraphNode[]>([])
   const [links, setLinks] = useState<GraphLink[]>([])
   const simRef = useRef<Simulation<GraphNode, undefined> | null>(null)
   const rafRef = useRef<number | null>(null)
+  const onSettledRef = useRef(onLayoutSettled)
+  onSettledRef.current = onLayoutSettled
 
   useEffect(() => {
     if (size.w === 0 || size.h === 0 || graph.customers.length === 0) return
@@ -79,6 +83,13 @@ export function useForceGraph({ graph, size, focusId, mode, categories }: ForceG
       .force('center', forceCenter(size.w / 2, size.h / 2))
       .force('collide', forceCollide<GraphNode>().radius((d) => d.radius + 14))
       .alphaDecay(0.03)
+      // alphaMin 提到 0.06：仿真自然收敛更快（默认 0.001 要 ~300 tick，约 5s 才稳定，
+      // 首屏期间节点长漂移导致 fit 追不上「丢失焦点」；0.06 时 ~90 tick 内收敛，仍足以摊开重叠）
+      .alphaMin(0.06)
+    sim.on('end', () => {
+      // 仿真自然收敛：通知调用方做首屏适应/锁定焦点（只此一次）
+      onSettledRef.current?.()
+    })
     sim.on('tick', () => {
       dirty = true
       if (rafRef.current == null) rafRef.current = requestAnimationFrame(flush)

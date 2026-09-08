@@ -1,3 +1,4 @@
+import { useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useRecord } from '@/queries/hooks'
 import type { Customer } from '@/db/types'
@@ -9,6 +10,7 @@ import GraphCanvas from './graph/GraphCanvas'
  * 单客户聚焦图谱（/crm/:id/graph，Issue #22 需求 ③）
  * 复用 GraphCanvas（focusId 数据裁剪：焦点客户 + 一跳邻居），与全景画布同壳零复制；
  * 头部「查看全部图谱 →」返回 /crm/canvas，形成 单客户 ⇄ 全部 双向闭环
+ * 首屏焦点锁定（Issue #34）：布局收敛回调把视图中心锚到焦点客户，一进视图焦点主体即居中可见
  */
 export default function CustomerGraphPage() {
   const { id } = useParams<{ id: string }>()
@@ -18,6 +20,15 @@ export default function CustomerGraphPage() {
 
   const focus = graph.customers.find((c) => c.id === id)
   const relCount = focus?.relations.length ?? 0
+
+  // 布局收敛后锁定焦点：通知 GraphCanvas 以焦点客户为锚点再 fit（一次性，防重复触发）
+  const [fitAnchor, setFitAnchor] = useState<string | null>(null)
+  const anchorDoneRef = useRef(false)
+  const handleGraphReady = () => {
+    if (anchorDoneRef.current || !id) return
+    anchorDoneRef.current = true
+    setFitAnchor(id)
+  }
 
   if (!customer) {
     return (
@@ -62,6 +73,8 @@ export default function CustomerGraphPage() {
         graph={graph}
         focusId={id}
         style={{ height: 'calc(100vh - 16rem)', minHeight: 380 }}
+        onGraphReady={handleGraphReady}
+        fitAnchorId={fitAnchor ?? undefined}
       />
     </div>
   )

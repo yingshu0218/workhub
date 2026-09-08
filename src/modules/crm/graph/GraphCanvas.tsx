@@ -30,9 +30,13 @@ export interface GraphCanvasProps {
   showReheat?: boolean
   /** 视图模式（Issue #34）：mixed=客户+业务实体；customer-only=纯客户关系网 */
   mode?: 'mixed' | 'customer-only'
+  /** 首屏布局收敛后回调（Issue #34）：视图此刻已 fit 到子图，可做焦点锁定/开场动画等 */
+  onGraphReady?: () => void
+  /** 焦点锚定（Issue #34）：布局收敛后视图平移使该节点居中（不缩放），一进视图快速锁定焦点主体 */
+  fitAnchorId?: string
 }
 
-export default function GraphCanvas({ graph, focusId, style, legend, showReheat, mode = 'mixed' }: GraphCanvasProps) {
+export default function GraphCanvas({ graph, focusId, style, legend, showReheat, mode = 'mixed', onGraphReady, fitAnchorId }: GraphCanvasProps) {
   const navigate = useNavigate()
   const svgRef = useRef<SVGSVGElement>(null)
   const dragIdRef = useRef<string | null>(null)
@@ -51,6 +55,7 @@ export default function GraphCanvas({ graph, focusId, style, legend, showReheat,
     focusId,
     mode,
     categories: mode === 'customer-only' ? activeCats : undefined,
+    onLayoutSettled: onGraphReady,
   })
 
   // customer-only 模式：仅在有关系的客户对上展示归类筛选 chips（无任何归类数据时隐藏）
@@ -188,6 +193,47 @@ export default function GraphCanvas({ graph, focusId, style, legend, showReheat,
     // 渲染期不能调 setView（会与 panZoom 内部状态竞争），推迟到下一帧
     requestAnimationFrame(fitView)
   }
+
+  // 首屏「快速锁定焦点」二次校准（Issue #34）：首帧 fit 用的是初始坐标，仿真收敛时节点坐标
+  // 已漂移出首帧视口（视觉上「丢失焦点」）。仿真自然收敛后若节点整体越界/大幅位移，再 fit 一次
+  const settledKeyRef = useRef<string | null>(null)
+  if (fitKey !== settledKeyRef.current && nodes.length > 1 && nodes.every((n) => n.x != null && n.y != null)) {
+    const pad = 32
+    const minX = Math.min(...nodes.map((n) => n.x! - n.radius))
+    const maxX = Math.max(...nodes.map((n) => n.x! + n.radius))
+    const minY = Math.min(...nodes.map((n) => n.y! - n.radius))
+    const maxY = Math.max(...nodes.map((n) => n.y! + n.radius))
+    // 视口内节点包围盒（世界坐标）
+    const vx0 = -view.tx / view.scale
+    const vy0 = -view.ty / view.scale
+    const vx1 = (size.w - view.tx) / view.scale
+    const vy1 = (size.h - view.ty) / view.scale
+    const inside =
+      minX >= vx0 - pad && maxX <= vx1 + pad && minY >= vy0 - pad && maxY <= vy1 + pad
+    if (!inside) {
+      settledKeyRef.current = fitKey
+      requestAnimationFrame(fitView)
+    }
+  }
+
+  // 焦点锚定（Issue #34）：布局收敛后把视图中心平移到锚点节点（不改缩放），
+  // 保证「一进入视图就锁定焦点主体」——聚焦页由 CustomerGraphPage 在 onGraphReady 后传入焦点 id
+  const anchoredKeyRef = useRef<string | null>(null)
+  const anchorKey = fitAnchorId ?? ''
+  useEffect(() => {
+    if (!anchorKey || anchoredKeyRef.current === anchorKey) return
+    const n = nodes.find((x) => x.id === anchorKey)
+    if (!n || n.x == null || n.y == null || size.w === 0) return
+    anchoredKeyRef.current = anchorKey
+    const scale = view.scale
+    panZoom.setView({
+      scale,
+      tx: size.w / 2 - n.x * scale,
+      ty: size.h / 2 - n.y * scale,
+    })
+    // 只在锚点变化时执行：view/size 依赖变化不需要重锚
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [anchorKey, nodes, size.w, size.h])
 
   // Esc 关闭缩略卡（与 Drawer 交互习惯一致）
   useEffect(() => {
