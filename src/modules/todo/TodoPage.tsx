@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Icon } from '@/design-system/Icon'
 import { useSearchParams } from 'react-router-dom'
 import { useCollection } from '@/queries/hooks'
@@ -69,12 +69,18 @@ export default function TodoPage() {
   }, [focusId, setSearchParams])
 
   const todayStr = dayjs().format('YYYY-MM-DD')
-  const openTodos = todos.filter((t) => t.status !== 'done')
-  const doneTodos = todos.filter((t) => t.status === 'done')
+
+  // 列表统一按添加时间（createdAt）排序，筛选视图沿用同一顺序
+  const sortedTodos = useMemo(
+    () => [...todos].sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0)),
+    [todos],
+  )
+  const openTodos = sortedTodos.filter((t) => t.status !== 'done')
+  const doneTodos = sortedTodos.filter((t) => t.status === 'done')
 
   const filtered = selListId
-    ? todos.filter((t) => t.listId === selListId || (focusRingId !== null && t.id === focusRingId))
-    : todos.filter((t) => {
+    ? sortedTodos.filter((t) => t.listId === selListId || (focusRingId !== null && t.id === focusRingId))
+    : sortedTodos.filter((t) => {
         if (selKind === 'done') return t.status === 'done'
         if (selKind === 'p1') return t.status !== 'done' && t.priority === 'P1'
         if (selKind === 'today')
