@@ -25,7 +25,7 @@ export const SEARCH_TYPE_META: Record<SearchEntityType, { label: string; icon: s
   customer: { label: 'CRM 客户', icon: 'group' },
   todo: { label: '待办事项', icon: 'check_circle' },
   transaction: { label: '财务流水', icon: 'account_balance_wallet' },
-  note: { label: '团队笔记', icon: 'description' },
+  note: { label: '笔记', icon: 'description' },
   habit: { label: '打卡习惯', icon: 'local_fire_department' },
   project: { label: '项目', icon: 'hub' },
 }

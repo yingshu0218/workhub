@@ -8,12 +8,12 @@ import CommandPalette from './CommandPalette'
 import TrophyUnlockToast from './TrophyUnlockToast'
 
 const NAV_ITEMS = [
+  { to: '/notes', icon: 'description', label: '笔记' },
   { to: '/', icon: 'dashboard', label: '工作台' },
   { to: '/todo', icon: 'check_circle', label: '待办事项' },
   { to: '/projects', icon: 'hub', label: '项目' },
   { to: '/crm', icon: 'group', label: '客户管理' },
   { to: '/finance', icon: 'account_balance_wallet', label: '财务中心' },
-  { to: '/notes', icon: 'description', label: '团队笔记' },
   { to: '/habits', icon: 'local_fire_department', label: '打卡习惯' },
   { to: '/trophies', icon: 'emoji_events', label: '成就奖杯' },
 ]
@@ -26,7 +26,7 @@ const TITLES: Record<string, string> = {
   '/crm/canvas': '客户关系画布',
   '/crm/:id/timeline': '客户时间线',
   '/finance': '财务中心',
-  '/notes': '团队笔记',
+  '/notes': '笔记',
   '/habits': '打卡习惯',
   '/trophies': '成就奖杯',
   '/profile': '个人主页',
