@@ -9,7 +9,7 @@ import { useIntimacyConfig, intimacyLevelName } from './config'
 /**
  * 亲密度档位选择器（Issue #34 收敛稿）：客户详情头卡内嵌。
  * 7 档横向 chip（T1~I5 信任轴 / I6、I7 隔离态分色），选中即锁定（算法分不参与）；
- * 降级到隔离态（I6/I7）要求填写 note（留痕：三个月后自己知道为什么拉黑）；
+ * 降级到隔离态（I6/I7）强制填写 note 后才能确认（留痕：三个月后自己知道为什么拉黑）；
  * 「清除手动设置」回到算法兜底档。写入走 customerRepo.put（盖章+入队+同步）。
  */
 export default function IntimacyPicker({ customer }: { customer: Customer }) {
@@ -47,6 +47,8 @@ export default function IntimacyPicker({ customer }: { customer: Customer }) {
   }
 
   const pending = pendingLevel
+  // 硬约束：隔离态降级必须留痕 note，空值不允许确认
+  const pendingNoteMissing = pending !== null && !note.trim()
   const nameOf = (l: IntimacyLevel) => intimacyLevelName(cfg, l)
 
   return (
@@ -98,7 +100,7 @@ export default function IntimacyPicker({ customer }: { customer: Customer }) {
       {pending && (
         <div className="mt-3 space-y-2 rounded-lg border border-outline-variant/50 p-3">
           <div className="text-[12px] font-medium">
-            降级为「{nameOf(pending)}」，建议留下原因（可留空）
+            降级为「{nameOf(pending)}」，必须留下原因（强制留痕）
           </div>
           <input
             className={inputCls}
@@ -106,14 +108,22 @@ export default function IntimacyPicker({ customer }: { customer: Customer }) {
             onChange={(e) => setNote(e.target.value)}
             placeholder="如：2024 合作翻脸 / 频繁爽约…"
             onKeyDown={(e) => {
-              if (e.key === 'Enter') void apply(pending, note)
+              if (e.key === 'Enter' && !pendingNoteMissing) void apply(pending, note)
             }}
           />
+          {pendingNoteMissing && (
+            <div className="text-[11px] text-danger">请填写降级原因后再确认</div>
+          )}
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={() => setPendingLevel(null)}>
               取消
             </Button>
-            <Button variant="tonal" icon="check" onClick={() => void apply(pending, note)}>
+            <Button
+              variant="tonal"
+              icon="check"
+              disabled={pendingNoteMissing}
+              onClick={() => void apply(pending, note)}
+            >
               确认{nameOf(pending)}
             </Button>
           </div>
