@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useRecord } from '@/queries/hooks'
 import type { Customer, Interaction } from '@/db/types'
@@ -88,13 +88,10 @@ function boneSub(e: TimelineEvent): string {
   return `${t} · ${e.content}`
 }
 
-/** 骨刺穿透目标：点击跳转对应记录（交易 → 财务中心，待办 → 待办事项，沟通 → 详情页日志区） */
+/** 骨刺穿透目标：点击跳转并定位对应记录（交易 → 财务中心流水详情，待办 → 待办事项定位，沟通 → 详情页日志区） */
 function boneTarget(e: TimelineEvent): string | undefined {
-  if (e.kind === 'transaction') return '/finance'
-  if (e.kind === 'todo') {
-    const todoId = e.id.split(':')[0]
-    return `/todo?focus=${encodeURIComponent(todoId)}`
-  }
+  if (e.kind === 'transaction') return `/finance?focus=${encodeURIComponent(e.recordId)}`
+  if (e.kind === 'todo') return `/todo?focus=${encodeURIComponent(e.recordId)}`
   return undefined
 }
 
@@ -114,6 +111,9 @@ export default function CustomerTimelinePage() {
 
   const [size, setSize] = useState({ w: 0, h: 0 })
   const [hover, setHover] = useState<Bone | null>(null)
+  // 拖拽保护：从骨刺上按住平移画布后松手，click 不触发穿透跳转（与关系画布 draggedRef 同口径）
+  const draggedRef = useRef(false)
+  const pointerStartRef = useRef<{ x: number; y: number } | null>(null)
   // 骨刺 g 的 onPointerDown 已 stopPropagation，背景任意位置按下即平移
   const panZoom = usePanZoom({ size })
   const view = panZoom.view
@@ -278,8 +278,30 @@ export default function CustomerTimelinePage() {
                     <g
                       key={b.event.id}
                       className={target ? 'cursor-pointer' : ''}
-                      onPointerDown={(e) => e.stopPropagation()}
-                      onClick={() => target && navigate(target)}
+                      onPointerDown={(e) => {
+                        e.stopPropagation()
+                        draggedRef.current = false
+                        pointerStartRef.current = { x: e.clientX, y: e.clientY }
+                      }}
+                      onPointerMove={(e) => {
+                        const start = pointerStartRef.current
+                        if (start && Math.hypot(e.clientX - start.x, e.clientY - start.y) > 4) {
+                          draggedRef.current = true
+                        }
+                      }}
+                      onPointerUp={() => {
+                        pointerStartRef.current = null
+                      }}
+                      onPointerCancel={() => {
+                        pointerStartRef.current = null
+                      }}
+                      onClick={() => {
+                        if (draggedRef.current) {
+                          draggedRef.current = false
+                          return
+                        }
+                        if (target) navigate(target)
+                      }}
                       onMouseEnter={() => setHover(b)}
                       onMouseLeave={() => setHover((h) => (h === b ? null : h))}
                     >

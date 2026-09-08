@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Icon } from '@/design-system/Icon'
 import { useSearchParams } from 'react-router-dom'
 import { useCollection } from '@/queries/hooks'
@@ -45,18 +45,42 @@ export default function TodoPage() {
     }
   }, [searchParams, setSearchParams])
 
+  // 深链定位：/todo?focus=<todoId>（客户时间线鱼骨穿透入口）——
+  // 默认视图「今天」未必包含目标，先切「全部待办」确保可见，再滚动 + 高亮 + 挂临时 ring
+  const focusId = searchParams.get('focus') ?? undefined
+  const [focusRingId, setFocusRingId] = useState<string | null>(null)
+  const rowRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  useEffect(() => {
+    if (!focusId) return
+    setSelListId(null)
+    setSelKind('open')
+    // 等过滤切换生效、列表重渲染后再滚动定位
+    const t = window.setTimeout(() => {
+      const el = rowRefs.current.get(focusId)
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        setFocusRingId(focusId)
+        window.setTimeout(() => setFocusRingId(null), 2400)
+      }
+      setSearchParams({}, { replace: true })
+    }, 0)
+    return () => window.clearTimeout(t)
+  }, [focusId, setSearchParams])
+
   const todayStr = dayjs().format('YYYY-MM-DD')
   const openTodos = todos.filter((t) => t.status !== 'done')
   const doneTodos = todos.filter((t) => t.status === 'done')
 
   const filtered = selListId
-    ? todos.filter((t) => t.listId === selListId)
+    ? todos.filter((t) => t.listId === selListId || (focusRingId !== null && t.id === focusRingId))
     : todos.filter((t) => {
         if (selKind === 'done') return t.status === 'done'
         if (selKind === 'p1') return t.status !== 'done' && t.priority === 'P1'
         if (selKind === 'today')
-          return t.status !== 'done' && !!t.dueAt && dayjs(t.dueAt).format('YYYY-MM-DD') === todayStr
-        return t.status !== 'done'
+          return (
+            t.status !== 'done' && !!t.dueAt && dayjs(t.dueAt).format('YYYY-MM-DD') === todayStr
+          )
+        return t.status !== 'done' || (focusRingId !== null && t.id === focusRingId)
       })
 
   async function toggle(t: Todo) {
@@ -263,8 +287,18 @@ export default function TodoPage() {
           <Card className="divide-y divide-outline-variant/30 px-5">
             {filtered.map((t) => {
               const isDoing = focus.todoId === t.id && focus.status === 'running'
+            const isFocusRing = focusRingId === t.id
             return (
-              <div key={t.id} className="group flex items-center gap-3 py-3.5">
+              <div
+                key={t.id}
+                ref={(el) => {
+                  if (el) rowRefs.current.set(t.id, el)
+                  else rowRefs.current.delete(t.id)
+                }}
+                className={`group flex items-center gap-3 rounded-lg py-3.5 transition-all duration-300 ${
+                  isFocusRing ? 'focus:outline-2 focus:outline-primary bg-primary-fixed/60 -mx-2 px-2' : ''
+                }`}
+              >
                 <button onClick={() => toggle(t)} className="shrink-0">
                   <Icon
                     name={t.status === 'done' ? 'check_circle' : 'radio_button_unchecked'}
