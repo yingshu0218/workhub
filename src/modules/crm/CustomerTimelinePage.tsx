@@ -1,43 +1,101 @@
-import { useMemo, useState } from 'react'
-import { Icon } from '@/design-system/Icon'
-import dayjs from 'dayjs'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useRecord } from '@/queries/hooks'
-import type { Customer } from '@/db/types'
-import { Button, Card, EmptyState, PageHeader } from '@/design-system/ui'
-import { usePanZoom, IDENTITY_VIEW } from '@/shared/usePanZoom'
-import CustomerFormDrawer from './CustomerFormDrawer'
+import type { Customer, Interaction } from '@/db/types'
+import { Button, Card, Chip, EmptyState, PageHeader } from '@/design-system/ui'
+import { Icon } from '@/design-system/Icon'
+import dayjs from 'dayjs'
 import { healthColor } from './shared'
 import {
   TIMELINE_FILTERS,
   filterTimeline,
   fmtMoney,
-  fmtTimelineTime,
   type TimelineEvent,
   type TimelineFilter,
   useCustomerTimeline,
 } from './timeline'
+import { IDENTITY_VIEW, usePanZoom } from './usePanZoom'
 
 /**
- * 客户时间线鱼骨视图（Issue #11 需求 2，P2）
- * 路由 /crm/:id/timeline：聚焦单个客户的持续跟踪，鱼骨图呈现。
- * 鱼头（右）= 客户当前状态卡；主轴 = 建档至今的水平时间轴；
- * 上骨刺 = 正向事件（收入/完成待办/手写沟通），下骨刺 = 支出流水。
- * 数据源复用 useCustomerTimeline 投影 hook，与详情页展示永远一致。
- * 渲染沿用 CrmCanvasPage 的纯 SVG + 自研 view 变换模式（usePanZoom），零新依赖。
+ * 客户时间线鱼骨视图（Issue #11 需求 2，对齐原型「鱼骨图」隐喻）
+ *
+ * 结构：鱼头（右）= 客户当前状态卡（tier 徽章 + stage + HealthRing），
+ *       主轴 = 建档至今的水平时间轴，骨刺向上下分叉：
+ *       上骨刺 = 收入流水 / 完成待办（正向），下骨刺 = 支出流水 / 逾期待办、新增待办、沟通（负向）
+ * 数据源单源消费 useCustomerTimeline（与详情页共用同一投影，保证口径一致）。
+ * 复用共享 usePanZoom：wheel 缩放 + 空白处拖拽平移（与关系画布一致），纯 SVG 零新依赖。
  */
 
-const COLORS = {
-  income: { stroke: '#006c49', fill: '#6cf8bb' },
-  expense: { stroke: '#ba1a1a', fill: '#ffdad6' },
-  todo: { stroke: '#943700', fill: '#ffede6' },
-  interaction: { stroke: '#004ac6', fill: '#dbe1ff' },
+/** 沟通日志类型 → 图标（与详情页手写日志样式一致） */
+const TYPE_ICONS: Record<Interaction['type'], string> = {
+  电话: 'call',
+  会议: 'groups',
+  邮件: 'mail',
+  拜访: 'directions_walk',
+  跟进: 'trending_up',
+  小结: 'summarize',
+  其他: 'more_horiz',
 }
 
-/** 骨刺方向：上骨 = 正向事件，下骨 = 支出；手写沟通放上方近轴短刺 */
-function boneSide(e: TimelineEvent): 'up' | 'down' {
-  if (e.kind === 'transaction' && e.direction === 'expense') return 'down'
-  return 'up'
+/** 世界坐标布局常量（水平从左到右按时间递增，鱼头在最右） */
+const SPINE_Y = 0
+const HEAD_W = 190
+const HEAD_H = 132
+const SPINE_STROKE = '#004ac6'
+const SPINE_W = 5
+
+interface Bone {
+  event: TimelineEvent
+  /** 主轴上的世界坐标 x（事件锚点） */
+  x: number
+  /** 骨刺方向：上（正向）/ 下（负向） */
+  up: boolean
+  /** 骨刺长度（跟随金额/优先级轻微变化，视觉分组） */
+  len: number
+  /** 骨刺终点（短横端） */
+  tipY: number
+  label: string
+  sub: string
+  color: string
+  fill: string
+}
+
+function boneColor(e: TimelineEvent): { color: string; fill: string } {
+  if (e.kind === 'transaction')
+    return e.direction === 'income'
+      ? { color: '#006c49', fill: '#6cf8bb' }
+      : { color: '#ba1a1a', fill: '#ffdad6' }
+  if (e.kind === 'todo')
+    return e.event === 'done'
+      ? { color: '#006c49', fill: '#6cf8bb' }
+      : { color: '#943700', fill: '#ffede6' }
+  return { color: '#004ac6', fill: '#dbe1ff' }
+}
+
+function boneUp(e: TimelineEvent): boolean {
+  if (e.kind === 'transaction') return e.direction === 'income'
+  if (e.kind === 'todo') return e.event === 'done'
+  return false
+}
+
+function boneLabel(e: TimelineEvent): string {
+  if (e.kind === 'transaction') return `${e.direction === 'income' ? '+' : '-'}${fmtMoney(e.amount)}`
+  if (e.kind === 'todo') return e.event === 'done' ? '完成待办' : '新增待办'
+  return e.type
+}
+
+function boneSub(e: TimelineEvent): string {
+  const t = dayjs(e.at).format('MM-DD')
+  if (e.kind === 'transaction') return `${t} · ${e.summary}`
+  if (e.kind === 'todo') return `${t} · ${e.title}`
+  return `${t} · ${e.content}`
+}
+
+/** 骨刺穿透目标：点击跳转并定位对应记录（交易 → 财务中心流水详情，待办 → 待办事项定位，沟通 → 详情页日志区） */
+function boneTarget(e: TimelineEvent): string | undefined {
+  if (e.kind === 'transaction') return `/finance?focus=${encodeURIComponent(e.recordId)}`
+  if (e.kind === 'todo') return `/todo?focus=${encodeURIComponent(e.recordId)}`
+  return undefined
 }
 
 export default function CustomerTimelinePage() {
@@ -45,32 +103,95 @@ export default function CustomerTimelinePage() {
   const navigate = useNavigate()
   const customer = useRecord<Customer>('customers', id)
   const timeline = useCustomerTimeline(id)
+
   const [filter, setFilter] = useState<TimelineFilter>('all')
-  const [editing, setEditing] = useState(false)
+  const visible = filterTimeline(timeline, filter)
+  const counts = {
+    interaction: timeline.filter((e) => e.kind === 'interaction').length,
+    transaction: timeline.filter((e) => e.kind === 'transaction').length,
+    todo: timeline.filter((e) => e.kind === 'todo').length,
+  }
 
-  const { wrapRef, size, view, setView, zoomTo, panStart, panMove, panEnd, panCancel } = usePanZoom()
+  const [size, setSize] = useState({ w: 0, h: 0 })
+  const [hover, setHover] = useState<Bone | null>(null)
+  // 拖拽保护：从骨刺上按住平移画布后松手，click 不触发穿透跳转（与关系画布 draggedRef 同口径）
+  const draggedRef = useRef(false)
+  const pointerStartRef = useRef<{ x: number; y: number } | null>(null)
+  // 骨刺 g 的 onPointerDown 已 stopPropagation，背景任意位置按下即平移
+  const panZoom = usePanZoom({ size })
+  const view = panZoom.view
+  const { wheelRef } = panZoom
 
-  const visible = useMemo(() => filterTimeline(timeline, filter), [timeline, filter])
+  // 容器尺寸自适应；ref 复用 panZoom.wheelRef（wheel 原生监听与 ResizeObserver 同一元素）
+  useEffect(() => {
+    const el = wheelRef.current
+    if (!el) return
+    const ro = new ResizeObserver((entries) => {
+      const r = entries[0].contentRect
+      setSize({ w: Math.round(r.width), h: Math.round(r.height) })
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [wheelRef])
 
-  // 主轴世界坐标：左端 = 建档时间，右端 = max(现在, 最新事件)
-  const axis = useMemo(() => {
-    const start = customer?.createdAt ?? Date.now()
-    const latest = visible.length > 0 ? visible[0].at : start
-    return { start, end: Math.max(Date.now(), latest) }
+  const hc = healthColor(customer?.healthScore ?? 0)
+
+  /** 世界布局：时间升序排到主轴（左 → 右），上下交替错开骨刺避免重叠 */
+  const layout = useMemo(() => {
+    if (!customer || visible.length === 0) return null
+    // 时间升序铺满主轴；比例尺不按真实间隔压缩（事件稀密差异过大时等距更可读），起止由刻度文案表达
+    const ordered = [...visible].sort((a, b) => a.at - b.at)
+    const innerW = 920
+    const step = innerW / (ordered.length + 1)
+    const bones: Bone[] = []
+    const lastTip = { up: 0, down: 0 } as Record<'up' | 'down', number>
+    ordered.forEach((e, i) => {
+      const x = 60 + step * (i + 1)
+      const up = boneUp(e)
+      // 交替侧向偏移：同侧相邻骨刺错开，避免端点短横重叠
+      const len = 64 + (lastTip[up ? 'up' : 'down'] % 2 === i % 2 ? 0 : 26) + (e.kind === 'transaction' ? 14 : 0)
+      lastTip[up ? 'up' : 'down']++
+      bones.push({
+        event: e,
+        x,
+        up,
+        len,
+        tipY: up ? SPINE_Y - len : SPINE_Y + len,
+        label: boneLabel(e),
+        sub: boneSub(e),
+        color: boneColor(e).color,
+        fill: boneColor(e).fill,
+      })
+    })
+    const world = { minX: 0, maxX: 60 + step * ordered.length + 20 + HEAD_W, minY: -190, maxY: 190 }
+    return { bones, world }
   }, [customer, visible])
 
-  // 时间 → 世界 x 坐标（主轴固定 80px 边距 + 1000px 长，由 panZoom 负责缩放平移适配视口）
-  const AXIS_X0 = 80
-  const AXIS_X1 = 1080
-  const toX = (at: number) => {
-    const span = Math.max(axis.end - axis.start, 1)
-    return AXIS_X0 + ((at - axis.start) / span) * (AXIS_X1 - AXIS_X0)
+  function fitView() {
+    if (!layout || size.w === 0 || size.h === 0) {
+      panZoom.setView(IDENTITY_VIEW)
+      return
+    }
+    const pad = 40
+    const bw = Math.max(layout.world.maxX - layout.world.minX, 1)
+    const bh = Math.max(layout.world.maxY - layout.world.minY, 1)
+    const scale = Math.min((size.w - pad * 2) / bw, (size.h - pad * 2) / bh)
+    const cx = (layout.world.minX + layout.world.maxX) / 2
+    const cy = (layout.world.minY + layout.world.maxY) / 2
+    panZoom.setView({
+      scale: Math.min(2, Math.max(0.5, scale)),
+      tx: size.w / 2 - cx * scale,
+      ty: size.h / 2 - cy * scale,
+    })
   }
 
   if (!customer) {
     return (
       <div className="mx-auto max-w-[1200px]">
-        <PageHeader title="客户时间线" actions={<Button variant="ghost" icon="arrow_back" onClick={() => navigate('/crm')}>返回列表</Button>} />
+        <PageHeader
+          title="客户时间线"
+          actions={<Button variant="ghost" icon="arrow_back" onClick={() => navigate('/crm')}>返回列表</Button>}
+        />
         <Card className="p-6">
           <EmptyState icon="person_off" title="客户不存在或已删除" description="可能已被移除，返回列表查看其他客户" />
         </Card>
@@ -78,48 +199,28 @@ export default function CustomerTimelinePage() {
     )
   }
 
-  const hc = healthColor(customer.healthScore)
-
-  // 世界坐标下的鱼骨几何：主轴 y=0，向上为负、向下为正（屏幕 y 向下）
-  const SPINE_Y = 0
-  const HEAD_X = AXIS_X1 + 90 // 鱼头中心
-  const TAIL_X = AXIS_X0 - 90 // 鱼尾尖
-
-  // 骨刺长度分层：同侧多条刺错开，避免标签互相遮挡
-  const boneUp: TimelineEvent[] = []
-  const boneDown: TimelineEvent[] = []
-  for (const e of visible) (boneSide(e) === 'up' ? boneUp : boneDown).push(e)
-
-  const spike = (e: TimelineEvent, i: number, side: 'up' | 'down') => {
-    const x = toX(e.at)
-    const dir = side === 'up' ? -1 : 1
-    const len = 64 + (i % 3) * 30
-    const tipY = SPINE_Y + dir * len
-    return { e, x, tipY, dir }
-  }
-  const spikesUp = boneUp.map((e, i) => spike(e, i, 'up'))
-  const spikesDown = boneDown.map((e, i) => spike(e, i, 'down'))
-
-  const empty = timeline.length === 0
+  const spineX1 = 40
+  const spineX2 = layout ? layout.world.maxX - HEAD_W - 8 : 600
+  const headX = layout ? layout.world.maxX - HEAD_W : 640
 
   return (
     <div className="mx-auto max-w-[1200px]">
       <PageHeader
         title="客户时间线"
-        subtitle="鱼骨视图聚焦单个客户的持续跟踪 · 上骨正向事件 / 下骨支出 · 滚轮缩放、拖拽平移"
+        subtitle={`${customer.name} · 建档至今的沟通、财务与事件全息鱼骨视图，单源投影与详情页一致`}
         actions={
           <>
-            <Button variant="ghost" icon="arrow_back" onClick={() => navigate(`/crm/${id}`)}>
+            <Button variant="ghost" icon="arrow_back" onClick={() => navigate(`/crm/${customer.id}`)}>
               返回档案
             </Button>
-            <Button icon="edit" onClick={() => setEditing(true)}>
-              编辑档案
+            <Button variant="tonal" icon="settings_backup_restore" onClick={fitView} disabled={!layout}>
+              适应画布
             </Button>
           </>
         }
       />
 
-      {/* 图例 + 过滤 chips（与详情页同一套 TimelineFilter） */}
+      {/* 过滤 chips：与详情页「深度跟进与沟通日志」同一组常量 */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
         {TIMELINE_FILTERS.map((f) => (
           <button
@@ -132,29 +233,27 @@ export default function CustomerTimelinePage() {
             }`}
           >
             {f.label}
+            {f.key !== 'all' ? ` ${counts[f.key as keyof typeof counts]}` : ''}
           </button>
         ))}
         <span className="ml-2 text-[11px] text-outline">
-          悬停骨刺查看详情 · 点击跳转对应记录 · 滚轮缩放 · 空白处拖拽平移
+          滚轮缩放 · 空白处拖拽平移 · 点击骨刺穿透对应记录
         </span>
       </div>
 
       <Card className="overflow-hidden p-0">
         <div
-          ref={wrapRef}
+          ref={wheelRef}
           className="relative bg-surface-container-low/40"
-          style={{ height: 'calc(100vh - 14rem)', minHeight: 360, touchAction: 'none' }}
-          onPointerDown={panStart}
-          onPointerMove={(e) => panMove(e)}
-          onPointerUp={panEnd}
-          onPointerCancel={panCancel}
+          style={{ height: 'calc(100vh - 16rem)', minHeight: 380, touchAction: 'none' }}
+          {...panZoom.containerProps}
         >
-          {empty ? (
+          {!layout ? (
             <div className="flex h-full items-center justify-center">
               <EmptyState
                 icon="timeline"
-                title="还没有可绘制的事件"
-                description="手写沟通日志、记账关联客户、关联待办都会自动投影到这条时间线上"
+                title="暂无时间线数据"
+                description="该客户还没有沟通日志、关联流水或待办事件；先在详情页「快速记一笔」开始跟进"
               />
             </div>
           ) : (
@@ -164,75 +263,167 @@ export default function CustomerTimelinePage() {
               viewBox={`0 0 ${size.w} ${size.h}`}
               className="block cursor-grab active:cursor-grabbing"
             >
-              {/* 缩放平移视口（初始 translate 让鱼骨整体垂直居中） */}
-              <g transform={`translate(${view.tx},${view.ty + size.h / 2}) scale(${view.scale})`}>
-                {/* ===== 主轴（脊椎）===== */}
-                <line
-                  x1={TAIL_X}
-                  y1={SPINE_Y}
-                  x2={AXIS_X1}
-                  y2={SPINE_Y}
-                  stroke="#0b1c30"
-                  strokeWidth={3}
-                  strokeLinecap="round"
-                />
-
-                {/* ===== 鱼尾（建档起点）===== */}
-                <path
-                  d={`M ${AXIS_X0} ${SPINE_Y} L ${TAIL_X} ${SPINE_Y - 26} L ${TAIL_X + 40} ${SPINE_Y} L ${TAIL_X} ${SPINE_Y + 26} Z`}
-                  fill="#dbe1ff"
-                  stroke="#004ac6"
-                  strokeWidth={1.5}
-                />
-                <text x={TAIL_X + 6} y={SPINE_Y - 34} textAnchor="middle" style={{ fontSize: 11, fontWeight: 600 }} fill="#004ac6">
-                  建档 {fmtTimelineTime(axis.start).slice(0, 10)}
+              <g transform={`translate(${view.tx},${view.ty}) scale(${view.scale})`}>
+                {/* 主轴：建档至今 */}
+                <line x1={spineX1} y1={SPINE_Y} x2={spineX2} y2={SPINE_Y} stroke={SPINE_STROKE} strokeWidth={SPINE_W} strokeLinecap="round" />
+                {/* 主轴起止刻度 */}
+                <text x={spineX1} y={SPINE_Y + 22} style={{ fontSize: 11, fontWeight: 600 }} fill="#434655">
+                  建档 {dayjs(customer.createdAt).format('YYYY-MM-DD')}
+                </text>
+                <text x={spineX2} y={SPINE_Y - 14} textAnchor="end" style={{ fontSize: 11, fontWeight: 600 }} fill="#434655">
+                  至今
                 </text>
 
-                {/* ===== 鱼头（当前状态）===== */}
-                <g>
-                  <ellipse cx={HEAD_X} cy={SPINE_Y} rx={72} ry={54} fill="#dbe1ff" stroke="#004ac6" strokeWidth={1.8} />
-                  <text x={HEAD_X} y={SPINE_Y - 22} textAnchor="middle" style={{ fontSize: 14, fontWeight: 700 }} fill="#0b1c30">
-                    {customer.name.slice(0, 6)}
-                  </text>
-                  <text x={HEAD_X} y={SPINE_Y - 2} textAnchor="middle" style={{ fontSize: 11 }} fill="#434655">
-                    {customer.stage}
-                  </text>
-                  <text x={HEAD_X} y={SPINE_Y + 16} textAnchor="middle" style={{ fontSize: 11, fontWeight: 700 }} fill={hc}>
-                    健康 {customer.healthScore}
-                  </text>
-                  <text x={HEAD_X} y={SPINE_Y + 34} textAnchor="middle" style={{ fontSize: 10 }} fill="#434655">
-                    {customer.tier === '潜在' ? '潜在客户' : `${customer.tier} 层`}
-                  </text>
-                </g>
-
-                {/* ===== 主轴刻度（按跨度取 6 档）===== */}
-                {Array.from({ length: 7 }, (_, i) => {
-                  const t = axis.start + ((axis.end - axis.start) * i) / 6
-                  const x = toX(t)
+                {/* 骨刺 */}
+                {layout.bones.map((b) => {
+                  const target = boneTarget(b.event)
                   return (
-                    <g key={i}>
-                      <line x1={x} y1={SPINE_Y - 5} x2={x} y2={SPINE_Y + 5} stroke="#434655" strokeWidth={1} />
-                      <text x={x} y={SPINE_Y + 22} textAnchor="middle" style={{ fontSize: 10 }} fill="#434655">
-                        {fmtTick(t)}
+                    <g
+                      key={b.event.id}
+                      className={target ? 'cursor-pointer' : ''}
+                      onPointerDown={(e) => {
+                        e.stopPropagation()
+                        draggedRef.current = false
+                        pointerStartRef.current = { x: e.clientX, y: e.clientY }
+                      }}
+                      onPointerMove={(e) => {
+                        const start = pointerStartRef.current
+                        if (start && Math.hypot(e.clientX - start.x, e.clientY - start.y) > 4) {
+                          draggedRef.current = true
+                        }
+                      }}
+                      onPointerUp={() => {
+                        pointerStartRef.current = null
+                      }}
+                      onPointerCancel={() => {
+                        pointerStartRef.current = null
+                      }}
+                      onClick={() => {
+                        if (draggedRef.current) {
+                          draggedRef.current = false
+                          return
+                        }
+                        if (target) navigate(target)
+                      }}
+                      onMouseEnter={() => setHover(b)}
+                      onMouseLeave={() => setHover((h) => (h === b ? null : h))}
+                    >
+                      <line
+                        x1={b.x}
+                        y1={SPINE_Y}
+                        x2={b.x + 18}
+                        y2={b.tipY}
+                        stroke={b.color}
+                        strokeWidth={hover === b ? 2.4 : 1.6}
+                      />
+                      {/* 端点短横 + 节点圆 */}
+                      <line
+                        x1={b.x + 18}
+                        y1={b.tipY}
+                        x2={b.x + 40}
+                        y2={b.tipY}
+                        stroke={b.color}
+                        strokeWidth={hover === b ? 2.4 : 1.6}
+                      />
+                      <circle cx={b.x} cy={SPINE_Y} r={5} fill={b.fill} stroke={b.color} strokeWidth={1.4} />
+                      {/* 端点标签（金额/类型） */}
+                      <text
+                        x={b.x + 44}
+                        y={b.tipY + (b.up ? 0 : 10)}
+                        style={{ fontSize: 11, fontWeight: 700 }}
+                        fill={b.color}
+                      >
+                        {b.label}
                       </text>
                     </g>
                   )
                 })}
 
-                {/* ===== 骨刺：上骨（正向）===== */}
-                {spikesUp.map(({ e, x, tipY }) => (
-                  <Spike key={e.id} e={e} x={x} tipY={tipY} />
-                ))}
-                {/* ===== 骨刺：下骨（支出）===== */}
-                {spikesDown.map(({ e, x, tipY }) => (
-                  <Spike key={e.id} e={e} x={x} tipY={tipY} />
-                ))}
+                {/* 鱼头：客户当前状态卡（局部坐标 0..HEAD_W × 0..HEAD_H，鱼嘴贴主轴） */}
+                <g transform={`translate(${headX},${SPINE_Y - HEAD_H / 2})`}>
+                  {/* 鱼形轮廓：左上/左下尖角指向鱼嘴（衔接主轴），右侧圆钝 */}
+                  <path
+                    d={`M0,${HEAD_H / 2} L20,0 L${HEAD_W},0 L${HEAD_W},${HEAD_H} L20,${HEAD_H} Z`}
+                    transform={`translate(0,${-HEAD_H / 2})`}
+                    fill="#dbe1ff"
+                    stroke="#004ac6"
+                    strokeWidth={1.8}
+                  />
+                  {/* 头像圆 + 姓名 + 阶段 */}
+                  <circle cx={34} cy={HEAD_H / 2 - 34} r={15} fill="#dbe1ff" stroke="#004ac6" strokeWidth={1.4} />
+                  <text x={34} y={HEAD_H / 2 - 29} textAnchor="middle" style={{ fontSize: 13, fontWeight: 700 }} fill="#004ac6">
+                    {customer.name.slice(0, 1)}
+                  </text>
+                  <text x={58} y={HEAD_H / 2 - 38} style={{ fontSize: 13, fontWeight: 700 }} fill="#0b1c30">
+                    {customer.name.slice(0, 6)}
+                  </text>
+                  <text x={58} y={HEAD_H / 2 - 23} style={{ fontSize: 10 }} fill="#434655">
+                    {customer.stage}
+                  </text>
+                  {/* tier 徽章 */}
+                  <g transform={`translate(20,${HEAD_H / 2 - 10})`}>
+                    <rect rx={9} width={52} height={18} fill={tierFill(customer.tier)} />
+                    <text x={26} y={13} textAnchor="middle" style={{ fontSize: 10, fontWeight: 700 }} fill="#fff">
+                      {customer.tier === '潜在' ? '潜在' : `${customer.tier} 层`}
+                    </text>
+                  </g>
+                  {/* 健康指数环（与详情页 HealthRing 同构） */}
+                  <g transform={`translate(${HEAD_W - 74},${HEAD_H / 2 - 34})`}>
+                    <HealthRingSvg score={customer.healthScore} color={hc} r={22} />
+                  </g>
+                  <text x={20} y={HEAD_H - 26} style={{ fontSize: 9 }} fill="#434655">
+                    {customer.company ? customer.company.slice(0, 12) : '独立顾问'}
+                  </text>
+                  <text x={20} y={HEAD_H - 12} style={{ fontSize: 9 }} fill="#434655">
+                    最近联系 {fmtLastContact(customer.lastContactAt)}
+                  </text>
+                </g>
               </g>
             </svg>
           )}
 
-          {/* 右下角缩放控件（与画布一致） */}
-          {!empty && (
+          {/* hover 浮层摘要 */}
+          {hover && (
+            <div
+              className="pointer-events-none absolute z-10 max-w-[280px] rounded-xl border border-outline-variant/40 bg-surface-container-lowest/95 px-3 py-2 shadow-md backdrop-blur"
+              style={{ left: 16, bottom: 16 }}
+            >
+              <div className="flex items-center gap-1.5">
+                <Chip
+                  tone={
+                    hover.event.kind === 'transaction'
+                      ? hover.event.direction === 'income'
+                        ? 'green'
+                        : 'red'
+                      : hover.event.kind === 'todo'
+                        ? hover.event.event === 'done'
+                          ? 'green'
+                          : 'amber'
+                        : 'blue'
+                  }
+                  icon={hover.event.kind === 'interaction' ? TYPE_ICONS[hover.event.type] : undefined}
+                >
+                  {hover.label}
+                </Chip>
+                {hover.event.kind === 'todo' && (
+                  <Chip tone={hover.event.priority === 'P1' ? 'red' : hover.event.priority === 'P2' ? 'amber' : 'gray'}>
+                    {hover.event.priority}
+                  </Chip>
+                )}
+                {hover.event.kind === 'transaction' && hover.event.status === '待对账' && <Chip tone="gray">待对账</Chip>}
+              </div>
+              <div className="mt-1 text-[12px] leading-relaxed text-on-surface">{hover.sub}</div>
+              {boneTarget(hover.event) && (
+                <div className="mt-1 flex items-center gap-1 text-[11px] text-primary">
+                  <Icon name="arrow_back" size={12} className="rotate-180" />
+                  点击骨刺穿透
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 右下角缩放控件（与画布页一致） */}
+          {layout && (
             <div
               className="absolute bottom-3 right-3 z-10 flex items-center gap-0.5 rounded-xl border border-outline-variant/40 bg-surface-container-lowest/95 px-1.5 py-1 shadow-md backdrop-blur"
               onPointerDown={(e) => e.stopPropagation()}
@@ -240,7 +431,7 @@ export default function CustomerTimelinePage() {
               <button
                 className="flex h-7 w-7 items-center justify-center rounded-lg text-[16px] font-semibold text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
                 title="缩小"
-                onClick={() => zoomTo(view.scale - 0.1)}
+                onClick={() => panZoom.zoomTo(view.scale - 0.1)}
               >
                 −
               </button>
@@ -250,121 +441,69 @@ export default function CustomerTimelinePage() {
               <button
                 className="flex h-7 w-7 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
                 title="放大"
-                onClick={() => zoomTo(view.scale + 0.1)}
+                onClick={() => panZoom.zoomTo(view.scale + 0.1)}
               >
                 <Icon name="add" size={16} />
               </button>
               <span className="mx-1 h-4 w-px bg-outline-variant/40" />
               <button
                 className="flex h-7 items-center gap-1 rounded-lg px-2 text-[12px] font-medium text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
-                title="重置缩放平移"
-                onClick={() => setView(IDENTITY_VIEW)}
+                title="重置缩放平移，显示全部鱼骨"
+                onClick={fitView}
               >
                 <Icon name="settings_backup_restore" size={14} />
-                复位
+                适应画布
               </button>
             </div>
           )}
         </div>
       </Card>
-
-      <CustomerFormDrawer open={editing} customer={customer} onClose={() => setEditing(false)} />
     </div>
   )
 }
 
-/** 主轴刻度格式：跨度内相邻刻度间隔决定精度 */
-function fmtTick(at: number): string {
-  return dayjs(at).format('YYYY-MM-DD')
+function tierFill(tier: 'S' | 'A' | 'B' | '潜在'): string {
+  switch (tier) {
+    case 'S':
+      return '#ba1a1a'
+    case 'A':
+      return '#943700'
+    case '潜在':
+      return '#004ac6'
+    default:
+      return '#4a4458'
+  }
 }
 
-/** 单根骨刺：斜刺 + 末端事件节点 + hover 浮层 + 点击跳转 */
-function Spike({ e, x, tipY }: { e: TimelineEvent; x: number; tipY: number }) {
-  const navigate = useNavigate()
-  const up = tipY < 0
-  const color = spikeColor(e)
-  const fill = spikeFill(e)
+function fmtLastContact(ts: number): string {
+  const days = Math.floor((Date.now() - ts) / 86_400_000)
+  if (days <= 0) return '今天'
+  if (days < 30) return `${days} 天前`
+  return dayjs(ts).format('YYYY-MM-DD')
+}
 
-  const label =
-    e.kind === 'transaction'
-      ? `${e.direction === 'income' ? '+' : '-'}${fmtMoney(e.amount)}`
-      : e.kind === 'todo'
-        ? `${e.event === 'done' ? '✓ ' : ''}${e.title.slice(0, 10)}`
-        : e.type
-
-  const target =
-    e.kind === 'transaction' ? '/finance' : e.kind === 'todo' ? '/todo' : undefined
-
+/** 鱼头内的健康环（与详情页 HealthRing 同构，半径可调） */
+function HealthRingSvg({ score, color, r }: { score: number; color: string; r: number }) {
+  const size = r * 2 + 12
+  const c = size / 2
+  const circ = 2 * Math.PI * r
   return (
-    <g
-      className="cursor-pointer"
-      onClick={(ev) => {
-        ev.stopPropagation()
-        if (target) navigate(target)
-      }}
-    >
-      {/* 斜刺 */}
-      <line x1={x} y1={0} x2={x + 14} y2={tipY} stroke={color} strokeWidth={1.6} strokeLinecap="round" opacity={0.85} />
-      {/* 事件节点 */}
-      <circle cx={x + 14} cy={tipY} r={5} fill={fill} stroke={color} strokeWidth={1.4} />
-      {/* 标签 */}
-      <text
-        x={x + 14}
-        y={tipY + (up ? -10 : 16)}
-        textAnchor="middle"
-        style={{ fontSize: 10, fontWeight: 600 }}
-        fill={color}
-      >
-        {label}
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      <circle cx={c} cy={c} r={r} fill="none" stroke="#dce9ff" strokeWidth="6" />
+      <circle
+        cx={c}
+        cy={c}
+        r={r}
+        fill="none"
+        stroke={color}
+        strokeWidth="6"
+        strokeLinecap="round"
+        strokeDasharray={`${(score / 100) * circ} ${circ}`}
+        transform={`rotate(-90 ${c} ${c})`}
+      />
+      <text x={c} y={c + 4} textAnchor="middle" style={{ fontSize: 12, fontWeight: 700 }} fill="#0b1c30">
+        {score}
       </text>
-      {/* hover 浮层：rect + 双行文本（SVG 原生 title 之外的自绘实现，保证样式统一） */}
-      <g className="opacity-0 transition-opacity hover:opacity-100">
-        <rect
-          x={x + 14 - 90}
-          y={up ? tipY - 58 : tipY + 24}
-          width={180}
-          height={34}
-          rx={8}
-          fill="#0b1c30"
-          opacity={0.92}
-        />
-        <text
-          x={x + 14}
-          y={up ? tipY - 44 : tipY + 38}
-          textAnchor="middle"
-          style={{ fontSize: 10, fontWeight: 600 }}
-          fill="#ffffff"
-        >
-          {spikeTitle(e).slice(0, 26)}
-        </text>
-        <text
-          x={x + 14}
-          y={up ? tipY - 31 : tipY + 51}
-          textAnchor="middle"
-          style={{ fontSize: 9 }}
-          fill="#dbe1ff"
-        >
-          {fmtTimelineTime(e.at)}
-        </text>
-      </g>
-    </g>
+    </svg>
   )
-}
-
-function spikeColor(e: TimelineEvent): string {
-  if (e.kind === 'transaction') return e.direction === 'income' ? COLORS.income.stroke : COLORS.expense.stroke
-  if (e.kind === 'todo') return COLORS.todo.stroke
-  return COLORS.interaction.stroke
-}
-
-function spikeFill(e: TimelineEvent): string {
-  if (e.kind === 'transaction') return e.direction === 'income' ? COLORS.income.fill : COLORS.expense.fill
-  if (e.kind === 'todo') return COLORS.todo.fill
-  return COLORS.interaction.fill
-}
-
-function spikeTitle(e: TimelineEvent): string {
-  if (e.kind === 'transaction') return e.summary
-  if (e.kind === 'todo') return `${e.event === 'done' ? '完成待办' : '新增待办'} · ${e.title}`
-  return `【${e.type}】${e.content}`
 }

@@ -100,7 +100,7 @@ export default function CustomerDetailPage() {
             <Button variant="ghost" icon="arrow_back" onClick={() => navigate('/crm')}>
               返回列表
             </Button>
-            <Button variant="tonal" icon="timeline" onClick={() => navigate(`/crm/${id}/timeline`)}>
+            <Button variant="tonal" icon="schedule" onClick={() => navigate(`/crm/${customer.id}/timeline`)}>
               时间线
             </Button>
             <Button icon="edit" onClick={() => setEditing(true)}>
