@@ -2,7 +2,7 @@
 
 > **本仓库的唯一进度事实来源。** 所有人（含 AI 开发代理）推进或变更任何开发工作，必须在**同一个 commit** 里同步更新本文件对应状态。README 底部的 Changelog 记录"发生了什么"，本文档记录"现在处于什么状态"——前者追加式流水，后者始终反映最新全貌。
 
-**最后更新**：2026-09-08（Issue #11 收尾：合并 #15/#17 分叉，鱼骨视图 P3 打磨落地——鱼头状态卡 HealthRing、等距防重叠布局、fitView 适应画布、hover 浮层摘要、过滤计数；穿透深链与画布共享 usePanZoom 回流） · 维护人：yingshu0218 / cnb.cMPXRmKswEA / npc/CodeBuddy
+**最后更新**：2026-09-08（Issue #19 新增「同步服务配置说明」人工操作手册并审计校准 collections 口径 17 张；Issue #11 收尾：#15/#17 分叉合并、鱼骨 P3 打磨与 usePanZoom 单源收敛） · 维护人：yingshu0218 / cnb.cMPXRmKswEA / npc/CodeBuddy
 
 ---
 
@@ -46,7 +46,7 @@
 - **终端路线**：Web 优先（当前）→ PWA 过渡（manifest+SW 已就绪，待 HTTPS 激活）→ Tauri 2 原生三端（Android/Win/mac）
 - **数据**：本地 IndexedDB/Dexie 为读写源（可丢弃工作副本），服务端 PocketBase/SQLite 为**数据真源**，LWW 同步（updatedAt/deleted/rev + 变更队列）
 - **存储抽象**：repository + 统一查询 Hook，组件零 Dexie 直连，未来可插拔换 SQLite
-- **同步 Schema 升级**：模型演进必须重导入 `pb_setup/collections.json`（见 docs/部署指南.md「Schema 升级流程」章节）；服务端需升级至 15 collections（14 业务表 + sync_state；本地 Dexie v6）
+- **同步 Schema 升级**：模型演进必须重导入 `pb_setup/collections.json`（见 docs/部署指南.md「Schema 升级流程」章节）；服务端需升级至 17 collections（16 业务表 + sync_state；本地 Dexie v8）
 - **图标**：内联 SVG（Icon 组件），已彻底移除 4.6MB 字体；新增图标往 `src/assets/icons/` 放 SVG
 - **主题体系**：10 套风格主题包（`THEME_STYLES` as const satisfies 派生 `ThemeStyleId`，除 classic 外明暗两侧均完整 19 token）+ 12 强调色 + 12 字体预设（`FONT_PRESETS`/`FONT_STACKS` 定义于 shared/theme.ts；`SettingsAppearance.theme` 类型收窄为 `ThemeStyleId`；effects.ts 启动/切换先 removeProperty 清空 19 个 `--color-*` 再按侧覆盖，classic 空覆盖回退 index.css；字体仅映射 `--font-sans` 系统字体栈，不加载网络字体）
 
