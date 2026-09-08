@@ -37,6 +37,8 @@ export const RELATION_CATEGORIES: { id: RelationCategory; name: string; color: s
 ]
 
 export interface CustomerRelation {
+  /** 单条关系条目主键（Issue #39）：同一客户可对同一目标保留多条不同语义，须以条目 id 独立去重/删除/作 key */
+  id?: string
   /** 目标客户 id（弱引用） */
   targetId: string
   /** 关系语义，如：转介绍人 / 同一公司 / 上下游 */

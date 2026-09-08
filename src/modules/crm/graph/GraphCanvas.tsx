@@ -300,15 +300,36 @@ export default function GraphCanvas({ graph, focusId, style, legend, showReheat,
                           strokeDasharray="5 4"
                           opacity={0.85}
                         />
-                        <text
-                          x={cx + ((cx - mx) / 24) * 10}
-                          y={cy + ((cy - my) / 24) * 10}
-                          textAnchor="middle"
-                          style={{ fontSize: 10, fontWeight: 700 }}
-                          fill={edgeColor}
-                        >
-                          {l.label}
-                        </text>
+                        {/* 语义标签（Issue #39）：把该对客户的全部关系文字完整呈现，而非仅靠颜色区分。
+                            每条语义单独一行、加白描边光晕保证跨线可读；同对客户多条关系时逐行展示 */}
+                        {(() => {
+                          const lines = l.labels ?? (l.label ? [l.label] : [])
+                          const n = lines.length
+                          // 弧顶点位置（cx,cy 已垂直偏移），文字沿曲线法线稍移，避免压在路径上
+                          const tx = cx + ((cx - mx) / 24) * 6
+                          const ty = cy + ((cy - my) / 24) * 6
+                          const fs = 10
+                          const gap = fs + 3
+                          const startY = ty - ((n - 1) * gap) / 2
+                          return (
+                            <g>
+                              {lines.map((ln, li) => (
+                                <text
+                                  key={li}
+                                  x={tx}
+                                  y={startY + li * gap + fs / 3}
+                                  textAnchor="middle"
+                                  style={{ fontSize: fs, fontWeight: 700, paintOrder: 'stroke' }}
+                                  stroke="#ffffff"
+                                  strokeWidth={3}
+                                  fill={edgeColor}
+                                >
+                                  {ln}
+                                </text>
+                              ))}
+                            </g>
+                          )
+                        })()}
                       </g>
                     )
                   })}
