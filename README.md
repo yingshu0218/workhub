@@ -81,3 +81,4 @@
 | 32 | 2026-09-07 | 同步机制 P0 修复入库（Issue #2，PR #6）：P0-1 墓碑清理竞态修复 + P0-2 推送侧 LWW 服务端校验 + P1-3 服务端墓碑 cron；合并 main（笔记文件夹改动），解决 PROGRESS/部署指南冲突，Changelog 编号修正 | npc/CodeBuddy |
 | 33 | 2026-09-07 | 账本功能调整（Issue #9）：账本列表移至页面左侧树（对齐笔记页）并支持拖拽排序（Ledger 增 sortOrder，DB v7，同步/collections 同步扩展）；记一笔账的关联客户/关联待办改可输入模糊匹配 | npc/CodeBuddy |
 | 33 | 2026-09-07 | 笔记模块 3 项交互修复（Issue #4 二轮验证反馈）：列表行固定行高不再随 hover 变化、tag/关联/文件夹等属性统一移到行尾、查看改为弹窗（背景虚化 + 居中卡片，卡片上编辑按钮跳转编辑视图，关闭/Esc 返回列表）；进度文档同步更新 | cnb.cMPXRmKswEA |
+| 34 | 2026-09-08 | Issue #11 客户三源统一时间轴：客户详情页沟通日志卡片重构为 interactions/transactions/todos 动态投影（无新表/无迁移），新增 /crm/:id/timeline 鱼骨时间线视图（共享 usePanZoom 缩放平移）；修复鱼骨待办/交易穿透（事件点补 recordId，/todo?focus= 与 /finance?focus= 深链定位 + 拖拽保护）；db/sync/schema 零侵入（PR #15） | npc/CodeBuddy |
