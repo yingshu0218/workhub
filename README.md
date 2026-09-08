@@ -91,3 +91,4 @@
 | 40 | 2026-09-08 | Issue #19 新增同步服务配置说明（docs/同步服务配置说明.md）：人工操作分步手册，7 处关键步骤高亮（导入 collections / 建同步账号 / 保存并连接 / 全量推送 / 备份 cron / Schema 升级后全量推送 / 安全加固），附核对清单、故障排查与打印速查卡；审计修正：collections 口径对齐当前 17 张（16 业务表 + sync_state）、校验表名补全、noteFolders 无墓碑字段事实更正 | npc/CodeBuddy(deepseek-v4-flash) |
 | 41 | 2026-09-08 | 部署指南标注环境阶段限定：8.153.19.221 为开发测试环境（正式上线非该服务器，需重新部署）；应用不硬编码服务器地址 | cnb.cMPXRmKswEA |
 | 42 | 2026-09-08 | Issue #20 表单关联字段模糊输入匹配：财务抽屉私有 MatchCombobox 提升为 design-system 共享组件（含 fuzzyMatch/fuzzySort/archivedLast 工具与归档沉底），统一替换 8 处实体关联字段（TodoPage 清单/项目/客户、财务关联项目、项目挂靠客户、笔记所属项目、客户新建关联交易去 50 条截断、dashboard 专注卡选待办）；修复不存在图标 block→person_off、客户 label 统一「公司 · 姓名」、编辑态已完成待办回显 | npc/CodeBuddy(glm-5.3-flash) |
+| 43 | 2026-09-08 | Issue #44 新建待办无反馈修复：TodoFormDrawer 新增 onSaved 回调，新建保存后若条目不在当前视图（默认「今天」仅显示当日截止项）则自动切换到「全部待办」，消除"保存成功但列表看不到"的错觉 | npc/CodeBuddy(glm-5.3-flash) |
