@@ -379,10 +379,10 @@ export async function seedIfEmpty(): Promise<boolean> {
       ...meta(),
     },
     {
-      name: '团队笔记开张',
+      name: '笔记开张',
       tier: '铜',
       rarity: '43.7%',
-      description: '创建第一篇团队笔记',
+      description: '创建第一篇笔记',
       icon: 'description',
       unlockedAt: now - 60 * 86400_000,
       ...meta(),

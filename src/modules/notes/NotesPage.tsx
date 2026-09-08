@@ -18,7 +18,7 @@ function fmtTime(ts: number): string {
 
 type Scope = { kind: 'all' } | { kind: 'folder'; folder: NoteFolder } | { kind: 'root' }
 
-/** 团队笔记列表页（文库体系：文件夹文件树 + 标签云），路由 /notes */
+/** 笔记列表页（文库体系：文件夹文件树 + 标签云），路由 /notes */
 export default function NotesPage() {
   const navigate = useNavigate()
   // 投影查询（审计 P2-6）：只取 id/title/tags/mentions/updatedAt/folderId，markdown 不进列表内存
@@ -119,7 +119,7 @@ export default function NotesPage() {
   return (
     <div className="mx-auto max-w-[1200px]">
       <PageHeader
-        title="团队笔记"
+        title="笔记"
         subtitle="文件夹体系 · Markdown 双栏编辑 · @提及实体 · 双向链接 · 智能彩色标签"
         actions={
           <Button icon="add" onClick={() => void createNote()} disabled={creating}>
