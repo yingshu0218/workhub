@@ -270,7 +270,7 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
   const panelRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
-  const onMentionKeyRef = useRef<(e: KeyboardEvent) => void>(() => {})
+  const handleMentionNavRef = useRef<(key: string) => boolean>(() => false)
   const dirtyRef = useRef(false)
 
   // ===== 自动保存：停顿 800ms 防抖 noteRepo.put =====
@@ -440,24 +440,36 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
 
   const safeActiveIdx = Math.min(activeIdx, Math.max(0, sortedMentionItems.length - 1))
 
-  // 浮层键盘导航：↑↓ 移动高亮项、Enter 插入当前高亮候选（候选为空不动作）
-  function onMentionKey(e: KeyboardEvent) {
-    if (panelProject) return
-    if (e.key === 'ArrowDown') {
-      e.preventDefault()
-      if (sortedMentionItems.length > 0)
-        setActiveIdx((safeActiveIdx + 1) % sortedMentionItems.length)
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault()
-      if (sortedMentionItems.length > 0)
-        setActiveIdx((safeActiveIdx - 1 + sortedMentionItems.length) % sortedMentionItems.length)
-    } else if (e.key === 'Enter') {
-      e.preventDefault()
+  /**
+   * 浮层键盘导航：↑↓ 移动高亮项、Enter 插入当前高亮候选、Esc 关闭。
+   * 返回是否已处理：CodeMirror keymap 据此拦截按键（防止光标移动把浮层关掉）；
+   * document 级监听兜底处理焦点不在编辑器时的按键（已 preventDefault 的事件跳过防二次触发）。
+   */
+  function handleMentionNav(key: string): boolean {
+    if (!mentionRef.current) return false
+    if (key === 'Escape') {
+      closeMention()
+      return true
+    }
+    if (panelProject) return false
+    const len = sortedMentionItems.length
+    if (len === 0) return true
+    if (key === 'ArrowDown') {
+      setActiveIdx((safeActiveIdx + 1) % len)
+      return true
+    }
+    if (key === 'ArrowUp') {
+      setActiveIdx((safeActiveIdx - 1 + len) % len)
+      return true
+    }
+    if (key === 'Enter') {
       const item = sortedMentionItems[safeActiveIdx]
       if (item) selectMentionItem(item)
+      return true
     }
+    return false
   }
-  onMentionKeyRef.current = onMentionKey
+  handleMentionNavRef.current = handleMentionNav
 
   // ===== CodeMirror 初始化（仅编辑态挂载，退出编辑即销毁，卸载前 flush 兜底已覆盖） =====
   useEffect(() => {
@@ -475,6 +487,13 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
           markdown(),
           syntaxHighlighting(defaultHighlightStyle),
           history(),
+          // 浮层键盘导航（Issue #50）：置于 defaultKeymap 之前拦截 ↑↓/Enter/Esc，光标不再移动、浮层不被误关
+          keymap.of([
+            { key: 'ArrowDown', run: () => handleMentionNavRef.current('ArrowDown') },
+            { key: 'ArrowUp', run: () => handleMentionNavRef.current('ArrowUp') },
+            { key: 'Enter', run: () => handleMentionNavRef.current('Enter') },
+            { key: 'Escape', run: () => handleMentionNavRef.current('Escape') },
+          ]),
           keymap.of([...defaultKeymap, ...historyKeymap]),
           EditorView.theme({
             '&': { height: '100%', fontSize: '13px' },
@@ -527,7 +546,10 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
                 } else {
                   const q = u.state.doc.sliceString(m.from + 1, pos)
                   if (q.length > 24 || /[\s@]/.test(q)) closeMention()
-                  else setMention({ ...m, query: q })
+                  else {
+                    setMention({ ...m, query: q })
+                    setActiveIdx(0) // 筛选词变化后高亮回到首位，Enter 语义符合直觉
+                  }
                 }
               }
             } else if (m && (pos <= m.from || pos > m.from + 1 + m.query.length)) {
@@ -554,8 +576,9 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
       closeMention()
     }
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') closeMention()
-      else onMentionKeyRef.current(e)
+      // CodeMirror keymap 已处理（preventDefault）的事件不再重复响应；IME 组合输入期间不触发选择
+      if (e.defaultPrevented || e.isComposing) return
+      handleMentionNavRef.current(e.key)
     }
     document.addEventListener('mousedown', onDown)
     document.addEventListener('keydown', onKey)
