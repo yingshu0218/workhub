@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Card, EmptyState } from '@/design-system/ui'
+import { useRecord } from '@/queries/hooks'
+import type { Customer } from '@/db/types'
+import { Avatar, Button, Card, Chip, EmptyState } from '@/design-system/ui'
 import { Icon } from '@/design-system/Icon'
 import { IDENTITY_VIEW, usePanZoom } from '../usePanZoom'
 import { useForceGraph } from './useForceGraph'
@@ -24,16 +26,27 @@ export interface GraphCanvasProps {
   legend?: React.ReactNode
   /** 是否展示「重新布局」浮动按钮（原画布页 header 行为保留） */
   showReheat?: boolean
+  /** 是否渲染业务实体节点（项目/流水/待办/笔记）与其从属边。
+   *  true=默认全景（保留现状）；false=「客户关系视图」仅展示客户节点与客户↔客户边 */
+  showEntities?: boolean
 }
 
-export default function GraphCanvas({ graph, focusId, style, legend, showReheat }: GraphCanvasProps) {
+export default function GraphCanvas({ graph, focusId, style, legend, showReheat, showEntities = true }: GraphCanvasProps) {
   const navigate = useNavigate()
   const svgRef = useRef<SVGSVGElement>(null)
   const dragIdRef = useRef<string | null>(null)
   const pointerStartRef = useRef<{ x: number; y: number } | null>(null)
   const draggedRef = useRef(false)
   const [size, setSize] = useState({ w: 0, h: 0 })
+  // 客户缩略卡（Issue #34 ②）：单击客户节点弹 HTML overlay，不画进 SVG
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   const { nodes, links, simRef } = useForceGraph({ graph, size, focusId })
+
+  // 客户关系视图开关：showEntities=false 只保留客户节点与客户↔客户边（relation/bridge）
+  const viewNodes = showEntities ? nodes : nodes.filter((n) => n.kind === 'customer')
+  const viewLinks = showEntities ? links : links.filter((l) => l.kind !== 'belongs')
+  // 卡片补全量二次订阅：CanvasGraph 裁剪投影不含 lastContactAt/decisionLevel，走 useRecord
+  const selectedCustomer = useRecord<Customer>('customers', selectedId ?? undefined)
   // 共享视图变换 hook：wheel 缩放 + 空白处拖拽平移（与时间线鱼骨页共用）
   const panZoom = usePanZoom({ size })
   const view = panZoom.view
@@ -120,7 +133,7 @@ export default function GraphCanvas({ graph, focusId, style, legend, showReheat 
 
   // 「适应画布」：重置缩放平移，使全部节点落在视口内并居中（fitView 收进公共组件）
   function fitView() {
-    const visible = nodes.filter((n) => n.x != null && n.y != null)
+    const visible = viewNodes.filter((n) => n.x != null && n.y != null)
     if (visible.length === 0 || size.w === 0 || size.h === 0) {
       panZoom.setView(IDENTITY_VIEW)
       return
@@ -156,14 +169,29 @@ export default function GraphCanvas({ graph, focusId, style, legend, showReheat 
 
   // 聚焦模式自动 fit：布局稳定后一次 fit 到当前子图（requestAnimationFrame 等首帧坐标）
   const fittedRef = useRef('')
-  const fitKey = `${focusId ?? 'all'}-${nodes.length}`
-  if (fittedRef.current !== fitKey && nodes.length > 0 && nodes.some((n) => n.x != null)) {
+  const fitKey = `${focusId ?? 'all'}-${viewNodes.length}-${showEntities ? 'e' : 'c'}`
+  if (fittedRef.current !== fitKey && viewNodes.length > 0 && viewNodes.some((n) => n.x != null)) {
     fittedRef.current = fitKey
     // 渲染期不能调 setView（会与 panZoom 内部状态竞争），推迟到下一帧
     requestAnimationFrame(fitView)
   }
 
   const empty = graph.customers.length === 0
+
+  // 客户缩略卡锚点：取选中客户节点世界坐标 → 容器像素（= svg 用户坐标，viewBox=size 1:1）
+  const selectedNode = selectedId ? viewNodes.find((n) => n.id === selectedId && n.kind === 'customer') : undefined
+  let cardStyle: React.CSSProperties | undefined
+  if (selectedNode && selectedNode.x != null && selectedNode.y != null) {
+    // 卡片置于节点上方偏右，超出容器时反向贴近边缘（clamp）
+    const px = view.tx + selectedNode.x * view.scale + 20
+    const py = view.ty + selectedNode.y * view.scale - 20
+    const CARD_W = 240
+    const left = Math.min(Math.max(8, px), Math.max(8, size.w - CARD_W - 8))
+    // 估高约 150，超出底部则翻到上方
+    let top = Math.max(8, py - 150)
+    if (top + 190 > size.h && size.h > 0) top = Math.max(8, view.ty + selectedNode.y * view.scale + 34)
+    cardStyle = { left, top }
+  }
 
   return (
     <Card className="overflow-hidden p-0">
@@ -187,6 +215,7 @@ export default function GraphCanvas({ graph, focusId, style, legend, showReheat 
           panZoom.containerProps.onPointerCancel()
           onPointerCancel()
         }}
+        onClick={() => setSelectedId(null)}
       >
         {legend}
         {empty ? (
@@ -203,7 +232,7 @@ export default function GraphCanvas({ graph, focusId, style, legend, showReheat 
             <g transform={`translate(${view.tx},${view.ty}) scale(${view.scale})`}>
               {/* 从属边（直线） */}
               <g>
-                {links
+                {viewLinks
                   .filter((l) => l.kind === 'belongs')
                   .map((l, i) => {
                     const s = l.source as GraphNode
@@ -225,7 +254,7 @@ export default function GraphCanvas({ graph, focusId, style, legend, showReheat 
               </g>
               {/* 关系边（客户↔客户）：二次贝塞尔曲线 + 虚线 + 语义标签（对齐原型 09 关系边隐喻） */}
               <g>
-                {links
+                {viewLinks
                   .filter((l) => l.kind === 'relation')
                   .map((l, i) => {
                     const s = l.source as GraphNode
@@ -262,9 +291,43 @@ export default function GraphCanvas({ graph, focusId, style, legend, showReheat 
                     )
                   })}
               </g>
+              {/* 桥接弱边（客户↔客户，二跳推导）：直线 + 细虚线 + 低不透明度，弱视觉权重不抢主线（Issue #34 ①） */}
+              <g>
+                {viewLinks
+                  .filter((l) => l.kind === 'bridge')
+                  .map((l, i) => {
+                    const s = l.source as GraphNode
+                    const t = l.target as GraphNode
+                    if (s.x == null || t.x == null || s.y == null || t.y == null) return null
+                    return (
+                      <g key={`br${i}`} opacity={0.6}>
+                        <line
+                          x1={s.x}
+                          y1={s.y}
+                          x2={t.x}
+                          y2={t.y}
+                          stroke={GRAPH_COLORS.bridge.stroke}
+                          strokeWidth={1}
+                          strokeDasharray="2 4"
+                        />
+                        {l.label && (
+                          <text
+                            x={(s.x + t.x) / 2}
+                            y={(s.y + t.y) / 2 - 6}
+                            textAnchor="middle"
+                            style={{ fontSize: 9, fontWeight: 500 }}
+                            fill={GRAPH_COLORS.bridge.text}
+                          >
+                            {l.label}
+                          </text>
+                        )}
+                      </g>
+                    )
+                  })}
+              </g>
               {/* 节点（客户最上层） */}
               <g>
-                {[...nodes]
+                {[...viewNodes]
                   .sort((a, b) => (a.kind === 'customer' ? 1 : 0) - (b.kind === 'customer' ? 1 : 0))
                   .map((n) =>
                     n.x === undefined ? null : (
@@ -273,15 +336,21 @@ export default function GraphCanvas({ graph, focusId, style, legend, showReheat 
                         transform={`translate(${n.x},${n.y})`}
                         className={n.kind === 'customer' ? 'cursor-pointer' : 'cursor-grab'}
                         onPointerDown={(e) => onNodePointerDown(e, n)}
-                        onClick={() => {
+                        onClick={(e) => {
+                          // 阻止冒泡到画布背景（背景单击关卡），节点自身不触发背景关闭
+                          e.stopPropagation()
                           // click 在 pointerup 之后派发：拖拽过的手势不触发穿透跳转，并消费标记
                           if (draggedRef.current) {
                             draggedRef.current = false
                             return
                           }
-                          // 客户/项目节点单击即跳转；其余节点走双击穿透（避免误触）
-                          if (n.kind === 'customer') navigate(`/crm/${n.id}`)
-                          if (n.kind === 'project') navigate(`/projects/${n.id.replace('proj:', '')}`)
+                          // 客户节点单击弹缩略卡（HTML overlay，②统一弹卡不跳转）；项目节点单击仍直达项目
+                          if (n.kind === 'customer') {
+                            // 再次单击已选中客户 = 关闭卡片
+                            setSelectedId((cur) => (cur === n.id ? null : n.id))
+                          } else if (n.kind === 'project') {
+                            navigate(`/projects/${n.id.replace('proj:', '')}`)
+                          }
                         }}
                         onDoubleClick={() => {
                           if (n.to) navigate(n.to)
@@ -382,7 +451,55 @@ export default function GraphCanvas({ graph, focusId, style, legend, showReheat 
             </button>
           </div>
         )}
+
+        {/* 客户缩略卡（② 统一弹卡）：HTML overlay + 屏幕坐标，不画进 SVG；数据走 useRecord 二次订阅补全量 */}
+        {selectedNode && selectedCustomer && cardStyle && (
+          <div
+            className="absolute z-20 w-60 rounded-xl border border-outline-variant/40 bg-surface-container-lowest/95 p-3 shadow-xl backdrop-blur"
+            style={cardStyle}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
+              title="关闭"
+              onClick={() => setSelectedId(null)}
+            >
+              <Icon name="close" size={15} />
+            </button>
+            <div className="flex items-center gap-2.5">
+              <Avatar name={selectedCustomer.name} size={34} />
+              <div className="min-w-0">
+                <div className="truncate text-[14px] font-bold text-on-surface">{selectedCustomer.name}</div>
+                {selectedCustomer.company && (
+                  <div className="truncate text-[11px] text-on-surface-variant">{selectedCustomer.company}</div>
+                )}
+              </div>
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              <Chip tone={selectedCustomer.tier === 'S' ? 'red' : selectedCustomer.tier === 'A' ? 'blue' : 'gray'}>{`Tier ${selectedCustomer.tier}`}</Chip>
+              <Chip tone="gray">{selectedCustomer.decisionLevel}</Chip>
+            </div>
+            <div className="mt-2 grid grid-cols-2 gap-x-2 gap-y-1 text-[11px] text-on-surface-variant">
+              <span>健康分</span>
+              <span className="text-right font-semibold tabular-nums">{selectedCustomer.healthScore}</span>
+              <span>最近联系</span>
+              <span className="text-right font-medium tabular-nums">
+                {selectedCustomer.lastContactAt ? new Date(selectedCustomer.lastContactAt).toLocaleDateString('zh-CN') : '—'}
+              </span>
+            </div>
+            <div className="mt-3 flex gap-1.5">
+              <Button size="sm" variant="tonal" icon="person" className="flex-1 justify-center" onClick={() => navigate(`/crm/${selectedCustomer.id}`)}>
+                进入档案
+              </Button>
+              <Button size="sm" variant="ghost" icon="hub" className="flex-1 justify-center" onClick={() => navigate(`/crm/${selectedCustomer.id}/graph`)}>
+                图谱
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     </Card>
   )
 }
+

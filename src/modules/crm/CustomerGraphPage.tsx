@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useRecord } from '@/queries/hooks'
 import type { Customer } from '@/db/types'
@@ -15,6 +16,8 @@ export default function CustomerGraphPage() {
   const navigate = useNavigate()
   const customer = useRecord<Customer>('customers', id)
   const graph = useCanvasGraph()
+  // 「客户关系视图」开关：与全景页同款（Issue #34 ③，行为统一）
+  const [showEntities, setShowEntities] = useState(true)
 
   const focus = graph.customers.find((c) => c.id === id)
   const relCount = focus?.relations.length ?? 0
@@ -38,6 +41,13 @@ export default function CustomerGraphPage() {
         subtitle="以该客户为主体的星型聚焦视图：业务实体 + 关联客户参与布局，二跳以外已裁剪"
         actions={
           <>
+            <Button
+              variant={showEntities ? 'primary' : 'ghost'}
+              icon="hub"
+              onClick={() => setShowEntities((v) => !v)}
+            >
+              {showEntities ? '客户关系视图' : '全景视图'}
+            </Button>
             <Button variant="ghost" icon="arrow_back" onClick={() => navigate(`/crm/${customer.id}`)}>
               返回档案
             </Button>
@@ -54,7 +64,7 @@ export default function CustomerGraphPage() {
         <Chip tone="gray" icon="description">{`关联笔记 ${graph.notes.filter((n) => n.customerId === id).length}`}</Chip>
         <Chip tone="red" icon="link">{`关联客户 ${relCount}`}</Chip>
         <span className="ml-2 text-[11px] text-outline">
-          虚线弧边为客户间语义关系 · 单击客户节点跳转 · 按住拖拽 · 滚轮缩放
+          虚线弧边为客户间语义关系 · 单击客户节点弹卡 · 按住拖拽 · 滚轮缩放
         </span>
       </div>
 
@@ -62,6 +72,7 @@ export default function CustomerGraphPage() {
         graph={graph}
         focusId={id}
         style={{ height: 'calc(100vh - 16rem)', minHeight: 380 }}
+        showEntities={showEntities}
       />
     </div>
   )
