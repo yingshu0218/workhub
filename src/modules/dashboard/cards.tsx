@@ -22,7 +22,7 @@ export function FocusCard() {
   const customers = useCollection<Customer>('customers')
   const ledgers = useCollection<Ledger>('ledgers')
   const doing = todos.find((t) => t.id === focus.todoId)
-  const openTodos = todos.filter((t) => t.status !== 'done' && t.id !== focus.todoId)
+  const openTodos = todos.filter((t) => t.status !== 'done')
 
   // 专注进行中时的关联实体引用（对齐原型 01）：无关联则不显示
   const refCustomer = doing?.customerId ? customers.find((c) => c.id === doing.customerId) : undefined
