@@ -120,10 +120,18 @@ export default function CustomerTimelinePage() {
       <div className="mx-auto max-w-[1200px]">
         <PageHeader
           title="客户时间线"
-          actions={<Button variant="ghost" icon="arrow_back" onClick={() => navigate('/crm')}>返回列表</Button>}
+          actions={
+            <Button variant="ghost" icon="arrow_back" onClick={() => navigate('/crm')}>
+              返回列表
+            </Button>
+          }
         />
         <Card className="p-6">
-          <EmptyState icon="person_off" title="客户不存在或已删除" description="可能已被移除，返回列表查看其他客户" />
+          <EmptyState
+            icon="person_off"
+            title="客户不存在或已删除"
+            description="可能已被移除，返回列表查看其他客户"
+          />
         </Card>
       </div>
     )
@@ -140,13 +148,22 @@ export default function CustomerTimelinePage() {
         subtitle={`${customer.name} · 建档至今的沟通、财务与事件全息鱼骨视图，单源投影与详情页一致`}
         actions={
           <>
-            <Button variant="ghost" icon="arrow_back" onClick={() => navigate(`/crm/${customer.id}`)}>
+            <Button
+              variant="ghost"
+              icon="arrow_back"
+              onClick={() => navigate(`/crm/${customer.id}`)}
+            >
               返回档案
             </Button>
             <Button variant="tonal" icon="timeline" onClick={() => navigate('/crm/timeline-all')}>
               查看全部时间线 →
             </Button>
-            <Button variant="ghost" icon="settings_backup_restore" onClick={fitView} disabled={!layout}>
+            <Button
+              variant="ghost"
+              icon="settings_backup_restore"
+              onClick={fitView}
+              disabled={!layout}
+            >
               适应画布
             </Button>
           </>
@@ -198,12 +215,31 @@ export default function CustomerTimelinePage() {
             >
               <g transform={`translate(${view.tx},${view.ty}) scale(${view.scale})`}>
                 {/* 主轴：建档至今 */}
-                <line x1={spineX1} y1={SPINE_Y} x2={spineX2} y2={SPINE_Y} stroke={SPINE_STROKE} strokeWidth={SPINE_W} strokeLinecap="round" />
+                <line
+                  x1={spineX1}
+                  y1={SPINE_Y}
+                  x2={spineX2}
+                  y2={SPINE_Y}
+                  stroke={SPINE_STROKE}
+                  strokeWidth={SPINE_W}
+                  strokeLinecap="round"
+                />
                 {/* 主轴起止刻度 */}
-                <text x={spineX1} y={SPINE_Y + 22} style={{ fontSize: 11, fontWeight: 600 }} fill="#434655">
+                <text
+                  x={spineX1}
+                  y={SPINE_Y + 22}
+                  style={{ fontSize: 11, fontWeight: 600 }}
+                  fill="#434655"
+                >
                   建档 {dayjs(customer.createdAt).format('YYYY-MM-DD')}
                 </text>
-                <text x={spineX2} y={SPINE_Y - 14} textAnchor="end" style={{ fontSize: 11, fontWeight: 600 }} fill="#434655">
+                <text
+                  x={spineX2}
+                  y={SPINE_Y - 14}
+                  textAnchor="end"
+                  style={{ fontSize: 11, fontWeight: 600 }}
+                  fill="#434655"
+                >
                   至今
                 </text>
 
@@ -258,7 +294,14 @@ export default function CustomerTimelinePage() {
                         stroke={b.color}
                         strokeWidth={hover === b ? 2.4 : 1.6}
                       />
-                      <circle cx={b.x} cy={SPINE_Y} r={5} fill={b.fill} stroke={b.color} strokeWidth={1.4} />
+                      <circle
+                        cx={b.x}
+                        cy={SPINE_Y}
+                        r={5}
+                        fill={b.fill}
+                        stroke={b.color}
+                        strokeWidth={1.4}
+                      />
                       {/* 端点标签（金额/类型） */}
                       <text
                         x={b.x + 44}
@@ -283,11 +326,29 @@ export default function CustomerTimelinePage() {
                     strokeWidth={1.8}
                   />
                   {/* 头像圆 + 姓名 + 阶段 */}
-                  <circle cx={34} cy={HEAD_H / 2 - 34} r={15} fill="#dbe1ff" stroke="#004ac6" strokeWidth={1.4} />
-                  <text x={34} y={HEAD_H / 2 - 29} textAnchor="middle" style={{ fontSize: 13, fontWeight: 700 }} fill="#004ac6">
+                  <circle
+                    cx={34}
+                    cy={HEAD_H / 2 - 34}
+                    r={15}
+                    fill="#dbe1ff"
+                    stroke="#004ac6"
+                    strokeWidth={1.4}
+                  />
+                  <text
+                    x={34}
+                    y={HEAD_H / 2 - 29}
+                    textAnchor="middle"
+                    style={{ fontSize: 13, fontWeight: 700 }}
+                    fill="#004ac6"
+                  >
                     {customer.name.slice(0, 1)}
                   </text>
-                  <text x={58} y={HEAD_H / 2 - 38} style={{ fontSize: 13, fontWeight: 700 }} fill="#0b1c30">
+                  <text
+                    x={58}
+                    y={HEAD_H / 2 - 38}
+                    style={{ fontSize: 13, fontWeight: 700 }}
+                    fill="#0b1c30"
+                  >
                     {customer.name.slice(0, 6)}
                   </text>
                   <text x={58} y={HEAD_H / 2 - 23} style={{ fontSize: 10 }} fill="#434655">
@@ -296,7 +357,13 @@ export default function CustomerTimelinePage() {
                   {/* tier 徽章 */}
                   <g transform={`translate(20,${HEAD_H / 2 - 10})`}>
                     <rect rx={9} width={52} height={18} fill={tierFill(customer.tier)} />
-                    <text x={26} y={13} textAnchor="middle" style={{ fontSize: 10, fontWeight: 700 }} fill="#fff">
+                    <text
+                      x={26}
+                      y={13}
+                      textAnchor="middle"
+                      style={{ fontSize: 10, fontWeight: 700 }}
+                      fill="#fff"
+                    >
                       {customer.tier === '潜在' ? '潜在' : `${customer.tier} 层`}
                     </text>
                   </g>
@@ -318,7 +385,7 @@ export default function CustomerTimelinePage() {
           {/* hover 浮层摘要 */}
           {hover && (
             <div
-              className="pointer-events-none absolute z-10 max-w-[280px] rounded-xl border border-outline-variant/40 bg-surface-container-lowest/95 px-3 py-2 shadow-md backdrop-blur"
+              className="pointer-events-none absolute z-10 max-w-[280px] surface-card-xl bg-surface-container-lowest/95 px-3 py-2 shadow-md backdrop-blur"
               style={{ left: 16, bottom: 16 }}
             >
               <div className="flex items-center gap-1.5">
@@ -334,16 +401,28 @@ export default function CustomerTimelinePage() {
                           : 'amber'
                         : 'blue'
                   }
-                  icon={hover.event.kind === 'interaction' ? TYPE_ICONS[hover.event.type] : undefined}
+                  icon={
+                    hover.event.kind === 'interaction' ? TYPE_ICONS[hover.event.type] : undefined
+                  }
                 >
                   {hover.label}
                 </Chip>
                 {hover.event.kind === 'todo' && (
-                  <Chip tone={hover.event.priority === 'P1' ? 'red' : hover.event.priority === 'P2' ? 'amber' : 'gray'}>
+                  <Chip
+                    tone={
+                      hover.event.priority === 'P1'
+                        ? 'red'
+                        : hover.event.priority === 'P2'
+                          ? 'amber'
+                          : 'gray'
+                    }
+                  >
                     {hover.event.priority}
                   </Chip>
                 )}
-                {hover.event.kind === 'transaction' && hover.event.status === '待对账' && <Chip tone="gray">待对账</Chip>}
+                {hover.event.kind === 'transaction' && hover.event.status === '待对账' && (
+                  <Chip tone="gray">待对账</Chip>
+                )}
               </div>
               <div className="mt-1 text-[12px] leading-relaxed text-on-surface">{hover.sub}</div>
               {boneTarget(hover.event) && (
@@ -358,7 +437,7 @@ export default function CustomerTimelinePage() {
           {/* 右下角缩放控件（与画布页一致） */}
           {layout && (
             <div
-              className="absolute bottom-3 right-3 z-10 flex items-center gap-0.5 rounded-xl border border-outline-variant/40 bg-surface-container-lowest/95 px-1.5 py-1 shadow-md backdrop-blur"
+              className="absolute bottom-3 right-3 z-10 flex items-center gap-0.5 surface-card-xl bg-surface-container-lowest/95 px-1.5 py-1 shadow-md backdrop-blur"
               onPointerDown={(e) => e.stopPropagation()}
             >
               <button
@@ -434,7 +513,13 @@ function HealthRingSvg({ score, color, r }: { score: number; color: string; r: n
         strokeDasharray={`${(score / 100) * circ} ${circ}`}
         transform={`rotate(-90 ${c} ${c})`}
       />
-      <text x={c} y={c + 4} textAnchor="middle" style={{ fontSize: 12, fontWeight: 700 }} fill="#0b1c30">
+      <text
+        x={c}
+        y={c + 4}
+        textAnchor="middle"
+        style={{ fontSize: 12, fontWeight: 700 }}
+        fill="#0b1c30"
+      >
         {score}
       </text>
     </svg>

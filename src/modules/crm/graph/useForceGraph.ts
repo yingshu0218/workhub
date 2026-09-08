@@ -30,7 +30,14 @@ export interface ForceGraphOptions {
   onLayoutSettled?: () => void
 }
 
-export function useForceGraph({ graph, size, focusId, mode, categories, onLayoutSettled }: ForceGraphOptions) {
+export function useForceGraph({
+  graph,
+  size,
+  focusId,
+  mode,
+  categories,
+  onLayoutSettled,
+}: ForceGraphOptions) {
   const [nodes, setNodes] = useState<GraphNode[]>([])
   const [links, setLinks] = useState<GraphLink[]>([])
   const simRef = useRef<Simulation<GraphNode, undefined> | null>(null)
@@ -70,7 +77,10 @@ export function useForceGraph({ graph, size, focusId, mode, categories, onLayout
             if (l.kind === 'relation') return 60
             // 二跳桥接弱边：距离放宽，让主线结构优先、桥接不抢布局
             if (l.kind === 'bridge') return 110
-            return (l.source as GraphNode).kind === 'customer' || (l.target as GraphNode).kind === 'customer' ? 90 : 70
+            return (l.source as GraphNode).kind === 'customer' ||
+              (l.target as GraphNode).kind === 'customer'
+              ? 90
+              : 70
           })
           .strength((l) => {
             // 强关联：实线语义关系给强束缚；桥接弱边给极低强度，近似只做「轻引力」不硬拽
@@ -81,7 +91,10 @@ export function useForceGraph({ graph, size, focusId, mode, categories, onLayout
       )
       .force('charge', forceManyBody().strength(-320))
       .force('center', forceCenter(size.w / 2, size.h / 2))
-      .force('collide', forceCollide<GraphNode>().radius((d) => d.radius + 14))
+      .force(
+        'collide',
+        forceCollide<GraphNode>().radius((d) => d.radius + 14),
+      )
       .alphaDecay(0.03)
       // alphaMin 提到 0.06：仿真自然收敛更快（默认 0.001 要 ~300 tick，约 5s 才稳定，
       // 首屏期间节点长漂移导致 fit 追不上「丢失焦点」；0.06 时 ~90 tick 内收敛，仍足以摊开重叠）

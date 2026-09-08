@@ -733,7 +733,7 @@ function TransactionDetailDrawer({
                 {attachments.map((a) => (
                   <div
                     key={a.id}
-                    className="flex items-center justify-between rounded-lg border border-outline-variant/40 px-3 py-2"
+                    className="flex items-center justify-between surface-card !bg-transparent px-3 py-2"
                   >
                     <div className="flex min-w-0 items-center gap-2">
                       <Icon name="description" className="text-[18px] text-primary" />

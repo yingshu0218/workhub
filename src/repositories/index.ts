@@ -104,7 +104,11 @@ export const settingsRepo = {
         key: 'singleton',
         appearance: { ...DEFAULT_SETTINGS.appearance, ...prev?.appearance, ...patch.appearance },
         typography: { ...DEFAULT_SETTINGS.typography, ...prev?.typography, ...patch.typography },
-        notifications: { ...DEFAULT_SETTINGS.notifications, ...prev?.notifications, ...patch.notifications },
+        notifications: {
+          ...DEFAULT_SETTINGS.notifications,
+          ...prev?.notifications,
+          ...patch.notifications,
+        },
         security: { ...DEFAULT_SETTINGS.security, ...prev?.security, ...patch.security },
         sync: { ...DEFAULT_SETTINGS.sync, ...prev?.sync, ...patch.sync },
       }
@@ -129,15 +133,13 @@ export async function resetAndSeedLocalData(): Promise<void> {
     await syncEngine.syncNow('pre-reset')
     const pendingAfter = await db.syncQueue.filter((p) => !p.sentAt).count()
     if (pendingAfter > 0) {
-      throw new Error(`仍有 ${pendingAfter} 条变更未能推送到服务器，已中止清空以保护数据。请检查网络或同步配置后重试。`)
+      throw new Error(
+        `仍有 ${pendingAfter} 条变更未能推送到服务器，已中止清空以保护数据。请检查网络或同步配置后重试。`,
+      )
     }
   }
   // 逐表清空（settings 豁免），替代整库 delete，保留设置 singleton
-  await Promise.all(
-    db.tables
-      .filter((t) => t.name !== 'settings')
-      .map((t) => t.clear()),
-  )
+  await Promise.all(db.tables.filter((t) => t.name !== 'settings').map((t) => t.clear()))
   const { seedIfEmpty } = await import('@/db/seed')
   await seedIfEmpty()
 }
@@ -158,10 +160,23 @@ export function habitLogId(habitId: string, date: string): string {
  * @returns 实际写入的记录总数
  */
 const RESTORE_TABLES = [
-  'workspaces', 'customers', 'interactions', 'ledgers', 'transactions',
-  'todos', 'notes', 'quickNotes', 'habits', 'habitLogs', 'trophies',
-  'attachments', 'focusSessions', 'todoLists', 'noteFolders',
-  'projects', 'projectMilestones',
+  'workspaces',
+  'customers',
+  'interactions',
+  'ledgers',
+  'transactions',
+  'todos',
+  'notes',
+  'quickNotes',
+  'habits',
+  'habitLogs',
+  'trophies',
+  'attachments',
+  'focusSessions',
+  'todoLists',
+  'noteFolders',
+  'projects',
+  'projectMilestones',
 ] as const
 
 /** base64 dataUrl → Blob（附件恢复用，不依赖网络） */
@@ -177,9 +192,12 @@ function dataUrlToBlob(dataUrl: string): Blob {
 /** 存档附件行（dataUrl 承载）→ 本地附件记录（blob 承载） */
 function attachmentRowToRecord(row: Record<string, unknown>): Attachment | null {
   const { dataUrl, ...rest } = row
-  const blob = typeof dataUrl === 'string' && dataUrl.startsWith('data:')
-    ? dataUrlToBlob(dataUrl)
-    : (rest.blob instanceof Blob ? rest.blob : null)
+  const blob =
+    typeof dataUrl === 'string' && dataUrl.startsWith('data:')
+      ? dataUrlToBlob(dataUrl)
+      : rest.blob instanceof Blob
+        ? rest.blob
+        : null
   if (!blob || typeof rest.id !== 'string') return null
   return {
     id: rest.id,
@@ -198,7 +216,12 @@ export async function restoreFromJson(payload: unknown): Promise<number> {
     app?: string
     data?: Partial<Record<(typeof RESTORE_TABLES)[number], unknown[]>>
   } | null
-  if (!parsed || parsed.app !== 'nexus-workspace' || !parsed.data || typeof parsed.data !== 'object') {
+  if (
+    !parsed ||
+    parsed.app !== 'nexus-workspace' ||
+    !parsed.data ||
+    typeof parsed.data !== 'object'
+  ) {
     throw new Error('所选文件不是本工作台导出的 JSON 存档（缺少 app / data 字段）')
   }
   let count = 0
@@ -286,38 +309,34 @@ export async function saveTransactionWithAttachments(
   attachments: PutInput<Attachment>[] = [],
 ): Promise<string> {
   const now = Date.now()
-  await db.transaction(
-    'rw',
-    [db.transactions, db.attachments, db.syncQueue],
-    async () => {
-      const putStamped = async <T extends { id: string }>(
-        tableName: 'transactions' | 'attachments',
-        record: T & Partial<SyncMeta>,
-      ) => {
-        const table = db[tableName] as unknown as {
-          get(id: string): Promise<(T & SyncMeta) | undefined>
-          put(value: T): Promise<string>
-        }
-        const prev = await table.get(record.id)
-        await table.put({
-          ...record,
-          updatedAt: now,
-          rev: (prev?.rev ?? 0) + 1,
-          deleted: 0 as const,
-        } as T)
-        await db.syncQueue.add({
-          table: tableName,
-          recordId: record.id,
-          op: 'upsert',
-          createdAt: now,
-        })
+  await db.transaction('rw', [db.transactions, db.attachments, db.syncQueue], async () => {
+    const putStamped = async <T extends { id: string }>(
+      tableName: 'transactions' | 'attachments',
+      record: T & Partial<SyncMeta>,
+    ) => {
+      const table = db[tableName] as unknown as {
+        get(id: string): Promise<(T & SyncMeta) | undefined>
+        put(value: T): Promise<string>
       }
-      await putStamped('transactions', txn as Transaction & Partial<SyncMeta>)
-      for (const att of attachments) {
-        await putStamped('attachments', att as Attachment & Partial<SyncMeta>)
-      }
-    },
-  )
+      const prev = await table.get(record.id)
+      await table.put({
+        ...record,
+        updatedAt: now,
+        rev: (prev?.rev ?? 0) + 1,
+        deleted: 0 as const,
+      } as T)
+      await db.syncQueue.add({
+        table: tableName,
+        recordId: record.id,
+        op: 'upsert',
+        createdAt: now,
+      })
+    }
+    await putStamped('transactions', txn as Transaction & Partial<SyncMeta>)
+    for (const att of attachments) {
+      await putStamped('attachments', att as Attachment & Partial<SyncMeta>)
+    }
+  })
   syncEngine.requestSync()
   return txn.id
 }
@@ -332,46 +351,42 @@ export async function saveInteractionAndTouchCustomer(
   customerId: string,
 ): Promise<string> {
   const now = Date.now()
-  await db.transaction(
-    'rw',
-    [db.interactions, db.customers, db.syncQueue],
-    async () => {
-      const interactionTable = db.interactions as unknown as {
-        get(id: string): Promise<(Interaction & SyncMeta) | undefined>
-        put(value: Interaction): Promise<string>
-      }
-      const prevInteraction = await interactionTable.get(interaction.id)
-      await interactionTable.put({
-        ...interaction,
-        updatedAt: now,
-        rev: (prevInteraction?.rev ?? 0) + 1,
-        deleted: 0 as const,
-      } as Interaction)
-      await db.syncQueue.add({
-        table: 'interactions',
-        recordId: interaction.id,
-        op: 'upsert',
-        createdAt: now,
-      })
+  await db.transaction('rw', [db.interactions, db.customers, db.syncQueue], async () => {
+    const interactionTable = db.interactions as unknown as {
+      get(id: string): Promise<(Interaction & SyncMeta) | undefined>
+      put(value: Interaction): Promise<string>
+    }
+    const prevInteraction = await interactionTable.get(interaction.id)
+    await interactionTable.put({
+      ...interaction,
+      updatedAt: now,
+      rev: (prevInteraction?.rev ?? 0) + 1,
+      deleted: 0 as const,
+    } as Interaction)
+    await db.syncQueue.add({
+      table: 'interactions',
+      recordId: interaction.id,
+      op: 'upsert',
+      createdAt: now,
+    })
 
-      const prevCustomer = await db.customers.get(customerId)
-      if (!prevCustomer || prevCustomer.deleted) {
-        // 客户不存在/已删除：抛错让整个事务回滚，杜绝孤儿日志
-        throw new Error(`saveInteractionAndTouchCustomer: customer ${customerId} not found`)
-      }
-      await db.customers.update(customerId, {
-        lastContactAt: interaction.at,
-        updatedAt: now,
-        rev: prevCustomer.rev + 1,
-      })
-      await db.syncQueue.add({
-        table: 'customers',
-        recordId: customerId,
-        op: 'upsert',
-        createdAt: now,
-      })
-    },
-  )
+    const prevCustomer = await db.customers.get(customerId)
+    if (!prevCustomer || prevCustomer.deleted) {
+      // 客户不存在/已删除：抛错让整个事务回滚，杜绝孤儿日志
+      throw new Error(`saveInteractionAndTouchCustomer: customer ${customerId} not found`)
+    }
+    await db.customers.update(customerId, {
+      lastContactAt: interaction.at,
+      updatedAt: now,
+      rev: prevCustomer.rev + 1,
+    })
+    await db.syncQueue.add({
+      table: 'customers',
+      recordId: customerId,
+      op: 'upsert',
+      createdAt: now,
+    })
+  })
   syncEngine.requestSync()
   return interaction.id
 }
@@ -426,10 +441,7 @@ export async function deleteCustomerCascade(customerId: string): Promise<void> {
         })
       }
 
-      const txns = await db.transactions
-        .where('customerId')
-        .equals(customerId)
-        .toArray()
+      const txns = await db.transactions.where('customerId').equals(customerId).toArray()
       for (const txn of txns) {
         if (txn.deleted) continue
         await db.transactions.update(txn.id, {
@@ -445,10 +457,7 @@ export async function deleteCustomerCascade(customerId: string): Promise<void> {
         })
       }
 
-      const todos = await db.todos
-        .where('customerId')
-        .equals(customerId)
-        .toArray()
+      const todos = await db.todos.where('customerId').equals(customerId).toArray()
       for (const todo of todos) {
         if (todo.deleted) continue
         await db.todos.update(todo.id, {
@@ -485,10 +494,7 @@ export async function deleteCustomerCascade(customerId: string): Promise<void> {
       }
 
       // 解绑名下项目：项目不随客户消失，只清挂靠关系（弱引用语义，画布/CRM 下钻不悬挂）
-      const projects = await db.projects
-        .where('customerId')
-        .equals(customerId)
-        .toArray()
+      const projects = await db.projects.where('customerId').equals(customerId).toArray()
       for (const proj of projects) {
         if (proj.deleted) continue
         await db.projects.update(proj.id, {

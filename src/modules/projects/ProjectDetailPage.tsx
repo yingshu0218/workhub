@@ -129,7 +129,7 @@ export default function ProjectDetailPage() {
                 </div>
                 {customer && (
                   <button
-                    className="mt-2 flex items-center gap-2 rounded-lg border border-outline-variant/40 px-2.5 py-1.5 text-left transition-colors hover:border-primary"
+                    className="mt-2 flex items-center gap-2 surface-card !bg-transparent px-2.5 py-1.5 text-left transition-colors hover:border-primary"
                     onClick={() => navigate(`/crm/${customer.id}`)}
                   >
                     <Avatar name={customer.name} size={22} />
@@ -321,7 +321,7 @@ export default function ProjectDetailPage() {
                   <button
                     key={n.id}
                     onClick={() => navigate(`/notes/${n.id}`)}
-                    className="flex w-full items-center gap-2 rounded-lg border border-outline-variant/40 px-3 py-2 text-left text-[12.5px] transition-colors hover:border-primary"
+                    className="flex w-full items-center gap-2 surface-card !bg-transparent px-3 py-2 text-left text-[12.5px] transition-colors hover:border-primary"
                   >
                     <Icon name="article" size={15} className="shrink-0 text-primary" />
                     <span className="min-w-0 flex-1 truncate">{n.title || '未命名笔记'}</span>
@@ -478,7 +478,7 @@ function MilestoneCard({
       </div>
 
       {adding && (
-        <div className="mb-3 space-y-2 rounded-xl border border-outline-variant/40 p-3">
+        <div className="mb-3 space-y-2 surface-card-xl !bg-transparent p-3">
           <input
             className={inputCls}
             value={name}

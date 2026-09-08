@@ -29,33 +29,45 @@ export default function DashboardPage() {
       <PageHeader
         title={`${greeting}，陈致远`}
         subtitle={dayjs().format('M月D日 dddd')}
-        actions={<Button icon="post_add" variant="ghost">记一笔</Button>}
+        actions={
+          <Button icon="post_add" variant="ghost">
+            记一笔
+          </Button>
+        }
       />
 
       <div className="grid grid-cols-4 gap-4">
         <Card className="p-4">
-          <div className="text-[12px] font-medium uppercase tracking-wide text-outline">深度专注</div>
+          <div className="text-[12px] font-medium uppercase tracking-wide text-outline">
+            深度专注
+          </div>
           <div className="mt-1 text-[26px] font-bold text-primary">
             {focusMinutes}
             <span className="text-[13px] text-outline"> 分钟</span>
           </div>
         </Card>
         <Card className="p-4">
-          <div className="text-[12px] font-medium uppercase tracking-wide text-outline">待办达成</div>
+          <div className="text-[12px] font-medium uppercase tracking-wide text-outline">
+            待办达成
+          </div>
           <div className="mt-1 text-[26px] font-bold">
             {doneToday}
             <span className="text-[13px] text-outline"> / {doneToday + openToday}</span>
           </div>
         </Card>
         <Card className="p-4">
-          <div className="text-[12px] font-medium uppercase tracking-wide text-outline">习惯连击</div>
+          <div className="text-[12px] font-medium uppercase tracking-wide text-outline">
+            习惯连击
+          </div>
           <div className="mt-1 text-[26px] font-bold text-warning">
             {bestStreak}
             <span className="text-[13px] text-outline"> 天</span>
           </div>
         </Card>
         <Card className="p-4">
-          <div className="text-[12px] font-medium uppercase tracking-wide text-outline">累计收款</div>
+          <div className="text-[12px] font-medium uppercase tracking-wide text-outline">
+            累计收款
+          </div>
           <div className="mt-1 text-[26px] font-bold text-success">
             ¥{income >= 10000 ? `${(income / 10000).toFixed(1)}万` : income.toLocaleString()}
           </div>

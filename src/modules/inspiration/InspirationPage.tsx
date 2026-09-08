@@ -15,11 +15,31 @@ import type { CandidateKind, InspirationCandidate } from './engine'
  */
 
 const KIND_META: Record<CandidateKind, { chip: string; tone: string; icon: string }> = {
-  'overdue-todo': { chip: '待办灵感 · 临界推进', tone: 'bg-danger-container text-danger border-danger/30', icon: 'priority_high' },
-  'due-todo': { chip: '待办日程 · 今日到期', tone: 'bg-warning-container text-warning border-warning/30', icon: 'schedule' },
-  reconciliation: { chip: '财务灵感 · 待对账', tone: 'bg-success-container/60 text-success border-success/30', icon: 'account_balance_wallet' },
-  'stale-customer': { chip: '人脉灵感 · 久未跟进', tone: 'bg-primary-fixed text-primary border-primary/30', icon: 'handshake' },
-  'stale-note': { chip: '笔记灵感 · 沉睡文库', tone: 'bg-primary-container text-on-primary-container border-primary/40', icon: 'auto_stories' },
+  'overdue-todo': {
+    chip: '待办灵感 · 临界推进',
+    tone: 'bg-danger-container text-danger border-danger/30',
+    icon: 'priority_high',
+  },
+  'due-todo': {
+    chip: '待办日程 · 今日到期',
+    tone: 'bg-warning-container text-warning border-warning/30',
+    icon: 'schedule',
+  },
+  reconciliation: {
+    chip: '财务灵感 · 待对账',
+    tone: 'bg-success-container/60 text-success border-success/30',
+    icon: 'account_balance_wallet',
+  },
+  'stale-customer': {
+    chip: '人脉灵感 · 久未跟进',
+    tone: 'bg-primary-fixed text-primary border-primary/30',
+    icon: 'handshake',
+  },
+  'stale-note': {
+    chip: '笔记灵感 · 沉睡文库',
+    tone: 'bg-primary-container text-on-primary-container border-primary/40',
+    icon: 'auto_stories',
+  },
 }
 
 /** 候选池开关（对齐原型 02 底部）：kind → 池 key 归组 */
@@ -49,7 +69,14 @@ function MatchRing({ pct }: { pct: number }) {
   return (
     <div className="relative h-16 w-16 shrink-0">
       <svg viewBox="0 0 64 64" className="h-16 w-16 -rotate-90">
-        <circle cx="32" cy="32" r={r} fill="none" stroke="var(--color-outline-variant)" strokeWidth="5" />
+        <circle
+          cx="32"
+          cy="32"
+          r={r}
+          fill="none"
+          stroke="var(--color-outline-variant)"
+          strokeWidth="5"
+        />
         <circle
           cx="32"
           cy="32"
@@ -85,7 +112,10 @@ export default function InspirationPage() {
   })
 
   const candidates = useMemo(
-    () => buildCandidates({ todos, transactions, customers, notes }).filter((c) => pools[poolOfKind(c.kind)]),
+    () =>
+      buildCandidates({ todos, transactions, customers, notes }).filter(
+        (c) => pools[poolOfKind(c.kind)],
+      ),
     [todos, transactions, customers, notes, pools],
   )
   const [idx, setIdx] = useState(0)
@@ -161,9 +191,24 @@ export default function InspirationPage() {
   handlersRef.current = { next, startFocus, navigate }
   useEffect(() => {
     const unsubs = [
-      registerShortcut({ combo: 'space', description: '灵感闪现：换一个', scope: 'page', handler: () => handlersRef.current.next() }),
-      registerShortcut({ combo: 'enter', description: '灵感闪现：开始专注执行', scope: 'page', handler: () => handlersRef.current.startFocus() }),
-      registerShortcut({ combo: 'esc', description: '灵感闪现：退出回工作台', scope: 'page', handler: () => handlersRef.current.navigate('/') }),
+      registerShortcut({
+        combo: 'space',
+        description: '灵感闪现：换一个',
+        scope: 'page',
+        handler: () => handlersRef.current.next(),
+      }),
+      registerShortcut({
+        combo: 'enter',
+        description: '灵感闪现：开始专注执行',
+        scope: 'page',
+        handler: () => handlersRef.current.startFocus(),
+      }),
+      registerShortcut({
+        combo: 'esc',
+        description: '灵感闪现：退出回工作台',
+        scope: 'page',
+        handler: () => handlersRef.current.navigate('/'),
+      }),
     ]
     return () => unsubs.forEach((u) => u())
   }, [])
@@ -186,7 +231,9 @@ export default function InspirationPage() {
           </div>
           <div>
             <div className="text-[13.5px] font-bold leading-tight">寻鸽工作台</div>
-            <div className="text-[10px] uppercase tracking-widest text-outline">Nexus Workspace</div>
+            <div className="text-[10px] uppercase tracking-widest text-outline">
+              Nexus Workspace
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -194,7 +241,7 @@ export default function InspirationPage() {
             ● 算法置信度 {topMatch}%
           </span>
           <button
-            className="flex h-8 items-center gap-1.5 rounded-lg border border-outline-variant/60 px-3 text-[12px] text-on-surface-variant transition-colors hover:border-primary hover:text-primary"
+            className="flex h-8 items-center gap-1.5 nav-item !bg-transparent px-3 text-[12px] text-on-surface-variant transition-colors hover:border-primary hover:text-primary"
             onClick={() => navigate('/')}
           >
             <Icon name="keyboard_return" size={15} />
@@ -234,7 +281,9 @@ export default function InspirationPage() {
                       <span className="text-[10.5px] font-semibold uppercase tracking-[0.18em] text-outline">
                         Inspiration Flash
                       </span>
-                      <kbd className="rounded bg-surface-container-high px-1.5 text-[10px] text-on-surface-variant">⌘J</kbd>
+                      <kbd className="rounded bg-surface-container-high px-1.5 text-[10px] text-on-surface-variant">
+                        ⌘J
+                      </kbd>
                     </div>
                     <p className="mt-1 max-w-[520px] text-[12px] leading-relaxed text-on-surface-variant">
                       从待办事项、久未跟进客户、待对账流水与今日日程中，综合截止时限与商务权重，抽出当下最值得推进的事。
@@ -242,7 +291,7 @@ export default function InspirationPage() {
                   </div>
                 </div>
                 <button
-                  className="flex shrink-0 items-center gap-1.5 rounded-lg border border-outline-variant/60 bg-surface-container px-3 py-1.5 text-[12px] text-on-surface-variant hover:border-primary hover:text-primary"
+                  className="flex shrink-0 items-center gap-1.5 surface-card-low !bg-surface-container px-3 py-1.5 text-[12px] text-on-surface-variant hover:border-primary hover:text-primary"
                   onClick={next}
                 >
                   <Icon name="shuffle" size={15} />
@@ -252,11 +301,16 @@ export default function InspirationPage() {
             </div>
 
             {/* 候选卡片 */}
-            <div key={current.id} className="rounded-b-2xl border border-t-0 border-outline-variant/40 bg-surface-container-lowest px-7 py-6">
+            <div
+              key={current.id}
+              className="rounded-b-2xl border border-t-0 border-outline-variant/40 bg-surface-container-lowest px-7 py-6"
+            >
               <div className="flex items-start justify-between gap-6">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11.5px] font-medium ${kindMeta!.tone}`}>
+                    <span
+                      className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11.5px] font-medium ${kindMeta!.tone}`}
+                    >
                       <Icon name={kindMeta!.icon} size={13} />
                       {kindMeta!.chip}
                     </span>
@@ -267,8 +321,12 @@ export default function InspirationPage() {
                   <div className="mt-4 text-[10.5px] font-semibold uppercase tracking-[0.18em] text-outline">
                     Recommended Action Target
                   </div>
-                  <h1 className="mt-1 text-[26px] font-bold leading-snug text-on-surface">{current.title}</h1>
-                  <p className="mt-1.5 text-[13px] leading-relaxed text-on-surface-variant">{current.reason}</p>
+                  <h1 className="mt-1 text-[26px] font-bold leading-snug text-on-surface">
+                    {current.title}
+                  </h1>
+                  <p className="mt-1.5 text-[13px] leading-relaxed text-on-surface-variant">
+                    {current.reason}
+                  </p>
                 </div>
                 <div className="flex flex-col items-center gap-1 pt-1">
                   <MatchRing pct={current.match} />
@@ -280,12 +338,14 @@ export default function InspirationPage() {
               {current.context.length > 0 && (
                 <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
                   {current.context.map((ctx) => (
-                    <div key={ctx.label} className="rounded-xl border border-outline-variant/40 bg-surface-container-low px-4 py-3">
+                    <div key={ctx.label} className="surface-card-low rounded-xl px-4 py-3">
                       <div className="flex items-center gap-1.5 text-[11px] font-medium text-outline">
                         <Icon name={ctx.icon} size={14} />
                         {ctx.label}
                       </div>
-                      <div className="mt-1 truncate text-[13px] font-medium text-on-surface">{ctx.value}</div>
+                      <div className="mt-1 truncate text-[13px] font-medium text-on-surface">
+                        {ctx.value}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -302,12 +362,14 @@ export default function InspirationPage() {
                   <kbd className="rounded bg-on-primary/20 px-1.5 text-[10.5px]">Enter</kbd>
                 </button>
                 <button
-                  className="flex h-11 items-center gap-2 rounded-xl border border-outline-variant/60 bg-surface-container px-4 text-[13px] text-on-surface transition-colors hover:border-outline"
+                  className="flex h-11 items-center gap-2 surface-card-low rounded-xl !bg-surface-container px-4 text-[13px] text-on-surface transition-colors hover:border-outline"
                   onClick={next}
                 >
                   <Icon name="shuffle" size={16} />
                   换一个
-                  <kbd className="rounded bg-surface-container-high px-1.5 text-[10.5px] text-on-surface-variant">Space</kbd>
+                  <kbd className="rounded bg-surface-container-high px-1.5 text-[10.5px] text-on-surface-variant">
+                    Space
+                  </kbd>
                 </button>
                 <button
                   className="flex h-11 items-center gap-1.5 rounded-xl px-3 text-[13px] text-on-surface-variant transition-colors hover:text-on-surface"
@@ -338,8 +400,10 @@ export default function InspirationPage() {
             </div>
 
             {/* 候选池开关（对齐原型 02 底部） */}
-            <div className="mt-5 flex flex-wrap items-center justify-center gap-3 rounded-xl border border-outline-variant/40 bg-surface-container-low px-4 py-2.5">
-              <span className="text-[11px] font-medium uppercase tracking-widest text-outline">候选池</span>
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-3 surface-card-low rounded-xl px-4 py-2.5">
+              <span className="text-[11px] font-medium uppercase tracking-widest text-outline">
+                候选池
+              </span>
               {POOLS.map((p) => (
                 <label
                   key={p.key}
@@ -382,15 +446,31 @@ export default function InspirationPage() {
 
       {/* 底部按键提示 */}
       <footer className="relative z-10 flex items-center justify-center gap-6 border-t border-outline-variant/40 py-3 text-[11.5px] text-on-surface-variant">
-        <span><kbd className="rounded bg-surface-container-high px-1.5 py-0.5 text-on-surface">Space</kbd> 切换下一个灵感</span>
-        <span><kbd className="rounded bg-surface-container-high px-1.5 py-0.5 text-on-surface">Enter</kbd> 开启锁定强专注工作态</span>
-        <span><kbd className="rounded bg-surface-container-high px-1.5 py-0.5 text-on-surface">Esc</kbd> 返回工作台</span>
+        <span>
+          <kbd className="rounded bg-surface-container-high px-1.5 py-0.5 text-on-surface">
+            Space
+          </kbd>{' '}
+          切换下一个灵感
+        </span>
+        <span>
+          <kbd className="rounded bg-surface-container-high px-1.5 py-0.5 text-on-surface">
+            Enter
+          </kbd>{' '}
+          开启锁定强专注工作态
+        </span>
+        <span>
+          <kbd className="rounded bg-surface-container-high px-1.5 py-0.5 text-on-surface">Esc</kbd>{' '}
+          返回工作台
+        </span>
       </footer>
 
       {/* 稍后提醒 Toast */}
       {reminderMsg && (
         <div className="fixed bottom-16 left-1/2 z-50 -translate-x-1/2 rounded-full border border-outline-variant/60 bg-surface-container-high px-5 py-2.5 text-[12.5px] text-on-surface shadow-xl">
-          <Icon name="notifications_active" className="mr-1.5 align-[-4px] text-[15px] text-warning" />
+          <Icon
+            name="notifications_active"
+            className="mr-1.5 align-[-4px] text-[15px] text-warning"
+          />
           {reminderMsg}
         </div>
       )}

@@ -39,7 +39,10 @@ export default function TrophyUnlockToast() {
   const theme = TIER_THEME[trophy.tier]
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/45" onClick={dismiss}>
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/45"
+      onClick={dismiss}
+    >
       {queue.length > 1 && (
         <div className="absolute right-6 top-6 rounded-full bg-black/40 px-3 py-1 text-[12px] font-medium text-white">
           还有 {queue.length - 1} 座奖杯待展示

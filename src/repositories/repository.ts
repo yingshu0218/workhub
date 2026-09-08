@@ -25,12 +25,13 @@ export interface Repository<T extends { id: string }> {
 export function createRepository<T extends { id: string } & Partial<SyncMeta>>(
   tableName: keyof typeof db,
 ): Repository<T> {
-  const table = () => db[tableName] as unknown as {
-    get(id: string): Promise<T | undefined>
-    toArray(): Promise<T[]>
-    put(record: T): Promise<string>
-    update(id: string, changes: Partial<T>): Promise<number>
-  }
+  const table = () =>
+    db[tableName] as unknown as {
+      get(id: string): Promise<T | undefined>
+      toArray(): Promise<T[]>
+      put(record: T): Promise<string>
+      update(id: string, changes: Partial<T>): Promise<number>
+    }
   const bizTable = () => db[tableName] as unknown as Table
 
   return {

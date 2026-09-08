@@ -17,7 +17,14 @@ export const HABIT_ICONS = [
 ] as const
 
 /** 预设色板 6 色 */
-export const HABIT_COLORS = ['#2563eb', '#0f6e56', '#854f0b', '#b3261e', '#7c3aed', '#0369a1'] as const
+export const HABIT_COLORS = [
+  '#2563eb',
+  '#0f6e56',
+  '#854f0b',
+  '#b3261e',
+  '#7c3aed',
+  '#0369a1',
+] as const
 
 type ScheduleKind = '每日' | '工作日' | '每周N次'
 
@@ -119,7 +126,9 @@ export function HabitFormDrawer({
                 key={ic}
                 onClick={() => setIcon(ic)}
                 className={`flex h-10 w-10 items-center justify-center rounded-lg border transition-colors ${
-                  icon === ic ? 'border-primary bg-primary-fixed text-primary' : 'border-outline-variant text-on-surface-variant hover:bg-surface-container-low'
+                  icon === ic
+                    ? 'border-primary bg-primary-fixed text-primary'
+                    : 'border-outline-variant text-on-surface-variant hover:bg-surface-container-low'
                 }`}
               >
                 <Icon name={ic} size={22} />
@@ -150,7 +159,9 @@ export function HabitFormDrawer({
                 key={k}
                 onClick={() => setKind(k)}
                 className={`rounded-lg border px-3 py-1.5 text-[13px] transition-colors ${
-                  kind === k ? 'border-primary bg-primary-fixed font-semibold text-primary' : 'border-outline-variant text-on-surface-variant'
+                  kind === k
+                    ? 'border-primary bg-primary-fixed font-semibold text-primary'
+                    : 'border-outline-variant text-on-surface-variant'
                 }`}
               >
                 {k === '每周N次' ? '每周 N 次' : k}
@@ -158,12 +169,14 @@ export function HabitFormDrawer({
             ))}
             {kind === '每周N次' && (
               <select
-                className="rounded-lg border border-outline-variant bg-surface-container-lowest px-2 py-1.5 text-[13px]"
+                className="surface-card border-outline-variant px-2 py-1.5 text-[13px]"
                 value={timesPerWeek}
                 onChange={(e) => setTimesPerWeek(Number(e.target.value))}
               >
                 {[1, 2, 3, 4, 5, 6, 7].map((n) => (
-                  <option key={n} value={n}>{n}</option>
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
                 ))}
               </select>
             )}
@@ -216,7 +229,9 @@ export function HabitFormDrawer({
 
         {error && <div className="mb-3 text-[12px] text-danger">{error}</div>}
         <div className="flex justify-end gap-2 pt-2">
-          <Button variant="tonal" onClick={onClose}>取消</Button>
+          <Button variant="tonal" onClick={onClose}>
+            取消
+          </Button>
           <Button onClick={() => void save()}>{habit ? '保存修改' : '创建习惯'}</Button>
         </div>
       </div>

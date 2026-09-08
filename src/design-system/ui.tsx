@@ -52,9 +52,7 @@ export function Field({ label, children }: { label: string; children: ReactNode 
   )
 }
 
-export const inputCls =
-  'w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-[13.5px] outline-none transition-shadow focus:border-primary focus:shadow-[0_0_0_3px_rgba(37,99,235,0.15)]'
-
+export const inputCls = 'input'
 
 export function Button({
   children,
@@ -83,7 +81,11 @@ export function Button({
     danger: 'bg-danger text-on-primary hover:opacity-90',
   }[variant]
   return (
-    <button className={`${base} ${sizes} ${variants} ${className}`} onClick={onClick} disabled={disabled}>
+    <button
+      className={`${base} ${sizes} ${variants} ${className}`}
+      onClick={onClick}
+      disabled={disabled}
+    >
       {icon && <Icon name={icon} size={18} />}
       {children}
     </button>
@@ -170,12 +172,22 @@ export function EmptyState({
     <div className="flex flex-col items-center justify-center gap-2 py-20 text-center">
       <Icon name={icon} className="text-[40px] text-outline" />
       <div className="text-[15px] font-medium">{title}</div>
-      {description && <div className="max-w-xs text-[13px] text-on-surface-variant">{description}</div>}
+      {description && (
+        <div className="max-w-xs text-[13px] text-on-surface-variant">{description}</div>
+      )}
     </div>
   )
 }
 
-export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: string; actions?: ReactNode }) {
+export function PageHeader({
+  title,
+  subtitle,
+  actions,
+}: {
+  title: string
+  subtitle?: string
+  actions?: ReactNode
+}) {
   return (
     <div className="mb-5 flex items-start justify-between gap-4">
       <div>

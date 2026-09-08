@@ -97,11 +97,7 @@ function baseUrl(cfg: SyncSettingsView): string {
 /** 网络超时：弱网/坏代理下请求悬挂会长期占用同步锁，超时即视为本次失败（等待下轮重试） */
 const REQUEST_TIMEOUT_MS = 10_000
 
-async function pbFetch(
-  cfg: SyncSettingsView,
-  path: string,
-  init: RequestInit,
-): Promise<Response> {
+async function pbFetch(cfg: SyncSettingsView, path: string, init: RequestInit): Promise<Response> {
   const headers = new Headers(init.headers)
   if (cfg.token) headers.set('Authorization', cfg.token)
   if (init.body && !(init.body instanceof FormData)) {
@@ -134,9 +130,13 @@ async function pbAuthedFetch(
 async function isTokenFresh(cfg: SyncSettingsView): Promise<boolean> {
   if (!cfg.token) return false
   try {
-    const res = await pbFetch(cfg, '/api/collections/users/records/' + encodeURIComponent(cfg.tokenUserId), {
-      method: 'GET',
-    })
+    const res = await pbFetch(
+      cfg,
+      '/api/collections/users/records/' + encodeURIComponent(cfg.tokenUserId),
+      {
+        method: 'GET',
+      },
+    )
     return res.ok
   } catch {
     return false
@@ -173,20 +173,17 @@ function sha256ToBase36_15(input: string): string {
   // 纯 JS SHA-256（FIPS 180-4），输入按 UTF-8 编码
   const utf8 = new TextEncoder().encode(input)
   const H = [
-    0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab,
-    0x5be0cd19,
+    0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
   ]
   const K = [
-    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4,
-    0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe,
-    0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f,
-    0x4a7484aa, 0x5cb0a9dc, 0x76f988da, 0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7,
-    0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc,
-    0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b,
-    0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070, 0x19a4c116,
-    0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
-    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7,
-    0xc67178f2,
+    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+    0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+    0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+    0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+    0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
   ]
   const rotr = (x: number, n: number) => (x >>> n) | (x << (32 - n))
   const l = utf8.length
@@ -282,7 +279,9 @@ async function pbUpsert(
     const remoteUpdatedAt = typeof items![0].updatedAt === 'number' ? items![0].updatedAt : 0
     const localUpdatedAt = typeof rec.updatedAt === 'number' ? rec.updatedAt : 0
     if (remoteUpdatedAt > localUpdatedAt && rec.deleted !== 1) {
-      console.info(`[sync] 跳过旧数据推送 ${table}/${localId}（远端更新：${remoteUpdatedAt} > ${localUpdatedAt}）`)
+      console.info(
+        `[sync] 跳过旧数据推送 ${table}/${localId}（远端更新：${remoteUpdatedAt} > ${localUpdatedAt}）`,
+      )
       return
     }
   }
@@ -298,7 +297,12 @@ async function pbUpsert(
       form.append(k, typeof v === 'object' ? JSON.stringify(v) : String(v))
     }
     const blob = rec.blob as Blob
-    form.append('file', new File([blob], String(rec.name ?? localId), { type: String(rec.mime ?? 'application/octet-stream') }))
+    form.append(
+      'file',
+      new File([blob], String(rec.name ?? localId), {
+        type: String(rec.mime ?? 'application/octet-stream'),
+      }),
+    )
     if (!exists) form.append('id', pbRecordId)
     const res = await pbAuthedFetch(
       cfg,
@@ -308,7 +312,9 @@ async function pbUpsert(
       { method: exists ? 'PATCH' : 'POST', body: form },
     )
     if (!res.ok)
-      throw new Error(`上传附件 ${localId} 失败（HTTP ${res.status}）：${(await res.text()).slice(0, 200)}`)
+      throw new Error(
+        `上传附件 ${localId} 失败（HTTP ${res.status}）：${(await res.text()).slice(0, 200)}`,
+      )
     return
   }
 
@@ -321,7 +327,9 @@ async function pbUpsert(
     { method: exists ? 'PATCH' : 'POST', body },
   )
   if (!res.ok)
-    throw new Error(`推送 ${table}/${localId} 失败（HTTP ${res.status}）：${(await res.text()).slice(0, 200)}`)
+    throw new Error(
+      `推送 ${table}/${localId} 失败（HTTP ${res.status}）：${(await res.text()).slice(0, 200)}`,
+    )
 }
 
 /** 服务端物理删除：按 localId 查 pb 记录 id 后 DELETE（用于墓碑收敛后的真删） */
@@ -371,7 +379,9 @@ async function pbListAll(
       sort: 'server_received_at,id',
     })
     if (filterExpr) params.set('filter', filterExpr)
-    const res = await pbAuthedFetch(cfg, `/api/collections/${table}/records?${params}`, { method: 'GET' })
+    const res = await pbAuthedFetch(cfg, `/api/collections/${table}/records?${params}`, {
+      method: 'GET',
+    })
     if (!res.ok) throw new Error(`拉取 ${table} 失败（HTTP ${res.status}）`)
     const data = (await res.json()) as PbListResult & { totalPages?: number }
     out.push(...(data.items ?? []))
@@ -459,7 +469,10 @@ async function mergeRemote(
   record.id = localId
   record.updatedAt = remoteUpdatedAt
   record.deleted = remote.deleted ? 1 : 0
-  record.rev = Math.max(typeof local?.rev === 'number' ? local.rev : 0, typeof remote.rev === 'number' ? remote.rev : 0)
+  record.rev = Math.max(
+    typeof local?.rev === 'number' ? local.rev : 0,
+    typeof remote.rev === 'number' ? remote.rev : 0,
+  )
 
   if (table === 'attachments') {
     const blob = await downloadAttachmentFile(cfg, remote)
@@ -521,9 +534,13 @@ async function pullImpl(cursor: number): Promise<{ cursor: number; changes: unkn
     let maxReceivedAt = parseCursor(cur).receivedAt
     let maxRemoteId = parseCursor(cur).lastId
     for (const remote of remotes) {
-      const receivedAt = typeof remote.server_received_at === 'string' ? remote.server_received_at : ''
+      const receivedAt =
+        typeof remote.server_received_at === 'string' ? remote.server_received_at : ''
       const rid = String(remote.id)
-      if (receivedAt && (receivedAt > maxReceivedAt || (receivedAt === maxReceivedAt && rid > maxRemoteId))) {
+      if (
+        receivedAt &&
+        (receivedAt > maxReceivedAt || (receivedAt === maxReceivedAt && rid > maxRemoteId))
+      ) {
         maxReceivedAt = receivedAt
         maxRemoteId = rid
       }

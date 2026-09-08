@@ -1,5 +1,6 @@
 @import 'tailwindcss';
 @import './inter.css';
+@import './skins.css';
 
 /* 自托管图标字体（替代包内 4.6MB 全量 CSS）：preload 预加载 + block 显示，
    加载期间图标空白而非裸文本，消除侧栏 FOUC */
@@ -29,8 +30,8 @@
   --color-danger: #ba1a1a;
   --color-danger-container: #ffdad6;
 
-  --font-sans: 'Inter', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC',
-    sans-serif;
+  --font-sans:
+    'Inter', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
 
   --radius-card: 8px;
   --radius-xl-card: 12px;
@@ -82,8 +83,54 @@ body {
   @apply transition-shadow hover:shadow-[0_4px_12px_rgba(0,0,0,0.08)];
 }
 
-/* Material Symbols 对齐 */
+/* ===== 语义类层（Issue #43 S0）：高频裸 Tailwind 组合收敛 =====
+   皮肤（skins.css）只覆写这组语义类。视觉与原裸类等价（纯重构）。
+   .card 并入 .surface-card（历史类名保留引用兼容）。 */
+.surface-card {
+  @apply rounded-lg border border-outline-variant/40 bg-surface-container-lowest;
+  border-width: var(--skin-border-width, 1px);
+  border-color: var(--skin-border-color, rgba(0, 0, 0, 0));
+  box-shadow: var(--skin-shadow-card, 0 1px 3px rgba(0, 0, 0, 0.05));
+}
 
+.surface-card-low {
+  @apply rounded-lg border border-outline-variant/40 bg-surface-container-low;
+}
+
+.surface-card-xl {
+  @apply rounded-xl border border-outline-variant/40 bg-surface-container-lowest;
+}
+
+.btn-primary {
+  @apply inline-flex items-center gap-1.5 rounded-lg bg-primary font-medium text-on-primary transition-all hover:bg-primary-container disabled:pointer-events-none disabled:opacity-50;
+  box-shadow: var(--skin-shadow-btn, none);
+}
+
+.btn-ghost {
+  @apply inline-flex items-center gap-1.5 rounded-lg border border-outline-variant/60 font-medium text-on-surface-variant transition-colors hover:border-primary hover:text-primary;
+}
+
+.input {
+  @apply w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-[13.5px] outline-none transition-shadow focus:border-primary focus:shadow-[0_0_0_3px_rgba(37,99,235,0.15)];
+}
+
+.nav-item {
+  @apply flex items-center gap-1.5 rounded-lg border border-outline-variant/60 px-3 text-[12px] text-on-surface-variant transition-colors hover:border-primary hover:text-primary;
+}
+
+.list-row {
+  @apply rounded-lg border border-outline-variant/50 bg-surface-container-low p-3;
+}
+
+.list-row-plain {
+  @apply flex items-center justify-between rounded-lg border border-outline-variant/40 px-3 py-2;
+}
+
+.section-title {
+  @apply text-[15px] font-semibold;
+}
+
+/* Material Symbols 对齐 */
 
 .msr-fill {
   font-variation-settings:

@@ -36,7 +36,16 @@ export interface GraphCanvasProps {
   fitAnchorId?: string
 }
 
-export default function GraphCanvas({ graph, focusId, style, legend, showReheat, mode = 'mixed', onGraphReady, fitAnchorId }: GraphCanvasProps) {
+export default function GraphCanvas({
+  graph,
+  focusId,
+  style,
+  legend,
+  showReheat,
+  mode = 'mixed',
+  onGraphReady,
+  fitAnchorId,
+}: GraphCanvasProps) {
   const navigate = useNavigate()
   const svgRef = useRef<SVGSVGElement>(null)
   const dragIdRef = useRef<string | null>(null)
@@ -197,7 +206,11 @@ export default function GraphCanvas({ graph, focusId, style, legend, showReheat,
   // 首屏「快速锁定焦点」二次校准（Issue #34）：首帧 fit 用的是初始坐标，仿真收敛时节点坐标
   // 已漂移出首帧视口（视觉上「丢失焦点」）。仿真自然收敛后若节点整体越界/大幅位移，再 fit 一次
   const settledKeyRef = useRef<string | null>(null)
-  if (fitKey !== settledKeyRef.current && nodes.length > 1 && nodes.every((n) => n.x != null && n.y != null)) {
+  if (
+    fitKey !== settledKeyRef.current &&
+    nodes.length > 1 &&
+    nodes.every((n) => n.x != null && n.y != null)
+  ) {
     const pad = 32
     const minX = Math.min(...nodes.map((n) => n.x! - n.radius))
     const maxX = Math.max(...nodes.map((n) => n.x! + n.radius))
@@ -208,8 +221,7 @@ export default function GraphCanvas({ graph, focusId, style, legend, showReheat,
     const vy0 = -view.ty / view.scale
     const vx1 = (size.w - view.tx) / view.scale
     const vy1 = (size.h - view.ty) / view.scale
-    const inside =
-      minX >= vx0 - pad && maxX <= vx1 + pad && minY >= vy0 - pad && maxY <= vy1 + pad
+    const inside = minX >= vx0 - pad && maxX <= vx1 + pad && minY >= vy0 - pad && maxY <= vy1 + pad
     if (!inside) {
       settledKeyRef.current = fitKey
       requestAnimationFrame(fitView)
@@ -289,7 +301,13 @@ export default function GraphCanvas({ graph, focusId, style, legend, showReheat,
             />
           </div>
         ) : (
-          <svg ref={svgRef} width="100%" height="100%" viewBox={`0 0 ${size.w} ${size.h}`} className="block cursor-grab active:cursor-grabbing">
+          <svg
+            ref={svgRef}
+            width="100%"
+            height="100%"
+            viewBox={`0 0 ${size.w} ${size.h}`}
+            className="block cursor-grab active:cursor-grabbing"
+          >
             {/* 缩放平移视口：以视口中心为锚点 */}
             <g transform={`translate(${view.tx},${view.ty}) scale(${view.scale})`}>
               {/* 从属边（直线） */}
@@ -334,7 +352,8 @@ export default function GraphCanvas({ graph, focusId, style, legend, showReheat,
                     const cats = l.categories ?? []
                     const edgeColor =
                       cats.length === 1
-                        ? (RELATION_CATEGORIES.find((c) => c.id === cats[0])?.color ?? GRAPH_COLORS.relation.stroke)
+                        ? (RELATION_CATEGORIES.find((c) => c.id === cats[0])?.color ??
+                          GRAPH_COLORS.relation.stroke)
                         : GRAPH_COLORS.relation.stroke
                     return (
                       <g key={`r${i}`}>
@@ -449,7 +468,8 @@ export default function GraphCanvas({ graph, focusId, style, legend, showReheat,
                             setSelectedScreen(selectedScreenRef.current)
                             setSelectedId(n.id)
                           }
-                          if (n.kind === 'project') navigate(`/projects/${n.id.replace('proj:', '')}`)
+                          if (n.kind === 'project')
+                            navigate(`/projects/${n.id.replace('proj:', '')}`)
                         }}
                         onDoubleClick={() => {
                           if (n.to) navigate(n.to)
@@ -464,17 +484,38 @@ export default function GraphCanvas({ graph, focusId, style, legend, showReheat,
                         {n.kind === 'customer' ? (
                           <>
                             {n.id === focusId && (
-                              <circle r={n.radius + 7} fill="none" stroke={GRAPH_COLORS.customer.stroke} strokeWidth={1.6} strokeDasharray="4 3" />
+                              <circle
+                                r={n.radius + 7}
+                                fill="none"
+                                stroke={GRAPH_COLORS.customer.stroke}
+                                strokeWidth={1.6}
+                                strokeDasharray="4 3"
+                              />
                             )}
-                            <text textAnchor="middle" dy="4" style={{ fontSize: 11, fontWeight: 700 }} fill={GRAPH_COLORS.customer.text}>
+                            <text
+                              textAnchor="middle"
+                              dy="4"
+                              style={{ fontSize: 11, fontWeight: 700 }}
+                              fill={GRAPH_COLORS.customer.text}
+                            >
                               {n.label.slice(0, 4)}
                             </text>
-                            <text textAnchor="middle" y={n.radius + 14} style={{ fontSize: 11, fontWeight: 600 }} fill="#0b1c30">
+                            <text
+                              textAnchor="middle"
+                              y={n.radius + 14}
+                              style={{ fontSize: 11, fontWeight: 600 }}
+                              fill="#0b1c30"
+                            >
                               {n.label}
                             </text>
                           </>
                         ) : (
-                          <text textAnchor="middle" dy="3.5" style={{ fontSize: 8, fontWeight: 600 }} fill={n.color}>
+                          <text
+                            textAnchor="middle"
+                            dy="3.5"
+                            style={{ fontSize: 8, fontWeight: 600 }}
+                            fill={n.color}
+                          >
                             {n.kind === 'txn'
                               ? n.label.startsWith('+')
                                 ? '¥'
@@ -487,7 +528,12 @@ export default function GraphCanvas({ graph, focusId, style, legend, showReheat,
                           </text>
                         )}
                         {n.kind !== 'customer' && (
-                          <text textAnchor="middle" y={n.radius + 12} style={{ fontSize: 9 }} fill="#434655">
+                          <text
+                            textAnchor="middle"
+                            y={n.radius + 12}
+                            style={{ fontSize: 9 }}
+                            fill="#434655"
+                          >
                             {n.label}
                           </text>
                         )}
@@ -517,10 +563,15 @@ export default function GraphCanvas({ graph, focusId, style, legend, showReheat,
                   }`}
                   style={on ? { background: c.color } : undefined}
                   onClick={() =>
-                    setActiveCats((cs) => (cs.includes(c.id) ? cs.filter((x) => x !== c.id) : [...cs, c.id]))
+                    setActiveCats((cs) =>
+                      cs.includes(c.id) ? cs.filter((x) => x !== c.id) : [...cs, c.id],
+                    )
                   }
                 >
-                  <span className="h-2 w-2 rounded-full" style={{ background: on ? '#fff' : c.color }} />
+                  <span
+                    className="h-2 w-2 rounded-full"
+                    style={{ background: on ? '#fff' : c.color }}
+                  />
                   {c.name}
                 </button>
               )
@@ -538,12 +589,9 @@ export default function GraphCanvas({ graph, focusId, style, legend, showReheat,
 
         {/* 左下角「重新布局」：释放全部固定点并 reheat 仿真 */}
         {!empty && showReheat && (
-          <div
-            className="absolute bottom-3 left-3 z-10"
-            onPointerDown={(e) => e.stopPropagation()}
-          >
+          <div className="absolute bottom-3 left-3 z-10" onPointerDown={(e) => e.stopPropagation()}>
             <button
-              className="flex h-7 items-center gap-1 rounded-lg border border-outline-variant/40 bg-surface-container-lowest/95 px-2 text-[12px] font-medium text-on-surface-variant shadow-md backdrop-blur transition-colors hover:bg-surface-container hover:text-on-surface"
+              className="flex h-7 items-center gap-1 surface-card/95 px-2 text-[12px] font-medium text-on-surface-variant shadow-md backdrop-blur transition-colors hover:bg-surface-container hover:text-on-surface"
               title="释放固定点并重新计算布局"
               onClick={reheat}
             >
@@ -556,7 +604,7 @@ export default function GraphCanvas({ graph, focusId, style, legend, showReheat,
         {/* 右下角缩放控件卡（对齐原型 09：−/+/百分比/适应画布） */}
         {!empty && (
           <div
-            className="absolute bottom-3 right-3 z-10 flex items-center gap-0.5 rounded-xl border border-outline-variant/40 bg-surface-container-lowest/95 px-1.5 py-1 shadow-md backdrop-blur"
+            className="absolute bottom-3 right-3 z-10 flex items-center gap-0.5 surface-card-xl bg-surface-container-lowest/95 px-1.5 py-1 shadow-md backdrop-blur"
             onPointerDown={(e) => e.stopPropagation()}
           >
             <button
@@ -604,4 +652,3 @@ export default function GraphCanvas({ graph, focusId, style, legend, showReheat,
     </Card>
   )
 }
-

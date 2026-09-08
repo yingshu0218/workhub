@@ -23,14 +23,36 @@ export interface CanvasGraph {
     relations: { targetId: string; label: string; category?: RelationCategory }[]
   }[]
   projects: { id: string; name: string; customerId: string }[]
-  transactions: { id: string; customerId: string; type: 'income' | 'expense'; amount: number; summary: string; projectId?: string; ledgerId?: string }[]
-  todos: { id: string; customerId: string; title: string; priority: 'P1' | 'P2' | 'P3'; status: 'todo' | 'doing' | 'done'; projectId?: string }[]
+  transactions: {
+    id: string
+    customerId: string
+    type: 'income' | 'expense'
+    amount: number
+    summary: string
+    projectId?: string
+    ledgerId?: string
+  }[]
+  todos: {
+    id: string
+    customerId: string
+    title: string
+    priority: 'P1' | 'P2' | 'P3'
+    status: 'todo' | 'doing' | 'done'
+    projectId?: string
+  }[]
   /** 沟通日志投影：桥接推导需 customerId+projectId（CanvasGraph 原不含 interaction，Issue #34 补齐） */
   interactions: { id: string; customerId: string; projectId?: string }[]
   notes: { id: string; customerId: string; title: string }[]
 }
 
-const EMPTY_GRAPH: CanvasGraph = { customers: [], projects: [], transactions: [], todos: [], interactions: [], notes: [] }
+const EMPTY_GRAPH: CanvasGraph = {
+  customers: [],
+  projects: [],
+  transactions: [],
+  todos: [],
+  interactions: [],
+  notes: [],
+}
 
 export function useCanvasGraph(): CanvasGraph {
   const graph = useQuery<CanvasGraph>(async () => {
@@ -38,15 +60,31 @@ export function useCanvasGraph(): CanvasGraph {
       db.customers.filter((c) => !c.deleted).toArray(),
       db.projects.filter((p) => !p.deleted).toArray(),
       // customerId 建有索引：直接走索引取关联流水，跳过无关联的记录
-      db.transactions.where('customerId').notEqual('').filter((t) => !t.deleted).toArray(),
-      db.todos.where('customerId').notEqual('').filter((t) => !t.deleted).toArray(),
+      db.transactions
+        .where('customerId')
+        .notEqual('')
+        .filter((t) => !t.deleted)
+        .toArray(),
+      db.todos
+        .where('customerId')
+        .notEqual('')
+        .filter((t) => !t.deleted)
+        .toArray(),
       // customerId 建有索引（v1 起），与 transactions 同款索引查询（Issue #34 桥接推导前置）
-      db.interactions.where('customerId').notEqual('').filter((i) => !i.deleted).toArray(),
+      db.interactions
+        .where('customerId')
+        .notEqual('')
+        .filter((i) => !i.deleted)
+        .toArray(),
     ])
     // 笔记经 mentions 反查客户：notes 表无 customerId 索引，全表过滤（笔记量级小）
     const customerIds = new Set(customers.map((c) => c.id))
     const notes = await db.notes
-      .filter((n) => !n.deleted && (n.mentions ?? []).some((m) => m.type === 'customer' && customerIds.has(m.id)))
+      .filter(
+        (n) =>
+          !n.deleted &&
+          (n.mentions ?? []).some((m) => m.type === 'customer' && customerIds.has(m.id)),
+      )
       .toArray()
     return {
       customers: customers.map((c) => ({
@@ -130,7 +168,11 @@ export function useCustomerTodos(customerId: string | undefined): Todo[] {
   const list = useQuery<Todo[]>(
     () =>
       customerId
-        ? db.todos.where('customerId').equals(customerId).filter((t) => !t.deleted).toArray()
+        ? db.todos
+            .where('customerId')
+            .equals(customerId)
+            .filter((t) => !t.deleted)
+            .toArray()
         : Promise.resolve([]),
     [customerId],
   )
@@ -205,7 +247,12 @@ export async function createCustomerWithInit(
           content: '客户建档 · 首次建立联系（opening）',
           at: now,
         }
-        await db.interactions.put({ ...itx, updatedAt: now, rev: 1, deleted: 0 as const } as Interaction)
+        await db.interactions.put({
+          ...itx,
+          updatedAt: now,
+          rev: 1,
+          deleted: 0 as const,
+        } as Interaction)
         await db.syncQueue.add({
           table: 'interactions',
           recordId: itx.id,

@@ -8,10 +8,10 @@ import type { Trophy, TrophyTier } from '@/db/types'
 
 /** tier → 海报渐变端色（与 TIER_THEME 的 Tailwind 渐变视觉对齐，Canvas 需要 hex） */
 const TIER_COLORS: Record<TrophyTier, [string, string, string]> = {
-  '铜': ['#92400e', '#f59e0b', '#fde68a'],
-  '银': ['#94a3b8', '#cbd5e1', '#f1f5f9'],
-  '金': ['#f59e0b', '#facc15', '#fef3c7'],
-  '白金': ['#0891b2', '#7dd3fc', '#e0e7ff'],
+  铜: ['#92400e', '#f59e0b', '#fde68a'],
+  银: ['#94a3b8', '#cbd5e1', '#f1f5f9'],
+  金: ['#f59e0b', '#facc15', '#fef3c7'],
+  白金: ['#0891b2', '#7dd3fc', '#e0e7ff'],
 }
 
 /** 与 Icon 组件同一资产源：按需懒加载原始 SVG 字符串 */
@@ -21,7 +21,11 @@ const iconModules = import.meta.glob<string>('../../assets/icons/*.svg', {
 })
 
 /** SVG 字符串 → Image（指定渲染色；源 SVG 未带 fill，注入目标色） */
-async function loadIcon(name: string, color: string, size: number): Promise<HTMLImageElement | null> {
+async function loadIcon(
+  name: string,
+  color: string,
+  size: number,
+): Promise<HTMLImageElement | null> {
   const loader = iconModules[`../../assets/icons/${name}.svg`]
   if (!loader) return null
   const raw = await loader()
@@ -35,7 +39,14 @@ async function loadIcon(name: string, color: string, size: number): Promise<HTML
   })
 }
 
-function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+function roundRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number,
+) {
   ctx.beginPath()
   ctx.moveTo(x + r, y)
   ctx.arcTo(x + w, y, x + w, y + h, r)
@@ -97,7 +108,7 @@ export async function downloadTrophyPoster(trophy: Trophy, level: number): Promi
   }
 
   // tier 标签 + 稀有度
-  const tierLabel = { '铜': '铜杯', '银': '银杯', '金': '金杯', '白金': '白金' }[trophy.tier]
+  const tierLabel = { 铜: '铜杯', 银: '银杯', 金: '金杯', 白金: '白金' }[trophy.tier]
   ctx.fillStyle = c3
   ctx.font = 'bold 22px system-ui, -apple-system, "PingFang SC", sans-serif'
   ctx.fillText(`${tierLabel} · 稀有度 ${trophy.rarity}`, W / 2, 470)
@@ -112,14 +123,20 @@ export async function downloadTrophyPoster(trophy: Trophy, level: number): Promi
   ctx.font = '24px system-ui, -apple-system, "PingFang SC", sans-serif'
   const maxChars = 20
   const desc = trophy.description
-  const lines = desc.length <= maxChars ? [desc] : [desc.slice(0, maxChars), desc.slice(maxChars, maxChars * 2)]
+  const lines =
+    desc.length <= maxChars ? [desc] : [desc.slice(0, maxChars), desc.slice(maxChars, maxChars * 2)]
   lines.forEach((line, i) => ctx.fillText(line, W / 2, 604 + i * 36))
 
   // Lv 徽章（圆形徽章 + 等级数字）
   const badgeX = W / 2
   const badgeY = 740
   const badgeR = 56
-  const badgeGrad = ctx.createLinearGradient(badgeX - badgeR, badgeY - badgeR, badgeX + badgeR, badgeY + badgeR)
+  const badgeGrad = ctx.createLinearGradient(
+    badgeX - badgeR,
+    badgeY - badgeR,
+    badgeX + badgeR,
+    badgeY + badgeR,
+  )
   badgeGrad.addColorStop(0, c1)
   badgeGrad.addColorStop(1, c3)
   ctx.fillStyle = badgeGrad
@@ -138,7 +155,11 @@ export async function downloadTrophyPoster(trophy: Trophy, level: number): Promi
   ctx.fillStyle = 'rgba(255,255,255,0.75)'
   ctx.font = '24px system-ui, -apple-system, "PingFang SC", sans-serif'
   const date = trophy.unlockedAt
-    ? new Date(trophy.unlockedAt).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })
+    ? new Date(trophy.unlockedAt).toLocaleDateString('zh-CN', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      })
     : '未解锁'
   ctx.fillText(`解锁于 ${date}`, W / 2, 856)
 
