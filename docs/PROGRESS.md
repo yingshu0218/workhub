@@ -2,7 +2,7 @@
 
 > **本仓库的唯一进度事实来源。** 所有人（含 AI 开发代理）推进或变更任何开发工作，必须在**同一个 commit** 里同步更新本文件对应状态。README 底部的 Changelog 记录"发生了什么"，本文档记录"现在处于什么状态"——前者追加式流水，后者始终反映最新全貌。
 
-**最后更新**：2026-09-08（Issue #19 新增「同步服务配置说明」人工操作手册并审计校准 collections 口径 17 张；Issue #11 收尾：#15/#17 分叉合并、鱼骨 P3 打磨与 usePanZoom 单源收敛） · 维护人：yingshu0218 / cnb.cMPXRmKswEA / npc/CodeBuddy
+**最后更新**：2026-09-08（Issue #20 关联字段模糊输入匹配：MatchCombobox 提升为 design-system 共享组件，8 处实体关联字段统一替换，归档沉底/已完成待办回显边界覆盖） · 维护人：yingshu0218 / cnb.cMPXRmKswEA / npc/CodeBuddy
 
 ---
 
@@ -15,7 +15,7 @@
 | 里程碑 | M1-M6 全部验收 ✅ |
 | 审计问题 | P0×2 / P1×19 / P2×60 **全部清零** |
 | 同步机制完善 | P0-1 墓碑清理竞态修复 + P0-2 推送侧 LWW ✅（PR #6 评审中）；P1-3 服务端墓碑 cron ✅；P1-4 HTTPS（待用户操作） |
-| Changelog | 第 38 条（README 底部） |
+| Changelog | 第 41 条（README 底部） |
 
 ## 二、阶段进度（Phase 0-7）
 
@@ -68,6 +68,14 @@
 | P2 客户时间线鱼骨视图（PR #17） | ✅ 已合入 main（R2 复核通过）；穿透深链（/todo?focus=、/finance?focus=）与拖拽保护已修复（907f03c） |
 | P3 打磨 | ✅ 收尾 PR 落地：鱼头状态卡升级（tier 徽章 + HealthRing 健康环 + 最近联系）、骨刺等距防重叠布局、fitView「适应画布」、hover 浮层摘要（Chip 色系/优先级/待对账）、过滤 chips 计数、骨刺拖拽保护；usePanZoom 收敛单源（画布与鱼骨页共用 ./usePanZoom，移除 shared 副本） |
 | 遗留提示 | 交易结算不刷新 lastContactAt（用户未拍板，可加一行事务内 update）；画布节点双击跳时间线入口未做（可后续小增量） |
+
+### 表单关联字段模糊匹配（Issue #20，已提 PR）
+
+| 项 | 状态 |
+|---|---|
+| 组件提升 | ✅ `MatchCombobox` 从财务抽屉私有实现提升为 `src/design-system/MatchCombobox.tsx` 共享组件（导出 MatchCombobox/MatchOption/fuzzyMatch/fuzzySort/archivedLast，复用 inputCls/Icon）；回显条支持点击重新展开候选；「不关联」图标由不存在的 block 改为 person_off |
+| 落地范围 | ✅ 8 处实体关联字段：TodoPage 所属清单/所属项目/关联客户、财务抽屉关联项目、ProjectFormDrawer 挂靠客户、NoteEditorPage 所属项目（onChange 直写 moveNoteToProject）、CustomerFormDrawer 关联已有交易（去掉 slice(0,50) 截断）、dashboard 专注卡关联待办（空值用 placeholder 表达，onChange 逻辑不变） |
+| 边界处理 | ✅ 归档项目 sub 标注「已归档」+ archivedLast 沉底；编辑态已选已完成待办单独并入 + sub「已完成」保证回显；客户 label 统一「公司 · 姓名」；枚举型/筛选器/账本归属等非实体关联字段保持 `<select>` |
 
 ### 同步机制完善（Issue #2，P0/P1 已实装待验收）
 

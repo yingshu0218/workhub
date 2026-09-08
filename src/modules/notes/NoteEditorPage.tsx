@@ -6,6 +6,7 @@ import { noteRepo } from '@/repositories'
 import type { Note, NoteMention } from '@/db/types'
 import type { Customer, Ledger, Todo } from '@/db/types'
 import { Button, Card, Chip, EmptyState } from '@/design-system/ui'
+import { MatchCombobox } from '@/design-system/MatchCombobox'
 import dayjs from 'dayjs'
 import { EditorState } from '@codemirror/state'
 import { EditorView, keymap, lineNumbers, placeholder } from '@codemirror/view'
@@ -628,19 +629,21 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
           <div className="mb-2 text-[11px] font-medium uppercase tracking-wide text-on-surface-variant">
             所属项目
           </div>
-          <select
-            className="mb-5 w-full rounded-lg border border-outline-variant/40 bg-surface-container-lowest px-2.5 py-1.5 text-[12px] outline-none focus:border-primary"
-            value={note.projectId ?? ''}
-            onChange={(e) => void moveNoteToProject(note.id, e.target.value || undefined)}
-          >
-            <option value="">不归属项目</option>
-            {mentionProjects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-                {p.status === 'archived' ? '（已归档）' : ''}
-              </option>
-            ))}
-          </select>
+          <div className="mb-5">
+            <MatchCombobox
+              value={note.projectId ?? ''}
+              options={mentionProjects.map((p) => ({
+                id: p.id,
+                label: p.name,
+                sub: p.status === 'archived' ? '已归档' : undefined,
+                archived: p.status === 'archived',
+                icon: 'folder_open',
+              }))}
+              placeholder="输入项目名称模糊搜索"
+              emptyText="没有匹配的项目"
+              onChange={(id) => void moveNoteToProject(note.id, id || undefined)}
+            />
+          </div>
 
           <div className="mb-2 text-[11px] font-medium uppercase tracking-wide text-on-surface-variant">
             @提及实体（{note.mentions.length}）

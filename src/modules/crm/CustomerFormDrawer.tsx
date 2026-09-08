@@ -3,6 +3,7 @@ import { useCollection } from '@/queries/hooks'
 import { customerRepo, newId } from '@/repositories'
 import type { Customer, Transaction } from '@/db/types'
 import { Button, Chip, Drawer, Field, inputCls } from '@/design-system/ui'
+import { MatchCombobox } from '@/design-system/MatchCombobox'
 import { createCustomerWithInit } from './hooks'
 
 const DECISION_LEVELS: Customer['decisionLevel'][] = ['决策人', '影响者', '使用者', '把关人']
@@ -76,7 +77,7 @@ export default function CustomerFormDrawer({
 
   // 第 4 步可关联的交易：仅列出尚未归属任何客户的流水（已关联的可通过财务侧改）
   const transactions = useCollection<Transaction>('transactions')
-  const linkableTxns = transactions.filter((t) => !t.customerId).slice(0, 50)
+  const linkableTxns = transactions.filter((t) => !t.customerId)
 
   async function save() {
     if (!name.trim()) {
@@ -313,15 +314,18 @@ export default function CustomerFormDrawer({
               创建一条 opening 沟通日志（类型：拜访）
             </label>
             <Field label="关联已有交易（可选）">
-              <select className={inputCls} value={initTxnId} onChange={(e) => setInitTxnId(e.target.value)}>
-                <option value="">暂不关联</option>
-                {linkableTxns.length === 0 && <option disabled>暂无未归属客户的流水</option>}
-                {linkableTxns.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.summary} · {t.type === 'income' ? '+' : '-'}¥{t.amount.toLocaleString('zh-CN')}
-                  </option>
-                ))}
-              </select>
+              <MatchCombobox
+                value={initTxnId}
+                options={linkableTxns.map((t) => ({
+                  id: t.id,
+                  label: t.summary,
+                  sub: `${t.type === 'income' ? '+' : '-'}¥${t.amount.toLocaleString('zh-CN')}`,
+                  icon: 'payments',
+                }))}
+                placeholder="输入交易名称模糊搜索"
+                emptyText={linkableTxns.length === 0 ? '暂无未归属客户的流水' : '没有匹配的交易'}
+                onChange={setInitTxnId}
+              />
             </Field>
           </div>
         )}

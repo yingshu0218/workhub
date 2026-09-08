@@ -5,6 +5,7 @@ import { useCollection } from '@/queries/hooks'
 import { todoRepo, newId } from '@/repositories'
 import type { Todo, Customer, Project } from '@/db/types'
 import { Button, Card, Chip, EmptyState, PageHeader, Drawer, Field, inputCls } from '@/design-system/ui'
+import { MatchCombobox } from '@/design-system/MatchCombobox'
 import dayjs from 'dayjs'
 import { useFocusStore } from '@/stores/focus'
 import {
@@ -456,35 +457,41 @@ export function TodoFormDrawer({
           <input type="datetime-local" className={inputCls} value={dueAt} onChange={(e) => setDueAt(e.target.value)} />
         </Field>
         <Field label="所属清单">
-          <select className={inputCls} value={listId} onChange={(e) => setListId(e.target.value)}>
-            <option value="">无（仅出现在智能清单）</option>
-            {listOptions.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.name}
-              </option>
-            ))}
-          </select>
+          <MatchCombobox
+            value={listId}
+            options={listOptions.map((l) => ({ id: l.id, label: l.name, icon: 'folder' }))}
+            placeholder="输入清单名称模糊搜索"
+            emptyText="没有匹配的清单"
+            onChange={setListId}
+          />
         </Field>
         <Field label="所属项目">
-          <select className={inputCls} value={projectId} onChange={(e) => setProjectId(e.target.value)}>
-            <option value="">不关联</option>
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-                {p.status === 'archived' ? '（已归档）' : ''}
-              </option>
-            ))}
-          </select>
+          <MatchCombobox
+            value={projectId}
+            options={projects.map((p) => ({
+              id: p.id,
+              label: p.name,
+              sub: p.status === 'archived' ? '已归档' : undefined,
+              archived: p.status === 'archived',
+              icon: 'folder_open',
+            }))}
+            placeholder="输入项目名称模糊搜索"
+            emptyText="没有匹配的项目"
+            onChange={setProjectId}
+          />
         </Field>
         <Field label="关联客户">
-          <select className={inputCls} value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
-            <option value="">不关联</option>
-            {customers.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name} · {c.company}
-              </option>
-            ))}
-          </select>
+          <MatchCombobox
+            value={customerId}
+            options={customers.map((c) => ({
+              id: c.id,
+              label: c.company ? `${c.company} · ${c.name}` : c.name,
+              icon: 'person',
+            }))}
+            placeholder="输入公司或姓名模糊搜索，如：深蓝"
+            emptyText="没有匹配的客户"
+            onChange={setCustomerId}
+          />
         </Field>
         {error && <div className="mb-3 text-[12px] text-danger">{error}</div>}
         <div className="flex justify-end gap-2 pt-2">

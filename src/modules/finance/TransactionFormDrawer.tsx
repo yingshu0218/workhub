@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
-import { Icon } from '@/design-system/Icon'
+import { useState } from 'react'
 import { useCollection } from '@/queries/hooks'
 import { newId, saveTransactionWithAttachments } from '@/repositories'
 import { eventBus } from '@/shared/eventBus'
@@ -7,190 +6,13 @@ import type { PutInput } from '@/repositories/repository'
 import type { Attachment } from '@/db/db'
 import type { Customer, Ledger, Project, Todo, Transaction } from '@/db/types'
 import { Button, Chip, Drawer, Field, inputCls } from '@/design-system/ui'
+import { MatchCombobox, type MatchOption } from '@/design-system/MatchCombobox'
 import dayjs from 'dayjs'
 
 const CHANNELS = ['微信', '支付宝', '银行卡', '现金', '对公转账'] as const
 const MAX_ATTACHMENT_SIZE = 5 * 1024 * 1024
 /** 金额上限（元）：10 位数封顶 */
 const MAX_AMOUNT = 9999999999
-
-/** 模糊匹配：全部子序列命中即算匹配（如「深科」命中「深蓝科技」），优先级：前缀 > 子串 > 子序列 */
-function fuzzyMatch(text: string, query: string): boolean {
-  const t = text.toLowerCase()
-  const q = query.toLowerCase().trim()
-  if (!q) return true
-  const idx = t.indexOf(q)
-  if (idx >= 0) return true
-  // 子序列回退
-  let i = 0
-  for (const ch of t) {
-    if (ch === q[i]) i++
-    if (i >= q.length) return true
-  }
-  return false
-}
-
-/** 按匹配质量排序：子串命中在前，同质量按原顺序 */
-function fuzzySort<T>(items: T[], labelOf: (item: T) => string, query: string): T[] {
-  const q = query.toLowerCase().trim()
-  if (!q) return items
-  return [...items]
-    .map((item, i) => ({ item, i, score: labelOf(item).toLowerCase().indexOf(q) }))
-    .sort((a, b) => {
-      if (a.score !== b.score) {
-        if (a.score < 0) return 1
-        if (b.score < 0) return -1
-        return a.score - b.score
-      }
-      return a.i - b.i
-    })
-    .map((x) => x.item)
-}
-
-interface MatchOption {
-  id: string
-  /** 主文案（客户：公司 · 姓名；待办：标题） */
-  label: string
-  /** 次要文案（待办优先级等） */
-  sub?: string
-  icon?: string
-}
-
-/**
- * 可输入模糊匹配下拉（关联客户 / 关联待办共用）：
- * 手动输入即时过滤（子串 + 子序列），无输入展开全量候选；键盘 ↑↓ 选择、Enter 确认、Esc 关闭；
- * 点选候选项后清空输入框并显示已选回显条（可清除）；「不关联」选项置于列表首位。
- */
-function MatchCombobox({
-  value,
-  options,
-  placeholder,
-  emptyText,
-  onChange,
-}: {
-  value: string
-  options: MatchOption[]
-  placeholder: string
-  emptyText: string
-  onChange: (id: string) => void
-}) {
-  const [query, setQuery] = useState('')
-  const [open, setOpen] = useState(false)
-  const [activeIdx, setActiveIdx] = useState(0)
-  const boxRef = useRef<HTMLDivElement>(null)
-
-  const selected = options.find((o) => o.id === value)
-  const filtered = fuzzySort(
-    options.filter((o) => fuzzyMatch(o.label, query)),
-    (o) => o.label,
-    query,
-  )
-  // 「不关联」恒在首位（仅无已选时展示）
-  const listItems: MatchOption[] = selected ? filtered : [{ id: '', label: '不关联' }, ...filtered]
-  const safeIdx = Math.min(activeIdx, Math.max(0, listItems.length - 1))
-
-  // 点外部关闭
-  useEffect(() => {
-    if (!open) return
-    const onDown = (e: MouseEvent) => {
-      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', onDown)
-    return () => document.removeEventListener('mousedown', onDown)
-  }, [open])
-
-  function commit(id: string) {
-    onChange(id)
-    setQuery('')
-    setOpen(false)
-  }
-
-  function onKey(e: React.KeyboardEvent) {
-    if (!open) {
-      if (e.key === 'ArrowDown' || e.key === 'Enter') {
-        setOpen(true)
-        e.preventDefault()
-      }
-      return
-    }
-    if (e.key === 'ArrowDown') {
-      setActiveIdx(Math.min(safeIdx + 1, listItems.length - 1))
-      e.preventDefault()
-    } else if (e.key === 'ArrowUp') {
-      setActiveIdx(Math.max(safeIdx - 1, 0))
-      e.preventDefault()
-    } else if (e.key === 'Enter') {
-      const item = listItems[safeIdx]
-      if (item) commit(item.id)
-      e.preventDefault()
-    } else if (e.key === 'Escape') {
-      setOpen(false)
-    }
-  }
-
-  return (
-    <div ref={boxRef} className="relative">
-      {/* 已选回显条 */}
-      {selected ? (
-        <div className="flex items-center justify-between rounded-lg border border-outline-variant/40 bg-surface-container-low px-3 py-2">
-          <span className="flex min-w-0 items-center gap-2 text-[13px]">
-            <Icon name={selected.icon ?? 'person'} size={16} className="shrink-0 text-primary" />
-            <span className="truncate font-medium">{selected.label}</span>
-            {selected.sub && (
-              <span className="shrink-0 text-[11px] text-outline">{selected.sub}</span>
-            )}
-          </span>
-          <button
-            className="shrink-0 rounded p-0.5 text-outline transition-colors hover:bg-surface-container-high hover:text-on-surface"
-            title="清除关联"
-            onClick={() => commit('')}
-          >
-            <Icon name="close" size={16} />
-          </button>
-        </div>
-      ) : (
-        <input
-          className={inputCls}
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value)
-            setOpen(true)
-            setActiveIdx(0)
-          }}
-          onFocus={() => setOpen(true)}
-          onKeyDown={onKey}
-          placeholder={placeholder}
-        />
-      )}
-      {open && !selected && (
-        <div className="absolute z-30 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-outline-variant/40 bg-surface-container-lowest py-1 shadow-lg">
-          {listItems.length === 0 ? (
-            <div className="px-3 py-2 text-[12px] text-outline">{emptyText}</div>
-          ) : (
-            listItems.map((o, i) => (
-              <button
-                key={o.id || '__none__'}
-                onClick={() => commit(o.id)}
-                onMouseEnter={() => setActiveIdx(i)}
-                className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[13px] transition-colors ${
-                  i === safeIdx ? 'bg-primary-fixed text-primary' : 'hover:bg-surface-container'
-                }`}
-              >
-                <Icon
-                  name={o.id ? (o.icon ?? 'person') : 'block'}
-                  size={15}
-                  className="shrink-0 text-outline"
-                />
-                <span className="min-w-0 flex-1 truncate">{o.label}</span>
-                {o.sub && <span className="shrink-0 text-[11px] text-outline">{o.sub}</span>}
-              </button>
-            ))
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
 
 /** 记一笔账 / 编辑流水抽屉（对齐原型 04-finance-new-transaction） */
 export default function TransactionFormDrawer({
@@ -266,6 +88,18 @@ export default function TransactionFormDrawer({
       setError('')
       setSeedKey((k) => k + 1)
     }
+  }
+
+  // 待办候选：新建态=未完成待办；编辑态若已选待办已完成，单独并入 + sub 标注「已完成」，保证回显不丢
+  const todoOptions: MatchOption[] = openTodos.map((t) => ({
+    id: t.id,
+    label: t.title,
+    sub: t.priority,
+    icon: 'task_alt',
+  }))
+  if (editTxn?.todoId && !openTodos.some((t) => t.id === editTxn.todoId)) {
+    const done = todos.find((t) => t.id === editTxn.todoId)
+    if (done) todoOptions.push({ id: done.id, label: done.title, sub: '已完成', icon: 'task_alt' })
   }
 
   const tags = [
@@ -472,25 +306,24 @@ export default function TransactionFormDrawer({
           />
         </Field>
         <Field label="关联项目">
-          <select className={inputCls} value={projectId} onChange={(e) => setProjectId(e.target.value)}>
-            <option value="">不关联</option>
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-                {p.status === 'archived' ? '（已归档）' : ''}
-              </option>
-            ))}
-          </select>
+          <MatchCombobox
+            value={projectId}
+            options={projects.map((p) => ({
+              id: p.id,
+              label: p.name,
+              sub: p.status === 'archived' ? '已归档' : undefined,
+              archived: p.status === 'archived',
+              icon: 'folder_open',
+            }))}
+            placeholder="输入项目名称模糊搜索"
+            emptyText="没有匹配的项目"
+            onChange={setProjectId}
+          />
         </Field>
         <Field label="关联待办">
           <MatchCombobox
             value={todoId}
-            options={openTodos.map((t) => ({
-              id: t.id,
-              label: t.title,
-              sub: t.priority,
-              icon: 'task_alt',
-            }))}
+            options={todoOptions}
             placeholder="输入待办标题模糊搜索"
             emptyText={openTodos.length === 0 ? '暂无未完成待办' : '没有匹配的待办'}
             onChange={setTodoId}
