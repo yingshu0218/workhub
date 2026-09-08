@@ -1,10 +1,10 @@
 import { Avatar, Button, Chip } from '@/design-system/ui'
 import { healthColor, fmtRelative, tierChipTone } from '../shared'
-import type { CanvasGraph } from '../hooks'
+import type { Customer } from '@/db/types'
 
 /**
  * 客户缩略信息卡（Issue #34）：点击图谱客户节点弹出，替代「单击即跳转」。
- * 数据直接用 CanvasGraph.customers 投影字段（name/company/tier/healthScore/lastContactAt），
+ * 数据走 useRecord 二次订阅的客户全量记录（审计口径：画布裁剪投影不含 lastContactAt/decisionLevel）,
  * 视觉范式对齐 CustomerDetailPage 头卡（Avatar + tierChipTone + healthColor），
  * 「进入档案」按钮保留原 navigate(/crm/:id) 跳转能力。
  */
@@ -14,7 +14,7 @@ export default function CustomerInfoCard({
   onEnter,
   onClose,
 }: {
-  customer: CanvasGraph['customers'][number]
+  customer: Customer
   /** 节点屏幕坐标（视口内定位，浮层跟随节点） */
   screen: { x: number; y: number }
   onEnter: () => void
@@ -38,6 +38,7 @@ export default function CustomerInfoCard({
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="truncate text-[14px] font-bold">{customer.name}</span>
             <Chip tone={tierChipTone(customer.tier)}>{customer.tier === '潜在' ? '潜在' : `${customer.tier} 层`}</Chip>
+            {customer.decisionLevel && <Chip tone="gray">{customer.decisionLevel}</Chip>}
           </div>
           <div className="mt-0.5 truncate text-[12px] text-on-surface-variant">{customer.company || '—'}</div>
         </div>

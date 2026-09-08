@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useRecord } from '@/queries/hooks'
+import type { Customer } from '@/db/types'
 import { Card, EmptyState } from '@/design-system/ui'
 import { Icon } from '@/design-system/Icon'
 import { RELATION_CATEGORIES, type RelationCategory } from '@/db/types'
@@ -56,11 +58,8 @@ export default function GraphCanvas({ graph, focusId, style, legend, showReheat,
     mode === 'customer-only' &&
     links.some((l) => l.kind === 'relation' && (l.categories?.length ?? 0) > 0)
 
-  // 选中客户投影（缩略卡数据源）
-  const selectedCustomer = useMemo(
-    () => (selectedId ? graph.customers.find((c) => c.id === selectedId) : undefined),
-    [selectedId, graph],
-  )
+  // 卡片数据二次订阅：useRecord 拿客户全量记录，不依赖画布裁剪投影（审计口径）
+  const selectedCustomer = useRecord<Customer>('customers', selectedId ?? undefined)
   // 共享视图变换 hook：wheel 缩放 + 空白处拖拽平移（与时间线鱼骨页共用）
   const panZoom = usePanZoom({ size })
   const view = panZoom.view
@@ -183,7 +182,7 @@ export default function GraphCanvas({ graph, focusId, style, legend, showReheat,
 
   // 聚焦模式自动 fit：布局稳定后一次 fit 到当前子图（requestAnimationFrame 等首帧坐标）
   const fittedRef = useRef('')
-  const fitKey = `${focusId ?? 'all'}-${nodes.length}`
+  const fitKey = `${focusId ?? 'all'}-${nodes.length}-${mode}`
   if (fittedRef.current !== fitKey && nodes.length > 0 && nodes.some((n) => n.x != null)) {
     fittedRef.current = fitKey
     // 渲染期不能调 setView（会与 panZoom 内部状态竞争），推迟到下一帧
@@ -232,6 +231,7 @@ export default function GraphCanvas({ graph, focusId, style, legend, showReheat,
           panZoom.containerProps.onPointerCancel()
           onPointerCancel()
         }}
+        onClick={() => setSelectedId(null)}
       >
         {legend}
         {empty ? (
@@ -313,6 +313,40 @@ export default function GraphCanvas({ graph, focusId, style, legend, showReheat,
                     )
                   })}
               </g>
+              {/* 桥接弱边（客户↔客户，二跳推导）：直线 + 细虚线 + 低不透明度，弱视觉权重不抢主线（Issue #34 ①） */}
+              <g>
+                {links
+                  .filter((l) => l.kind === 'bridge')
+                  .map((l, i) => {
+                    const s = l.source as GraphNode
+                    const t = l.target as GraphNode
+                    if (s.x == null || t.x == null || s.y == null || t.y == null) return null
+                    return (
+                      <g key={`br${i}`} opacity={0.6}>
+                        <line
+                          x1={s.x}
+                          y1={s.y}
+                          x2={t.x}
+                          y2={t.y}
+                          stroke={GRAPH_COLORS.bridge.stroke}
+                          strokeWidth={1}
+                          strokeDasharray="2 4"
+                        />
+                        {l.label && (
+                          <text
+                            x={(s.x + t.x) / 2}
+                            y={(s.y + t.y) / 2 - 6}
+                            textAnchor="middle"
+                            style={{ fontSize: 9, fontWeight: 500 }}
+                            fill={GRAPH_COLORS.bridge.text}
+                          >
+                            {l.label}
+                          </text>
+                        )}
+                      </g>
+                    )
+                  })}
+              </g>
               {/* 节点（客户最上层） */}
               <g>
                 {[...nodes]
@@ -324,7 +358,9 @@ export default function GraphCanvas({ graph, focusId, style, legend, showReheat,
                         transform={`translate(${n.x},${n.y})`}
                         className={n.kind === 'customer' ? 'cursor-pointer' : 'cursor-grab'}
                         onPointerDown={(e) => onNodePointerDown(e, n)}
-                        onClick={() => {
+                        onClick={(e) => {
+                          // 阻止冒泡到画布背景（背景单击关卡），节点自身不触发背景关闭
+                          e.stopPropagation()
                           // click 在 pointerup 之后派发：拖拽过的手势不触发穿透跳转，并消费标记
                           if (draggedRef.current) {
                             draggedRef.current = false
@@ -501,3 +537,4 @@ export default function GraphCanvas({ graph, focusId, style, legend, showReheat,
     </Card>
   )
 }
+

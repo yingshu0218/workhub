@@ -133,10 +133,76 @@ function buildRelationLinks(graph: CanvasGraph): GraphLink[] {
   }))
 }
 
+
+/**
+ * 二跳桥接弱边（Issue #34）：倒排分桶 + 桶内两两连边，规避 O(n²) 全扫。
+ * 只派生两类弱关联，桥接边 kind='bridge'（虚线弱视觉，见 types.bridge）：
+ * - 项目桥接：客户 A 在项目 P 下有流水/待办/沟通（customerId=A & projectId=P），
+ *   而项目 P 挂属客户 B（P.customerId=B）→ A—B「项目桥接」，label 注明项目名。
+ * - 财务桥接：同一 ledger 下 A 有出账（expense）+ B 有入账（income）→ A—B「资金往来」。
+ * 事件独立桥接不做：interactions/todos 本质已被项目桥接覆盖，避免弱边噪音。
+ * 去重 & 悬挂防御：只连现存客户且两两不重复；默认稀疏、不设硬阈值。
+ */
+function deriveCustomerEdges(graph: CanvasGraph): GraphLink[] {
+  const custIds = new Set(graph.customers.map((c) => c.id))
+  const out: GraphLink[] = []
+  const seen = new Set<string>()
+  const addBridge = (a: string, b: string, label: string) => {
+    if (!a || !b || a === b) return
+    if (!custIds.has(a) || !custIds.has(b)) return // 悬挂防御：只连现存客户
+    const key = [a, b].sort().join('~')
+    if (seen.has(key)) return
+    seen.add(key)
+    out.push({ source: a, target: b, kind: 'bridge', label })
+  }
+
+  // ── 项目桥接：按项目倒排，桶成员 = 在该项目下留有实体（流水/待办/沟通）的客户 ──
+  const projOwner = new Map<string, string>() // projectId -> 挂属客户 owner
+  const projName = new Map<string, string>()
+  for (const p of graph.projects) {
+    if (p.customerId) projOwner.set(p.id, p.customerId)
+    projName.set(p.id, p.name)
+  }
+  const projCustomers = new Map<string, Set<string>>()
+  const feedProject = (customerId: string, projectId?: string) => {
+    if (!customerId || !projectId) return
+    if (!projCustomers.has(projectId)) projCustomers.set(projectId, new Set())
+    projCustomers.get(projectId)!.add(customerId)
+  }
+  for (const t of graph.transactions) feedProject(t.customerId, t.projectId)
+  for (const t of graph.todos) feedProject(t.customerId, t.projectId)
+  for (const i of graph.interactions) feedProject(i.customerId, i.projectId)
+  for (const [projId, members] of projCustomers) {
+    const owner = projOwner.get(projId)
+    if (!owner) continue // 项目未挂客户则无 B 端点，不成桥接
+    const label = projName.get(projId) ?? ''
+    for (const a of members) addBridge(a, owner, label)
+  }
+
+  // ── 财务桥接：按 ledger 倒排出账/入账双方，跨客户两两连「资金往来」 ──
+  const ledgerBuckets = new Map<string, { payers: Set<string>; receivers: Set<string> }>()
+  for (const t of graph.transactions) {
+    if (!t.ledgerId || !t.customerId) continue
+    let b = ledgerBuckets.get(t.ledgerId)
+    if (!b) {
+      b = { payers: new Set(), receivers: new Set() }
+      ledgerBuckets.set(t.ledgerId, b)
+    }
+    if (t.type === 'expense') b.payers.add(t.customerId)
+    else if (t.type === 'income') b.receivers.add(t.customerId)
+  }
+  for (const { payers, receivers } of ledgerBuckets.values()) {
+    for (const payer of payers) {
+      for (const receiver of receivers) addBridge(payer, receiver, '资金往来')
+    }
+  }
+  return out
+}
+
 export function buildGraph(graph: CanvasGraph, opts: BuildGraphOptions): { nodes: GraphNode[]; links: GraphLink[] } {
   const relationLinks = buildRelationLinks(graph)
 
-  // ── customer-only 模式（Issue #34）：纯客户节点 + 分类关系边，业务实体节点不参与 ──
+  // ── customer-only 模式（Issue #34）：纯客户节点 + 分类关系边 + 桥接弱边，业务实体节点不参与 ──
   if (opts.mode === 'customer-only') {
     const ns: GraphNode[] = graph.customers.map((c, i) => ({
       id: c.id,
@@ -163,7 +229,9 @@ export function buildGraph(graph: CanvasGraph, opts: BuildGraphOptions): { nodes
   }
 
   const { nodes, links } = assemble(graph)
-  const allLinks = [...links, ...relationLinks]
+  // 二跳桥接弱边：全景视图默认附带；聚焦模式后续 one-hop 裁剪会自动裁掉二跳以外邻居的桥接
+  const bridgeLinks = deriveCustomerEdges(graph)
+  const allLinks = [...links, ...relationLinks, ...bridgeLinks]
   const allNodes = [...nodes]
 
   if (!opts.focusId) {

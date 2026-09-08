@@ -62,14 +62,18 @@ export function useForceGraph({ graph, size, focusId, mode, categories }: ForceG
         forceLink<GraphNode, GraphLink>(ls)
           .id((d) => d.id)
           // 客户↔客户关系边给更小 distance：让有关联的客户在布局上聚拢，关系结构可读
-          .distance((l) =>
-            l.kind === 'relation'
-              ? 60
-              : (l.source as GraphNode).kind === 'customer' || (l.target as GraphNode).kind === 'customer'
-                ? 90
-                : 70,
-          )
-          .strength((l) => (l.kind === 'relation' ? 0.6 : 0.4)),
+          .distance((l) => {
+            if (l.kind === 'relation') return 60
+            // 二跳桥接弱边：距离放宽，让主线结构优先、桥接不抢布局
+            if (l.kind === 'bridge') return 110
+            return (l.source as GraphNode).kind === 'customer' || (l.target as GraphNode).kind === 'customer' ? 90 : 70
+          })
+          .strength((l) => {
+            // 强关联：实线语义关系给强束缚；桥接弱边给极低强度，近似只做「轻引力」不硬拽
+            if (l.kind === 'relation') return 0.6
+            if (l.kind === 'bridge') return 0.08
+            return 0.4
+          }),
       )
       .force('charge', forceManyBody().strength(-320))
       .force('center', forceCenter(size.w / 2, size.h / 2))

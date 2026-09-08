@@ -22,8 +22,8 @@ export default function CrmCanvasPage() {
         title="客户关系画布"
         subtitle={
           mode === 'customer-only'
-            ? '客户关系网 · 主节点为客户，连线为分类关联，单击节点查看缩略卡'
-            : '力导向关系图 · 拖拽节点体验物理弹簧，双击交易/待办/笔记节点穿透至详情'
+            ? '客户关系网 · 主节点为客户，连线为分类关联与桥接弱边，单击节点查看缩略卡'
+            : '力导向关系图 · 实线从属、虚线关联与桥接弱边；单击客户节点弹缩略卡，双击交易/待办/笔记穿透至详情'
         }
         actions={
           <>
@@ -63,18 +63,32 @@ export default function CrmCanvasPage() {
           </>
         )}
         {mode === 'mixed' ? (
-          <span className="ml-2 inline-flex items-center gap-1 text-[11px] text-outline">
-            <svg width="22" height="8" className="inline-block">
-              <line x1="0" y1="4" x2="22" y2="4" stroke="#943700" strokeWidth="1.5" strokeDasharray="5 4" />
-            </svg>
-            客户关联边
-          </span>
+          <>
+            <span className="ml-2 inline-flex items-center gap-1 text-[11px] text-outline">
+              <svg width="22" height="8" className="inline-block">
+                <line x1="0" y1="4" x2="22" y2="4" stroke="#943700" strokeWidth="1.5" strokeDasharray="5 4" />
+              </svg>
+              客户关联边（relations）
+            </span>
+            <span className="ml-1 inline-flex items-center gap-1 text-[11px] text-outline">
+              <svg width="22" height="8" className="inline-block">
+                <line x1="0" y1="4" x2="22" y2="4" stroke="#8a94a6" strokeWidth="1" strokeDasharray="2 4" />
+              </svg>
+              项目/资金桥接
+            </span>
+          </>
         ) : (
           <span className="ml-2 inline-flex flex-wrap items-center gap-2 text-[11px] text-outline">
             <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full" style={{ background: '#6d43c4' }} />项目</span>
             <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full" style={{ background: '#0065b8' }} />事件</span>
             <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full" style={{ background: '#006c49' }} />财务</span>
             <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full" style={{ background: '#943700' }} />关联人物</span>
+            <span className="inline-flex items-center gap-1">
+              <svg width="22" height="8" className="inline-block">
+                <line x1="0" y1="4" x2="22" y2="4" stroke="#8a94a6" strokeWidth="1" strokeDasharray="2 4" />
+              </svg>
+              项目/资金桥接
+            </span>
           </span>
         )}
         <span className="text-[11px] text-outline">
