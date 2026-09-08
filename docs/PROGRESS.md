@@ -2,7 +2,7 @@
 
 > **本仓库的唯一进度事实来源。** 所有人（含 AI 开发代理）推进或变更任何开发工作，必须在**同一个 commit** 里同步更新本文件对应状态。README 底部的 Changelog 记录"发生了什么"，本文档记录"现在处于什么状态"——前者追加式流水，后者始终反映最新全貌。
 
-**最后更新**：2026-09-08（Issue #20 关联字段模糊输入匹配：MatchCombobox 提升为 design-system 共享组件，8 处实体关联字段统一替换，归档沉底/已完成待办回显边界覆盖） · 维护人：yingshu0218 / cnb.cMPXRmKswEA / npc/CodeBuddy
+**最后更新**：2026-09-08（Issue #44 新建待办无反馈修复：新建保存后当前视图不可见时自动切「全部待办」，TodoFormDrawer 增加 onSaved 回调） · 维护人：yingshu0218 / cnb.cMPXRmKswEA / npc/CodeBuddy
 
 ---
 

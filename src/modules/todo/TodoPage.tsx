@@ -366,6 +366,24 @@ export default function TodoPage() {
           setCreating(false)
           setEditing(null)
         }}
+        onSaved={(saved) => {
+          if (editing) return
+          // 新建兜底：当前视图装不下新条目（默认「今天」只显示当日截止项）时，
+          // 自动切到「全部待办」，避免保存成功却"看不到任何反应"
+          const visible = selListId
+            ? saved.listId === selListId
+            : selKind === 'done'
+              ? saved.status === 'done'
+              : selKind === 'p1'
+                ? saved.status !== 'done' && saved.priority === 'P1'
+                : selKind === 'today'
+                  ? saved.status !== 'done' && !!saved.dueAt && dayjs(saved.dueAt).format('YYYY-MM-DD') === todayStr
+                  : true
+          if (!visible) {
+            setSelListId(null)
+            setSelKind('open')
+          }
+        }}
       />
     </div>
   )
@@ -375,10 +393,13 @@ export function TodoFormDrawer({
   open,
   todo,
   onClose,
+  onSaved,
 }: {
   open: boolean
   todo: Todo | null
   onClose: () => void
+  /** 保存成功后回调（新建场景用于视图兜底切换，保证新条目立即可见） */
+  onSaved?: (todo: Todo) => void
 }) {
   const customers = useCollection<Customer>('customers')
   const projects = useCollection<Project>('projects')
@@ -432,6 +453,7 @@ export function TodoFormDrawer({
       rev: 0,
     }
     await todoRepo.put(base)
+    onSaved?.(base)
     onClose()
   }
 
