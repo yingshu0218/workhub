@@ -85,3 +85,4 @@
 | 34 | 2026-09-07 | 风格主题扩充（Issue #14）：新增像素复古与 Q 版卡通两套风格主题包（各含明暗双套变量 + 推荐圆角），风格主题总数达 10 套 | npc/CodeBuddy |
 | 35 | 2026-09-08 | 字体预设扩充（Issue #14）：字体组合 6 组 → 12 组，新增等宽极客/仿宋公文/飘逸草体/凌厉黑体/典丽宋体/元气圆黑；设置页字体网格自适应两列/三列布局 | npc/CodeBuddy |
 | 36 | 2026-09-08 | Issue #14 审计修复：主题切换先清理旧 inline 变量再覆盖（防经典晴空/深浅互切残留污染）；楷体字体栈 `'serif'` 误引号修正为关键字 serif | npc/CodeBuddy(deepseek-v4-flash) |
+| 37 | 2026-09-08 | Issue #14 复核补充：主题/字体类型单源化（THEME_STYLES as const satisfies 派生 ThemeStyleId，SettingsAppearance.theme 收窄）+ 主题 token 除 classic 外明暗两侧补齐 19 键 + gothic 字体栈移除不可命中的 'Source Han Sans SC Heavy' | npc/CodeBuddy(deepseek-v4-flash) |
