@@ -32,6 +32,9 @@ const TYPE_ICONS: Record<Interaction['type'], string> = {
   会议: 'groups',
   邮件: 'mail',
   拜访: 'directions_walk',
+  跟进: 'trending_up',
+  小结: 'summarize',
+  其他: 'more_horiz',
 }
 
 /** 世界坐标布局常量（水平从左到右按时间递增，鱼头在最右） */
