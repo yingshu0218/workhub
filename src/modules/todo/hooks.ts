@@ -12,13 +12,10 @@ import dayjs from 'dayjs'
 
 /** 订阅自定义清单（按 sortOrder 排序，过滤软删） */
 export function useTodoLists(): TodoList[] {
-  const lists = useQuery<TodoList[]>(
-    async () => {
-      const all = await db.todoLists.toArray()
-      return all.filter((l) => !l.deleted).sort((a, b) => a.sortOrder - b.sortOrder)
-    },
-    [],
-  )
+  const lists = useQuery<TodoList[]>(async () => {
+    const all = await db.todoLists.toArray()
+    return all.filter((l) => !l.deleted).sort((a, b) => a.sortOrder - b.sortOrder)
+  }, [])
   return lists ?? []
 }
 
@@ -95,18 +92,15 @@ export function useTodoListCounts(): Record<string, number> {
     async () => (await db.todoLists.toArray()).filter((l) => !l.deleted),
     [],
   )
-  const counts = useQuery<Record<string, number>>(
-    async () => {
-      const todos = await db.todos.toArray()
-      const map: Record<string, number> = {}
-      for (const t of todos) {
-        if (t.deleted || t.status === 'done' || !t.listId) continue
-        map[t.listId] = (map[t.listId] ?? 0) + 1
-      }
-      return map
-    },
-    [lists?.length],
-  )
+  const counts = useQuery<Record<string, number>>(async () => {
+    const todos = await db.todos.toArray()
+    const map: Record<string, number> = {}
+    for (const t of todos) {
+      if (t.deleted || t.status === 'done' || !t.listId) continue
+      map[t.listId] = (map[t.listId] ?? 0) + 1
+    }
+    return map
+  }, [lists?.length])
   return counts ?? {}
 }
 

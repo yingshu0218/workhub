@@ -419,15 +419,13 @@ export async function seedIfEmpty(): Promise<boolean> {
       await db.quickNotes.bulkPut(quickNotes)
       await db.habits.bulkPut(habits)
       await db.habitLogs.bulkPut(
-        habits.map(
-          (h, i): HabitLog => ({
-            id: habitLogId(h.id, today),
-            habitId: h.id,
-            date: today,
-            completedAt: now - i * 600_000,
-            ...meta(),
-          }),
-        ),
+        habits.map((h, i): HabitLog => ({
+          id: habitLogId(h.id, today),
+          habitId: h.id,
+          date: today,
+          completedAt: now - i * 600_000,
+          ...meta(),
+        })),
       )
       await db.trophies.bulkPut(trophies)
       await db.projects.bulkPut(projects)

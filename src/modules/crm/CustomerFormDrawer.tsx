@@ -81,12 +81,14 @@ export default function CustomerFormDrawer({
     }
   }
 
-  const tags = [...new Set(
-    tagsRaw
-      .split(/[,,]/)
-      .map((t) => t.trim().replace(/^#/, ''))
-      .filter(Boolean),
-  )]
+  const tags = [
+    ...new Set(
+      tagsRaw
+        .split(/[,,]/)
+        .map((t) => t.trim().replace(/^#/, ''))
+        .filter(Boolean),
+    ),
+  ]
 
   // 第 4 步可关联的交易：仅列出尚未归属任何客户的流水（已关联的可通过财务侧改）
   const transactions = useCollection<Transaction>('transactions')
@@ -153,7 +155,12 @@ export default function CustomerFormDrawer({
   }
 
   return (
-    <Drawer open={open} title={customer ? '编辑客户档案' : '新建客户档案'} onClose={onClose} width={460}>
+    <Drawer
+      open={open}
+      title={customer ? '编辑客户档案' : '新建客户档案'}
+      onClose={onClose}
+      width={460}
+    >
       <div key={seedKey}>
         <StepHeader n={1} title="基础信息" />
         <Field label="客户姓名 *">
@@ -307,7 +314,9 @@ export default function CustomerFormDrawer({
               max={100}
               className={`${inputCls} w-20`}
               value={Math.round(healthScore)}
-              onChange={(e) => setHealthScore(Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
+              onChange={(e) =>
+                setHealthScore(Math.max(0, Math.min(100, Number(e.target.value) || 0)))
+              }
             />
           </div>
         </Field>
@@ -331,7 +340,9 @@ export default function CustomerFormDrawer({
                     <button
                       className="-ml-1 h-4 w-4 rounded-full bg-surface-container-high text-[10px] leading-none text-on-surface-variant hover:text-danger"
                       title="移除该条关联"
-                      onClick={() => setRelations((rs) => rs.filter((x) => relKey(x) !== relKey(r)))}
+                      onClick={() =>
+                        setRelations((rs) => rs.filter((x) => relKey(x) !== relKey(r)))
+                      }
                     >
                       ×
                     </button>
@@ -341,20 +352,31 @@ export default function CustomerFormDrawer({
             </div>
             <div className="grid grid-cols-2 gap-2">
               <Field label="目标客户">
-                <select className={inputCls} value={relTarget} onChange={(e) => setRelTarget(e.target.value)}>
+                <select
+                  className={inputCls}
+                  value={relTarget}
+                  onChange={(e) => setRelTarget(e.target.value)}
+                >
                   <option value="">选择已有客户…</option>
                   {relCandidates.map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.name}{c.company ? `（${c.company.slice(0, 8)}）` : ''}
+                      {c.name}
+                      {c.company ? `（${c.company.slice(0, 8)}）` : ''}
                     </option>
                   ))}
                 </select>
               </Field>
               <Field label="关系">
-                <select className={inputCls} value={relLabel} onChange={(e) => setRelLabel(e.target.value)}>
+                <select
+                  className={inputCls}
+                  value={relLabel}
+                  onChange={(e) => setRelLabel(e.target.value)}
+                >
                   <option value="">关系语义…</option>
                   {REL_LABELS.map((l) => (
-                    <option key={l} value={l}>{l}</option>
+                    <option key={l} value={l}>
+                      {l}
+                    </option>
                   ))}
                 </select>
               </Field>
@@ -367,7 +389,9 @@ export default function CustomerFormDrawer({
                   >
                     <option value="">未归类（图谱按「其他」展示）</option>
                     {RELATION_CATEGORIES.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
                     ))}
                   </select>
                 </Field>
@@ -384,7 +408,12 @@ export default function CustomerFormDrawer({
                 setRelations((rs) => [
                   ...rs,
                   // 条目独立 id：支撑同对多语义并存、逐条删除与列表 key；category 可选（Issue #34）
-                  { id: newId('rel'), targetId: relTarget, label: relLabel, ...(relCategory ? { category: relCategory } : {}) },
+                  {
+                    id: newId('rel'),
+                    targetId: relTarget,
+                    label: relLabel,
+                    ...(relCategory ? { category: relCategory } : {}),
+                  },
                 ])
                 setRelTarget('')
                 setRelLabel('')

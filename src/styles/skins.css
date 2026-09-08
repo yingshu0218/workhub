@@ -1,0 +1,172 @@
+/* =====================================================================
+   主题样式包 ThemeSkin（Issue #43）
+   与配色主题（THEME_STYLES，管色板）正交：皮肤只管「形态语言」——
+   描边 / 阴影 / 标题字体 / 背景纹理，通过 <html data-skin="..."> 挂载。
+   皮肤不写任何 radius 字面值（圆角一律引用 var(--radius-lg)，
+   由配色侧 radius 档位控制）；不碰 --color-* / --font-sans（正文排版通道）。
+   皮肤由 theme.ts 中 ThemeStylePreset.skin 推荐挂载，默认 none 零命中。
+   ===================================================================== */
+
+/* 皮肤形态 token 默认值（none 状态 = 现代默认，保持视觉零变化） */
+:root {
+  --skin-border-width: 1px;
+  --skin-border-color: color-mix(in srgb, var(--color-outline-variant) 45%, transparent);
+  --skin-shadow-card: 0 1px 3px rgba(0, 0, 0, 0.05);
+  --skin-shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --skin-shadow-btn: none;
+  --skin-heading-font: inherit;
+  --skin-heading-spacing: 0;
+  --skin-card-radius: var(--radius-lg);
+  --skin-surface-filter: none;
+}
+
+/* 标题域字体（h1-h4 / 卡片标题）：仅皮肤层接管，none 时为继承 */
+h1,
+h2,
+h3,
+h4,
+.surface-title {
+  font-family: var(--skin-heading-font);
+  letter-spacing: var(--skin-heading-spacing);
+}
+
+/* =====================================================================
+   像素复古 pixel —— 8-bit 游戏机：2px 硬描边 + 无模糊硬投影
+   ===================================================================== */
+:root[data-skin='pixel'] {
+  --skin-border-width: 2px;
+  --skin-border-color: var(--color-on-surface);
+  --skin-shadow-card: 4px 4px 0 0 var(--color-on-surface);
+  --skin-shadow-hover: 6px 6px 0 0 var(--color-on-surface);
+  --skin-shadow-btn: 3px 3px 0 0 var(--color-on-surface);
+  --skin-heading-font:
+    'Fusion Pixel 12px', 'Zpix', 'Press Start 2P', ui-monospace, 'JetBrains Mono', monospace;
+  --skin-heading-spacing: 0.05em;
+  --skin-surface-filter: contrast(1.05);
+}
+
+:root[data-skin='pixel'] .surface-card,
+:root[data-skin='pixel'] .card {
+  border: var(--skin-border-width) solid var(--skin-border-color);
+  border-radius: 0;
+  box-shadow: var(--skin-shadow-card);
+}
+
+:root[data-skin='pixel'] .btn-primary {
+  border: 2px solid var(--color-on-surface);
+  border-radius: 0;
+  box-shadow: var(--skin-shadow-btn);
+}
+
+:root[data-skin='pixel'] .btn-ghost {
+  border: 2px solid var(--skin-border-color);
+  border-radius: 0;
+}
+
+:root[data-skin='pixel'] .input {
+  border-radius: 0;
+  border: 2px solid var(--color-on-surface);
+}
+
+/* 密排元素弱化变体：细描边、无硬投影（表格行/列表行/输入类内嵌元素） */
+:root[data-skin='pixel'] .list-row,
+:root[data-skin='pixel'] .nav-item {
+  border-width: 1px;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+:root[data-skin='pixel'] ::-webkit-scrollbar-thumb {
+  border-radius: 0;
+}
+
+/* =====================================================================
+   Q版卡通 cartoon —— 贴纸质感：粗描边 + 软阴影 + 大圆角
+   ===================================================================== */
+:root[data-skin='cartoon'] {
+  --skin-border-width: 2px;
+  --skin-border-color: color-mix(in srgb, var(--color-outline) 80%, transparent);
+  --skin-shadow-card: 0 4px 14px rgba(0, 0, 0, 0.12);
+  --skin-shadow-hover: 0 6px 20px rgba(0, 0, 0, 0.16);
+  --skin-shadow-btn: 0 3px 8px rgba(0, 0, 0, 0.14);
+  --skin-heading-font:
+    'Yuanti SC', 'YouYuan', 'PingFang SC', 'HarmonyOS Sans SC', 'Microsoft YaHei', 'Segoe UI',
+    system-ui, sans-serif;
+}
+
+:root[data-skin='cartoon'] .surface-card,
+:root[data-skin='cartoon'] .card {
+  border: var(--skin-border-width) solid var(--skin-border-color);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--skin-shadow-card);
+}
+
+:root[data-skin='cartoon'] .btn-primary {
+  border: 2px solid var(--color-primary);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--skin-shadow-btn);
+}
+
+:root[data-skin='cartoon'] .input {
+  border-radius: var(--radius-lg);
+}
+
+/* 密排元素弱化变体：细描边、无投影 */
+:root[data-skin='cartoon'] .list-row,
+:root[data-skin='cartoon'] .nav-item {
+  border-width: 1px;
+  box-shadow: none;
+}
+
+/* =====================================================================
+   赛博科技 cyber —— 霓虹：细描边 + 发光 + 等宽标题 + 网格纹理
+   ===================================================================== */
+:root[data-skin='cyber'] {
+  --skin-border-width: 1px;
+  --skin-border-color: color-mix(in srgb, var(--color-primary) 45%, transparent);
+  --skin-shadow-card: 0 0 12px 0 color-mix(in srgb, var(--color-primary) 22%, transparent);
+  --skin-shadow-hover: 0 0 18px 0 color-mix(in srgb, var(--color-primary) 35%, transparent);
+  --skin-shadow-btn: 0 0 10px 0 color-mix(in srgb, var(--color-primary) 40%, transparent);
+  --skin-heading-font:
+    'JetBrains Mono', 'Fira Code', ui-monospace, 'SFMono-Regular', Consolas, monospace;
+  --skin-heading-spacing: 0.02em;
+}
+
+:root[data-skin='cyber'] .surface-card,
+:root[data-skin='cyber'] .card {
+  border: var(--skin-border-width) solid var(--skin-border-color);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--skin-shadow-card);
+}
+
+:root[data-skin='cyber'] .card-hover:hover,
+:root[data-skin='cyber'] .surface-card-hover:hover {
+  box-shadow: var(--skin-shadow-hover);
+}
+
+:root[data-skin='cyber'] .btn-primary {
+  border: 1px solid var(--color-primary);
+  box-shadow: var(--skin-shadow-btn);
+}
+
+:root[data-skin='cyber'] .input {
+  border-color: var(--skin-border-color);
+  box-shadow: 0 0 8px 0 color-mix(in srgb, var(--color-primary) 12%, transparent);
+}
+
+:root[data-skin='cyber'] .list-row,
+:root[data-skin='cyber'] .nav-item {
+  border-color: color-mix(in srgb, var(--color-primary) 25%, transparent);
+}
+
+/* 细线网格背景纹理（仅 cyber，浅色/深色通吃，叠加在 surface 底色上） */
+:root[data-skin='cyber'] body {
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--color-primary) 6%, transparent) 1px, transparent 1px),
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--color-primary) 6%, transparent) 1px,
+      transparent 1px
+    );
+  background-size: 32px 32px;
+}

@@ -21,18 +21,16 @@ export function useCollection<T extends { id: string; deleted?: 0 | 1 }>(
   const pickKey = pick?.join(',') ?? ''
   const data = useLiveQuery(
     () =>
-      (db[tableName] as unknown as { toArray(): Promise<T[]> })
-        .toArray()
-        .then((rows) => {
-          const alive = rows.filter((r) => !r.deleted)
-          if (!pickKey) return alive
-          const fields = pickKey.split(',')
-          return alive.map((r) => {
-            const out = {} as Record<string, unknown>
-            for (const k of fields) out[k] = (r as unknown as Record<string, unknown>)[k]
-            return out as T
-          })
-        }),
+      (db[tableName] as unknown as { toArray(): Promise<T[]> }).toArray().then((rows) => {
+        const alive = rows.filter((r) => !r.deleted)
+        if (!pickKey) return alive
+        const fields = pickKey.split(',')
+        return alive.map((r) => {
+          const out = {} as Record<string, unknown>
+          for (const k of fields) out[k] = (r as unknown as Record<string, unknown>)[k]
+          return out as T
+        })
+      }),
     [tableName, pickKey],
     [] as T[],
   )
@@ -46,9 +44,9 @@ export function useRecord<T extends { id: string; deleted?: 0 | 1 }>(
 ): T | undefined {
   const data = useLiveQuery(
     () =>
-      (id
+      id
         ? (db[tableName] as unknown as { get(id: string): Promise<T | undefined> }).get(id)
-        : undefined),
+        : undefined,
     [tableName, id],
   )
   return data && !data.deleted ? data : undefined
@@ -61,33 +59,37 @@ export function useQuery<T>(queryFn: () => Promise<T>, deps: unknown[]): T | und
 
 /** 今日专注分钟数（focusSessions 本地推导，不参与同步） */
 export function useTodayFocusMinutes(): number {
-  return useLiveQuery(async () => {
-    const start = dayjs().startOf('day').valueOf()
-    const sessions = await db.focusSessions.where('completedAt').aboveOrEqual(start).toArray()
-    return sessions.reduce((sum, s) => sum + s.minutes, 0)
-  }, []) ?? 0
+  return (
+    useLiveQuery(async () => {
+      const start = dayjs().startOf('day').valueOf()
+      const sessions = await db.focusSessions.where('completedAt').aboveOrEqual(start).toArray()
+      return sessions.reduce((sum, s) => sum + s.minutes, 0)
+    }, []) ?? 0
+  )
 }
 
 /** 最佳习惯连击天数（全部习惯中的最大连续打卡） */
 export function useBestHabitStreak(): number {
-  return useLiveQuery(async () => {
-    const logs = await db.habitLogs.filter((l) => !l.deleted).toArray()
-    const byHabit = new Map<string, Set<string>>()
-    logs.forEach((l) => {
-      if (!byHabit.has(l.habitId)) byHabit.set(l.habitId, new Set())
-      byHabit.get(l.habitId)!.add(l.date)
-    })
-    let best = 0
-    const todayStr = dayjs().format('YYYY-MM-DD')
-    byHabit.forEach((dates) => {
-      let n = 0
-      let cursor = dates.has(todayStr) ? dayjs() : dayjs().subtract(1, 'day')
-      while (dates.has(cursor.format('YYYY-MM-DD'))) {
-        n++
-        cursor = cursor.subtract(1, 'day')
-      }
-      best = Math.max(best, n)
-    })
-    return best
-  }, []) ?? 0
+  return (
+    useLiveQuery(async () => {
+      const logs = await db.habitLogs.filter((l) => !l.deleted).toArray()
+      const byHabit = new Map<string, Set<string>>()
+      logs.forEach((l) => {
+        if (!byHabit.has(l.habitId)) byHabit.set(l.habitId, new Set())
+        byHabit.get(l.habitId)!.add(l.date)
+      })
+      let best = 0
+      const todayStr = dayjs().format('YYYY-MM-DD')
+      byHabit.forEach((dates) => {
+        let n = 0
+        let cursor = dates.has(todayStr) ? dayjs() : dayjs().subtract(1, 'day')
+        while (dates.has(cursor.format('YYYY-MM-DD'))) {
+          n++
+          cursor = cursor.subtract(1, 'day')
+        }
+        best = Math.max(best, n)
+      })
+      return best
+    }, []) ?? 0
+  )
 }

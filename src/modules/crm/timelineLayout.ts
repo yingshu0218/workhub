@@ -48,7 +48,8 @@ export function boneUp(e: TimelineEvent): boolean {
 }
 
 export function boneLabel(e: TimelineEvent): string {
-  if (e.kind === 'transaction') return `${e.direction === 'income' ? '+' : '-'}${fmtMoney(e.amount)}`
+  if (e.kind === 'transaction')
+    return `${e.direction === 'income' ? '+' : '-'}${fmtMoney(e.amount)}`
   if (e.kind === 'todo') return e.event === 'done' ? '完成待办' : '新增待办'
   return e.type
 }
@@ -78,7 +79,10 @@ export function layoutSingleBones(events: TimelineEvent[]): { bones: Bone[]; max
     const x = 60 + step * (i + 1)
     const up = boneUp(e)
     // 交替侧向偏移：同侧相邻骨刺错开，避免端点短横重叠
-    const len = 64 + (lastTip[up ? 'up' : 'down'] % 2 === i % 2 ? 0 : 26) + (e.kind === 'transaction' ? 14 : 0)
+    const len =
+      64 +
+      (lastTip[up ? 'up' : 'down'] % 2 === i % 2 ? 0 : 26) +
+      (e.kind === 'transaction' ? 14 : 0)
     lastTip[up ? 'up' : 'down']++
     bones.push({
       event: e,
@@ -115,8 +119,11 @@ export function layoutLanedBones(
     const x = 60 + step * (i + 1)
     const up = boneUp(e)
     const key = `${cid}:${up ? 'up' : 'down'}`
-    const len = 52 + ((laneTick[key] = (laneTick[key] ?? 0) + 1) % 2 === 0 ? 22 : 0) + (e.kind === 'transaction' ? 12 : 0)
-    laneTick[key] = (laneTick[key] ?? 0)
+    const len =
+      52 +
+      ((laneTick[key] = (laneTick[key] ?? 0) + 1) % 2 === 0 ? 22 : 0) +
+      (e.kind === 'transaction' ? 12 : 0)
+    laneTick[key] = laneTick[key] ?? 0
     bones.push({
       event: e,
       x,
@@ -140,7 +147,14 @@ export function layoutLanedBones(
 }
 
 /** 客户分带主题色（少量固定色板循环，与骨刺配色不冲突） */
-export const LANE_COLORS = ['#004ac6', '#006c49', '#943700', '#6d43c4', '#ba1a1a', '#4a4458'] as const
+export const LANE_COLORS = [
+  '#004ac6',
+  '#006c49',
+  '#943700',
+  '#6d43c4',
+  '#ba1a1a',
+  '#4a4458',
+] as const
 
 export function laneColor(index: number): string {
   return LANE_COLORS[index % LANE_COLORS.length]

@@ -22,7 +22,14 @@ export interface NoteListItem {
 
 /** 投影版笔记列表：只取 id/title/tags/mentions/folderId/updatedAt，摘要与搜索均不依赖 markdown */
 export function useNoteList(): NoteListItem[] {
-  return useCollection<NoteListItem>('notes', ['id', 'title', 'tags', 'mentions', 'folderId', 'updatedAt'])
+  return useCollection<NoteListItem>('notes', [
+    'id',
+    'title',
+    'tags',
+    'mentions',
+    'folderId',
+    'updatedAt',
+  ])
 }
 
 /**
@@ -33,10 +40,7 @@ export function useNoteList(): NoteListItem[] {
  */
 export function useNoteRecord(id: string | undefined): Note | null | undefined {
   return useQuery<Note | null>(
-    () =>
-      id
-        ? db.notes.get(id).then((n) => (n && !n.deleted ? n : null))
-        : Promise.resolve(null),
+    () => (id ? db.notes.get(id).then((n) => (n && !n.deleted ? n : null)) : Promise.resolve(null)),
     [id],
   )
 }
@@ -63,13 +67,10 @@ export function useBacklinks(note: Pick<Note, 'id' | 'title'> | undefined): Note
 
 /** 订阅文件夹（按名称排序，过滤软删） */
 export function useNoteFolders(): NoteFolder[] {
-  const folders = useQuery<NoteFolder[]>(
-    async () => {
-      const all = await db.noteFolders.toArray()
-      return all.filter((f) => !f.deleted).sort((a, b) => a.name.localeCompare(b.name, 'zh'))
-    },
-    [],
-  )
+  const folders = useQuery<NoteFolder[]>(async () => {
+    const all = await db.noteFolders.toArray()
+    return all.filter((f) => !f.deleted).sort((a, b) => a.name.localeCompare(b.name, 'zh'))
+  }, [])
   return folders ?? []
 }
 
@@ -90,7 +91,12 @@ export async function createNoteFolder(name: string): Promise<NoteFolder> {
   }
   await db.transaction('rw', [db.noteFolders, db.syncQueue], async () => {
     await db.noteFolders.put(folder)
-    await db.syncQueue.add({ table: 'noteFolders', recordId: folder.id, op: 'upsert', createdAt: now })
+    await db.syncQueue.add({
+      table: 'noteFolders',
+      recordId: folder.id,
+      op: 'upsert',
+      createdAt: now,
+    })
   })
   return folder
 }
@@ -123,7 +129,10 @@ export async function deleteNoteFolderCascade(id: string): Promise<void> {
 }
 
 /** 移动笔记到文件夹（folderId=undefined 即移回根层） */
-export async function moveNoteToFolder(noteId: string, folderId: string | undefined): Promise<void> {
+export async function moveNoteToFolder(
+  noteId: string,
+  folderId: string | undefined,
+): Promise<void> {
   const prev = await db.notes.get(noteId)
   if (!prev || prev.deleted) return
   const now = Date.now()

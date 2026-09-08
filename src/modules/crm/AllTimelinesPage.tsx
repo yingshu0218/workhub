@@ -5,19 +5,8 @@ import type { Customer } from '@/db/types'
 import { Button, Card, Chip, EmptyState, PageHeader } from '@/design-system/ui'
 import { Icon } from '@/design-system/Icon'
 import dayjs from 'dayjs'
-import {
-  TIMELINE_FILTERS,
-  filterTimeline,
-  type TimelineFilter,
-  useAllTimelines,
-} from './timeline'
-import {
-  SPINE_Y,
-  boneTarget,
-  laneColor,
-  layoutLanedBones,
-  type Bone,
-} from './timelineLayout'
+import { TIMELINE_FILTERS, filterTimeline, type TimelineFilter, useAllTimelines } from './timeline'
+import { SPINE_Y, boneTarget, laneColor, layoutLanedBones, type Bone } from './timelineLayout'
 import { IDENTITY_VIEW, usePanZoom } from './usePanZoom'
 
 /**
@@ -60,15 +49,10 @@ export default function AllTimelinesPage() {
   // 有事件的客户才占分带（稳定排序：按客户名）
   const eventCustomers = useMemo(() => {
     const ids = new Set(allEvents.map((e) => e.customerId))
-    return active
-      .filter((c) => ids.has(c.id))
-      .sort((a, b) => a.name.localeCompare(b.name, 'zh'))
+    return active.filter((c) => ids.has(c.id)).sort((a, b) => a.name.localeCompare(b.name, 'zh'))
   }, [allEvents, active])
 
-  const laneMap = useMemo(
-    () => new Map(eventCustomers.map((c, i) => [c.id, i])),
-    [eventCustomers],
-  )
+  const laneMap = useMemo(() => new Map(eventCustomers.map((c, i) => [c.id, i])), [eventCustomers])
 
   const visible = useMemo(() => {
     let evs = filterTimeline(allEvents, filter)
@@ -78,7 +62,10 @@ export default function AllTimelinesPage() {
 
   // 筛选下只保留命中的客户分带，重新压缩 lane
   const shownCustomers = useMemo(
-    () => (customerFilter === 'all' ? eventCustomers : eventCustomers.filter((c) => c.id === customerFilter)),
+    () =>
+      customerFilter === 'all'
+        ? eventCustomers
+        : eventCustomers.filter((c) => c.id === customerFilter),
     [eventCustomers, customerFilter],
   )
   const shownLaneMap = useMemo(
@@ -88,7 +75,11 @@ export default function AllTimelinesPage() {
 
   const layout = useMemo(() => {
     if (visible.length === 0 || shownCustomers.length === 0) return null
-    return layoutLanedBones(visible, shownCustomers.map((c) => c.id), shownLaneMap)
+    return layoutLanedBones(
+      visible,
+      shownCustomers.map((c) => c.id),
+      shownLaneMap,
+    )
   }, [visible, shownCustomers, shownLaneMap])
 
   function fitView() {
@@ -119,7 +110,12 @@ export default function AllTimelinesPage() {
             <Button variant="ghost" icon="arrow_back" onClick={() => navigate('/crm')}>
               返回列表
             </Button>
-            <Button variant="tonal" icon="settings_backup_restore" onClick={fitView} disabled={!layout}>
+            <Button
+              variant="tonal"
+              icon="settings_backup_restore"
+              onClick={fitView}
+              disabled={!layout}
+            >
               适应画布
             </Button>
           </>
@@ -162,7 +158,10 @@ export default function AllTimelinesPage() {
                 : 'border-outline-variant text-on-surface-variant hover:text-on-surface'
             }`}
           >
-            <span className="h-2 w-2 rounded-full" style={{ background: laneColor(laneMap.get(c.id) ?? i) }} />
+            <span
+              className="h-2 w-2 rounded-full"
+              style={{ background: laneColor(laneMap.get(c.id) ?? i) }}
+            />
             {c.name}
           </button>
         ))}
@@ -195,12 +194,35 @@ export default function AllTimelinesPage() {
             >
               <g transform={`translate(${view.tx},${view.ty}) scale(${view.scale})`}>
                 {/* 共享主轴 */}
-                <line x1={40} y1={SPINE_Y} x2={layout.maxX - 20} y2={SPINE_Y} stroke="#004ac6" strokeWidth={5} strokeLinecap="round" />
-                <text x={40} y={SPINE_Y - 14} style={{ fontSize: 11, fontWeight: 600 }} fill="#434655">
-                  {visible.length > 0 ? dayjs(Math.min(...visible.map((e) => e.at))).format('YYYY-MM-DD') : ''}
+                <line
+                  x1={40}
+                  y1={SPINE_Y}
+                  x2={layout.maxX - 20}
+                  y2={SPINE_Y}
+                  stroke="#004ac6"
+                  strokeWidth={5}
+                  strokeLinecap="round"
+                />
+                <text
+                  x={40}
+                  y={SPINE_Y - 14}
+                  style={{ fontSize: 11, fontWeight: 600 }}
+                  fill="#434655"
+                >
+                  {visible.length > 0
+                    ? dayjs(Math.min(...visible.map((e) => e.at))).format('YYYY-MM-DD')
+                    : ''}
                 </text>
-                <text x={layout.maxX - 20} y={SPINE_Y - 14} textAnchor="end" style={{ fontSize: 11, fontWeight: 600 }} fill="#434655">
-                  {visible.length > 0 ? dayjs(Math.max(...visible.map((e) => e.at))).format('YYYY-MM-DD') : '至今'}
+                <text
+                  x={layout.maxX - 20}
+                  y={SPINE_Y - 14}
+                  textAnchor="end"
+                  style={{ fontSize: 11, fontWeight: 600 }}
+                  fill="#434655"
+                >
+                  {visible.length > 0
+                    ? dayjs(Math.max(...visible.map((e) => e.at))).format('YYYY-MM-DD')
+                    : '至今'}
                 </text>
 
                 {/* 客户分带底色 + 带名 */}
@@ -217,10 +239,24 @@ export default function AllTimelinesPage() {
                         opacity={0.045}
                         rx={10}
                       />
-                      <text x={46} y={laneY + 52} style={{ fontSize: 11, fontWeight: 700 }} fill={laneColor(i)}>
+                      <text
+                        x={46}
+                        y={laneY + 52}
+                        style={{ fontSize: 11, fontWeight: 700 }}
+                        fill={laneColor(i)}
+                      >
                         {c.name}
                       </text>
-                      <line x1={0} y1={laneY + 14} x2={layout.maxX} y2={laneY + 14} stroke={laneColor(i)} strokeWidth={1.2} strokeDasharray="2 5" opacity={0.5} />
+                      <line
+                        x1={0}
+                        y1={laneY + 14}
+                        x2={layout.maxX}
+                        y2={laneY + 14}
+                        stroke={laneColor(i)}
+                        strokeWidth={1.2}
+                        strokeDasharray="2 5"
+                        opacity={0.5}
+                      />
                     </g>
                   )
                 })}
@@ -263,14 +299,45 @@ export default function AllTimelinesPage() {
                       onMouseEnter={() => setHover(b)}
                       onMouseLeave={() => setHover((h) => (h === b ? null : h))}
                     >
-                      <line x1={b.x} y1={baseY} x2={b.x + 14} y2={baseY + (b.up ? -b.len : b.len)} stroke={b.color} strokeWidth={hover === b ? 2.4 : 1.5} />
-                      <line x1={b.x + 14} y1={baseY + (b.up ? -b.len : b.len)} x2={b.x + 34} y2={baseY + (b.up ? -b.len : b.len)} stroke={b.color} strokeWidth={hover === b ? 2.4 : 1.5} />
-                      <circle cx={b.x} cy={baseY} r={4.5} fill={b.fill} stroke={b.color} strokeWidth={1.3} />
-                      <text x={b.x + 38} y={baseY + (b.up ? -b.len : b.len) + 4} style={{ fontSize: 10.5, fontWeight: 700 }} fill={b.color}>
+                      <line
+                        x1={b.x}
+                        y1={baseY}
+                        x2={b.x + 14}
+                        y2={baseY + (b.up ? -b.len : b.len)}
+                        stroke={b.color}
+                        strokeWidth={hover === b ? 2.4 : 1.5}
+                      />
+                      <line
+                        x1={b.x + 14}
+                        y1={baseY + (b.up ? -b.len : b.len)}
+                        x2={b.x + 34}
+                        y2={baseY + (b.up ? -b.len : b.len)}
+                        stroke={b.color}
+                        strokeWidth={hover === b ? 2.4 : 1.5}
+                      />
+                      <circle
+                        cx={b.x}
+                        cy={baseY}
+                        r={4.5}
+                        fill={b.fill}
+                        stroke={b.color}
+                        strokeWidth={1.3}
+                      />
+                      <text
+                        x={b.x + 38}
+                        y={baseY + (b.up ? -b.len : b.len) + 4}
+                        style={{ fontSize: 10.5, fontWeight: 700 }}
+                        fill={b.color}
+                      >
                         {b.label}
                       </text>
                       {/* 骨刺旁客户名标注 */}
-                      <text x={b.x + 38} y={baseY + (b.up ? -b.len : b.len) + 15} style={{ fontSize: 9 }} fill={customer ? laneColor(shownLaneMap.get(cid) ?? 0) : '#434655'}>
+                      <text
+                        x={b.x + 38}
+                        y={baseY + (b.up ? -b.len : b.len) + 15}
+                        style={{ fontSize: 9 }}
+                        fill={customer ? laneColor(shownLaneMap.get(cid) ?? 0) : '#434655'}
+                      >
                         {customer?.name ?? ''}
                       </text>
                     </g>
@@ -283,7 +350,7 @@ export default function AllTimelinesPage() {
           {/* hover 浮层摘要（与单客户鱼骨同构） */}
           {hover && (
             <div
-              className="pointer-events-none absolute z-10 max-w-[280px] rounded-xl border border-outline-variant/40 bg-surface-container-lowest/95 px-3 py-2 shadow-md backdrop-blur"
+              className="pointer-events-none absolute z-10 max-w-[280px] surface-card-xl bg-surface-container-lowest/95 px-3 py-2 shadow-md backdrop-blur"
               style={{ left: 16, bottom: 16 }}
             >
               <div className="flex items-center gap-1.5">
@@ -321,7 +388,7 @@ export default function AllTimelinesPage() {
           {/* 右下角缩放控件（与单客户鱼骨一致） */}
           {layout && (
             <div
-              className="absolute bottom-3 right-3 z-10 flex items-center gap-0.5 rounded-xl border border-outline-variant/40 bg-surface-container-lowest/95 px-1.5 py-1 shadow-md backdrop-blur"
+              className="absolute bottom-3 right-3 z-10 flex items-center gap-0.5 surface-card-xl bg-surface-container-lowest/95 px-1.5 py-1 shadow-md backdrop-blur"
               onPointerDown={(e) => e.stopPropagation()}
             >
               <button

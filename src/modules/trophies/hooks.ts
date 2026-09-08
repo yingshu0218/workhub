@@ -34,7 +34,12 @@ interface TrophySources {
 }
 
 /** 纯推导：源记录 → 统计快照（引擎与页面共用同一实现） */
-export function computeTrophyStats({ focusSessions, habitLogs, transactions, customers }: TrophySources): TrophyStats {
+export function computeTrophyStats({
+  focusSessions,
+  habitLogs,
+  transactions,
+  customers,
+}: TrophySources): TrophyStats {
   const byHabit = new Map<string, Set<string>>()
   for (const l of habitLogs) {
     if (!byHabit.has(l.habitId)) byHabit.set(l.habitId, new Set())
@@ -70,7 +75,10 @@ const CONDITION_TO_STAT: Record<TrophyConditionType, keyof TrophyStats> = {
 }
 
 /** 结构化条件 → 当前值（未登记的条件类型返回 0） */
-export function computeConditionValue(type: TrophyConditionType | undefined, stats: TrophyStats): number {
+export function computeConditionValue(
+  type: TrophyConditionType | undefined,
+  stats: TrophyStats,
+): number {
   if (!type) return 0
   return stats[CONDITION_TO_STAT[type]] ?? 0
 }
@@ -117,15 +125,17 @@ export async function collectTrophyStats(): Promise<TrophyStats> {
 /** 页面用：响应式统计快照（源表任一变更自动重算） */
 export function useTrophyStats(): TrophyStats {
   const stats = useLiveQuery(collectTrophyStats, [])
-  return stats ?? {
-    focusMinutesTotal: 0,
-    focusOnceMinutes: 0,
-    habitStreak: 0,
-    habitCurrentStreak: 0,
-    habitChecksTotal: 0,
-    transactionsTotal: 0,
-    customersTotal: 0,
-  }
+  return (
+    stats ?? {
+      focusMinutesTotal: 0,
+      focusOnceMinutes: 0,
+      habitStreak: 0,
+      habitCurrentStreak: 0,
+      habitChecksTotal: 0,
+      transactionsTotal: 0,
+      customersTotal: 0,
+    }
+  )
 }
 
 /** 奖杯列表（含未解锁） */

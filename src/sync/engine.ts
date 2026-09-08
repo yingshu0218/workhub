@@ -67,7 +67,10 @@ class SyncEngine {
       const all = await db.syncQueue.toArray()
       const pending = all.filter((p) => !p.sentAt)
       // 清理历史遗留的已发送条目（现在改为推完即删，不再保留 sentAt 标记）
-      const staleSent = all.filter((p) => p.sentAt).map((p) => p.seq!).filter((s) => s !== undefined)
+      const staleSent = all
+        .filter((p) => p.sentAt)
+        .map((p) => p.seq!)
+        .filter((s) => s !== undefined)
       if (staleSent.length > 0) {
         await db.syncQueue.where('seq').anyOf(staleSent).delete()
       }

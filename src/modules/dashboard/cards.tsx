@@ -25,7 +25,9 @@ export function FocusCard() {
   const openTodos = todos.filter((t) => t.status !== 'done')
 
   // 专注进行中时的关联实体引用（对齐原型 01）：无关联则不显示
-  const refCustomer = doing?.customerId ? customers.find((c) => c.id === doing.customerId) : undefined
+  const refCustomer = doing?.customerId
+    ? customers.find((c) => c.id === doing.customerId)
+    : undefined
   const refLedger = doing?.ledgerId ? ledgers.find((l) => l.id === doing.ledgerId) : undefined
   const customerLabel = refCustomer
     ? refCustomer.company
@@ -74,7 +76,11 @@ export function FocusCard() {
               {focus.status === 'idle' ? '25:00' : fmt(focus.remaining)}
             </div>
             <div className="text-[11px] text-outline">
-              {focus.status === 'running' ? '专注中' : focus.status === 'paused' ? '已暂停' : '待开始'}
+              {focus.status === 'running'
+                ? '专注中'
+                : focus.status === 'paused'
+                  ? '已暂停'
+                  : '待开始'}
             </div>
           </div>
         </div>
@@ -104,7 +110,9 @@ export function FocusCard() {
               </div>
               <Button
                 icon="play_arrow"
-                onClick={() => focus.start(useFocusStore.getState().todoId, useFocusStore.getState().todoTitle)}
+                onClick={() =>
+                  focus.start(useFocusStore.getState().todoId, useFocusStore.getState().todoTitle)
+                }
               >
                 开始专注
               </Button>
@@ -122,24 +130,36 @@ export function FocusCard() {
                 <div className="mb-3 flex flex-wrap gap-2">
                   {refCustomer && (
                     <button
-                      className="flex max-w-full min-w-0 items-center gap-1.5 rounded-lg border border-outline-variant/60 bg-surface-container-low px-2.5 py-1.5 text-left transition-colors hover:border-primary"
+                      className="flex max-w-full min-w-0 items-center gap-1.5 surface-card-low !bg-surface-container-low px-2.5 py-1.5 text-left transition-colors hover:border-primary"
                       title="打开客户详情"
                       onClick={() => navigate(`/crm/${refCustomer.id}`)}
                     >
                       <Icon name="group" size={14} className="shrink-0 text-primary" />
-                      <span className="shrink-0 text-[10.5px] font-medium text-outline">关联客户</span>
-                      <span className="truncate text-[11.5px] font-medium text-primary">{customerLabel}</span>
+                      <span className="shrink-0 text-[10.5px] font-medium text-outline">
+                        关联客户
+                      </span>
+                      <span className="truncate text-[11.5px] font-medium text-primary">
+                        {customerLabel}
+                      </span>
                     </button>
                   )}
                   {refLedger && (
                     <button
-                      className="flex max-w-full min-w-0 items-center gap-1.5 rounded-lg border border-outline-variant/60 bg-surface-container-low px-2.5 py-1.5 text-left transition-colors hover:border-primary"
+                      className="flex max-w-full min-w-0 items-center gap-1.5 surface-card-low !bg-surface-container-low px-2.5 py-1.5 text-left transition-colors hover:border-primary"
                       title="打开财务账本"
                       onClick={() => navigate('/finance')}
                     >
-                      <Icon name="account_balance_wallet" size={14} className="shrink-0 text-warning" />
-                      <span className="shrink-0 text-[10.5px] font-medium text-outline">关联账本</span>
-                      <span className="truncate text-[11.5px] font-medium text-primary">{refLedger.name}</span>
+                      <Icon
+                        name="account_balance_wallet"
+                        size={14}
+                        className="shrink-0 text-warning"
+                      />
+                      <span className="shrink-0 text-[10.5px] font-medium text-outline">
+                        关联账本
+                      </span>
+                      <span className="truncate text-[11.5px] font-medium text-primary">
+                        {refLedger.name}
+                      </span>
                     </button>
                   )}
                 </div>
@@ -213,7 +233,10 @@ export function HabitLoopCard() {
             return n
           })()
           return (
-            <li key={h.id} className="flex items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-surface-container-low">
+            <li
+              key={h.id}
+              className="flex items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-surface-container-low"
+            >
               <button onClick={() => void toggle(h.id)}>
                 <Icon
                   name={doneToday ? 'check_circle' : 'circle'}
@@ -253,10 +276,15 @@ export function TodayTodosCard() {
   const todos = useCollection<Todo>('todos')
   const todayStr = dayjs().format('YYYY-MM-DD')
   const list = todos
-    .filter((t) => t.status !== 'done' && !!t.dueAt && dayjs(t.dueAt).format('YYYY-MM-DD') === todayStr)
+    .filter(
+      (t) => t.status !== 'done' && !!t.dueAt && dayjs(t.dueAt).format('YYYY-MM-DD') === todayStr,
+    )
     .sort((a, b) => (a.dueAt ?? Infinity) - (b.dueAt ?? Infinity))
   const doneToday = todos.filter(
-    (t) => t.status === 'done' && t.completedAt && dayjs(t.completedAt).format('YYYY-MM-DD') === todayStr,
+    (t) =>
+      t.status === 'done' &&
+      t.completedAt &&
+      dayjs(t.completedAt).format('YYYY-MM-DD') === todayStr,
   )
 
   async function toggle(t: Todo) {
@@ -284,24 +312,34 @@ export function TodayTodosCard() {
       </div>
 
       {list.length === 0 && doneToday.length === 0 ? (
-        <div className="py-6 text-center text-[12px] text-outline">今日暂无安排，去待办中心创建 →</div>
+        <div className="py-6 text-center text-[12px] text-outline">
+          今日暂无安排，去待办中心创建 →
+        </div>
       ) : (
         <ul className="space-y-1 overflow-y-auto">
           {list.map((t) => (
-            <li key={t.id} className="flex items-start gap-3 rounded-lg px-2 py-2 hover:bg-surface-container-low">
+            <li
+              key={t.id}
+              className="flex items-start gap-3 rounded-lg px-2 py-2 hover:bg-surface-container-low"
+            >
               <button onClick={() => void toggle(t)} className="mt-0.5 shrink-0">
                 <Icon name="radio_button_unchecked" size={20} className="text-outline" />
               </button>
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[13.5px] font-medium">{t.title}</div>
                 {t.dueAt && (
-                  <div className={`text-[11px] ${dayjs(t.dueAt).isBefore(dayjs()) ? 'text-danger' : 'text-outline'}`}>
+                  <div
+                    className={`text-[11px] ${dayjs(t.dueAt).isBefore(dayjs()) ? 'text-danger' : 'text-outline'}`}
+                  >
                     {dayjs(t.dueAt).format('HH:mm')}
                     {t.priority === 'P1' && <span className="ml-1.5 font-medium">P1 紧急</span>}
                   </div>
                 )}
               </div>
-              <button className="shrink-0 text-[11px] text-primary hover:underline" onClick={() => void toggle(t)}>
+              <button
+                className="shrink-0 text-[11px] text-primary hover:underline"
+                onClick={() => void toggle(t)}
+              >
                 完成
               </button>
             </li>
@@ -311,7 +349,9 @@ export function TodayTodosCard() {
               <button onClick={() => void toggle(t)} className="shrink-0">
                 <Icon name="check_box" size={20} fill className="text-success" />
               </button>
-              <span className="min-w-0 flex-1 truncate text-[12.5px] text-outline line-through">{t.title}</span>
+              <span className="min-w-0 flex-1 truncate text-[12.5px] text-outline line-through">
+                {t.title}
+              </span>
               <Chip tone="green">已完成</Chip>
             </li>
           ))}
@@ -385,7 +425,7 @@ export function QuickNoteCard() {
       <h2 className="mb-3 text-[15px] font-semibold">随手速记</h2>
       <div className="mb-2 flex gap-2">
         <input
-          className="flex-1 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-[13px] outline-none focus:border-primary"
+          className="flex-1 surface-card border-outline-variant px-3 py-2 text-[13px] outline-none focus:border-primary"
           placeholder="灵感一闪，先记下来…"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
@@ -402,13 +442,23 @@ export function QuickNoteCard() {
       ) : (
         <ul className="space-y-2 overflow-y-auto">
           {pending.map((n) => (
-            <li key={n.id} className="group rounded-lg border border-outline-variant/50 bg-surface-container-low p-3">
+            <li key={n.id} className="group list-row">
               <div className="text-[13px] leading-snug">{n.content}</div>
               <div className="mt-2 flex gap-1.5 opacity-0 transition-opacity group-hover:opacity-100">
-                <Button size="sm" variant="tonal" icon="check_circle" onClick={() => void convert(n.id, 'todo')}>
+                <Button
+                  size="sm"
+                  variant="tonal"
+                  icon="check_circle"
+                  onClick={() => void convert(n.id, 'todo')}
+                >
                   转待办
                 </Button>
-                <Button size="sm" variant="ghost" icon="description" onClick={() => void convert(n.id, 'note')}>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  icon="description"
+                  onClick={() => void convert(n.id, 'note')}
+                >
                   归笔记
                 </Button>
               </div>

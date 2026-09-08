@@ -5,7 +5,15 @@ import { noteRepo, newId } from '@/repositories'
 import { Button, Card, EmptyState, PageHeader, inputCls } from '@/design-system/ui'
 import dayjs from 'dayjs'
 import { NOTE_PROSE_CSS, renderMarkdown, tagStyle, wordCount } from './shared'
-import { useNoteList, useNoteFolders, useNoteRecord, createNoteFolder, renameNoteFolder, deleteNoteFolderCascade, moveNoteToFolder } from './hooks'
+import {
+  useNoteList,
+  useNoteFolders,
+  useNoteRecord,
+  createNoteFolder,
+  renameNoteFolder,
+  deleteNoteFolderCascade,
+  moveNoteToFolder,
+} from './hooks'
 import type { NoteFolder } from '@/db/types'
 
 /** 相对时间（列表行右侧） */
@@ -100,12 +108,18 @@ export default function NotesPage() {
     const name = window.prompt('重命名文件夹', f.name)?.trim()
     if (!name || name === f.name) return
     await renameNoteFolder(f.id, name)
-    if (scope.kind === 'folder' && scope.folder.id === f.id) setScope({ kind: 'folder', folder: { ...f, name } })
+    if (scope.kind === 'folder' && scope.folder.id === f.id)
+      setScope({ kind: 'folder', folder: { ...f, name } })
   }
 
   async function handleDeleteFolder(f: NoteFolder) {
     const count = folderCounts.get(f.id) ?? 0
-    if (!window.confirm(`确认删除文件夹「${f.name}」？${count > 0 ? `名下 ${count} 篇笔记将移回「未归档」。` : ''}`)) return
+    if (
+      !window.confirm(
+        `确认删除文件夹「${f.name}」？${count > 0 ? `名下 ${count} 篇笔记将移回「未归档」。` : ''}`,
+      )
+    )
+      return
     await deleteNoteFolderCascade(f.id)
     if (scope.kind === 'folder' && scope.folder.id === f.id) setScope({ kind: 'all' })
   }
@@ -260,7 +274,9 @@ export default function NotesPage() {
               icon="description"
               title={notes.length === 0 ? '还没有笔记' : '没有符合条件的笔记'}
               description={
-                notes.length === 0 ? '点击右上角「新建笔记」开始记录' : '调整关键字、文件夹或标签筛选条件'
+                notes.length === 0
+                  ? '点击右上角「新建笔记」开始记录'
+                  : '调整关键字、文件夹或标签筛选条件'
               }
             />
           </Card>
@@ -268,7 +284,8 @@ export default function NotesPage() {
           <Card className="flex-1 divide-y divide-outline-variant/30 px-5 py-1">
             <div className="flex items-center justify-between py-2 text-[12px] text-outline">
               <span>
-                当前范围：<span className="font-medium text-on-surface-variant">{scopeLabel()}</span>
+                当前范围：
+                <span className="font-medium text-on-surface-variant">{scopeLabel()}</span>
               </span>
               <span>{list.length} 篇</span>
             </div>
@@ -279,7 +296,9 @@ export default function NotesPage() {
                 className="group flex h-11 shrink-0 cursor-pointer items-center gap-2 rounded-lg px-2 -mx-2 transition-colors hover:bg-surface-container-low/60"
               >
                 <Icon name="description" className="shrink-0 text-[18px] text-primary" />
-                <span className="min-w-0 flex-1 truncate text-[14px] font-medium group-hover:text-primary">{n.title}</span>
+                <span className="min-w-0 flex-1 truncate text-[14px] font-medium group-hover:text-primary">
+                  {n.title}
+                </span>
                 {/* 属性区固定靠行尾：tag / 关联 / 文件夹 / 时间，不随 hover 变化 */}
                 <span className="flex shrink-0 items-center gap-1.5 overflow-hidden">
                   {n.tags.slice(0, 3).map((t) => (
@@ -292,7 +311,9 @@ export default function NotesPage() {
                     </span>
                   ))}
                   {n.tags.length > 3 && (
-                    <span className="hidden text-[11px] text-outline sm:inline">+{n.tags.length - 3}</span>
+                    <span className="hidden text-[11px] text-outline sm:inline">
+                      +{n.tags.length - 3}
+                    </span>
                   )}
                   {n.mentions.length > 0 && (
                     <span
@@ -313,7 +334,9 @@ export default function NotesPage() {
                       </span>
                     )
                   })()}
-                  <span className="w-10 shrink-0 text-right text-[11px] text-outline">{fmtTime(n.updatedAt)}</span>
+                  <span className="w-10 shrink-0 text-right text-[11px] text-outline">
+                    {fmtTime(n.updatedAt)}
+                  </span>
                 </span>
               </div>
             ))}
@@ -428,7 +451,11 @@ ${folders.map((f, i) => `${i + 1}. ${f.name}`).join('\n')}${cur.folderId ? '\n0.
         {/* 属性行：标签 / 文件夹 / 关联 / 更新时间 / 字数（固定高度） */}
         <div className="flex h-9 shrink-0 items-center gap-2 overflow-hidden border-b border-outline-variant/30 px-5 text-[12px] text-on-surface-variant">
           {note.tags.map((t) => (
-            <span key={t} className="rounded-full px-2 py-0.5 text-[11px] font-medium leading-none" style={tagStyle(t)}>
+            <span
+              key={t}
+              className="rounded-full px-2 py-0.5 text-[11px] font-medium leading-none"
+              style={tagStyle(t)}
+            >
               #{t}
             </span>
           ))}
@@ -441,7 +468,10 @@ ${folders.map((f, i) => `${i + 1}. ${f.name}`).join('\n')}${cur.folderId ? '\n0.
               </span>
             )}
             {note.mentions.length > 0 && (
-              <span className="flex items-center gap-0.5" title={note.mentions.map((m) => m.label).join('、')}>
+              <span
+                className="flex items-center gap-0.5"
+                title={note.mentions.map((m) => m.label).join('、')}
+              >
                 <Icon name="hub" size={12} />
                 {note.mentions.length} 个关联
               </span>
@@ -452,11 +482,19 @@ ${folders.map((f, i) => `${i + 1}. ${f.name}`).join('\n')}${cur.folderId ? '\n0.
         </div>
         {/* 正文：markdown 最终预览成品 */}
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
-          <div className="note-prose mx-auto max-w-[720px]" dangerouslySetInnerHTML={{ __html: html }} />
+          <div
+            className="note-prose mx-auto max-w-[720px]"
+            dangerouslySetInnerHTML={{ __html: html }}
+          />
         </div>
         {/* 卡片底操作条 */}
         <div className="flex shrink-0 items-center justify-end gap-2 border-t border-outline-variant/40 px-5 py-3">
-          <Button size="sm" variant="ghost" icon="drive_file_move" onClick={() => void handleMove()}>
+          <Button
+            size="sm"
+            variant="ghost"
+            icon="drive_file_move"
+            onClick={() => void handleMove()}
+          >
             移动
           </Button>
           <Button size="sm" variant="ghost" icon="download" onClick={exportMd}>
@@ -502,12 +540,17 @@ function TreeNode({
       <Icon name={icon} size={16} className={active ? 'text-primary' : 'text-outline'} />
       <span className="min-w-0 flex-1 truncate">{label}</span>
       {actions && (
-        <span className="hidden items-center gap-0.5 group-hover:flex" onClick={(e) => e.stopPropagation()}>
+        <span
+          className="hidden items-center gap-0.5 group-hover:flex"
+          onClick={(e) => e.stopPropagation()}
+        >
           {actions}
         </span>
       )}
       <span className="shrink-0 text-[11px] text-outline group-hover:hidden">{count}</span>
-      {actions && <span className="hidden shrink-0 text-[11px] text-outline group-hover:hidden">{count}</span>}
+      {actions && (
+        <span className="hidden shrink-0 text-[11px] text-outline group-hover:hidden">{count}</span>
+      )}
     </div>
   )
 }

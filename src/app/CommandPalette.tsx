@@ -84,9 +84,33 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
   }
 
   const quickActions = [
-    { icon: 'bolt', label: '灵感闪现', desc: '随机抽取待办 / 核心人脉', kbd: '⌘I', run: () => { onClose(); navigate('/inspiration') } },
-    { icon: 'post_add', label: '记一笔', desc: '录入应收/应付资金往来凭据', kbd: '⌘E', run: () => { onClose(); navigate('/finance') } },
-    { icon: 'edit_note', label: '新建笔记', desc: '双向链接与思维白板', kbd: '⌘N', run: () => void createNote() },
+    {
+      icon: 'bolt',
+      label: '灵感闪现',
+      desc: '随机抽取待办 / 核心人脉',
+      kbd: '⌘I',
+      run: () => {
+        onClose()
+        navigate('/inspiration')
+      },
+    },
+    {
+      icon: 'post_add',
+      label: '记一笔',
+      desc: '录入应收/应付资金往来凭据',
+      kbd: '⌘E',
+      run: () => {
+        onClose()
+        navigate('/finance')
+      },
+    },
+    {
+      icon: 'edit_note',
+      label: '新建笔记',
+      desc: '双向链接与思维白板',
+      kbd: '⌘N',
+      run: () => void createNote(),
+    },
   ]
 
   const onKeyDown = (e: React.KeyboardEvent) => {
@@ -161,15 +185,22 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
                       onMouseEnter={() => setActive(idx)}
                       onClick={() => go(it)}
                     >
-                      <Icon name={g.icon} className={`text-[18px] ${idx === activeIndex ? 'text-primary' : 'text-outline'}`} />
+                      <Icon
+                        name={g.icon}
+                        className={`text-[18px] ${idx === activeIndex ? 'text-primary' : 'text-outline'}`}
+                      />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-[13.5px] font-medium">{it.title}</span>
                         {it.subtitle && (
-                          <span className="block truncate text-[11.5px] text-on-surface-variant">{it.subtitle}</span>
+                          <span className="block truncate text-[11.5px] text-on-surface-variant">
+                            {it.subtitle}
+                          </span>
                         )}
                       </span>
                       {idx === activeIndex && (
-                        <kbd className="shrink-0 rounded bg-surface-container-high px-1.5 text-[10px] text-outline">↵</kbd>
+                        <kbd className="shrink-0 rounded bg-surface-container-high px-1.5 text-[10px] text-outline">
+                          ↵
+                        </kbd>
                       )}
                     </button>
                   )
@@ -182,14 +213,16 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
         {/* 快捷指令区 */}
         <div className="border-t border-outline-variant/40 bg-surface-container-low/60 px-5 py-3">
           <div className="mb-2 flex items-center justify-between">
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-outline">快捷指令 / Quick Actions</span>
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-outline">
+              快捷指令 / Quick Actions
+            </span>
             <span className="text-[10px] text-outline">寻鸽快速通道</span>
           </div>
           <div className="grid grid-cols-3 gap-2">
             {quickActions.map((a) => (
               <button
                 key={a.label}
-                className="rounded-xl border border-outline-variant/40 bg-surface-container-lowest px-3 py-2.5 text-left transition-colors hover:border-primary/60"
+                className="surface-card-xl px-3 py-2.5 text-left transition-colors hover:border-primary/60"
                 onClick={a.run}
               >
                 <div className="flex items-center justify-between">

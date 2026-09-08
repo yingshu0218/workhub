@@ -3,15 +3,7 @@ import { Icon } from '@/design-system/Icon'
 import { useNavigate } from 'react-router-dom'
 import { useCollection } from '@/queries/hooks'
 import type { Customer } from '@/db/types'
-import {
-  Avatar,
-  Button,
-  Card,
-  Chip,
-  EmptyState,
-  PageHeader,
-  inputCls,
-} from '@/design-system/ui'
+import { Avatar, Button, Card, Chip, EmptyState, PageHeader, inputCls } from '@/design-system/ui'
 import CustomerFormDrawer from './CustomerFormDrawer'
 import { fmtRelative, healthColor, tierChipTone } from './shared'
 
@@ -70,10 +62,34 @@ export default function CrmPage() {
 
       {/* 顶部统计 */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard label="客户总数" icon="group" iconCls="bg-primary-fixed text-primary" value={counts.total} sub="全部活跃档案" />
-        <StatCard label="S 层 · 核心战略" icon="workspace_premium" iconCls="bg-danger-container text-danger" value={counts.s} sub="最高优先跟进" />
-        <StatCard label="A 层 · 重点" icon="star" iconCls="bg-warning-container text-warning" value={counts.a} sub="重点客户池" />
-        <StatCard label="B 层 · 常规" icon="person" iconCls="bg-surface-container-high text-on-surface-variant" value={counts.b} sub="常规维护节奏" />
+        <StatCard
+          label="客户总数"
+          icon="group"
+          iconCls="bg-primary-fixed text-primary"
+          value={counts.total}
+          sub="全部活跃档案"
+        />
+        <StatCard
+          label="S 层 · 核心战略"
+          icon="workspace_premium"
+          iconCls="bg-danger-container text-danger"
+          value={counts.s}
+          sub="最高优先跟进"
+        />
+        <StatCard
+          label="A 层 · 重点"
+          icon="star"
+          iconCls="bg-warning-container text-warning"
+          value={counts.a}
+          sub="重点客户池"
+        />
+        <StatCard
+          label="B 层 · 常规"
+          icon="person"
+          iconCls="bg-surface-container-high text-on-surface-variant"
+          value={counts.b}
+          sub="常规维护节奏"
+        />
       </div>
 
       {/* 筛选工具栏：分层 / 行业 / 关键字 */}
@@ -151,8 +167,14 @@ function StatCard({
   return (
     <div className="card p-4">
       <div className="flex items-center justify-between">
-        <span className="text-[12px] font-medium uppercase tracking-wide text-on-surface-variant">{label}</span>
-        <Icon name={icon} className={`flex h-8 w-8 items-center justify-center rounded-xl ${iconCls}`} size={18} />
+        <span className="text-[12px] font-medium uppercase tracking-wide text-on-surface-variant">
+          {label}
+        </span>
+        <Icon
+          name={icon}
+          className={`flex h-8 w-8 items-center justify-center rounded-xl ${iconCls}`}
+          size={18}
+        />
       </div>
       <div className="mt-1 text-[22px] font-bold tracking-tight">{value}</div>
       <div className="mt-0.5 text-[11px] text-outline">{sub}</div>
@@ -231,7 +253,10 @@ function CustomerRow({ customer: c, onOpen }: { customer: Customer; onOpen: () =
         <div className="text-[12px] text-on-surface-variant">最近联系</div>
         <div className="text-[12px] font-medium">{fmtRelative(c.lastContactAt)}</div>
       </div>
-      <Icon name="chevron_right" className="text-[18px] text-outline opacity-0 transition-opacity group-hover:opacity-100" />
+      <Icon
+        name="chevron_right"
+        className="text-[18px] text-outline opacity-0 transition-opacity group-hover:opacity-100"
+      />
     </div>
   )
 }
