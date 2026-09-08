@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { Icon } from '@/design-system/Icon'
 import { useNavigate, useParams } from 'react-router-dom'
-import { useRecord } from '@/queries/hooks'
-import type { Customer, Interaction } from '@/db/types'
+import { useCollection, useRecord } from '@/queries/hooks'
+import type { Customer, Interaction, Project } from '@/db/types'
 import { deleteCustomerCascade, newId, saveInteractionAndTouchCustomer } from '@/repositories'
 import { eventBus } from '@/shared/eventBus'
 import {
@@ -25,6 +25,9 @@ const TYPE_ICONS: Record<Interaction['type'], string> = {
   会议: 'groups',
   邮件: 'mail',
   拜访: 'directions_walk',
+  跟进: 'trending_up',
+  小结: 'summarize',
+  其他: 'more_horiz',
 }
 
 const fmtMoney = (n: number) => `¥${n.toLocaleString('zh-CN')}`
@@ -34,6 +37,8 @@ export default function CustomerDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const customer = useRecord<Customer>('customers', id)
+  const allProjects = useCollection<Project>('projects')
+  const customerProjects = allProjects.filter((p) => p.customerId === id)
   const transactions = useCustomerTransactions(id)
   const todos = useCustomerTodos(id)
   const interactions = useCustomerInteractions(id)
@@ -198,6 +203,29 @@ export default function CustomerDetailPage() {
                   </div>
                 ) : (
                   <div className="mt-2 text-[11px] text-outline">暂无关联流水，在财务中心记账时可关联该客户</div>
+                )}
+              </div>
+              <div className="rounded-xl bg-surface-container-low/60 p-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-[12px] text-on-surface-variant">名下项目</span>
+                  <Icon name="hub" className="text-[18px] text-primary" />
+                </div>
+                <div className="mt-1 text-[20px] font-bold tracking-tight">{customerProjects.length} 个</div>
+                {customerProjects.length > 0 ? (
+                  <div className="mt-2 space-y-1.5">
+                    {customerProjects.slice(0, 3).map((p) => (
+                      <button
+                        key={p.id}
+                        className="flex w-full items-center gap-2 text-left text-[12px] hover:text-primary"
+                        onClick={() => navigate(`/projects/${p.id}`)}
+                      >
+                        <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: p.color }} />
+                        <span className="truncate">{p.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="mt-2 text-[11px] text-outline">暂无名下项目，在项目中可挂靠该客户</div>
                 )}
               </div>
               <div className="rounded-xl bg-surface-container-low/60 p-4">

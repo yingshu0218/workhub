@@ -6,7 +6,8 @@ import { settingsRepo, resetAndSeedLocalData, restoreFromJson } from '@/reposito
 import {
   workspaceRepo, customerRepo, interactionRepo, ledgerRepo, transactionRepo,
   todoRepo, noteRepo, quickNoteRepo, habitRepo, habitLogRepo, trophyRepo,
-  attachmentRepo, focusSessionRepo,
+  attachmentRepo, focusSessionRepo, todoListRepo, noteFolderRepo,
+  projectRepo, projectMilestoneRepo,
 } from '@/repositories'
 import { listShortcuts } from '@/shared/shortcuts'
 import { ACCENT_PRESETS, RADIUS_PRESETS, FONT_SIZE_STEPS, LINE_HEIGHT_STEPS, FONT_PRESETS, THEME_STYLES, FONT_STACKS } from '@/shared/theme'
@@ -172,11 +173,13 @@ export default function SettingsPage() {
       const [
         workspaces, customers, interactions, ledgers, transactions,
         todos, notes, quickNotes, habits, habitLogs, trophies, attachments, focusSessions,
+        todoLists, noteFolders, projects, projectMilestones,
       ] = await Promise.all([
         workspaceRepo.list(), customerRepo.list(), interactionRepo.list(), ledgerRepo.list(),
         transactionRepo.list(), todoRepo.list(), noteRepo.list(), quickNoteRepo.list(),
         habitRepo.list(), habitLogRepo.list(), trophyRepo.list(),
         attachmentRepo.list(), focusSessionRepo.list(),
+        todoListRepo.list(), noteFolderRepo.list(), projectRepo.list(), projectMilestoneRepo.list(),
       ])
       const attachmentRows = await Promise.all(
         attachments.map(async ({ blob, ...meta }) => ({
@@ -191,6 +194,7 @@ export default function SettingsPage() {
         data: {
           workspaces, customers, interactions, ledgers, transactions, todos, notes,
           quickNotes, habits, habitLogs, trophies, attachments: attachmentRows, focusSessions,
+          todoLists, noteFolders, projects, projectMilestones,
         },
       }
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })

@@ -21,7 +21,7 @@ import { useCanvasGraph } from './hooks'
 
 interface CanvasNode extends SimulationNodeDatum {
   id: string
-  kind: 'customer' | 'txn' | 'todo' | 'note'
+  kind: 'customer' | 'project' | 'txn' | 'todo' | 'note'
   label: string
   color: string
   fill: string
@@ -37,6 +37,7 @@ interface CanvasLink {
 
 const COLORS = {
   customer: { stroke: '#004ac6', fill: '#dbe1ff', text: '#004ac6' },
+  project: { stroke: '#6d43c4', fill: '#e9ddff', text: '#6d43c4' },
   income: { stroke: '#006c49', fill: '#6cf8bb', text: '#006c49' },
   expense: { stroke: '#ba1a1a', fill: '#ffdad6', text: '#ba1a1a' },
   todo: { stroke: '#943700', fill: '#ffede6', text: '#943700' },
@@ -89,6 +90,8 @@ export default function CrmCanvasPage() {
     if (size.w === 0 || size.h === 0 || graph.customers.length === 0) return
     const ns: CanvasNode[] = []
     const ls: CanvasLink[] = []
+    // 已有节点 ID 集合：所有连线的 source 必须命中，避免悬挂边导致 d3 崩溃
+    const nodeIds = new Set<string>()
     for (const c of graph.customers) {
       ns.push({
         id: c.id,
@@ -98,6 +101,21 @@ export default function CrmCanvasPage() {
         fill: COLORS.customer.fill,
         radius: 24,
       })
+    }
+    for (const n of ns) nodeIds.add(n.id)
+    // 项目节点：挂靠客户的主题容器（客户 → 项目 → 流水/待办 层级）
+    for (const p of graph.projects) {
+      ns.push({
+        id: `proj:${p.id}`,
+        kind: 'project',
+        to: `/projects/${p.id}`,
+        label: p.name.length > 8 ? `${p.name.slice(0, 8)}…` : p.name,
+        color: COLORS.project.stroke,
+        fill: COLORS.project.fill,
+        radius: 15,
+      })
+      // 防御：客户可能已被删除（历史脏数据），悬挂边会让 d3 forceLink 抛 node not found 白屏
+      if (p.customerId && nodeIds.has(p.customerId)) ls.push({ source: p.customerId, target: `proj:${p.id}` })
     }
     for (const t of graph.transactions) {
       ns.push({
@@ -399,8 +417,9 @@ export default function CrmCanvasPage() {
                             draggedRef.current = false
                             return
                           }
-                          // 客户节点单击即跳转；其余节点走双击穿透（避免误触）
+                          // 客户/项目节点单击即跳转；其余节点走双击穿透（避免误触）
                           if (n.kind === 'customer') navigate(`/crm/${n.id}`)
+                          if (n.kind === 'project') navigate(`/projects/${n.id.replace('proj:', '')}`)
                         }}
                         onDoubleClick={() => {
                           if (n.to) navigate(n.to)
@@ -423,7 +442,15 @@ export default function CrmCanvasPage() {
                           </>
                         ) : (
                           <text textAnchor="middle" dy="3.5" style={{ fontSize: 8, fontWeight: 600 }} fill={n.color}>
-                            {n.kind === 'txn' ? (n.label.startsWith('+') ? '¥' : '支') : n.kind === 'note' ? '✎' : '!'}
+                            {n.kind === 'txn'
+                              ? n.label.startsWith('+')
+                                ? '¥'
+                                : '支'
+                              : n.kind === 'project'
+                                ? '⬡'
+                                : n.kind === 'note'
+                                  ? '✎'
+                                  : '!'}
                           </text>
                         )}
                         {n.kind !== 'customer' && (

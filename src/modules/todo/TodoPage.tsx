@@ -3,7 +3,7 @@ import { Icon } from '@/design-system/Icon'
 import { useSearchParams } from 'react-router-dom'
 import { useCollection } from '@/queries/hooks'
 import { todoRepo, newId } from '@/repositories'
-import type { Todo, Customer } from '@/db/types'
+import type { Todo, Customer, Project } from '@/db/types'
 import { Button, Card, Chip, EmptyState, PageHeader, Drawer, Field, inputCls } from '@/design-system/ui'
 import dayjs from 'dayjs'
 import { useFocusStore } from '@/stores/focus'
@@ -340,12 +340,14 @@ export function TodoFormDrawer({
   onClose: () => void
 }) {
   const customers = useCollection<Customer>('customers')
+  const projects = useCollection<Project>('projects')
   const [title, setTitle] = useState('')
   const [desc, setDesc] = useState('')
   const [priority, setPriority] = useState<Todo['priority']>('P2')
   const [dueAt, setDueAt] = useState('')
   const [customerId, setCustomerId] = useState('')
   const [listId, setListId] = useState('')
+  const [projectId, setProjectId] = useState('')
   const listOptions = useTodoListOptions()
   const [error, setError] = useState('')
   const [seedKey, setSeedKey] = useState(0)
@@ -361,6 +363,7 @@ export function TodoFormDrawer({
     setDueAt(todo?.dueAt ? dayjs(todo.dueAt).format('YYYY-MM-DDTHH:mm') : '')
     setCustomerId(todo?.customerId ?? '')
     setListId(todo?.listId ?? '')
+    setProjectId(todo?.projectId ?? '')
     setError('')
     setSeedKey((k) => k + 1)
   }
@@ -381,6 +384,7 @@ export function TodoFormDrawer({
       dueAt: dueAt ? dayjs(dueAt).valueOf() : undefined,
       customerId: customerId || undefined,
       listId: listId || undefined,
+      projectId: projectId || undefined,
       createdAt: todo?.createdAt ?? Date.now(),
       updatedAt: 0,
       deleted: 0,
@@ -423,6 +427,17 @@ export function TodoFormDrawer({
             {listOptions.map((l) => (
               <option key={l.id} value={l.id}>
                 {l.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="所属项目">
+          <select className={inputCls} value={projectId} onChange={(e) => setProjectId(e.target.value)}>
+            <option value="">不关联</option>
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+                {p.status === 'archived' ? '（已归档）' : ''}
               </option>
             ))}
           </select>

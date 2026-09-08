@@ -13,6 +13,8 @@ import type {
   HabitLog,
   Trophy,
   Interaction,
+  Project,
+  ProjectMilestone,
 } from './types'
 
 /**
@@ -148,6 +150,7 @@ export async function seedIfEmpty(): Promise<boolean> {
       tags: ['项目收款', '深蓝科技'],
       invoiceNo: 'INV-2026-0892',
       customerId: 'c1',
+      projectId: 'p1',
       status: '已结算',
       ...meta(),
     },
@@ -188,6 +191,7 @@ export async function seedIfEmpty(): Promise<boolean> {
       dueAt: dayjs().hour(17).minute(30).valueOf(),
       status: 'doing',
       customerId: 'c1',
+      projectId: 'p1',
       createdAt: now - 86400_000,
       ...meta(),
     },
@@ -289,6 +293,63 @@ export async function seedIfEmpty(): Promise<boolean> {
     },
   ]
 
+  const projects: Project[] = [
+    {
+      id: 'p1',
+      name: '深蓝科技二期交付',
+      color: '#004ac6',
+      status: 'active',
+      customerId: 'c1',
+      budget: 300000,
+      note: '平台二期 4 个核心模块 + 数据迁移，长期项目，持续跟进到验收',
+      createdAt: now - 30 * 86400_000,
+      ...meta(),
+    },
+    {
+      id: 'p2',
+      name: 'AI 音乐课程开发',
+      color: '#6d43c4',
+      status: 'active',
+      note: '资料聚合型项目：课程大纲、素材与灵感都归到这里',
+      createdAt: now - 15 * 86400_000,
+      ...meta(),
+    },
+  ]
+
+  const milestones: ProjectMilestone[] = [
+    {
+      id: 'ms1',
+      projectId: 'p1',
+      name: '需求评审定稿',
+      weight: 2,
+      status: 'done',
+      sortOrder: 0,
+      createdAt: now - 30 * 86400_000,
+      ...meta(),
+    },
+    {
+      id: 'ms2',
+      projectId: 'p1',
+      name: '核心模块开发',
+      weight: 3,
+      status: 'inProgress',
+      sortOrder: 1,
+      createdAt: now - 30 * 86400_000,
+      ...meta(),
+    },
+    {
+      id: 'ms3',
+      projectId: 'p1',
+      name: '验收与回签',
+      weight: 2,
+      status: 'planned',
+      sortOrder: 2,
+      dueAt: now + 30 * 86400_000,
+      createdAt: now - 30 * 86400_000,
+      ...meta(),
+    },
+  ]
+
   const trophy: Omit<Trophy, 'id'>[] = [
     {
       name: '首笔大额回款',
@@ -338,6 +399,8 @@ export async function seedIfEmpty(): Promise<boolean> {
       db.habits,
       db.habitLogs,
       db.trophies,
+      db.projects,
+      db.projectMilestones,
       db.meta,
     ],
     async () => {
@@ -362,6 +425,8 @@ export async function seedIfEmpty(): Promise<boolean> {
         ),
       )
       await db.trophies.bulkPut(trophies)
+      await db.projects.bulkPut(projects)
+      await db.projectMilestones.bulkPut(milestones)
       await db.meta.put({ key: 'seeded', value: now })
     },
   )

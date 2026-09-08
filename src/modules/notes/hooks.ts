@@ -2,6 +2,7 @@ import type { Note, NoteFolder, NoteMention } from '@/db/types'
 import { db } from '@/db/db'
 import { newId } from '@/repositories'
 import { useCollection, useQuery } from '@/queries/hooks'
+import { syncEngine } from '@/sync/engine'
 
 /**
  * 笔记模块领域查询 Hook（组件不直碰 Dexie，存储切换只改查询层）
@@ -130,4 +131,5 @@ export async function moveNoteToFolder(noteId: string, folderId: string | undefi
     await db.notes.put({ ...prev, folderId, updatedAt: now, rev: prev.rev + 1 })
     await db.syncQueue.add({ table: 'notes', recordId: noteId, op: 'upsert', createdAt: now })
   })
+  syncEngine.requestSync()
 }

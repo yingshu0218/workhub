@@ -13,6 +13,7 @@ import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
 import { markdown } from '@codemirror/lang-markdown'
 import { defaultHighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import { useBacklinks, useNoteRecord } from './hooks'
+import { useProjects, moveNoteToProject } from '@/modules/projects/hooks'
 import { NOTE_PROSE_CSS, extractMentions, renderMarkdown, safeMentionLabel, tagStyle, wordCount } from './shared'
 
 type SaveState = 'saved' | 'dirty' | 'saving'
@@ -30,6 +31,7 @@ const TYPE_META: Record<MentionType, { tab: string; cls: string }> = {
   customer: { tab: '客户', cls: 'md-mention-customer' },
   todo: { tab: '待办', cls: 'md-mention-todo' },
   ledger: { tab: '账本', cls: 'md-mention-ledger' },
+  project: { tab: '项目', cls: 'md-mention-project' },
 }
 
 /** 工具栏动作：linePrefix=true 时按行加前缀（标题/列表/引用），否则前后包裹选区/占位文本 */
@@ -129,6 +131,8 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
   const customers = useCollection<Customer>('customers')
   const todos = useCollection<Todo>('todos')
   const ledgers = useCollection<Ledger>('ledgers')
+  // @提及「项目」tab 候选源（须在 mentionItems useMemo 之前声明并纳入依赖）
+  const mentionProjects = useProjects()
   const backlinks = useBacklinks(note)
 
   // 本地编辑态（以旧记录为基底，保存时展开旧记录仅覆盖所属字段）
@@ -288,8 +292,14 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
         sub: `${t.priority} · ${t.status === 'done' ? '已完成' : '进行中'}`,
       })),
       ...ledgers.map<MentionItem>((l) => ({ type: 'ledger', id: l.id, label: l.name, sub: l.currency })),
+      ...mentionProjects.map<MentionItem>((p) => ({
+          type: 'project' as const,
+          id: p.id,
+          label: p.name,
+          sub: p.status === 'archived' ? '已归档' : p.status === 'paused' ? '已搁置' : '进行中',
+        })),
     ].filter((it) => it.type === mentionTab && match(it.label))
-  }, [customers, todos, ledgers, mentionTab, mention?.query])
+  }, [customers, todos, ledgers, mentionProjects, mentionTab, mention?.query])
 
   // ===== CodeMirror 初始化（仅编辑态挂载，退出编辑即销毁，卸载前 flush 兜底已覆盖） =====
   useEffect(() => {
@@ -434,6 +444,7 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
     customer: (eid) => `/crm/${eid}`,
     todo: () => '/todo',
     ledger: () => '/finance',
+    project: (eid) => `/projects/${eid}`,
   }
 
   return (
@@ -613,6 +624,23 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
               ))}
             </div>
           )}
+
+          <div className="mb-2 text-[11px] font-medium uppercase tracking-wide text-on-surface-variant">
+            所属项目
+          </div>
+          <select
+            className="mb-5 w-full rounded-lg border border-outline-variant/40 bg-surface-container-lowest px-2.5 py-1.5 text-[12px] outline-none focus:border-primary"
+            value={note.projectId ?? ''}
+            onChange={(e) => void moveNoteToProject(note.id, e.target.value || undefined)}
+          >
+            <option value="">不归属项目</option>
+            {mentionProjects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+                {p.status === 'archived' ? '（已归档）' : ''}
+              </option>
+            ))}
+          </select>
 
           <div className="mb-2 text-[11px] font-medium uppercase tracking-wide text-on-surface-variant">
             @提及实体（{note.mentions.length}）

@@ -273,6 +273,11 @@
         "onUpdate": true
       },
       {
+        "name": "projectId",
+        "type": "text",
+        "required": false
+      },
+      {
         "name": "tombstonePushed",
         "type": "number",
         "required": false,
@@ -477,6 +482,11 @@
         "onUpdate": true
       },
       {
+        "name": "projectId",
+        "type": "text",
+        "required": false
+      },
+      {
         "name": "tombstonePushed",
         "type": "number",
         "required": false,
@@ -584,6 +594,11 @@
       },
       {
         "name": "listId",
+        "type": "text",
+        "required": false
+      },
+      {
+        "name": "projectId",
         "type": "text",
         "required": false
       },
@@ -747,6 +762,11 @@
         "type": "autodate",
         "onCreate": true,
         "onUpdate": true
+      },
+      {
+        "name": "projectId",
+        "type": "text",
+        "required": false
       },
       {
         "name": "tombstonePushed",
@@ -1352,6 +1372,208 @@
     "indexes": [
       "CREATE UNIQUE INDEX idx_todoLists_localId ON todoLists (localId)",
       "CREATE INDEX idx_todoLists_tombstonePushed ON todoLists (tombstonePushed)"
+    ]
+  },
+  {
+    "name": "projects",
+    "type": "base",
+    "system": false,
+    "listRule": "@request.auth.id != ''",
+    "viewRule": "@request.auth.id != ''",
+    "createRule": "@request.auth.id != ''",
+    "updateRule": "@request.auth.id != ''",
+    "deleteRule": "@request.auth.id != ''",
+    "fields": [
+      {
+        "name": "id",
+        "type": "text",
+        "required": false
+      },
+      {
+        "name": "localId",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "name",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "color",
+        "type": "text",
+        "required": false
+      },
+      {
+        "name": "status",
+        "type": "text",
+        "required": false
+      },
+      {
+        "name": "customerId",
+        "type": "text",
+        "required": false
+      },
+      {
+        "name": "budget",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "note",
+        "type": "text",
+        "required": false
+      },
+      {
+        "name": "createdAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "updatedAt",
+        "type": "number",
+        "required": true
+      },
+      {
+        "name": "deleted",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "rev",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "created",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": false
+      },
+      {
+        "name": "updated",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "server_received_at",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "tombstonePushed",
+        "type": "number",
+        "required": false,
+        "presentable": false
+      }
+    ],
+    "indexes": [
+      "CREATE INDEX idx_projects_updatedAt ON projects (updatedAt)",
+      "CREATE UNIQUE INDEX idx_projects_localId ON projects (localId)",
+      "CREATE INDEX idx_projects_tombstonePushed ON projects (tombstonePushed)"
+    ]
+  },
+  {
+    "name": "projectMilestones",
+    "type": "base",
+    "system": false,
+    "listRule": "@request.auth.id != ''",
+    "viewRule": "@request.auth.id != ''",
+    "createRule": "@request.auth.id != ''",
+    "updateRule": "@request.auth.id != ''",
+    "deleteRule": "@request.auth.id != ''",
+    "fields": [
+      {
+        "name": "id",
+        "type": "text",
+        "required": false
+      },
+      {
+        "name": "localId",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "projectId",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "name",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "dueAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "weight",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "status",
+        "type": "text",
+        "required": false
+      },
+      {
+        "name": "sortOrder",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "createdAt",
+        "type": "number"
+      },
+      {
+        "name": "updatedAt",
+        "type": "number",
+        "required": true
+      },
+      {
+        "name": "deleted",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "rev",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "created",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": false
+      },
+      {
+        "name": "updated",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "server_received_at",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "tombstonePushed",
+        "type": "number",
+        "required": false,
+        "presentable": false
+      }
+    ],
+    "indexes": [
+      "CREATE INDEX idx_projectMilestones_updatedAt ON projectMilestones (updatedAt)",
+      "CREATE UNIQUE INDEX idx_projectMilestones_localId ON projectMilestones (localId)",
+      "CREATE INDEX idx_projectMilestones_tombstonePushed ON projectMilestones (tombstonePushed)",
+      "CREATE INDEX idx_projectMilestones_projectId ON projectMilestones (projectId)"
     ]
   }
 ]

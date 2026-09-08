@@ -42,9 +42,11 @@ export interface Customer extends SyncMeta {
 export interface Interaction extends SyncMeta {
   id: string
   customerId: string
-  type: '电话' | '会议' | '邮件' | '拜访'
+  type: '电话' | '会议' | '邮件' | '拜访' | '跟进' | '小结' | '其他'
   content: string
   at: number
+  /** 所属项目（进展流水复用 CRM 沟通日志，不另建表） */
+  projectId?: string
 }
 
 export interface Ledger extends SyncMeta {
@@ -71,6 +73,8 @@ export interface Transaction extends SyncMeta {
   note?: string
   customerId?: string
   todoId?: string
+  /** 所属项目（可选弱引用：项目删除仅解绑，不删流水） */
+  projectId?: string
   status: '已结算' | '待对账'
 }
 
@@ -86,6 +90,8 @@ export interface Todo extends SyncMeta {
   habitId?: string
   /** 所属自定义清单（智能清单不落此字段） */
   listId?: string
+  /** 所属项目（可选弱引用：一次性的待办可不填；项目删除仅解绑） */
+  projectId?: string
   completedAt?: number
   createdAt: number
 }
@@ -98,8 +104,46 @@ export interface TodoList extends SyncMeta {
   createdAt: number
 }
 
+/**
+ * 项目 —— 跨模块「主题容器」（长期项目 / 持续跟进 / 资料聚合共用一个模型）：
+ * 各模块（Transaction/Todo/Note/Interaction）用可选 projectId 弱引用挂上来。
+ * 与客户的边界：客户是「人/组织」，项目是「事」；项目可不挂客户，一个客户可挂多个项目。
+ * 项目维度的收支/进度统计一律从源记录实时推导，本表不存任何快照字段（仓库铁律）。
+ */
+export interface Project extends SyncMeta {
+  id: string
+  name: string
+  /** 视觉标识色（hex），用于项目列表/详情/画布节点 */
+  color: string
+  /** 生命周期：active 进行中 / paused 暂搁置 / archived 已归档（归档不删除，历史关联保留） */
+  status: 'active' | 'paused' | 'archived'
+  /** 挂靠客户（可选，打通 CRM 下钻：客户 → 项目 → 流水） */
+  customerId?: string
+  /** 可选项目预算（仅展示对比，不参与任何统计口径强制） */
+  budget?: number
+  note?: string
+  createdAt: number
+}
+
+/**
+ * 项目里程碑 —— 结构化进度（阶段刻度，区别于一次性的待办）。
+ * 照抄 TodoList 先例：独立表 + projectId 索引 + 级联删除。
+ * 进度 = Σ(done 里程碑×weight) / Σ(全部 weight)，无里程碑的项目 fallback 待办完成率。
+ */
+export interface ProjectMilestone extends SyncMeta {
+  id: string
+  projectId: string
+  name: string
+  dueAt?: number
+  /** 进度权重（正整数；缺省 1） */
+  weight: number
+  status: 'planned' | 'inProgress' | 'done'
+  sortOrder: number
+  createdAt: number
+}
+
 export interface NoteMention {
-  type: 'customer' | 'todo' | 'ledger'
+  type: 'customer' | 'todo' | 'ledger' | 'project'
   id: string
   label: string
 }
@@ -113,6 +157,8 @@ export interface Note extends SyncMeta {
   mentions: NoteMention[]
   /** 所属文件夹（缺省为未归档根层） */
   folderId?: string
+  /** 所属项目（资料聚合的落点：项目详情页聚合展示；缺省为未归属） */
+  projectId?: string
   createdAt: number
 }
 
