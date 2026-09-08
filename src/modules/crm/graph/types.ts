@@ -1,3 +1,4 @@
+import type { RelationCategory } from '@/db/types'
 import type { SimulationNodeDatum } from 'd3-force'
 
 /**
@@ -16,7 +17,7 @@ export interface GraphNode extends SimulationNodeDatum {
   to?: string
 }
 
-export type GraphLinkKind = 'belongs' | 'relation'
+export type GraphLinkKind = 'belongs' | 'relation' | 'bridge'
 
 export interface GraphLink {
   source: string | GraphNode
@@ -24,6 +25,8 @@ export interface GraphLink {
   kind: GraphLinkKind
   /** 关系边（客户↔客户）的语义标签，tooltip 展示 */
   label?: string
+  /** 关系边聚合的归类维度（同一对客户所有 relation 条目的类别并集，Issue #34） */
+  categories?: RelationCategory[]
 }
 
 export const GRAPH_COLORS = {
@@ -34,4 +37,6 @@ export const GRAPH_COLORS = {
   todo: { stroke: '#943700', fill: '#ffede6', text: '#943700' },
   note: { stroke: '#4a4458', fill: '#e8def8', text: '#4a4458' },
   relation: { stroke: '#943700', text: '#943700' },
+  // 二跳桥接弱边（项目/资金）：低存在感、弱视觉权重，避免抢业务实体主线
+  bridge: { stroke: '#8a94a6', text: '#6f7987' },
 } as const

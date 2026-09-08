@@ -24,11 +24,25 @@ export interface Workspace extends SyncMeta {
  * 客户间语义关系（Issue #22）：弱引用，targetId 必须指向现存客户，
  * UI 只允许从已有客户列表选择，杜绝画布悬挂边（同 deleteCustomerCascade 注释的崩溃根因）
  */
+/** 关系归类维度（Issue #34）：图谱连线的展示分组/着色/筛选用，不做业务证据溯源 */
+export type RelationCategory = 'project' | 'event' | 'finance' | 'person' | 'other'
+
+/** 各归类的展示名与图谱边配色（buildRelationLinks / GraphCanvas / CustomerFormDrawer 共用） */
+export const RELATION_CATEGORIES: { id: RelationCategory; name: string; color: string }[] = [
+  { id: 'project', name: '项目', color: '#6d43c4' },
+  { id: 'event', name: '事件', color: '#0065b8' },
+  { id: 'finance', name: '财务', color: '#006c49' },
+  { id: 'person', name: '关联人物', color: '#943700' },
+  { id: 'other', name: '其他', color: '#4a4458' },
+]
+
 export interface CustomerRelation {
   /** 目标客户 id（弱引用） */
   targetId: string
   /** 关系语义，如：转介绍人 / 同一公司 / 上下游 */
   label: string
+  /** 归类维度（可选，向后兼容旧数据；缺省按 other 展示） */
+  category?: RelationCategory
 }
 
 export interface Customer extends SyncMeta {

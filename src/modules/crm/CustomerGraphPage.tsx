@@ -54,7 +54,7 @@ export default function CustomerGraphPage() {
         <Chip tone="gray" icon="description">{`关联笔记 ${graph.notes.filter((n) => n.customerId === id).length}`}</Chip>
         <Chip tone="red" icon="link">{`关联客户 ${relCount}`}</Chip>
         <span className="ml-2 text-[11px] text-outline">
-          虚线弧边为客户间语义关系 · 单击客户节点跳转 · 按住拖拽 · 滚轮缩放
+          虚线弧边为客户间分类关系 · 桥接弱边为二跳推导关联 · 单击客户节点查看缩略卡 · 按住拖拽 · 滚轮缩放
         </span>
       </div>
 

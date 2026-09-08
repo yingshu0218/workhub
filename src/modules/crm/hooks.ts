@@ -2,7 +2,7 @@ import { db } from '@/db/db'
 import { useQuery } from '@/queries/hooks'
 import { syncEngine } from '@/sync/engine'
 import { newId } from '@/repositories'
-import type { Customer, Interaction, Todo, Transaction } from '@/db/types'
+import type { Customer, Interaction, RelationCategory, Todo, Transaction } from '@/db/types'
 
 /**
  * CRM 模块领域查询 Hook（组件不直碰 Dexie，审计纪律 P1-5）
@@ -17,25 +17,31 @@ export interface CanvasGraph {
     company: string
     tier: 'S' | 'A' | 'B' | '潜在'
     healthScore: number
+    /** 最近联系时间（图谱缩略卡展示用，Issue #34） */
+    lastContactAt: number
     /** 客户间语义关系（全景图画客户↔客户边的数据源；投影时过滤掉指向已删除/不存在客户的悬挂引用） */
-    relations: { targetId: string; label: string }[]
+    relations: { targetId: string; label: string; category?: RelationCategory }[]
   }[]
   projects: { id: string; name: string; customerId: string }[]
-  transactions: { id: string; customerId: string; type: 'income' | 'expense'; amount: number; summary: string }[]
-  todos: { id: string; customerId: string; title: string; priority: 'P1' | 'P2' | 'P3'; status: 'todo' | 'doing' | 'done' }[]
+  transactions: { id: string; customerId: string; type: 'income' | 'expense'; amount: number; summary: string; projectId?: string; ledgerId?: string }[]
+  todos: { id: string; customerId: string; title: string; priority: 'P1' | 'P2' | 'P3'; status: 'todo' | 'doing' | 'done'; projectId?: string }[]
+  /** 沟通日志投影：桥接推导需 customerId+projectId（CanvasGraph 原不含 interaction，Issue #34 补齐） */
+  interactions: { id: string; customerId: string; projectId?: string }[]
   notes: { id: string; customerId: string; title: string }[]
 }
 
-const EMPTY_GRAPH: CanvasGraph = { customers: [], projects: [], transactions: [], todos: [], notes: [] }
+const EMPTY_GRAPH: CanvasGraph = { customers: [], projects: [], transactions: [], todos: [], interactions: [], notes: [] }
 
 export function useCanvasGraph(): CanvasGraph {
   const graph = useQuery<CanvasGraph>(async () => {
-    const [customers, projects, txns, todos] = await Promise.all([
+    const [customers, projects, txns, todos, itxs] = await Promise.all([
       db.customers.filter((c) => !c.deleted).toArray(),
       db.projects.filter((p) => !p.deleted).toArray(),
       // customerId 建有索引：直接走索引取关联流水，跳过无关联的记录
       db.transactions.where('customerId').notEqual('').filter((t) => !t.deleted).toArray(),
       db.todos.where('customerId').notEqual('').filter((t) => !t.deleted).toArray(),
+      // customerId 建有索引（v1 起），与 transactions 同款索引查询（Issue #34 桥接推导前置）
+      db.interactions.where('customerId').notEqual('').filter((i) => !i.deleted).toArray(),
     ])
     // 笔记经 mentions 反查客户：notes 表无 customerId 索引，全表过滤（笔记量级小）
     const customerIds = new Set(customers.map((c) => c.id))
@@ -49,6 +55,7 @@ export function useCanvasGraph(): CanvasGraph {
         company: c.company,
         tier: c.tier,
         healthScore: c.healthScore,
+        lastContactAt: c.lastContactAt,
         // 悬挂防御：只带出指向现存客户的 relations（删除级联已解绑，这里再挡一层历史脏数据）
         relations: (c.relations ?? []).filter((r) => customerIds.has(r.targetId)),
       })),
@@ -59,6 +66,8 @@ export function useCanvasGraph(): CanvasGraph {
         type: t.type,
         amount: t.amount,
         summary: t.summary,
+        projectId: t.projectId ?? undefined,
+        ledgerId: t.ledgerId ?? undefined,
       })),
       todos: todos.map((t) => ({
         id: t.id,
@@ -66,6 +75,12 @@ export function useCanvasGraph(): CanvasGraph {
         title: t.title,
         priority: t.priority,
         status: t.status,
+        projectId: t.projectId ?? undefined,
+      })),
+      interactions: itxs.map((i) => ({
+        id: i.id,
+        customerId: i.customerId ?? '',
+        projectId: i.projectId ?? undefined,
       })),
       notes: notes.map((n) => {
         const mention = n.mentions.find((m) => m.type === 'customer' && customerIds.has(m.id))

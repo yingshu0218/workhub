@@ -7,8 +7,9 @@ import {
   forceSimulation,
   type Simulation,
 } from 'd3-force'
+import type { RelationCategory } from '@/db/types'
 import type { CanvasGraph } from '../hooks'
-import { buildGraph } from './buildGraph'
+import { buildGraph, type GraphMode } from './buildGraph'
 import type { GraphLink, GraphNode } from './types'
 
 /**
@@ -21,9 +22,13 @@ export interface ForceGraphOptions {
   graph: CanvasGraph
   size: { w: number; h: number }
   focusId?: string
+  /** 视图模式（Issue #34）：默认 mixed */
+  mode?: GraphMode
+  /** 关系归类筛选（customer-only 模式生效） */
+  categories?: RelationCategory[]
 }
 
-export function useForceGraph({ graph, size, focusId }: ForceGraphOptions) {
+export function useForceGraph({ graph, size, focusId, mode, categories }: ForceGraphOptions) {
   const [nodes, setNodes] = useState<GraphNode[]>([])
   const [links, setLinks] = useState<GraphLink[]>([])
   const simRef = useRef<Simulation<GraphNode, undefined> | null>(null)
@@ -32,7 +37,12 @@ export function useForceGraph({ graph, size, focusId }: ForceGraphOptions) {
   useEffect(() => {
     if (size.w === 0 || size.h === 0 || graph.customers.length === 0) return
 
-    const built = buildGraph(graph, { focusId, center: { x: size.w / 2, y: size.h / 2 } })
+    const built = buildGraph(graph, {
+      focusId,
+      mode,
+      categories,
+      center: { x: size.w / 2, y: size.h / 2 },
+    })
     const ns = built.nodes
     const ls = built.links
     if (ns.length === 0) return
@@ -52,14 +62,18 @@ export function useForceGraph({ graph, size, focusId }: ForceGraphOptions) {
         forceLink<GraphNode, GraphLink>(ls)
           .id((d) => d.id)
           // 客户↔客户关系边给更小 distance：让有关联的客户在布局上聚拢，关系结构可读
-          .distance((l) =>
-            l.kind === 'relation'
-              ? 60
-              : (l.source as GraphNode).kind === 'customer' || (l.target as GraphNode).kind === 'customer'
-                ? 90
-                : 70,
-          )
-          .strength((l) => (l.kind === 'relation' ? 0.6 : 0.4)),
+          .distance((l) => {
+            if (l.kind === 'relation') return 60
+            // 二跳桥接弱边：距离放宽，让主线结构优先、桥接不抢布局
+            if (l.kind === 'bridge') return 110
+            return (l.source as GraphNode).kind === 'customer' || (l.target as GraphNode).kind === 'customer' ? 90 : 70
+          })
+          .strength((l) => {
+            // 强关联：实线语义关系给强束缚；桥接弱边给极低强度，近似只做「轻引力」不硬拽
+            if (l.kind === 'relation') return 0.6
+            if (l.kind === 'bridge') return 0.08
+            return 0.4
+          }),
       )
       .force('charge', forceManyBody().strength(-320))
       .force('center', forceCenter(size.w / 2, size.h / 2))
@@ -80,7 +94,7 @@ export function useForceGraph({ graph, size, focusId }: ForceGraphOptions) {
         rafRef.current = null
       }
     }
-  }, [graph, size.w, size.h, focusId])
+  }, [graph, size.w, size.h, focusId, mode, categories])
 
   return { nodes, links, setNodes, setLinks, simRef }
 }
