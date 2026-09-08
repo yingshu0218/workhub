@@ -87,3 +87,4 @@
 | 36 | 2026-09-08 | Issue #14 审计修复：主题切换先清理旧 inline 变量再覆盖（防经典晴空/深浅互切残留污染）；楷体字体栈 `'serif'` 误引号修正为关键字 serif | npc/CodeBuddy(deepseek-v4-flash) |
 | 37 | 2026-09-08 | Issue #14 复核补充：主题/字体类型单源化（THEME_STYLES as const satisfies 派生 ThemeStyleId，SettingsAppearance.theme 收窄）+ 主题 token 除 classic 外明暗两侧补齐 19 键 + gothic 字体栈移除不可命中的 'Source Han Sans SC Heavy' | npc/CodeBuddy(deepseek-v4-flash) |
 | 38 | 2026-09-08 | Issue #11 客户三源统一时间轴：客户详情页沟通日志卡片重构为 interactions/transactions/todos 动态投影（无新表/无迁移），新增 /crm/:id/timeline 鱼骨时间线视图（共享 usePanZoom 缩放平移）；修复鱼骨待办/交易穿透（事件点补 recordId，/todo?focus= 与 /finance?focus= 深链定位 + 拖拽保护）；db/sync/schema 零侵入（PR #15） | npc/CodeBuddy |
+| 39 | 2026-09-08 | Issue #11 收尾（PR #18）：合并 #15/#17 分叉，鱼骨时间线 P3 打磨落地——鱼头状态卡（tier 徽章 + HealthRing + 最近联系）、骨刺等距防重叠布局、fitView 适应画布、hover 浮层摘要（色系 Chip + 优先级 + 待对账）、过滤 chips 计数、骨刺拖拽保护；usePanZoom 收敛单源（画布/鱼骨页共用，移除 shared 副本与未用 svg） | npc/CodeBuddy |

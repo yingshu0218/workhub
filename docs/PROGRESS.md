@@ -2,7 +2,7 @@
 
 > **本仓库的唯一进度事实来源。** 所有人（含 AI 开发代理）推进或变更任何开发工作，必须在**同一个 commit** 里同步更新本文件对应状态。README 底部的 Changelog 记录"发生了什么"，本文档记录"现在处于什么状态"——前者追加式流水，后者始终反映最新全貌。
 
-**最后更新**：2026-09-08（Issue #14 复核补充：主题/字体类型单源化 + gothic 字体栈修正 + 主题 token 全侧补齐 19 键；CRM 客户时间线 P1 PR #15 + P2 PR #17 已实装并通过 R2 复核，Issue #11） · 维护人：yingshu0218 / cnb.cMPXRmKswEA
+**最后更新**：2026-09-08（Issue #11 收尾：合并 #15/#17 分叉，鱼骨视图 P3 打磨落地——鱼头状态卡 HealthRing、等距防重叠布局、fitView 适应画布、hover 浮层摘要、过滤计数；穿透深链与画布共享 usePanZoom 回流） · 维护人：yingshu0218 / cnb.cMPXRmKswEA / npc/CodeBuddy
 
 ---
 
@@ -60,15 +60,14 @@
 | 双端真机日常使用 | 手机+电脑配同步各一次，用几天验证 LWW/断网补传实际体验 |
 | 服务端重导入 collections.json | 笔记文件夹上线需导入新表 noteFolders + notes.folderId 字段（Dexie v6），见部署指南「Schema 升级流程」；完成后执行一次「全量推送」 |
 
-### CRM 客户时间线（Issue #11，进行中）
+### CRM 客户时间线（Issue #11，已收尾）
 
 | 项 | 状态 |
 |---|---|
-| P1 三源统一时间轴投影（timeline.ts + 详情页日志卡片重构） | ✅ PR #15 已通过 R1/R2 复核审计（🟢 无阻塞项），待合并 |
-| P2 客户时间线鱼骨视图（PR #17） | ✅ 已实装并通过 R2 复核（🟢 净层通过）：CustomerTimelinePage（/crm/:id/timeline）+ usePanZoom hook + 路由/入口；纯 SVG 零新依赖，数据复用 useCustomerTimeline 投影；tsc/vite/eslint 通过。🔴-1 已处置：采用方案甲——usePanZoom 抽取为单向（画布迁移列 P3），hook 头注释已如实更正 |
-| P3 打磨（刺点聚合密度 + 空态/移动端适配 + 画布入口/共享 hook 回流） | ⏳ 未开始 |
-| R2 整体复核审计（deepseek-v4-flash） | ✅ 已通过，2 项 🔴 均按方案甲处置完毕：① usePanZoom 单向抽取已如实注明（画布迁移列 P3）；② PR #17/#15 diff 重叠以固定合并顺序解决——**严格先合 #15 再合 #17**，不做分支重建。🟡 建议项：画布双击跳时间线、鱼头 HealthRing 替换、fitView 包络盒垂直居中，均记入 P3 |
-| 语义遗留 | 交易结算不刷新 lastContactAt（用户未拍板，随时可加一行事务内 update）；todo 拆 created/done 两个事件点（用户已确认接受） |
+| P1 三源统一时间轴投影（timeline.ts + 详情页日志卡片重构） | ✅ 已合入 main（PR #15，R1/R2/R3 审计通过） |
+| P2 客户时间线鱼骨视图（PR #17） | ✅ 已合入 main（R2 复核通过）；穿透深链（/todo?focus=、/finance?focus=）与拖拽保护已修复（907f03c） |
+| P3 打磨 | ✅ 收尾 PR 落地：鱼头状态卡升级（tier 徽章 + HealthRing 健康环 + 最近联系）、骨刺等距防重叠布局、fitView「适应画布」、hover 浮层摘要（Chip 色系/优先级/待对账）、过滤 chips 计数、骨刺拖拽保护；usePanZoom 收敛单源（画布与鱼骨页共用 ./usePanZoom，移除 shared 副本） |
+| 遗留提示 | 交易结算不刷新 lastContactAt（用户未拍板，可加一行事务内 update）；画布节点双击跳时间线入口未做（可后续小增量） |
 
 ### 同步机制完善（Issue #2，P0/P1 已实装待验收）
 
