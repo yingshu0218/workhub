@@ -23,6 +23,7 @@ const TITLES: Record<string, string> = {
   '/todo': '待办事项',
   '/projects': '项目',
   '/crm': '客户管理',
+  '/crm/timeline': '客户时间线',
   '/finance': '财务中心',
   '/notes': '团队笔记',
   '/habits': '打卡习惯',

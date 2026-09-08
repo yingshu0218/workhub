@@ -7,6 +7,7 @@ import FinancePage from '@/modules/finance/FinancePage'
 import CrmPage from '@/modules/crm/CrmPage'
 import CrmCanvasPage from '@/modules/crm/CrmCanvasPage'
 import CustomerDetailPage from '@/modules/crm/CustomerDetailPage'
+import CustomerTimelinePage from '@/modules/crm/CustomerTimelinePage'
 import NotesPage from '@/modules/notes/NotesPage'
 import NoteEditorPage from '@/modules/notes/NoteEditorPage'
 import HabitsPage from '@/modules/habits/HabitsPage'
@@ -41,6 +42,7 @@ const router = createBrowserRouter([
       { path: '/crm', element: <CrmPage /> },
       { path: '/crm/canvas', element: <CrmCanvasPage /> },
       { path: '/crm/:id', element: <CustomerDetailPage /> },
+      { path: '/crm/:id/timeline', element: <CustomerTimelinePage /> },
       { path: '/finance', element: <FinancePage /> },
       { path: '/notes', element: <NotesPage /> },
       { path: '/notes/:id', element: <NoteEditorPage /> },
