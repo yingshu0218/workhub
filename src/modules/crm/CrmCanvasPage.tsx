@@ -27,10 +27,12 @@ export default function CrmCanvasPage() {
         }
         actions={
           <>
-            <div className="mr-2 flex overflow-hidden rounded-lg border border-outline-variant/50">
+            <div className="mr-2 flex overflow-hidden surface-card !bg-transparent border-outline-variant/50">
               <button
                 className={`px-3 py-1.5 text-[13px] font-medium transition-colors ${
-                  mode === 'customer-only' ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:bg-surface-container'
+                  mode === 'customer-only'
+                    ? 'bg-primary text-on-primary'
+                    : 'text-on-surface-variant hover:bg-surface-container'
                 }`}
                 onClick={() => setMode('customer-only')}
               >
@@ -38,7 +40,9 @@ export default function CrmCanvasPage() {
               </button>
               <button
                 className={`px-3 py-1.5 text-[13px] font-medium transition-colors ${
-                  mode === 'mixed' ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:bg-surface-container'
+                  mode === 'mixed'
+                    ? 'bg-primary text-on-primary'
+                    : 'text-on-surface-variant hover:bg-surface-container'
                 }`}
                 onClick={() => setMode('mixed')}
               >
@@ -66,26 +70,62 @@ export default function CrmCanvasPage() {
           <>
             <span className="ml-2 inline-flex items-center gap-1 text-[11px] text-outline">
               <svg width="22" height="8" className="inline-block">
-                <line x1="0" y1="4" x2="22" y2="4" stroke="#943700" strokeWidth="1.5" strokeDasharray="5 4" />
+                <line
+                  x1="0"
+                  y1="4"
+                  x2="22"
+                  y2="4"
+                  stroke="#943700"
+                  strokeWidth="1.5"
+                  strokeDasharray="5 4"
+                />
               </svg>
               客户关联边（relations）
             </span>
             <span className="ml-1 inline-flex items-center gap-1 text-[11px] text-outline">
               <svg width="22" height="8" className="inline-block">
-                <line x1="0" y1="4" x2="22" y2="4" stroke="#8a94a6" strokeWidth="1" strokeDasharray="2 4" />
+                <line
+                  x1="0"
+                  y1="4"
+                  x2="22"
+                  y2="4"
+                  stroke="#8a94a6"
+                  strokeWidth="1"
+                  strokeDasharray="2 4"
+                />
               </svg>
               项目/资金桥接
             </span>
           </>
         ) : (
           <span className="ml-2 inline-flex flex-wrap items-center gap-2 text-[11px] text-outline">
-            <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full" style={{ background: '#6d43c4' }} />项目</span>
-            <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full" style={{ background: '#0065b8' }} />事件</span>
-            <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full" style={{ background: '#006c49' }} />财务</span>
-            <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full" style={{ background: '#943700' }} />关联人物</span>
+            <span className="inline-flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full" style={{ background: '#6d43c4' }} />
+              项目
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full" style={{ background: '#0065b8' }} />
+              事件
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full" style={{ background: '#006c49' }} />
+              财务
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full" style={{ background: '#943700' }} />
+              关联人物
+            </span>
             <span className="inline-flex items-center gap-1">
               <svg width="22" height="8" className="inline-block">
-                <line x1="0" y1="4" x2="22" y2="4" stroke="#8a94a6" strokeWidth="1" strokeDasharray="2 4" />
+                <line
+                  x1="0"
+                  y1="4"
+                  x2="22"
+                  y2="4"
+                  stroke="#8a94a6"
+                  strokeWidth="1"
+                  strokeDasharray="2 4"
+                />
               </svg>
               项目/资金桥接
             </span>

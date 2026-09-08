@@ -2,15 +2,44 @@ import { useState } from 'react'
 import type { Trophy, TrophyTier, TrophyConditionType } from '@/db/types'
 import { Icon } from '@/design-system/Icon'
 import { Card, EmptyState, PageHeader } from '@/design-system/ui'
-import { useTrophyStats, useTrophyList, computeConditionValue, CONDITION_LABELS, deriveProfileSummary } from './hooks'
+import {
+  useTrophyStats,
+  useTrophyList,
+  computeConditionValue,
+  CONDITION_LABELS,
+  deriveProfileSummary,
+} from './hooks'
 import { downloadTrophyPoster } from './poster'
 
 /** tier → 主题配色（边框/渐变/文字/标签）；ProfilePage 复用 */
-export const TIER_THEME: Record<TrophyTier, { border: string; gradient: string; text: string; label: string }> = {
-  '铜': { border: 'border-amber-700/50', gradient: 'from-amber-700 via-amber-500 to-amber-200', text: 'text-amber-700', label: '铜杯' },
-  '银': { border: 'border-slate-400/50', gradient: 'from-slate-400 via-slate-300 to-slate-100', text: 'text-slate-500', label: '银杯' },
-  '金': { border: 'border-amber-500/60', gradient: 'from-amber-500 via-yellow-400 to-amber-100', text: 'text-amber-600', label: '金杯' },
-  '白金': { border: 'border-sky-400/60', gradient: 'from-cyan-600 via-sky-300 to-indigo-200', text: 'text-sky-700', label: '白金' },
+export const TIER_THEME: Record<
+  TrophyTier,
+  { border: string; gradient: string; text: string; label: string }
+> = {
+  铜: {
+    border: 'border-amber-700/50',
+    gradient: 'from-amber-700 via-amber-500 to-amber-200',
+    text: 'text-amber-700',
+    label: '铜杯',
+  },
+  银: {
+    border: 'border-slate-400/50',
+    gradient: 'from-slate-400 via-slate-300 to-slate-100',
+    text: 'text-slate-500',
+    label: '银杯',
+  },
+  金: {
+    border: 'border-amber-500/60',
+    gradient: 'from-amber-500 via-yellow-400 to-amber-100',
+    text: 'text-amber-600',
+    label: '金杯',
+  },
+  白金: {
+    border: 'border-sky-400/60',
+    gradient: 'from-cyan-600 via-sky-300 to-indigo-200',
+    text: 'text-sky-700',
+    label: '白金',
+  },
 }
 
 /** 条件类型 → 还差单位的中文量词（下一里程碑卡用） */
@@ -66,7 +95,11 @@ export default function TrophiesPage() {
     const current = computeConditionValue(t.conditionType, stats)
     const target = t.conditionValue
     const pct = Math.min(100, Math.round((current / target) * 100))
-    if (!milestone || pct > milestone.pct || (pct === milestone.pct && target < milestone.trophy.conditionValue!)) {
+    if (
+      !milestone ||
+      pct > milestone.pct ||
+      (pct === milestone.pct && target < milestone.trophy.conditionValue!)
+    ) {
       milestone = { trophy: t, pct, remaining: Math.max(0, target - current) }
     }
   }
@@ -83,7 +116,10 @@ export default function TrophiesPage() {
           </div>
           <div>
             <div className="text-[20px] font-bold">
-              {unlocked.length} <span className="text-[14px] font-normal text-on-surface-variant">/ 总 {trophies.length}</span>
+              {unlocked.length}{' '}
+              <span className="text-[14px] font-normal text-on-surface-variant">
+                / 总 {trophies.length}
+              </span>
             </div>
             <div className="text-[12px] text-on-surface-variant">奖杯收集进度</div>
           </div>
@@ -92,7 +128,8 @@ export default function TrophiesPage() {
           {tierOrder.map((tier) => (
             <div key={tier} className="flex flex-col items-center">
               <span className={`text-[15px] font-bold ${TIER_THEME[tier].text}`}>
-                {tierCount(tier)}<span className="text-[11px] font-normal text-outline">/{tierTotal(tier)}</span>
+                {tierCount(tier)}
+                <span className="text-[11px] font-normal text-outline">/{tierTotal(tier)}</span>
               </span>
               <span className="text-[11px] text-on-surface-variant">{TIER_THEME[tier].label}</span>
             </div>
@@ -109,7 +146,9 @@ export default function TrophiesPage() {
             <Icon name={milestone.trophy.icon} size={26} fill />
           </div>
           <div className="min-w-0 flex-1">
-            <div className="text-[11px] font-semibold uppercase tracking-wide text-outline">下一里程碑</div>
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-outline">
+              下一里程碑
+            </div>
             <div className="mt-0.5 truncate text-[14.5px] font-semibold">
               {milestone.trophy.name}
               <span className="ml-2 text-[12px] font-normal text-on-surface-variant">
@@ -117,10 +156,15 @@ export default function TrophiesPage() {
               </span>
             </div>
             <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-container">
-              <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${milestone.pct}%` }} />
+              <div
+                className="h-full rounded-full bg-primary transition-all"
+                style={{ width: `${milestone.pct}%` }}
+              />
             </div>
           </div>
-          <span className="shrink-0 text-[18px] font-bold tabular-nums text-primary">{milestone.pct}%</span>
+          <span className="shrink-0 text-[18px] font-bold tabular-nums text-primary">
+            {milestone.pct}%
+          </span>
         </Card>
       ) : trophies.length > 0 && unlocked.length === trophies.length ? (
         <Card className="mb-4 flex items-center justify-center gap-2 p-4 text-[14px] font-semibold text-success">
@@ -132,7 +176,11 @@ export default function TrophiesPage() {
       {/* 奖杯墙 */}
       {trophies.length === 0 ? (
         <Card className="p-6">
-          <EmptyState icon="emoji_events" title="奖杯墙还是空的" description="坚持打卡与专注，奖杯会随事件自动解锁" />
+          <EmptyState
+            icon="emoji_events"
+            title="奖杯墙还是空的"
+            description="坚持打卡与专注，奖杯会随事件自动解锁"
+          />
         </Card>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -149,14 +197,23 @@ export default function TrophiesPage() {
                 <div className="flex items-start justify-between">
                   <div
                     className={`flex h-10 w-10 items-center justify-center rounded-lg ${
-                      t.unlockedAt ? `bg-gradient-to-tr ${theme.gradient} text-white` : 'bg-surface-container text-outline'
+                      t.unlockedAt
+                        ? `bg-gradient-to-tr ${theme.gradient} text-white`
+                        : 'bg-surface-container text-outline'
                     }`}
                   >
-                    <Icon name={t.unlockedAt ? t.icon : 'lock'} size={24} fill className="t.unlockedAt ? '' : ''}" />
+                    <Icon
+                      name={t.unlockedAt ? t.icon : 'lock'}
+                      size={24}
+                      fill
+                      className="t.unlockedAt ? '' : ''}"
+                    />
                   </div>
                   <span
                     className={`rounded px-2 py-0.5 text-[11px] font-medium ${
-                      t.unlockedAt ? 'bg-success-container/60 text-success' : 'bg-surface-container text-on-surface-variant'
+                      t.unlockedAt
+                        ? 'bg-success-container/60 text-success'
+                        : 'bg-surface-container text-on-surface-variant'
                     }`}
                   >
                     {t.unlockedAt ? '已解锁' : '未解锁'}
@@ -174,22 +231,35 @@ export default function TrophiesPage() {
                   )}
                 </div>
                 <div>
-                  <div className={`text-[14px] font-semibold ${t.unlockedAt ? theme.text : ''}`}>{t.name}</div>
-                  <div className="mt-1 line-clamp-2 text-[11.5px] leading-snug text-on-surface-variant">{t.description}</div>
+                  <div className={`text-[14px] font-semibold ${t.unlockedAt ? theme.text : ''}`}>
+                    {t.name}
+                  </div>
+                  <div className="mt-1 line-clamp-2 text-[11.5px] leading-snug text-on-surface-variant">
+                    {t.description}
+                  </div>
                 </div>
                 {t.unlockedAt ? (
                   <div className="flex items-center justify-between text-[11px]">
-                    <span className="font-semibold text-success">{theme.label} · {t.rarity}</span>
-                    <span className="text-on-surface-variant">{new Date(t.unlockedAt).toLocaleDateString('zh-CN')} 解锁</span>
+                    <span className="font-semibold text-success">
+                      {theme.label} · {t.rarity}
+                    </span>
+                    <span className="text-on-surface-variant">
+                      {new Date(t.unlockedAt).toLocaleDateString('zh-CN')} 解锁
+                    </span>
                   </div>
                 ) : t.conditionType ? (
                   <div>
                     <div className="mb-1 flex items-center justify-between text-[11px] text-on-surface-variant">
                       <span>{CONDITION_LABELS[t.conditionType]}</span>
-                      <span>{current}/{target}</span>
+                      <span>
+                        {current}/{target}
+                      </span>
                     </div>
                     <div className="h-1.5 overflow-hidden rounded-full bg-surface-container">
-                      <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${pct}%` }} />
+                      <div
+                        className="h-full rounded-full bg-primary transition-all"
+                        style={{ width: `${pct}%` }}
+                      />
                     </div>
                   </div>
                 ) : (

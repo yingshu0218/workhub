@@ -127,7 +127,7 @@ export function MatchCombobox({
     <div ref={boxRef} className="relative">
       {/* 已选回显条：可清除，点击主体重新展开候选 */}
       {selected ? (
-        <div className="flex items-center justify-between rounded-lg border border-outline-variant/40 bg-surface-container-low px-3 py-2">
+        <div className="flex items-center justify-between surface-card-low px-3 py-2">
           <button
             type="button"
             className="flex min-w-0 flex-1 items-center gap-2 text-left text-[13px]"
@@ -151,7 +151,7 @@ export function MatchCombobox({
             <Icon name="close" size={16} />
           </button>
           {open && (
-            <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-56 overflow-y-auto rounded-lg border border-outline-variant/40 bg-surface-container-lowest py-1 shadow-lg">
+            <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-56 overflow-y-auto surface-card py-1 shadow-lg">
               {listItems.length === 0 ? (
                 <div className="px-3 py-2 text-[12px] text-outline">{emptyText}</div>
               ) : (
@@ -192,7 +192,7 @@ export function MatchCombobox({
         />
       )}
       {open && !selected && (
-        <div className="absolute z-30 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-outline-variant/40 bg-surface-container-lowest py-1 shadow-lg">
+        <div className="absolute z-30 mt-1 max-h-56 w-full overflow-y-auto surface-card py-1 shadow-lg">
           {listItems.length === 0 ? (
             <div className="px-3 py-2 text-[12px] text-outline">{emptyText}</div>
           ) : (

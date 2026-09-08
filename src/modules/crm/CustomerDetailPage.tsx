@@ -5,15 +5,7 @@ import { useCollection, useRecord } from '@/queries/hooks'
 import type { Customer, Interaction, Project } from '@/db/types'
 import { deleteCustomerCascade, newId, saveInteractionAndTouchCustomer } from '@/repositories'
 import { eventBus } from '@/shared/eventBus'
-import {
-  Avatar,
-  Button,
-  Card,
-  Chip,
-  EmptyState,
-  inputCls,
-  PageHeader,
-} from '@/design-system/ui'
+import { Avatar, Button, Card, Chip, EmptyState, inputCls, PageHeader } from '@/design-system/ui'
 import dayjs from 'dayjs'
 import CustomerFormDrawer from './CustomerFormDrawer'
 import { useCustomerTodos, useCustomerTransactions } from './hooks'
@@ -70,9 +62,20 @@ export default function CustomerDetailPage() {
   if (!customer) {
     return (
       <div className="mx-auto max-w-[1200px]">
-        <PageHeader title="客户详情" actions={<Button variant="ghost" icon="arrow_back" onClick={() => navigate('/crm')}>返回列表</Button>} />
+        <PageHeader
+          title="客户详情"
+          actions={
+            <Button variant="ghost" icon="arrow_back" onClick={() => navigate('/crm')}>
+              返回列表
+            </Button>
+          }
+        />
         <Card className="p-6">
-          <EmptyState icon="person_off" title="客户不存在或已删除" description="可能已被移除，返回列表查看其他客户" />
+          <EmptyState
+            icon="person_off"
+            title="客户不存在或已删除"
+            description="可能已被移除，返回列表查看其他客户"
+          />
         </Card>
       </div>
     )
@@ -100,13 +103,21 @@ export default function CustomerDetailPage() {
             <Button variant="ghost" icon="arrow_back" onClick={() => navigate('/crm')}>
               返回列表
             </Button>
-            <Button variant="tonal" icon="schedule" onClick={() => navigate(`/crm/${customer.id}/timeline`)}>
+            <Button
+              variant="tonal"
+              icon="schedule"
+              onClick={() => navigate(`/crm/${customer.id}/timeline`)}
+            >
               时间线
             </Button>
             <Button icon="edit" onClick={() => setEditing(true)}>
               编辑档案
             </Button>
-            <Button variant="danger" icon="person_remove" onClick={() => handleDelete(customer.name, customer.id)}>
+            <Button
+              variant="danger"
+              icon="person_remove"
+              onClick={() => handleDelete(customer.name, customer.id)}
+            >
               删除客户
             </Button>
           </>
@@ -123,7 +134,9 @@ export default function CustomerDetailPage() {
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-[18px] font-bold">{customer.name}</span>
-                  <Chip tone={tierChipTone(customer.tier)}>{customer.tier === '潜在' ? '潜在' : `${customer.tier} 层`}</Chip>
+                  <Chip tone={tierChipTone(customer.tier)}>
+                    {customer.tier === '潜在' ? '潜在' : `${customer.tier} 层`}
+                  </Chip>
                 </div>
                 <div className="mt-0.5 text-[13px] text-on-surface-variant">
                   {customer.company || '—'}
@@ -154,7 +167,11 @@ export default function CustomerDetailPage() {
                   最近联系 {fmtRelative(customer.lastContactAt)}
                 </div>
                 <div className="mt-1 text-[11px] text-outline">
-                  {customer.healthScore >= 80 ? '互动频繁 · 关系稳固' : customer.healthScore >= 60 ? '跟进正常 · 保持节奏' : '久未跟进 · 建议立刻触达'}
+                  {customer.healthScore >= 80
+                    ? '互动频繁 · 关系稳固'
+                    : customer.healthScore >= 60
+                      ? '跟进正常 · 保持节奏'
+                      : '久未跟进 · 建议立刻触达'}
                 </div>
               </div>
             </div>
@@ -166,9 +183,24 @@ export default function CustomerDetailPage() {
               即时通讯与联系渠道
             </div>
             <div className="space-y-2">
-              <ChannelCard icon="call" label="手机号码" value={customer.phone} onCopy={() => copyText(customer.phone)} />
-              <ChannelCard icon="chat" label="企业微信" value={customer.wechat} onCopy={() => copyText(customer.wechat)} />
-              <ChannelCard icon="mail" label="工作邮箱" value={customer.email} onCopy={() => copyText(customer.email)} />
+              <ChannelCard
+                icon="call"
+                label="手机号码"
+                value={customer.phone}
+                onCopy={() => copyText(customer.phone)}
+              />
+              <ChannelCard
+                icon="chat"
+                label="企业微信"
+                value={customer.wechat}
+                onCopy={() => copyText(customer.wechat)}
+              />
+              <ChannelCard
+                icon="mail"
+                label="工作邮箱"
+                value={customer.email}
+                onCopy={() => copyText(customer.email)}
+              />
             </div>
             {customer.address && (
               <div className="mt-3 flex items-center gap-2 text-[12px] text-on-surface-variant">
@@ -192,7 +224,11 @@ export default function CustomerDetailPage() {
                 展开全屏图谱 →
               </button>
             </div>
-            <MiniGraph customerName={customer.name} txCount={transactions.length} todoCount={todos.length} />
+            <MiniGraph
+              customerName={customer.name}
+              txCount={transactions.length}
+              todoCount={todos.length}
+            />
           </Card>
         </div>
 
@@ -209,13 +245,17 @@ export default function CustomerDetailPage() {
                   <span className="text-[12px] text-on-surface-variant">关联交易流水</span>
                   <Icon name="payments" className="text-[18px] text-success" />
                 </div>
-                <div className="mt-1 text-[20px] font-bold tracking-tight">{transactions.length} 笔</div>
+                <div className="mt-1 text-[20px] font-bold tracking-tight">
+                  {transactions.length} 笔
+                </div>
                 {transactions.length > 0 ? (
                   <div className="mt-2 space-y-1.5">
                     {transactions.slice(0, 3).map((t) => (
                       <div key={t.id} className="flex items-center justify-between text-[12px]">
                         <span className="truncate text-on-surface-variant">{t.summary}</span>
-                        <span className={`ml-2 shrink-0 font-bold ${t.type === 'income' ? 'text-success' : 'text-danger'}`}>
+                        <span
+                          className={`ml-2 shrink-0 font-bold ${t.type === 'income' ? 'text-success' : 'text-danger'}`}
+                        >
                           {t.type === 'income' ? '+' : '-'}
                           {fmtMoney(t.amount)}
                         </span>
@@ -226,7 +266,9 @@ export default function CustomerDetailPage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="mt-2 text-[11px] text-outline">暂无关联流水，在财务中心记账时可关联该客户</div>
+                  <div className="mt-2 text-[11px] text-outline">
+                    暂无关联流水，在财务中心记账时可关联该客户
+                  </div>
                 )}
               </div>
               <div className="rounded-xl bg-surface-container-low/60 p-4">
@@ -234,7 +276,9 @@ export default function CustomerDetailPage() {
                   <span className="text-[12px] text-on-surface-variant">名下项目</span>
                   <Icon name="hub" className="text-[18px] text-primary" />
                 </div>
-                <div className="mt-1 text-[20px] font-bold tracking-tight">{customerProjects.length} 个</div>
+                <div className="mt-1 text-[20px] font-bold tracking-tight">
+                  {customerProjects.length} 个
+                </div>
                 {customerProjects.length > 0 ? (
                   <div className="mt-2 space-y-1.5">
                     {customerProjects.slice(0, 3).map((p) => (
@@ -243,13 +287,18 @@ export default function CustomerDetailPage() {
                         className="flex w-full items-center gap-2 text-left text-[12px] hover:text-primary"
                         onClick={() => navigate(`/projects/${p.id}`)}
                       >
-                        <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: p.color }} />
+                        <span
+                          className="h-2.5 w-2.5 shrink-0 rounded-full"
+                          style={{ background: p.color }}
+                        />
                         <span className="truncate">{p.name}</span>
                       </button>
                     ))}
                   </div>
                 ) : (
-                  <div className="mt-2 text-[11px] text-outline">暂无名下项目，在项目中可挂靠该客户</div>
+                  <div className="mt-2 text-[11px] text-outline">
+                    暂无名下项目，在项目中可挂靠该客户
+                  </div>
                 )}
               </div>
               <div className="rounded-xl bg-surface-container-low/60 p-4">
@@ -259,14 +308,25 @@ export default function CustomerDetailPage() {
                 </div>
                 <div className="mt-1 text-[20px] font-bold tracking-tight">
                   {openTodos.length} 项
-                  <span className="ml-1.5 text-[12px] font-normal text-on-surface-variant">进行中</span>
+                  <span className="ml-1.5 text-[12px] font-normal text-on-surface-variant">
+                    进行中
+                  </span>
                 </div>
                 {openTodos.length > 0 ? (
                   <div className="mt-2 space-y-1.5">
                     {openTodos.slice(0, 3).map((t) => (
-                      <div key={t.id} className="flex items-center justify-between gap-2 text-[12px]">
+                      <div
+                        key={t.id}
+                        className="flex items-center justify-between gap-2 text-[12px]"
+                      >
                         <span className="truncate">{t.title}</span>
-                        <Chip tone={t.priority === 'P1' ? 'red' : t.priority === 'P2' ? 'amber' : 'gray'}>{t.priority}</Chip>
+                        <Chip
+                          tone={
+                            t.priority === 'P1' ? 'red' : t.priority === 'P2' ? 'amber' : 'gray'
+                          }
+                        >
+                          {t.priority}
+                        </Chip>
                       </div>
                     ))}
                   </div>
@@ -330,7 +390,11 @@ function TimelineItem({ event }: { event: TimelineEvent }) {
     return (
       <div className="relative">
         <span className="absolute -left-[22px] top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-surface-container-low">
-          <Icon name={KIND_ICONS.transaction} size={12} className={income ? 'text-success' : 'text-danger'} />
+          <Icon
+            name={KIND_ICONS.transaction}
+            size={12}
+            className={income ? 'text-success' : 'text-danger'}
+          />
         </span>
         <div className="flex flex-wrap items-center gap-2">
           <Chip tone={income ? 'green' : 'red'} icon={KIND_ICONS.transaction}>
@@ -354,7 +418,11 @@ function TimelineItem({ event }: { event: TimelineEvent }) {
     return (
       <div className="relative">
         <span className="absolute -left-[22px] top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-surface-container-low">
-          <Icon name={KIND_ICONS.todo} size={12} className={done ? 'text-success' : 'text-primary'} />
+          <Icon
+            name={KIND_ICONS.todo}
+            size={12}
+            className={done ? 'text-success' : 'text-primary'}
+          />
         </span>
         <div className="flex flex-wrap items-center gap-2">
           <Chip tone={done ? 'green' : 'amber'} icon={KIND_ICONS.todo}>
@@ -407,18 +475,38 @@ function HealthRing({ score, color }: { score: number; color: string }) {
         strokeDasharray={`${(score / 100) * circ} ${circ}`}
         transform="rotate(-90 36 36)"
       />
-      <text x="36" y="40" textAnchor="middle" className="fill-on-surface" style={{ fontSize: 15, fontWeight: 700 }}>
+      <text
+        x="36"
+        y="40"
+        textAnchor="middle"
+        className="fill-on-surface"
+        style={{ fontSize: 15, fontWeight: 700 }}
+      >
         {score}
       </text>
     </svg>
   )
 }
 
-function ChannelCard({ icon, label, value, onCopy }: { icon: string; label: string; value: string; onCopy: () => void }) {
+function ChannelCard({
+  icon,
+  label,
+  value,
+  onCopy,
+}: {
+  icon: string
+  label: string
+  value: string
+  onCopy: () => void
+}) {
   const [copied, setCopied] = useState(false)
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-outline-variant/40 px-3 py-2.5">
-      <Icon name={icon} size={18} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary-fixed text-primary" />
+    <div className="flex items-center gap-3 surface-card-xl !bg-transparent px-3 py-2.5">
+      <Icon
+        name={icon}
+        size={18}
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary-fixed text-primary"
+      />
       <div className="min-w-0 flex-1">
         <div className="text-[11px] text-outline">{label}</div>
         <div className="truncate text-[13px] font-medium">{value || '—'}</div>
@@ -517,17 +605,35 @@ function QuickLog({ customerId }: { customerId: string }) {
 }
 
 /** 迷你关系图谱：客户居中，交易/待办环绕（静态 SVG 简版） */
-function MiniGraph({ customerName, txCount, todoCount }: { customerName: string; txCount: number; todoCount: number }) {
+function MiniGraph({
+  customerName,
+  txCount,
+  todoCount,
+}: {
+  customerName: string
+  txCount: number
+  todoCount: number
+}) {
   if (txCount === 0 && todoCount === 0) {
-    return <div className="py-6 text-center text-[12px] text-outline">暂无关联交易与待办，图谱待建立</div>
+    return (
+      <div className="py-6 text-center text-[12px] text-outline">
+        暂无关联交易与待办，图谱待建立
+      </div>
+    )
   }
   const w = 320
   const h = 180
   const cx = w / 2
   const cy = h / 2
   const satellites = [
-    ...Array.from({ length: txCount }, (_, i) => ({ kind: 'txn' as const, label: `交易 ${i + 1}` })),
-    ...Array.from({ length: todoCount }, (_, i) => ({ kind: 'todo' as const, label: `待办 ${i + 1}` })),
+    ...Array.from({ length: txCount }, (_, i) => ({
+      kind: 'txn' as const,
+      label: `交易 ${i + 1}`,
+    })),
+    ...Array.from({ length: todoCount }, (_, i) => ({
+      kind: 'todo' as const,
+      label: `待办 ${i + 1}`,
+    })),
   ]
   return (
     <svg viewBox={`0 0 ${w} ${h}`} className="w-full">
@@ -539,8 +645,21 @@ function MiniGraph({ customerName, txCount, todoCount }: { customerName: string;
         return (
           <g key={`${s.kind}-${i}`}>
             <line x1={cx} y1={cy} x2={x} y2={y} stroke="#c3c6d7" strokeWidth="1.2" />
-            <circle cx={x} cy={y} r={13} fill={s.kind === 'txn' ? '#6cf8bb' : '#ffede6'} stroke={fill} strokeWidth="1.4" />
-            <text x={x} y={y + 3.5} textAnchor="middle" style={{ fontSize: 8, fontWeight: 600 }} fill={fill}>
+            <circle
+              cx={x}
+              cy={y}
+              r={13}
+              fill={s.kind === 'txn' ? '#6cf8bb' : '#ffede6'}
+              stroke={fill}
+              strokeWidth="1.4"
+            />
+            <text
+              x={x}
+              y={y + 3.5}
+              textAnchor="middle"
+              style={{ fontSize: 8, fontWeight: 600 }}
+              fill={fill}
+            >
               {s.kind === 'txn' ? '¥' : '!'}
             </text>
             <text x={x} y={y + 26} textAnchor="middle" style={{ fontSize: 9 }} fill="#434655">
@@ -550,7 +669,13 @@ function MiniGraph({ customerName, txCount, todoCount }: { customerName: string;
         )
       })}
       <circle cx={cx} cy={cy} r={24} fill="#dbe1ff" stroke="#004ac6" strokeWidth="1.6" />
-      <text x={cx} y={cy + 4} textAnchor="middle" style={{ fontSize: 11, fontWeight: 700 }} fill="#004ac6">
+      <text
+        x={cx}
+        y={cy + 4}
+        textAnchor="middle"
+        style={{ fontSize: 11, fontWeight: 700 }}
+        fill="#004ac6"
+      >
         {customerName.slice(0, 4)}
       </text>
     </svg>

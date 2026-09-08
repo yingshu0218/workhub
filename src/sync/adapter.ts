@@ -3,9 +3,9 @@
  * Phase 0 仅保留协议骨架：push（按队列推）/ pull（按游标拉），LWW 合并在引擎侧
  */
 export interface SyncAdapter {
-  push(items: { table: string; recordId: string; op: 'upsert' | 'delete' }[]): Promise<
-    { recordId: string; ok: boolean }[]
-  >
+  push(
+    items: { table: string; recordId: string; op: 'upsert' | 'delete' }[],
+  ): Promise<{ recordId: string; ok: boolean }[]>
   pull(cursor: number): Promise<{ cursor: number; changes: unknown[] }>
 }
 

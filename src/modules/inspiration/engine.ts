@@ -7,7 +7,8 @@ import type { Customer, Todo, Transaction, Note } from '@/db/types'
  * 每类候选输出 理由文案 + 关联实体上下文 + 匹配合度%（原始分对最高分归一化）
  */
 
-export type CandidateKind = 'overdue-todo' | 'due-todo' | 'reconciliation' | 'stale-customer' | 'stale-note'
+export type CandidateKind =
+  'overdue-todo' | 'due-todo' | 'reconciliation' | 'stale-customer' | 'stale-note'
 
 export interface CandidateContext {
   icon: string
@@ -64,7 +65,9 @@ function buildCandidates(input: EngineInput): InspirationCandidate[] {
         value: `${customer.name} · ${customer.company}`,
       })
     const relatedNote = customer
-      ? input.notes.find((n) => n.mentions.some((m) => m.type === 'customer' && m.id === customer.id))
+      ? input.notes.find((n) =>
+          n.mentions.some((m) => m.type === 'customer' && m.id === customer.id),
+        )
       : undefined
     if (relatedNote)
       context.push({ icon: 'description', label: '前置笔记', value: relatedNote.title })
@@ -78,9 +81,10 @@ function buildCandidates(input: EngineInput): InspirationCandidate[] {
         id: `cand-todo-${t.id}`,
         kind: 'overdue-todo',
         title: t.title,
-        reason: overdueDays >= 1
-          ? `已逾期 ${overdueDays} 天 · ${t.priority} 紧急事项，商业影响最高`
-          : `今天 ${dayjs(t.dueAt).format('HH:mm')} 截止已过 · ${t.priority} 优先级`,
+        reason:
+          overdueDays >= 1
+            ? `已逾期 ${overdueDays} 天 · ${t.priority} 紧急事项，商业影响最高`
+            : `今天 ${dayjs(t.dueAt).format('HH:mm')} 截止已过 · ${t.priority} 优先级`,
         score,
         match: 0,
         todoId: t.id,
@@ -112,11 +116,19 @@ function buildCandidates(input: EngineInput): InspirationCandidate[] {
     const hangDays = Math.floor((now - txn.occurredAt) / 86400_000)
     const score = 60 + Math.min(35, txn.amount / 6000) + Math.min(15, Math.max(0, hangDays) * 2)
     const context: CandidateContext[] = [
-      { icon: 'payments', label: '金额', value: `¥${txn.amount.toLocaleString('zh-CN')} · ${txn.channel}` },
+      {
+        icon: 'payments',
+        label: '金额',
+        value: `¥${txn.amount.toLocaleString('zh-CN')} · ${txn.channel}`,
+      },
     ]
     const customer = txn.customerId ? customersById.get(txn.customerId) : undefined
     if (customer)
-      context.push({ icon: 'group', label: '往来客户', value: `${customer.name} · ${customer.company}` })
+      context.push({
+        icon: 'group',
+        label: '往来客户',
+        value: `${customer.name} · ${customer.company}`,
+      })
     candidates.push({
       id: `cand-txn-${txn.id}`,
       kind: 'reconciliation',
@@ -142,7 +154,9 @@ function buildCandidates(input: EngineInput): InspirationCandidate[] {
         value: `${c.tier} 层 · ${c.stage} · 健康指数 ${c.healthScore}`,
       },
     ]
-    const note = input.notes.find((n) => n.mentions.some((m) => m.type === 'customer' && m.id === c.id))
+    const note = input.notes.find((n) =>
+      n.mentions.some((m) => m.type === 'customer' && m.id === c.id),
+    )
     if (note) context.push({ icon: 'description', label: '相关笔记', value: note.title })
     candidates.push({
       id: `cand-customer-${c.id}`,

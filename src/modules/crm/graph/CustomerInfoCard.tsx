@@ -37,10 +37,14 @@ export default function CustomerInfoCard({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="truncate text-[14px] font-bold">{customer.name}</span>
-            <Chip tone={tierChipTone(customer.tier)}>{customer.tier === '潜在' ? '潜在' : `${customer.tier} 层`}</Chip>
+            <Chip tone={tierChipTone(customer.tier)}>
+              {customer.tier === '潜在' ? '潜在' : `${customer.tier} 层`}
+            </Chip>
             {customer.decisionLevel && <Chip tone="gray">{customer.decisionLevel}</Chip>}
           </div>
-          <div className="mt-0.5 truncate text-[12px] text-on-surface-variant">{customer.company || '—'}</div>
+          <div className="mt-0.5 truncate text-[12px] text-on-surface-variant">
+            {customer.company || '—'}
+          </div>
         </div>
         <button
           className="-mt-1 -mr-1 flex h-6 w-6 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-high"
@@ -60,9 +64,14 @@ export default function CustomerInfoCard({
           </span>
         </div>
         <div className="h-1.5 overflow-hidden rounded-full bg-surface-container-high">
-          <div className="h-full rounded-full" style={{ width: `${customer.healthScore}%`, background: hc }} />
+          <div
+            className="h-full rounded-full"
+            style={{ width: `${customer.healthScore}%`, background: hc }}
+          />
         </div>
-        <div className="text-[11px] text-outline">最近联系 {fmtRelative(customer.lastContactAt)}</div>
+        <div className="text-[11px] text-outline">
+          最近联系 {fmtRelative(customer.lastContactAt)}
+        </div>
       </div>
 
       <Button className="mt-3 w-full" variant="tonal" icon="person" onClick={onEnter}>

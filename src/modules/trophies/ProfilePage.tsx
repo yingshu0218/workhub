@@ -1,11 +1,6 @@
 import { Avatar, Card, Chip, EmptyState, PageHeader } from '@/design-system/ui'
 import { Icon } from '@/design-system/Icon'
-import {
-  useProfileSummary,
-  useRecentUnlockedTrophies,
-  useTrophyList,
-  EXP_PER_LEVEL,
-} from './hooks'
+import { useProfileSummary, useRecentUnlockedTrophies, useTrophyList, EXP_PER_LEVEL } from './hooks'
 import { TIER_THEME } from './TrophiesPage'
 
 export default function ProfilePage() {
@@ -27,8 +22,12 @@ export default function ProfilePage() {
             <div className="text-[18px] font-bold">陈致远</div>
             <div className="text-[13px] text-on-surface-variant">青枫工作室 · Owner</div>
             <div className="mt-1.5 flex gap-2">
-              <Chip tone="blue" icon="bolt">累计 EXP {exp}</Chip>
-              <Chip tone="green" icon="emoji_events">奖杯 {unlockedTrophies}/{totalTrophies}</Chip>
+              <Chip tone="blue" icon="bolt">
+                累计 EXP {exp}
+              </Chip>
+              <Chip tone="green" icon="emoji_events">
+                奖杯 {unlockedTrophies}/{totalTrophies}
+              </Chip>
             </div>
           </div>
         </div>
@@ -41,11 +40,18 @@ export default function ProfilePage() {
           </div>
           <div className="w-52">
             <div className="mb-1 flex items-center justify-between text-[12px] text-on-surface-variant">
-              <span>Lv.{level} → Lv.{level + 1}</span>
-              <span>{expIntoLevel}/{EXP_PER_LEVEL}</span>
+              <span>
+                Lv.{level} → Lv.{level + 1}
+              </span>
+              <span>
+                {expIntoLevel}/{EXP_PER_LEVEL}
+              </span>
             </div>
             <div className="h-2.5 overflow-hidden rounded-full bg-surface-container">
-              <div className="h-full rounded-full bg-gradient-to-r from-primary to-secondary transition-all" style={{ width: `${levelPct}%` }} />
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-primary to-secondary transition-all"
+                style={{ width: `${levelPct}%` }}
+              />
             </div>
             <div className="mt-1 text-[11px] text-outline">专注分钟×2 + 打卡×10 + 奖杯×50</div>
           </div>
@@ -87,10 +93,15 @@ export default function ProfilePage() {
                 <li key={tier}>
                   <div className="mb-1 flex items-center justify-between text-[12px]">
                     <span className={`font-semibold ${theme.text}`}>{theme.label}</span>
-                    <span className="text-on-surface-variant">{got}/{total}</span>
+                    <span className="text-on-surface-variant">
+                      {got}/{total}
+                    </span>
                   </div>
                   <div className="h-2 overflow-hidden rounded-full bg-surface-container">
-                    <div className={`h-full rounded-full bg-gradient-to-r ${theme.gradient} transition-all`} style={{ width: `${pct}%` }} />
+                    <div
+                      className={`h-full rounded-full bg-gradient-to-r ${theme.gradient} transition-all`}
+                      style={{ width: `${pct}%` }}
+                    />
                   </div>
                 </li>
               )
@@ -101,19 +112,30 @@ export default function ProfilePage() {
         <Card className="p-5">
           <h2 className="mb-3 text-[15px] font-semibold">最近解锁</h2>
           {recent.length === 0 ? (
-            <EmptyState icon="military_tech" title="还没有解锁记录" description="完成专注与打卡，第一座奖杯很快到来" />
+            <EmptyState
+              icon="military_tech"
+              title="还没有解锁记录"
+              description="完成专注与打卡，第一座奖杯很快到来"
+            />
           ) : (
             <ul className="space-y-2">
               {recent.map((t) => {
                 const theme = TIER_THEME[t.tier]
                 return (
-                  <li key={t.id} className="flex items-center gap-3 rounded-lg bg-surface-container-low px-3 py-2.5">
-                    <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-tr ${theme.gradient} text-white`}>
+                  <li
+                    key={t.id}
+                    className="flex items-center gap-3 rounded-lg bg-surface-container-low px-3 py-2.5"
+                  >
+                    <div
+                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-tr ${theme.gradient} text-white`}
+                    >
                       <Icon name={t.icon} size={20} fill />
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-[13.5px] font-medium">{t.name}</div>
-                      <div className={`text-[11px] ${theme.text}`}>{theme.label} · {t.rarity}</div>
+                      <div className={`text-[11px] ${theme.text}`}>
+                        {theme.label} · {t.rarity}
+                      </div>
                     </div>
                     <span className="shrink-0 text-[11px] text-outline">
                       {t.unlockedAt ? new Date(t.unlockedAt).toLocaleDateString('zh-CN') : ''}

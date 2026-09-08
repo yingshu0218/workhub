@@ -5,7 +5,13 @@ import type { Habit } from '@/db/types'
 import { habitLogRepo, habitLogId, deleteHabitCascade } from '@/repositories'
 import { eventBus } from '@/shared/eventBus'
 import { Button, Card, Chip, EmptyState, PageHeader } from '@/design-system/ui'
-import { useHabitStats, useHabitMonthCounts, useCompletedHabitsOn, useTodayCheckCount, useHabitMood } from './hooks'
+import {
+  useHabitStats,
+  useHabitMonthCounts,
+  useCompletedHabitsOn,
+  useTodayCheckCount,
+  useHabitMood,
+} from './hooks'
 import { HabitFormDrawer } from './HabitFormDrawer'
 
 const WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日']
@@ -44,7 +50,11 @@ export default function HabitsPage() {
   const leadingBlanks = (dayjs(month + '-01').day() + 6) % 7
 
   function shiftMonth(delta: number) {
-    setMonth((m) => dayjs(m + '-01').add(delta, 'month').format('YYYY-MM'))
+    setMonth((m) =>
+      dayjs(m + '-01')
+        .add(delta, 'month')
+        .format('YYYY-MM'),
+    )
     setSelectedDate(undefined)
   }
 
@@ -94,7 +104,11 @@ export default function HabitsPage() {
         <Chip tone="green" icon="verified">
           {monthLabel}累计 {monthTotalChecks} 次
         </Chip>
-        {stats.some((s) => s.streak >= 21) && <Chip tone="green" icon="military_tech">21 天稳态达成</Chip>}
+        {stats.some((s) => s.streak >= 21) && (
+          <Chip tone="green" icon="military_tech">
+            21 天稳态达成
+          </Chip>
+        )}
       </div>
 
       {/* 月历热力图 */}
@@ -103,18 +117,29 @@ export default function HabitsPage() {
           <div className="flex min-w-0 items-center gap-2">
             <h2 className="text-[15px] font-semibold">本月热力图</h2>
             {mood && (
-              <span className="flex items-center gap-1.5 text-[12px] text-on-surface-variant" title="基于近 7 天完成率与当前连击推导">
-                <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${MOOD_TONE_CLASS[mood.tone]}`} />
+              <span
+                className="flex items-center gap-1.5 text-[12px] text-on-surface-variant"
+                title="基于近 7 天完成率与当前连击推导"
+              >
+                <span
+                  className={`h-1.5 w-1.5 shrink-0 rounded-full ${MOOD_TONE_CLASS[mood.tone]}`}
+                />
                 {mood.label}
               </span>
             )}
           </div>
           <div className="flex items-center gap-1">
-            <button className="rounded-md p-1.5 text-on-surface-variant hover:bg-surface-container-low" onClick={() => shiftMonth(-1)}>
+            <button
+              className="rounded-md p-1.5 text-on-surface-variant hover:bg-surface-container-low"
+              onClick={() => shiftMonth(-1)}
+            >
               <Icon name="chevron_left" size={20} />
             </button>
             <span className="min-w-[88px] text-center text-[13px] font-medium">{monthLabel}</span>
-            <button className="rounded-md p-1.5 text-on-surface-variant hover:bg-surface-container-low" onClick={() => shiftMonth(1)}>
+            <button
+              className="rounded-md p-1.5 text-on-surface-variant hover:bg-surface-container-low"
+              onClick={() => shiftMonth(1)}
+            >
               <Icon name="chevron_right" size={20} />
             </button>
           </div>
@@ -130,7 +155,9 @@ export default function HabitsPage() {
             <div key={`blank-${i}`} />
           ))}
           {Array.from({ length: daysInMonth }, (_, i) => {
-            const date = dayjs(month + '-01').date(i + 1).format('YYYY-MM-DD')
+            const date = dayjs(month + '-01')
+              .date(i + 1)
+              .format('YYYY-MM-DD')
             const count = counts[date] ?? 0
             const isSelected = selectedDate === date
             const isToday = date === todayStr
@@ -165,7 +192,10 @@ export default function HabitsPage() {
               <span className="text-[13px] font-semibold">
                 {dayjs(selectedDate).format('M月D日')} 完成明细 · {dayHabits.length} 项
               </span>
-              <button className="text-outline hover:text-on-surface" onClick={() => setSelectedDate(undefined)}>
+              <button
+                className="text-outline hover:text-on-surface"
+                onClick={() => setSelectedDate(undefined)}
+              >
                 <Icon name="close" size={16} />
               </button>
             </div>
@@ -197,12 +227,20 @@ export default function HabitsPage() {
           <h2 className="text-[15px] font-semibold">活跃习惯 · {stats.length} 项</h2>
         </div>
         {stats.length === 0 ? (
-          <EmptyState icon="event_repeat" title="还没有习惯" description="点击右上角「新建习惯」开始你的第一个稳态闭环" />
+          <EmptyState
+            icon="event_repeat"
+            title="还没有习惯"
+            description="点击右上角「新建习惯」开始你的第一个稳态闭环"
+          />
         ) : (
           <ul className="divide-y divide-outline-variant/30">
             {stats.map(({ habit, streak, monthChecks, monthRate, doneToday, totalChecks }) => (
               <li key={habit.id} className="group flex items-center gap-3 py-3">
-                <button onClick={() => void toggleCheck(habit, doneToday)} className="shrink-0" title={doneToday ? '取消打卡' : '今日打卡'}>
+                <button
+                  onClick={() => void toggleCheck(habit, doneToday)}
+                  className="shrink-0"
+                  title={doneToday ? '取消打卡' : '今日打卡'}
+                >
                   <Icon
                     name={doneToday ? 'check_circle' : 'circle'}
                     size={26}
@@ -219,7 +257,8 @@ export default function HabitsPage() {
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-[13.5px] font-medium">{habit.name}</div>
                   <div className="truncate text-[11px] text-outline">
-                    {habit.schedule} · {habit.targetMinutes} 分钟{habit.motivationNote ? ` · ${habit.motivationNote}` : ''}
+                    {habit.schedule} · {habit.targetMinutes} 分钟
+                    {habit.motivationNote ? ` · ${habit.motivationNote}` : ''}
                   </div>
                 </div>
                 {streak > 0 && (

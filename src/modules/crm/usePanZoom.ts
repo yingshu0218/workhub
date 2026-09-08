@@ -98,5 +98,12 @@ export function usePanZoom({ size, onPanStart }: PanZoomOptions) {
     },
   }
 
-  return { view, setView, zoomTo, reset, containerProps, wheelRef: wrapRef as React.MutableRefObject<HTMLDivElement | null> }
+  return {
+    view,
+    setView,
+    zoomTo,
+    reset,
+    containerProps,
+    wheelRef: wrapRef as React.MutableRefObject<HTMLDivElement | null>,
+  }
 }

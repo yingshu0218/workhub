@@ -54,27 +54,23 @@ export function mergeTimelineEvents(
   todos: Todo[],
 ): TimelineEvent[] {
   const out: TimelineEvent[] = [
-    ...interactions.map(
-      (i): TimelineEvent => ({
-        kind: 'interaction',
-        id: i.id,
-        at: i.at,
-        type: i.type,
-        content: i.content,
-      }),
-    ),
-    ...transactions.map(
-      (t): TimelineEvent => ({
-        kind: 'transaction',
-        id: t.id,
-        at: t.occurredAt,
-        recordId: t.id,
-        direction: t.type,
-        amount: t.amount,
-        summary: t.summary,
-        status: t.status,
-      }),
-    ),
+    ...interactions.map((i): TimelineEvent => ({
+      kind: 'interaction',
+      id: i.id,
+      at: i.at,
+      type: i.type,
+      content: i.content,
+    })),
+    ...transactions.map((t): TimelineEvent => ({
+      kind: 'transaction',
+      id: t.id,
+      at: t.occurredAt,
+      recordId: t.id,
+      direction: t.type,
+      amount: t.amount,
+      summary: t.summary,
+      status: t.status,
+    })),
   ]
   for (const t of todos) {
     out.push({
@@ -120,7 +116,11 @@ export function useCustomerTimeline(customerId: string | undefined): TimelineEve
         .equals(customerId)
         .filter((t) => !t.deleted)
         .toArray(),
-      db.todos.where('customerId').equals(customerId).filter((t) => !t.deleted).toArray(),
+      db.todos
+        .where('customerId')
+        .equals(customerId)
+        .filter((t) => !t.deleted)
+        .toArray(),
     ])
     const merged = mergeTimelineEvents(interactions, transactions, todos)
     // 单客户视图：回填 customerId 便于类型统一（查询本身已按 customerId 索引）

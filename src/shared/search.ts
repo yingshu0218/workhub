@@ -31,7 +31,14 @@ export const SEARCH_TYPE_META: Record<SearchEntityType, { label: string; icon: s
 }
 
 /** 投影顺序即结果组序 */
-const TYPE_ORDER: SearchEntityType[] = ['customer', 'project', 'todo', 'transaction', 'note', 'habit']
+const TYPE_ORDER: SearchEntityType[] = [
+  'customer',
+  'project',
+  'todo',
+  'transaction',
+  'note',
+  'habit',
+]
 
 function fmtAmount(amount: number): string {
   return `¥${amount.toLocaleString('zh-CN')}`
@@ -113,7 +120,9 @@ export function searchAll(
 ): { type: SearchEntityType; label: string; icon: string; items: SearchItem[] }[] {
   const q = query.trim().toLowerCase()
   const matched = q
-    ? index.filter((item) => item.title.toLowerCase().includes(q) || item.subtitle.toLowerCase().includes(q))
+    ? index.filter(
+        (item) => item.title.toLowerCase().includes(q) || item.subtitle.toLowerCase().includes(q),
+      )
     : index
   return TYPE_ORDER.map((type) => ({
     type,

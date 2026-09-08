@@ -33,20 +33,41 @@ export function applySettingsToDom(settings: import('@/db/types').Settings): voi
   // mode=system 时仍按当前深浅取对应侧变量。classic 为默认（light/dark 均为空覆盖，回退 index.css token）。
   // 切换前先清掉上一主题写入的 --color-* inline 变量，防止浅色/深色侧键数不一致时残留污染。
   const style = THEME_STYLES.find((t) => t.id === settings.appearance.theme) ?? THEME_STYLES[0]
+
+  // 主题样式包（Issue #43）：造型语言挂 <html data-skin>，与配色正交、不入 settings 持久化
+  root.dataset.skin = ('skin' in style ? style.skin : undefined) ?? 'none'
   const VARS = [
-    'surface', 'surface-container-lowest', 'surface-container-low', 'surface-container', 'surface-container-high',
-    'on-surface', 'on-surface-variant', 'outline', 'outline-variant', 'primary-fixed',
-    'success', 'success-container', 'warning', 'warning-container', 'danger', 'danger-container',
-    'samesite-success', 'samesite-warning', 'samesite-danger',
+    'surface',
+    'surface-container-lowest',
+    'surface-container-low',
+    'surface-container',
+    'surface-container-high',
+    'on-surface',
+    'on-surface-variant',
+    'outline',
+    'outline-variant',
+    'primary-fixed',
+    'success',
+    'success-container',
+    'warning',
+    'warning-container',
+    'danger',
+    'danger-container',
+    'samesite-success',
+    'samesite-warning',
+    'samesite-danger',
   ] as const
   for (const name of VARS) root.style.removeProperty(`--color-${name}`)
-  const styleVars = (dark ? style.dark : style.light) as Partial<Record<(typeof VARS)[number], string>>
+  const styleVars = (dark ? style.dark : style.light) as Partial<
+    Record<(typeof VARS)[number], string>
+  >
   for (const [name, value] of Object.entries(styleVars)) {
     if (value) root.style.setProperty(`--color-${name}`, value)
   }
 
   // 强调色 → 覆盖 primary 系变量（fixed 为浅色容器底，用 color-mix 派生）
-  const accent = ACCENT_PRESETS.find((a) => a.id === settings.appearance.accent) ?? ACCENT_PRESETS[0]
+  const accent =
+    ACCENT_PRESETS.find((a) => a.id === settings.appearance.accent) ?? ACCENT_PRESETS[0]
   root.style.setProperty('--color-primary', accent.primary)
   root.style.setProperty('--color-primary-container', accent.container)
   const mixBase = dark
@@ -63,7 +84,10 @@ export function applySettingsToDom(settings: import('@/db/types').Settings): voi
   root.style.setProperty('--radius-xl', radius)
 
   // 信息密度 → Tailwind v4 spacing 基数（4px 基线；紧凑 3.5px）
-  root.style.setProperty('--spacing', settings.appearance.density === 'compact' ? '0.21875rem' : '0.25rem')
+  root.style.setProperty(
+    '--spacing',
+    settings.appearance.density === 'compact' ? '0.21875rem' : '0.25rem',
+  )
 
   // 字体排版 → html 基准字号 / 行高 / font-sans 字体栈（字体组合预设）
   root.style.fontSize = `${settings.typography.fontSize}px`
@@ -88,7 +112,9 @@ export function installModuleEffects() {
   eventBus.on('focus:completed', async ({ minutes }) => {
     try {
       const habits = await habitRepo.list()
-      const focusHabit = habits.find((h) => h.crossModuleSync && h.targetMinutes > 0 && h.category === '工作')
+      const focusHabit = habits.find(
+        (h) => h.crossModuleSync && h.targetMinutes > 0 && h.category === '工作',
+      )
       if (!focusHabit || minutes < focusHabit.targetMinutes) return
       const date = dayjs().format('YYYY-MM-DD')
       // 确定性 id 幂等：同日同习惯恒为同一条记录，存在即跳过

@@ -4,7 +4,16 @@ import { useSearchParams } from 'react-router-dom'
 import { useCollection } from '@/queries/hooks'
 import { todoRepo, newId } from '@/repositories'
 import type { Todo, Customer, Project } from '@/db/types'
-import { Button, Card, Chip, EmptyState, PageHeader, Drawer, Field, inputCls } from '@/design-system/ui'
+import {
+  Button,
+  Card,
+  Chip,
+  EmptyState,
+  PageHeader,
+  Drawer,
+  Field,
+  inputCls,
+} from '@/design-system/ui'
 import { MatchCombobox } from '@/design-system/MatchCombobox'
 import dayjs from 'dayjs'
 import { useFocusStore } from '@/stores/focus'
@@ -95,7 +104,9 @@ export default function TodoPage() {
     return false
   }
   const baseScope = selListId
-    ? sortedTodos.filter((t) => t.listId === selListId || (focusRingId !== null && t.id === focusRingId))
+    ? sortedTodos.filter(
+        (t) => t.listId === selListId || (focusRingId !== null && t.id === focusRingId),
+      )
     : sortedTodos.filter((t) => matchesSmart(t) || (focusRingId !== null && t.id === focusRingId))
   // P1 / 已完成降级为右侧筛选 Chip，作用于当前左栏视图/清单之内；全部未命中时兜底展示空态
   const filtered = baseScope.filter((t) => {
@@ -116,13 +127,25 @@ export default function TodoPage() {
   const inboxCount = openTodos.filter((t) => !t.listId).length
   const smartLists: { key: Filter; icon: string; label: string; count: number }[] = [
     { key: 'all', icon: 'list', label: '全部待办', count: openTodos.length },
-    { key: 'today', icon: 'today', label: '今天', count: openTodos.filter((t) => t.dueAt && dayjs(t.dueAt).format('YYYY-MM-DD') <= todayStr).length },
-    { key: 'week', icon: 'calendar_month', label: '最近七天', count: openTodos.filter((t) => t.dueAt && dayjs(t.dueAt).format('YYYY-MM-DD') <= weekEndStr).length },
+    {
+      key: 'today',
+      icon: 'today',
+      label: '今天',
+      count: openTodos.filter((t) => t.dueAt && dayjs(t.dueAt).format('YYYY-MM-DD') <= todayStr)
+        .length,
+    },
+    {
+      key: 'week',
+      icon: 'calendar_month',
+      label: '最近七天',
+      count: openTodos.filter((t) => t.dueAt && dayjs(t.dueAt).format('YYYY-MM-DD') <= weekEndStr)
+        .length,
+    },
     { key: 'inbox', icon: 'move_to_inbox', label: '收集箱', count: inboxCount },
   ]
   const selSmart = smartLists.find((l) => l.key === selKind)
   const selCustom = lists.find((l) => l.id === selListId)
-  const selLabel = selCustom ? selCustom.name : selSmart?.label ?? '待办'
+  const selLabel = selCustom ? selCustom.name : (selSmart?.label ?? '待办')
 
   function selectSmart(key: Filter) {
     setSelListId(null)
@@ -154,7 +177,8 @@ export default function TodoPage() {
     const list = lists.find((l) => l.id === id)
     if (!list) return
     const n = todos.filter((t) => t.listId === id && t.status !== 'done').length
-    if (!window.confirm(`删除清单「${list.name}」？名下 ${n} 条未完成待办将移入「全部待办」。`)) return
+    if (!window.confirm(`删除清单「${list.name}」？名下 ${n} 条未完成待办将移入「全部待办」。`))
+      return
     await deleteTodoListCascade(id)
     if (selListId === id) {
       setSelListId(null)
@@ -191,7 +215,9 @@ export default function TodoPage() {
       <div className="grid grid-cols-[240px_1fr] gap-4 items-start">
         {/* 左侧清单：智能清单 + 我的清单（增删改/拖拽排序） */}
         <Card className="p-2">
-          <div className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-outline">智能清单</div>
+          <div className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-outline">
+            智能清单
+          </div>
           {smartLists.map((l) => (
             <button
               key={l.key}
@@ -209,7 +235,9 @@ export default function TodoPage() {
           ))}
 
           <div className="mt-3 flex items-center justify-between border-t border-outline-variant/40 px-3 pt-2 pb-1">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-outline">我的清单</span>
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-outline">
+              我的清单
+            </span>
             <button
               className="text-outline hover:text-primary"
               title="新建清单"
@@ -238,7 +266,10 @@ export default function TodoPage() {
                   : 'text-on-surface-variant hover:bg-surface-container'
               }`}
             >
-              <span className="cursor-grab text-[14px] leading-none text-outline/60 group-hover/list:text-outline" title="拖动排序">
+              <span
+                className="cursor-grab text-[14px] leading-none text-outline/60 group-hover/list:text-outline"
+                title="拖动排序"
+              >
                 ⠿
               </span>
               {renamingId === l.id ? (
@@ -254,7 +285,10 @@ export default function TodoPage() {
                   }}
                 />
               ) : (
-                <button className="min-w-0 flex-1 truncate text-left" onClick={() => selectList(l.id)}>
+                <button
+                  className="min-w-0 flex-1 truncate text-left"
+                  onClick={() => selectList(l.id)}
+                >
                   {l.name}
                 </button>
               )}
@@ -270,7 +304,11 @@ export default function TodoPage() {
                 >
                   <Icon name="edit" size={14} />
                 </button>
-                <button title="删除清单" className="text-outline hover:text-danger" onClick={() => void removeList(l.id)}>
+                <button
+                  title="删除清单"
+                  className="text-outline hover:text-danger"
+                  onClick={() => void removeList(l.id)}
+                >
                   <Icon name="delete" size={14} />
                 </button>
               </span>
@@ -304,7 +342,9 @@ export default function TodoPage() {
               <button
                 onClick={() => setChipP1((v) => !v)}
                 className={`rounded-full px-2.5 py-0.5 text-[12px] font-medium transition-colors ${
-                  chipP1 ? 'bg-danger-container text-danger' : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
+                  chipP1
+                    ? 'bg-danger-container text-danger'
+                    : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
                 }`}
               >
                 P1{chipP1 && ' ✕'}
@@ -312,7 +352,9 @@ export default function TodoPage() {
               <button
                 onClick={() => setChipDone((v) => !v)}
                 className={`rounded-full px-2.5 py-0.5 text-[12px] font-medium transition-colors ${
-                  chipDone ? 'bg-primary-fixed text-primary' : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
+                  chipDone
+                    ? 'bg-primary-fixed text-primary'
+                    : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
                 }`}
               >
                 已完成{chipDone && ' ✕'}
@@ -322,84 +364,100 @@ export default function TodoPage() {
               {chipDone ? `${filtered.length} 条` : `${filtered.length} 条未完成`}
             </span>
           </Card>
-        {filtered.length === 0 ? (
-          <Card className="p-6">
-            {(chipP1 || chipDone) && baseScope.length > 0 ? (
-              <EmptyState
-                icon="filter_alt_off"
-                title="当前筛选没有命中"
-                description="试试取消上方筛选，查看本视图全部内容"
-              />
-            ) : (
-              <EmptyState icon="task_alt" title="这里空空如也" description="点击右上角新建待办" />
-            )}
-          </Card>
-        ) : (
-          <Card className="divide-y divide-outline-variant/30 px-5">
-            {filtered.map((t) => {
-              const isDoing = focus.todoId === t.id && focus.status === 'running'
-            const isFocusRing = focusRingId === t.id
-            return (
-              <div
-                key={t.id}
-                ref={(el) => {
-                  if (el) rowRefs.current.set(t.id, el)
-                  else rowRefs.current.delete(t.id)
-                }}
-                className={`group flex items-center gap-3 rounded-lg py-3.5 transition-all duration-300 ${
-                  isFocusRing ? 'focus:outline-2 focus:outline-primary bg-primary-fixed/60 -mx-2 px-2' : ''
-                }`}
-              >
-                <button onClick={() => toggle(t)} className="shrink-0">
-                  <Icon
-                    name={t.status === 'done' ? 'check_circle' : 'radio_button_unchecked'}
-                    size={20}
-                    fill={t.status === 'done'}
-                    className={t.status !== 'done' && t.priority === 'P1' ? 'text-danger' : t.status !== 'done' ? 'text-outline' : ''}
-                  />
-                </button>
-                <div className="min-w-0 flex-1">
+          {filtered.length === 0 ? (
+            <Card className="p-6">
+              {(chipP1 || chipDone) && baseScope.length > 0 ? (
+                <EmptyState
+                  icon="filter_alt_off"
+                  title="当前筛选没有命中"
+                  description="试试取消上方筛选，查看本视图全部内容"
+                />
+              ) : (
+                <EmptyState icon="task_alt" title="这里空空如也" description="点击右上角新建待办" />
+              )}
+            </Card>
+          ) : (
+            <Card className="divide-y divide-outline-variant/30 px-5">
+              {filtered.map((t) => {
+                const isDoing = focus.todoId === t.id && focus.status === 'running'
+                const isFocusRing = focusRingId === t.id
+                return (
                   <div
-                    className={`truncate text-[14px] ${
-                      t.status === 'done' ? 'text-outline line-through' : 'font-medium'
+                    key={t.id}
+                    ref={(el) => {
+                      if (el) rowRefs.current.set(t.id, el)
+                      else rowRefs.current.delete(t.id)
+                    }}
+                    className={`group flex items-center gap-3 rounded-lg py-3.5 transition-all duration-300 ${
+                      isFocusRing
+                        ? 'focus:outline-2 focus:outline-primary bg-primary-fixed/60 -mx-2 px-2'
+                        : ''
                     }`}
                   >
-                    {t.title}
-                    {isDoing && <span className="ml-2 align-middle"><Chip tone="blue" icon="timer">专注中</Chip></span>}
-                  </div>
-                  {t.dueAt && (
-                    <div className="mt-0.5 text-[12px] text-outline">
-                      截止 {dayjs(t.dueAt).format('M月D日 HH:mm')}
-                      {t.status !== 'done' && dayjs(t.dueAt).isBefore(dayjs()) && (
-                        <span className="ml-1.5 text-danger">已逾期</span>
+                    <button onClick={() => toggle(t)} className="shrink-0">
+                      <Icon
+                        name={t.status === 'done' ? 'check_circle' : 'radio_button_unchecked'}
+                        size={20}
+                        fill={t.status === 'done'}
+                        className={
+                          t.status !== 'done' && t.priority === 'P1'
+                            ? 'text-danger'
+                            : t.status !== 'done'
+                              ? 'text-outline'
+                              : ''
+                        }
+                      />
+                    </button>
+                    <div className="min-w-0 flex-1">
+                      <div
+                        className={`truncate text-[14px] ${
+                          t.status === 'done' ? 'text-outline line-through' : 'font-medium'
+                        }`}
+                      >
+                        {t.title}
+                        {isDoing && (
+                          <span className="ml-2 align-middle">
+                            <Chip tone="blue" icon="timer">
+                              专注中
+                            </Chip>
+                          </span>
+                        )}
+                      </div>
+                      {t.dueAt && (
+                        <div className="mt-0.5 text-[12px] text-outline">
+                          截止 {dayjs(t.dueAt).format('M月D日 HH:mm')}
+                          {t.status !== 'done' && dayjs(t.dueAt).isBefore(dayjs()) && (
+                            <span className="ml-1.5 text-danger">已逾期</span>
+                          )}
+                        </div>
                       )}
                     </div>
-                  )}
-                </div>
-                <Chip tone={t.priority === 'P1' ? 'red' : t.priority === 'P2' ? 'amber' : 'gray'}>
-                  {t.priority}
-                </Chip>
-                {t.status !== 'done' && (
-                  <Button
-                    size="sm"
-                    variant="tonal"
-                    icon="timer"
-                    onClick={() => focus.start(t.id, t.title)}
-                  >
-                    专注
-                  </Button>
-                )}
-                <button
-                  className="text-outline opacity-0 transition-opacity hover:text-danger group-hover:opacity-100"
-                  onClick={() => todoRepo.softDelete(t.id)}
-                >
-                  <Icon name="delete" size={18} />
-                </button>
-              </div>
-            )
-          })}
-        </Card>
-      )}
+                    <Chip
+                      tone={t.priority === 'P1' ? 'red' : t.priority === 'P2' ? 'amber' : 'gray'}
+                    >
+                      {t.priority}
+                    </Chip>
+                    {t.status !== 'done' && (
+                      <Button
+                        size="sm"
+                        variant="tonal"
+                        icon="timer"
+                        onClick={() => focus.start(t.id, t.title)}
+                      >
+                        专注
+                      </Button>
+                    )}
+                    <button
+                      className="text-outline opacity-0 transition-opacity hover:text-danger group-hover:opacity-100"
+                      onClick={() => todoRepo.softDelete(t.id)}
+                    >
+                      <Icon name="delete" size={18} />
+                    </button>
+                  </div>
+                )
+              })}
+            </Card>
+          )}
         </div>
       </div>
 
@@ -424,7 +482,9 @@ export default function TodoPage() {
                 : selKind === 'today'
                   ? saved.status !== 'done' && !!savedDay && savedDay <= todayStr
                   : saved.status !== 'done' && !!savedDay && savedDay <= weekEndStr
-          const chipOk = (!chipP1 || (saved.status !== 'done' && saved.priority === 'P1')) && (!chipDone || saved.status === 'done')
+          const chipOk =
+            (!chipP1 || (saved.status !== 'done' && saved.priority === 'P1')) &&
+            (!chipDone || saved.status === 'done')
           if (!visible || !chipOk) {
             setSelListId(null)
             setChipP1(false)
@@ -509,10 +569,20 @@ export function TodoFormDrawer({
     <Drawer open={open} title={todo ? '编辑待办' : '新建待办'} onClose={onClose}>
       <div key={seedKey}>
         <Field label="标题 *">
-          <input className={inputCls} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="要做什么？" autoFocus />
+          <input
+            className={inputCls}
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="要做什么？"
+            autoFocus
+          />
         </Field>
         <Field label="描述">
-          <textarea className={`${inputCls} h-20 resize-none`} value={desc} onChange={(e) => setDesc(e.target.value)} />
+          <textarea
+            className={`${inputCls} h-20 resize-none`}
+            value={desc}
+            onChange={(e) => setDesc(e.target.value)}
+          />
         </Field>
         <Field label="优先级">
           <div className="flex gap-2">
@@ -521,7 +591,9 @@ export function TodoFormDrawer({
                 key={p}
                 onClick={() => setPriority(p)}
                 className={`rounded-lg border px-4 py-1.5 text-[13px] ${
-                  priority === p ? 'border-primary bg-primary-fixed font-semibold text-primary' : 'border-outline-variant text-on-surface-variant'
+                  priority === p
+                    ? 'border-primary bg-primary-fixed font-semibold text-primary'
+                    : 'border-outline-variant text-on-surface-variant'
                 }`}
               >
                 {p}
@@ -530,7 +602,12 @@ export function TodoFormDrawer({
           </div>
         </Field>
         <Field label="截止时间">
-          <input type="datetime-local" className={inputCls} value={dueAt} onChange={(e) => setDueAt(e.target.value)} />
+          <input
+            type="datetime-local"
+            className={inputCls}
+            value={dueAt}
+            onChange={(e) => setDueAt(e.target.value)}
+          />
         </Field>
         <Field label="所属清单">
           <MatchCombobox

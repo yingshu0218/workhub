@@ -58,7 +58,8 @@ function assemble(graph: CanvasGraph): { nodes: GraphNode[]; links: GraphLink[] 
       radius: 15,
     })
     // 防御：客户可能已被删除（历史脏数据），悬挂边会让 d3 forceLink 抛 node not found 白屏
-    if (p.customerId && nodeIds.has(p.customerId)) ls.push({ source: p.customerId, target: `proj:${p.id}`, kind: 'belongs' })
+    if (p.customerId && nodeIds.has(p.customerId))
+      ls.push({ source: p.customerId, target: `proj:${p.id}`, kind: 'belongs' })
   }
   for (const t of graph.transactions) {
     ns.push({
@@ -105,7 +106,10 @@ function assemble(graph: CanvasGraph): { nodes: GraphNode[]; links: GraphLink[] 
  * labels 聚合该对之间全部语义标签（Issue #39：连线上完整呈现多条语义文字，而非仅靠颜色区分），label 为其 ' / ' 拼接
  */
 function buildRelationLinks(graph: CanvasGraph): GraphLink[] {
-  const byPair = new Map<string, { source: string; target: string; labels: string[]; categories: RelationCategory[] }>()
+  const byPair = new Map<
+    string,
+    { source: string; target: string; labels: string[]; categories: RelationCategory[] }
+  >()
   for (const c of graph.customers) {
     for (const r of c.relations) {
       // 悬挂防御：指向不存在/已删除客户的条目在投影层已过滤，这里再挡一层
@@ -135,7 +139,6 @@ function buildRelationLinks(graph: CanvasGraph): GraphLink[] {
     categories: e.categories,
   }))
 }
-
 
 /**
  * 二跳桥接弱边（Issue #34）：倒排分桶 + 桶内两两连边，规避 O(n²) 全扫。
@@ -202,7 +205,10 @@ function deriveCustomerEdges(graph: CanvasGraph): GraphLink[] {
   return out
 }
 
-export function buildGraph(graph: CanvasGraph, opts: BuildGraphOptions): { nodes: GraphNode[]; links: GraphLink[] } {
+export function buildGraph(
+  graph: CanvasGraph,
+  opts: BuildGraphOptions,
+): { nodes: GraphNode[]; links: GraphLink[] } {
   const relationLinks = buildRelationLinks(graph)
 
   // ── customer-only 模式（Issue #34）：纯客户节点 + 分类关系边 + 桥接弱边，业务实体节点不参与 ──
@@ -226,7 +232,10 @@ export function buildGraph(graph: CanvasGraph, opts: BuildGraphOptions): { nodes
         const cs = edgeCats.length > 0 ? edgeCats : (['other'] as RelationCategory[])
         if (!cs.some((c) => cats.includes(c))) return false
       }
-      return ids.has(String(typeof l.source === 'string' ? l.source : l.source.id)) && ids.has(String(typeof l.target === 'string' ? l.target : l.target.id))
+      return (
+        ids.has(String(typeof l.source === 'string' ? l.source : l.source.id)) &&
+        ids.has(String(typeof l.target === 'string' ? l.target : l.target.id))
+      )
     })
     return { nodes: ns, links: ls }
   }
