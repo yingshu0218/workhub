@@ -22,6 +22,8 @@
 const SYNC_COLLECTIONS = [
   'workspaces', 'customers', 'interactions', 'ledgers', 'transactions',
   'todos', 'todoLists', 'notes', 'quickNotes', 'habits', 'habitLogs', 'trophies', 'attachments',
+  // 存量遗漏补齐：projects 系列与 noteFolders 在客户端 SYNC_TABLES 里，服务端 hooks 曾未覆盖
+  'noteFolders', 'projects', 'projectMilestones',
 ]
 
 onRecordCreateRequest((e) => {

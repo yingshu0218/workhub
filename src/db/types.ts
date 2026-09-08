@@ -20,6 +20,17 @@ export interface Workspace extends SyncMeta {
   createdAt: number
 }
 
+/**
+ * 客户间语义关系（Issue #22）：弱引用，targetId 必须指向现存客户，
+ * UI 只允许从已有客户列表选择，杜绝画布悬挂边（同 deleteCustomerCascade 注释的崩溃根因）
+ */
+export interface CustomerRelation {
+  /** 目标客户 id（弱引用） */
+  targetId: string
+  /** 关系语义，如：转介绍人 / 同一公司 / 上下游 */
+  label: string
+}
+
 export interface Customer extends SyncMeta {
   id: string
   name: string
@@ -37,6 +48,8 @@ export interface Customer extends SyncMeta {
   healthScore: number // 0-100
   lastContactAt: number
   createdAt: number
+  /** 客户间语义关系（双向弱引用；编辑抽屉维护，删除级联双向解绑） */
+  relations?: CustomerRelation[]
 }
 
 export interface Interaction extends SyncMeta {

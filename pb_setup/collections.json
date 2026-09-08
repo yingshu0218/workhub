@@ -160,6 +160,10 @@
         "type": "number"
       },
       {
+        "name": "relations",
+        "type": "json"
+      },
+      {
         "name": "updatedAt",
         "type": "number",
         "required": true

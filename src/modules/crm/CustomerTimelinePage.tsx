@@ -9,11 +9,17 @@ import { healthColor } from './shared'
 import {
   TIMELINE_FILTERS,
   filterTimeline,
-  fmtMoney,
-  type TimelineEvent,
   type TimelineFilter,
   useCustomerTimeline,
 } from './timeline'
+import {
+  boneTarget,
+  HEAD_H as HEAD_H_SHARED,
+  HEAD_W as HEAD_W_SHARED,
+  layoutSingleBones,
+  SPINE_Y as SPINE_Y_SHARED,
+  type Bone,
+} from './timelineLayout'
 import { IDENTITY_VIEW, usePanZoom } from './usePanZoom'
 
 /**
@@ -38,65 +44,12 @@ const TYPE_ICONS: Record<Interaction['type'], string> = {
 }
 
 /** 世界坐标布局常量（水平从左到右按时间递增，鱼头在最右） */
-const SPINE_Y = 0
-const HEAD_W = 190
-const HEAD_H = 132
+// 世界坐标布局常量：从 timelineLayout 纯函数模块导入（与全部视图共用形态）
+const SPINE_Y = SPINE_Y_SHARED
+const HEAD_W = HEAD_W_SHARED
+const HEAD_H = HEAD_H_SHARED
 const SPINE_STROKE = '#004ac6'
 const SPINE_W = 5
-
-interface Bone {
-  event: TimelineEvent
-  /** 主轴上的世界坐标 x（事件锚点） */
-  x: number
-  /** 骨刺方向：上（正向）/ 下（负向） */
-  up: boolean
-  /** 骨刺长度（跟随金额/优先级轻微变化，视觉分组） */
-  len: number
-  /** 骨刺终点（短横端） */
-  tipY: number
-  label: string
-  sub: string
-  color: string
-  fill: string
-}
-
-function boneColor(e: TimelineEvent): { color: string; fill: string } {
-  if (e.kind === 'transaction')
-    return e.direction === 'income'
-      ? { color: '#006c49', fill: '#6cf8bb' }
-      : { color: '#ba1a1a', fill: '#ffdad6' }
-  if (e.kind === 'todo')
-    return e.event === 'done'
-      ? { color: '#006c49', fill: '#6cf8bb' }
-      : { color: '#943700', fill: '#ffede6' }
-  return { color: '#004ac6', fill: '#dbe1ff' }
-}
-
-function boneUp(e: TimelineEvent): boolean {
-  if (e.kind === 'transaction') return e.direction === 'income'
-  if (e.kind === 'todo') return e.event === 'done'
-  return false
-}
-
-function boneLabel(e: TimelineEvent): string {
-  if (e.kind === 'transaction') return `${e.direction === 'income' ? '+' : '-'}${fmtMoney(e.amount)}`
-  if (e.kind === 'todo') return e.event === 'done' ? '完成待办' : '新增待办'
-  return e.type
-}
-
-function boneSub(e: TimelineEvent): string {
-  const t = dayjs(e.at).format('MM-DD')
-  if (e.kind === 'transaction') return `${t} · ${e.summary}`
-  if (e.kind === 'todo') return `${t} · ${e.title}`
-  return `${t} · ${e.content}`
-}
-
-/** 骨刺穿透目标：点击跳转并定位对应记录（交易 → 财务中心流水详情，待办 → 待办事项定位，沟通 → 详情页日志区） */
-function boneTarget(e: TimelineEvent): string | undefined {
-  if (e.kind === 'transaction') return `/finance?focus=${encodeURIComponent(e.recordId)}`
-  if (e.kind === 'todo') return `/todo?focus=${encodeURIComponent(e.recordId)}`
-  return undefined
-}
 
 export default function CustomerTimelinePage() {
   const { id } = useParams<{ id: string }>()
@@ -136,34 +89,11 @@ export default function CustomerTimelinePage() {
 
   const hc = healthColor(customer?.healthScore ?? 0)
 
-  /** 世界布局：时间升序排到主轴（左 → 右），上下交替错开骨刺避免重叠 */
+  /** 世界布局：时间升序排到主轴（左 → 右），上下交替错开骨刺避免重叠（纯函数在 timelineLayout） */
   const layout = useMemo(() => {
     if (!customer || visible.length === 0) return null
-    // 时间升序铺满主轴；比例尺不按真实间隔压缩（事件稀密差异过大时等距更可读），起止由刻度文案表达
-    const ordered = [...visible].sort((a, b) => a.at - b.at)
-    const innerW = 920
-    const step = innerW / (ordered.length + 1)
-    const bones: Bone[] = []
-    const lastTip = { up: 0, down: 0 } as Record<'up' | 'down', number>
-    ordered.forEach((e, i) => {
-      const x = 60 + step * (i + 1)
-      const up = boneUp(e)
-      // 交替侧向偏移：同侧相邻骨刺错开，避免端点短横重叠
-      const len = 64 + (lastTip[up ? 'up' : 'down'] % 2 === i % 2 ? 0 : 26) + (e.kind === 'transaction' ? 14 : 0)
-      lastTip[up ? 'up' : 'down']++
-      bones.push({
-        event: e,
-        x,
-        up,
-        len,
-        tipY: up ? SPINE_Y - len : SPINE_Y + len,
-        label: boneLabel(e),
-        sub: boneSub(e),
-        color: boneColor(e).color,
-        fill: boneColor(e).fill,
-      })
-    })
-    const world = { minX: 0, maxX: 60 + step * ordered.length + 20 + HEAD_W, minY: -190, maxY: 190 }
+    const { bones, maxX } = layoutSingleBones(visible)
+    const world = { minX: 0, maxX, minY: -190, maxY: 190 }
     return { bones, world }
   }, [customer, visible])
 
@@ -213,7 +143,10 @@ export default function CustomerTimelinePage() {
             <Button variant="ghost" icon="arrow_back" onClick={() => navigate(`/crm/${customer.id}`)}>
               返回档案
             </Button>
-            <Button variant="tonal" icon="settings_backup_restore" onClick={fitView} disabled={!layout}>
+            <Button variant="tonal" icon="timeline" onClick={() => navigate('/crm/timeline-all')}>
+              查看全部时间线 →
+            </Button>
+            <Button variant="ghost" icon="settings_backup_restore" onClick={fitView} disabled={!layout}>
               适应画布
             </Button>
           </>
