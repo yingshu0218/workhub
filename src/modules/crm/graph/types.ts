@@ -25,6 +25,8 @@ export interface GraphLink {
   kind: GraphLinkKind
   /** 关系边（客户↔客户）的语义标签，tooltip 展示 */
   label?: string
+  /** 关系边聚合的全部语义标签（Issue #39：同一对客户允许多条语义，连线上须完整呈现文字，非仅颜色区分） */
+  labels?: string[]
   /** 关系边聚合的归类维度（同一对客户所有 relation 条目的类别并集，Issue #34） */
   categories?: RelationCategory[]
 }

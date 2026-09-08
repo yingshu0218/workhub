@@ -7,6 +7,10 @@ import { Button, Chip, Drawer, Field, inputCls } from '@/design-system/ui'
 import { MatchCombobox } from '@/design-system/MatchCombobox'
 import { createCustomerWithInit } from './hooks'
 
+/** 单条关系的稳定标识（Issue #39）：优先取条目 id，旧数据按 目标::语义 兜底（同对允许多条，可逐条删除） */
+const relKey = (r: { id?: string; targetId: string; label: string }) =>
+  r.id ?? `${r.targetId}::${r.label}`
+
 const DECISION_LEVELS: Customer['decisionLevel'][] = ['决策人', '影响者', '使用者', '把关人']
 const TIERS: Customer['tier'][] = ['S', 'A', 'B', '潜在']
 const STAGES = ['潜在接触', '需求确认', '方案沟通中', '合同谈判', '已成交 · 维护期', '久未跟进']
@@ -319,15 +323,15 @@ export default function CustomerFormDrawer({
                 const target = relCandidates.find((c) => c.id === r.targetId)
                 const catName = RELATION_CATEGORIES.find((c) => c.id === r.category)?.name
                 return (
-                  <span key={r.targetId} className="inline-flex items-center">
+                  <span key={relKey(r)} className="inline-flex items-center">
                     <Chip tone="blue" icon="link">
                       {target ? `${target.name} · ${r.label}` : `${r.targetId} · ${r.label}`}
                       {catName ? `（${catName}）` : ''}
                     </Chip>
                     <button
                       className="-ml-1 h-4 w-4 rounded-full bg-surface-container-high text-[10px] leading-none text-on-surface-variant hover:text-danger"
-                      title="移除该关联"
-                      onClick={() => setRelations((rs) => rs.filter((x) => x.targetId !== r.targetId))}
+                      title="移除该条关联"
+                      onClick={() => setRelations((rs) => rs.filter((x) => relKey(x) !== relKey(r)))}
                     >
                       ×
                     </button>
@@ -375,10 +379,12 @@ export default function CustomerFormDrawer({
               disabled={!relTarget || !relLabel}
               onClick={() => {
                 if (!relTarget || !relLabel) return
+                // 同 目标+语义 判重，防误操作重复（Issue #39）；同目标但语义不同允许多条并存
+                if (relations.some((x) => x.targetId === relTarget && x.label === relLabel)) return
                 setRelations((rs) => [
-                  ...rs.filter((x) => x.targetId !== relTarget),
-                  // category 可选（Issue #34）：仅作图谱归类展示，不填按 other 口径
-                  { targetId: relTarget, label: relLabel, ...(relCategory ? { category: relCategory } : {}) },
+                  ...rs,
+                  // 条目独立 id：支撑同对多语义并存、逐条删除与列表 key；category 可选（Issue #34）
+                  { id: newId('rel'), targetId: relTarget, label: relLabel, ...(relCategory ? { category: relCategory } : {}) },
                 ])
                 setRelTarget('')
                 setRelLabel('')

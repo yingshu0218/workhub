@@ -101,10 +101,11 @@ function assemble(graph: CanvasGraph): { nodes: GraphNode[]; links: GraphLink[] 
 /**
  * 客户↔客户语义关系边（kind='relation'）
  * 去重防 A-B / B-A 重复：同一对客户只画一条无向边，该对之间所有 relation 条目的
- * category 聚合到边上（Issue #34 裁决：单对单边 + 类别聚合），label 取首条语义
+ * category 聚合到边上（Issue #34 裁决：单对单边 + 类别聚合）；
+ * labels 聚合该对之间全部语义标签（Issue #39：连线上完整呈现多条语义文字，而非仅靠颜色区分），label 为其 ' / ' 拼接
  */
 function buildRelationLinks(graph: CanvasGraph): GraphLink[] {
-  const byPair = new Map<string, { source: string; target: string; label: string; categories: RelationCategory[] }>()
+  const byPair = new Map<string, { source: string; target: string; labels: string[]; categories: RelationCategory[] }>()
   for (const c of graph.customers) {
     for (const r of c.relations) {
       // 悬挂防御：指向不存在/已删除客户的条目在投影层已过滤，这里再挡一层
@@ -112,13 +113,14 @@ function buildRelationLinks(graph: CanvasGraph): GraphLink[] {
       const key = [c.id, r.targetId].sort().join('~')
       const hit = byPair.get(key)
       if (hit) {
-        // 已有该对客户：聚合类别（去重），label 保留首条语义
+        // 已有该对客户：聚合全部语义标签（Issue #39：同对允许多条，连线文字须完整呈现）
+        if (!hit.labels.includes(r.label)) hit.labels.push(r.label)
         if (r.category && !hit.categories.includes(r.category)) hit.categories.push(r.category)
       } else {
         byPair.set(key, {
           source: c.id,
           target: r.targetId,
-          label: r.label,
+          labels: [r.label],
           categories: r.category ? [r.category] : [],
         })
       }
@@ -128,7 +130,8 @@ function buildRelationLinks(graph: CanvasGraph): GraphLink[] {
     source: e.source,
     target: e.target,
     kind: 'relation' as const,
-    label: e.label,
+    label: e.labels.join(' / '),
+    labels: e.labels,
     categories: e.categories,
   }))
 }
