@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { Customer, Project } from '@/db/types'
 import { useCollection } from '@/queries/hooks'
 import { Button, Drawer, Field, inputCls } from '@/design-system/ui'
+import { MatchCombobox } from '@/design-system/MatchCombobox'
 import { saveProject } from './hooks'
 
 /** 预设项目色板（区分于客户/标签语义色，取低饱和稳重视觉） */
@@ -133,18 +134,17 @@ export default function ProjectFormDrawer({
           </div>
         </Field>
         <Field label="挂靠客户（可选，打通 CRM 下钻）">
-          <select
-            className={inputCls}
+          <MatchCombobox
             value={customerId}
-            onChange={(e) => setCustomerId(e.target.value)}
-          >
-            <option value="">不挂靠</option>
-            {customers.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.company} · {c.name}
-              </option>
-            ))}
-          </select>
+            options={customers.map((c) => ({
+              id: c.id,
+              label: c.company ? `${c.company} · ${c.name}` : c.name,
+              icon: 'person',
+            }))}
+            placeholder="输入公司或姓名模糊搜索，如：深蓝"
+            emptyText="没有匹配的客户"
+            onChange={setCustomerId}
+          />
         </Field>
         <Field label="项目预算（可选，仅展示对比）">
           <input

@@ -3,6 +3,7 @@ import { Icon } from '@/design-system/Icon'
 import { useNavigate } from 'react-router-dom'
 import { useFocusStore, FOCUS_TOTAL_SEC } from '@/stores/focus'
 import { Button, Card, Chip } from '@/design-system/ui'
+import { MatchCombobox } from '@/design-system/MatchCombobox'
 import { eventBus } from '@/shared/eventBus'
 import { todoRepo, habitLogRepo, habitLogId, newId } from '@/repositories'
 import { useState } from 'react'
@@ -21,7 +22,7 @@ export function FocusCard() {
   const customers = useCollection<Customer>('customers')
   const ledgers = useCollection<Ledger>('ledgers')
   const doing = todos.find((t) => t.id === focus.todoId)
-  const openTodos = todos.filter((t) => t.status !== 'done' && t.id !== focus.todoId)
+  const openTodos = todos.filter((t) => t.status !== 'done')
 
   // 专注进行中时的关联实体引用（对齐原型 01）：无关联则不显示
   const refCustomer = doing?.customerId ? customers.find((c) => c.id === doing.customerId) : undefined
@@ -84,21 +85,23 @@ export function FocusCard() {
               <div className="mb-2 text-[13px] text-on-surface-variant">
                 {doing ? doing.title : '选择一件事，开始 25 分钟深度专注'}
               </div>
-              <select
-                className="mb-3 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-[13px]"
-                value={focus.todoId ?? ''}
-                onChange={(e) => {
-                  const t = todos.find((x) => x.id === e.target.value)
-                  useFocusStore.setState({ todoId: t?.id, todoTitle: t?.title })
-                }}
-              >
-                <option value="">自由专注（不关联待办）</option>
-                {openTodos.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.title}
-                  </option>
-                ))}
-              </select>
+              <div className="mb-3">
+                <MatchCombobox
+                  value={focus.todoId ?? ''}
+                  options={openTodos.map((t) => ({
+                    id: t.id,
+                    label: t.title,
+                    sub: t.priority,
+                    icon: 'task_alt',
+                  }))}
+                  placeholder="自由专注：不选即不关联待办，可输入标题模糊搜索"
+                  emptyText="暂无未完成待办"
+                  onChange={(id) => {
+                    const t = todos.find((x) => x.id === id)
+                    useFocusStore.setState({ todoId: t?.id, todoTitle: t?.title })
+                  }}
+                />
+              </div>
               <Button
                 icon="play_arrow"
                 onClick={() => focus.start(useFocusStore.getState().todoId, useFocusStore.getState().todoTitle)}
