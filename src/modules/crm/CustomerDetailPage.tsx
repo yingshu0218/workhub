@@ -187,7 +187,7 @@ export default function CustomerDetailPage() {
               </div>
               <button
                 className="text-[12px] font-semibold text-primary hover:underline"
-                onClick={() => navigate('/crm/canvas')}
+                onClick={() => navigate(`/crm/${id}/graph`)}
               >
                 展开全屏图谱 →
               </button>

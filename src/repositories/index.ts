@@ -383,6 +383,7 @@ export async function saveInteractionAndTouchCustomer(
  * 2. 软删该客户全部沟通日志（盖章 + 入队 delete）
  * 3. 解绑该客户名下交易/待办/项目：customerId 置 undefined（盖章 + 入队 upsert）
  *    —— projects.customerId 必须一并解绑，否则关系画布会出现「边指向已删除客户节点」的悬挂引用（崩溃根因）。
+ * 4. 解绑其它客户 relations 里指向被删者的条目（双向弱引用清理），否则全景图/聚焦图再次悬挂。
  * 客户不存在时静默返回（幂等），其余记录已属事务内一致状态。
  */
 export async function deleteCustomerCascade(customerId: string): Promise<void> {
@@ -458,6 +459,26 @@ export async function deleteCustomerCascade(customerId: string): Promise<void> {
         await db.syncQueue.add({
           table: 'todos',
           recordId: todo.id,
+          op: 'upsert',
+          createdAt: now,
+        })
+      }
+
+      // 解绑其它客户 relations 中指向被删者的条目（双向弱引用，Issue #22）
+      // 悬挂的 relations 会让全景图/聚焦图画出「边指向已删除客户」，与 projects.customerId 同源崩溃根因
+      const allCustomers = await db.customers.toArray()
+      for (const other of allCustomers) {
+        if (other.deleted || other.id === customerId) continue
+        const rels = other.relations ?? []
+        if (rels.length === 0 || !rels.some((r) => r.targetId === customerId)) continue
+        await db.customers.update(other.id, {
+          relations: rels.filter((r) => r.targetId !== customerId),
+          updatedAt: now,
+          rev: other.rev + 1,
+        })
+        await db.syncQueue.add({
+          table: 'customers',
+          recordId: other.id,
           op: 'upsert',
           createdAt: now,
         })

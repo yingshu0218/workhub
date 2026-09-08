@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useCollection } from '@/queries/hooks'
 import { customerRepo, newId } from '@/repositories'
-import type { Customer, Transaction } from '@/db/types'
+import type { Customer, CustomerRelation, Transaction } from '@/db/types'
 import { Button, Chip, Drawer, Field, inputCls } from '@/design-system/ui'
 import { MatchCombobox } from '@/design-system/MatchCombobox'
 import { createCustomerWithInit } from './hooks'
@@ -34,6 +34,10 @@ export default function CustomerFormDrawer({
   const [email, setEmail] = useState('')
   const [address, setAddress] = useState('')
   const [healthScore, setHealthScore] = useState(60)
+  // 关联客户维护区（仅编辑模式）：只能从已有客户中选，杜绝自由造目标 id 产生画布悬挂边
+  const [relations, setRelations] = useState<CustomerRelation[]>([])
+  const [relTarget, setRelTarget] = useState('')
+  const [relLabel, setRelLabel] = useState('')
   // 第 4 步「跨模块关联初始化」状态（仅新建模式展示）
   const [initTodo, setInitTodo] = useState(true)
   const [initLog, setInitLog] = useState(false)
@@ -60,6 +64,9 @@ export default function CustomerFormDrawer({
       setEmail(customer?.email ?? '')
       setAddress(customer?.address ?? '')
       setHealthScore(customer?.healthScore ?? 60)
+      setRelations(customer?.relations ?? [])
+      setRelTarget('')
+      setRelLabel('')
       setInitTodo(true)
       setInitLog(false)
       setInitTxnId('')
@@ -78,6 +85,11 @@ export default function CustomerFormDrawer({
   // 第 4 步可关联的交易：仅列出尚未归属任何客户的流水（已关联的可通过财务侧改）
   const transactions = useCollection<Transaction>('transactions')
   const linkableTxns = transactions.filter((t) => !t.customerId)
+
+  // 关联客户候选：所有未删除客户（排除自己），只能从这里选目标
+  const customers = useCollection<Customer>('customers')
+  const relCandidates = customers.filter((c) => !customer || c.id !== customer.id)
+  const REL_LABELS = ['转介绍人', '同一公司', '上下游', '竞对参照', '其他']
 
   async function save() {
     if (!name.trim()) {
@@ -102,6 +114,8 @@ export default function CustomerFormDrawer({
         email: email.trim(),
         address: address.trim(),
         healthScore: score,
+        // relations 走下方维护区显式覆盖（state 初始值来自旧记录，不做静默丢失）
+        relations,
       })
     } else {
       const record = {
@@ -291,6 +305,70 @@ export default function CustomerFormDrawer({
             />
           </div>
         </Field>
+        {/* 关联客户维护区（仅编辑模式）：目标只能从已有客户选择，防止悬挂边 */}
+        {customer && (
+          <div className="mt-4 rounded-xl bg-surface-container-low/60 p-3">
+            <StepHeader n={4} title="关联客户" />
+            <div className="mb-2 flex flex-wrap gap-1.5">
+              {relations.length === 0 && (
+                <span className="text-[11px] text-outline">暂无关联客户</span>
+              )}
+              {relations.map((r) => {
+                const target = relCandidates.find((c) => c.id === r.targetId)
+                return (
+                  <span key={r.targetId} className="inline-flex items-center">
+                    <Chip tone="blue" icon="link">
+                      {target ? `${target.name} · ${r.label}` : `${r.targetId} · ${r.label}`}
+                    </Chip>
+                    <button
+                      className="-ml-1 h-4 w-4 rounded-full bg-surface-container-high text-[10px] leading-none text-on-surface-variant hover:text-danger"
+                      title="移除该关联"
+                      onClick={() => setRelations((rs) => rs.filter((x) => x.targetId !== r.targetId))}
+                    >
+                      ×
+                    </button>
+                  </span>
+                )
+              })}
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Field label="目标客户">
+                <select className={inputCls} value={relTarget} onChange={(e) => setRelTarget(e.target.value)}>
+                  <option value="">选择已有客户…</option>
+                  {relCandidates.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}{c.company ? `（${c.company.slice(0, 8)}）` : ''}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="关系">
+                <select className={inputCls} value={relLabel} onChange={(e) => setRelLabel(e.target.value)}>
+                  <option value="">关系语义…</option>
+                  {REL_LABELS.map((l) => (
+                    <option key={l} value={l}>{l}</option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+            <Button
+              variant="tonal"
+              icon="add"
+              disabled={!relTarget || !relLabel}
+              onClick={() => {
+                if (!relTarget || !relLabel) return
+                setRelations((rs) => [
+                  ...rs.filter((x) => x.targetId !== relTarget),
+                  { targetId: relTarget, label: relLabel },
+                ])
+                setRelTarget('')
+                setRelLabel('')
+              }}
+            >
+              添加关联
+            </Button>
+          </div>
+        )}
         {/* 第 4 步：跨模块关联初始化（仅新建模式，审计 Phase 3 P2-8） */}
         {!customer && (
           <div className="mt-4 rounded-xl bg-surface-container-low/60 p-3">

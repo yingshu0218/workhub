@@ -8,6 +8,8 @@ import CrmPage from '@/modules/crm/CrmPage'
 import CrmCanvasPage from '@/modules/crm/CrmCanvasPage'
 import CustomerDetailPage from '@/modules/crm/CustomerDetailPage'
 import CustomerTimelinePage from '@/modules/crm/CustomerTimelinePage'
+import CustomerGraphPage from '@/modules/crm/CustomerGraphPage'
+import AllTimelinesPage from '@/modules/crm/AllTimelinesPage'
 import NotesPage from '@/modules/notes/NotesPage'
 import NoteEditorPage from '@/modules/notes/NoteEditorPage'
 import HabitsPage from '@/modules/habits/HabitsPage'
@@ -41,8 +43,10 @@ const router = createBrowserRouter([
       { path: '/projects/:id', element: <ProjectDetailPage /> },
       { path: '/crm', element: <CrmPage /> },
       { path: '/crm/canvas', element: <CrmCanvasPage /> },
+      { path: '/crm/:id/graph', element: <CustomerGraphPage /> },
       { path: '/crm/:id', element: <CustomerDetailPage /> },
       { path: '/crm/:id/timeline', element: <CustomerTimelinePage /> },
+      { path: '/crm/timeline-all', element: <AllTimelinesPage /> },
       { path: '/finance', element: <FinancePage /> },
       { path: '/notes', element: <NotesPage /> },
       { path: '/notes/:id', element: <NoteEditorPage /> },

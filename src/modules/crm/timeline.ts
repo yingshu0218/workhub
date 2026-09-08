@@ -14,7 +14,7 @@ import type { Interaction, Todo, Transaction } from '@/db/types'
  */
 
 /** 时间轴事件：手写沟通日志 / 关联交易流水 / 关联待办 三源异构记录的统一形态 */
-export type TimelineEvent =
+export type TimelineEvent = { customerId?: string } & (
   | { kind: 'interaction'; id: string; at: number; type: Interaction['type']; content: string }
   | {
       kind: 'transaction'
@@ -38,6 +38,7 @@ export type TimelineEvent =
       title: string
       priority: Todo['priority']
     }
+)
 
 /** 空数组单例：liveQuery 初始 undefined 时避免每次渲染换引用 */
 const EMPTY: TimelineEvent[] = []
@@ -45,6 +46,65 @@ const EMPTY: TimelineEvent[] = []
 /**
  * 某客户的统一时间轴（按时间倒序）
  * 并行索引查询三表（customerId 均建有索引），再按 at 倒序合成投影
+ */
+/** 三源合并纯函数：interactions/transactions/todos 原始记录 → 统一时间轴事件（含 done 拆分） */
+export function mergeTimelineEvents(
+  interactions: Interaction[],
+  transactions: Transaction[],
+  todos: Todo[],
+): TimelineEvent[] {
+  const out: TimelineEvent[] = [
+    ...interactions.map(
+      (i): TimelineEvent => ({
+        kind: 'interaction',
+        id: i.id,
+        at: i.at,
+        type: i.type,
+        content: i.content,
+      }),
+    ),
+    ...transactions.map(
+      (t): TimelineEvent => ({
+        kind: 'transaction',
+        id: t.id,
+        at: t.occurredAt,
+        recordId: t.id,
+        direction: t.type,
+        amount: t.amount,
+        summary: t.summary,
+        status: t.status,
+      }),
+    ),
+  ]
+  for (const t of todos) {
+    out.push({
+      kind: 'todo',
+      id: `${t.id}:created`,
+      at: t.createdAt,
+      recordId: t.id,
+      event: 'created',
+      title: t.title,
+      priority: t.priority,
+    })
+    if (t.status === 'done' && t.completedAt) {
+      out.push({
+        kind: 'todo',
+        id: `${t.id}:done`,
+        at: t.completedAt,
+        recordId: t.id,
+        event: 'done',
+        title: t.title,
+        priority: t.priority,
+      })
+    }
+  }
+  return out
+}
+
+/**
+ * 某客户的统一时间轴（按时间倒序）
+ * 并行索引查询三表（customerId 均建有索引），再按 at 倒序合成投影
+ * 三源合并逻辑在 mergeTimelineEvents 纯函数，与 useAllTimelines 共用同一份（口径不漂移）
  */
 export function useCustomerTimeline(customerId: string | undefined): TimelineEvent[] {
   const events = useQuery<TimelineEvent[]>(async () => {
@@ -62,53 +122,38 @@ export function useCustomerTimeline(customerId: string | undefined): TimelineEve
         .toArray(),
       db.todos.where('customerId').equals(customerId).filter((t) => !t.deleted).toArray(),
     ])
-    const out: TimelineEvent[] = [
-      ...interactions.map(
-        (i): TimelineEvent => ({
-          kind: 'interaction',
-          id: i.id,
-          at: i.at,
-          type: i.type,
-          content: i.content,
-        }),
-      ),
-      ...transactions.map(
-        (t): TimelineEvent => ({
-          kind: 'transaction',
-          id: t.id,
-          at: t.occurredAt,
-          recordId: t.id,
-          direction: t.type,
-          amount: t.amount,
-          summary: t.summary,
-          status: t.status,
-        }),
-      ),
-    ]
-    for (const t of todos) {
-      out.push({
-        kind: 'todo',
-        id: `${t.id}:created`,
-        at: t.createdAt,
-        recordId: t.id,
-        event: 'created',
-        title: t.title,
-        priority: t.priority,
-      })
-      if (t.status === 'done' && t.completedAt) {
-        out.push({
-          kind: 'todo',
-          id: `${t.id}:done`,
-          at: t.completedAt,
-          recordId: t.id,
-          event: 'done',
-          title: t.title,
-          priority: t.priority,
-        })
-      }
-    }
-    return out.sort((a, b) => b.at - a.at)
+    const merged = mergeTimelineEvents(interactions, transactions, todos)
+    // 单客户视图：回填 customerId 便于类型统一（查询本身已按 customerId 索引）
+    for (const e of merged) e.customerId = customerId
+    return merged.sort((a, b) => b.at - a.at)
   }, [customerId])
+  return events ?? EMPTY
+}
+
+/**
+ * 全部客户的统一时间轴（/crm/timeline-all 全局鱼骨数据源，Issue #22 需求 ④）
+ * 复用同一套三源合并代码（mergeTimelineEvents），事件带 customerId，
+ * 消费端用 useCollection<Customer> 打上客户名/色。删除级联解绑后事件自然消失，无需额外处理。
+ */
+export function useAllTimelines(): TimelineEvent[] {
+  const events = useQuery<TimelineEvent[]>(async () => {
+    const [interactions, transactions, todos] = await Promise.all([
+      db.interactions.filter((i) => !i.deleted && !!i.customerId).toArray(),
+      db.transactions.filter((t) => !t.deleted && !!t.customerId).toArray(),
+      db.todos.filter((t) => !t.deleted && !!t.customerId).toArray(),
+    ])
+    const merged = mergeTimelineEvents(interactions, transactions, todos)
+    // 回填 customerId：三源记录均携带该字段，按 kind 对齐源记录即可
+    const byId = new Map<string, string>()
+    for (const i of interactions) byId.set(i.id, i.customerId)
+    for (const t of transactions) byId.set(t.id, t.customerId!)
+    for (const t of todos) byId.set(t.id, t.customerId!)
+    for (const e of merged) {
+      const srcId = e.kind === 'todo' ? e.recordId : e.id
+      e.customerId = byId.get(srcId)
+    }
+    return merged.sort((a, b) => b.at - a.at)
+  }, [])
   return events ?? EMPTY
 }
 

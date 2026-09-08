@@ -54,6 +54,7 @@ export async function seedIfEmpty(): Promise<boolean> {
       healthScore: 94,
       lastContactAt: now - 2 * 3600_000,
       createdAt: now - 90 * 86400_000,
+      relations: [{ targetId: 'c2', label: '上下游' }],
       ...meta(),
     },
     {
@@ -73,6 +74,10 @@ export async function seedIfEmpty(): Promise<boolean> {
       healthScore: 81,
       lastContactAt: now - 3 * 86400_000,
       createdAt: now - 45 * 86400_000,
+      relations: [
+        { targetId: 'c1', label: '上下游' },
+        { targetId: 'c3', label: '转介绍人' },
+      ],
       ...meta(),
     },
     {

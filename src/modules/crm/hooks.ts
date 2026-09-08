@@ -11,7 +11,15 @@ import type { Customer, Interaction, Todo, Transaction } from '@/db/types'
 
 /** 关系画布聚合数据（节点仅保留渲染所需字段） */
 export interface CanvasGraph {
-  customers: { id: string; name: string; company: string; tier: 'S' | 'A' | 'B' | '潜在'; healthScore: number }[]
+  customers: {
+    id: string
+    name: string
+    company: string
+    tier: 'S' | 'A' | 'B' | '潜在'
+    healthScore: number
+    /** 客户间语义关系（全景图画客户↔客户边的数据源；投影时过滤掉指向已删除/不存在客户的悬挂引用） */
+    relations: { targetId: string; label: string }[]
+  }[]
   projects: { id: string; name: string; customerId: string }[]
   transactions: { id: string; customerId: string; type: 'income' | 'expense'; amount: number; summary: string }[]
   todos: { id: string; customerId: string; title: string; priority: 'P1' | 'P2' | 'P3'; status: 'todo' | 'doing' | 'done' }[]
@@ -41,6 +49,8 @@ export function useCanvasGraph(): CanvasGraph {
         company: c.company,
         tier: c.tier,
         healthScore: c.healthScore,
+        // 悬挂防御：只带出指向现存客户的 relations（删除级联已解绑，这里再挡一层历史脏数据）
+        relations: (c.relations ?? []).filter((r) => customerIds.has(r.targetId)),
       })),
       projects: projects.map((p) => ({ id: p.id, name: p.name, customerId: p.customerId ?? '' })),
       transactions: txns.map((t) => ({
