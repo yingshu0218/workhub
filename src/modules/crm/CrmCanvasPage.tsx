@@ -12,6 +12,7 @@ import {
 import { Button, Card, Chip, EmptyState, PageHeader } from '@/design-system/ui'
 import { Icon } from '@/design-system/Icon'
 import { useCanvasGraph } from './hooks'
+import { IDENTITY_VIEW, usePanZoom } from './usePanZoom'
 
 /**
  * 关系画布（对齐原型 09-crm-canvas）
@@ -46,36 +47,25 @@ const COLORS = {
 
 const fmtMoney = (n: number) => `¥${n.toLocaleString('zh-CN')}`
 
-const SCALE_MIN = 0.5
-const SCALE_MAX = 2
-const clampScale = (s: number) => Math.min(SCALE_MAX, Math.max(SCALE_MIN, s))
-
-/** 视图变换：scale 缩放 + tx/ty 平移（SVG 用户坐标 → 屏幕坐标 = world * scale + t） */
-interface ViewState {
-  scale: number
-  tx: number
-  ty: number
-}
-const IDENTITY_VIEW: ViewState = { scale: 1, tx: 0, ty: 0 }
-
 export default function CrmCanvasPage() {
   const graph = useCanvasGraph()
   const navigate = useNavigate()
-  const wrapRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
   const simRef = useRef<Simulation<CanvasNode, undefined> | null>(null)
   const dragIdRef = useRef<string | null>(null)
   const pointerStartRef = useRef<{ x: number; y: number } | null>(null)
   const draggedRef = useRef(false)
-  const panStartRef = useRef<{ x: number; y: number; tx: number; ty: number } | null>(null)
   const [size, setSize] = useState({ w: 0, h: 0 })
-  const [view, setView] = useState<ViewState>(IDENTITY_VIEW)
+  // 共享视图变换 hook：wheel 缩放 + 空白处拖拽平移（与时间线鱼骨页共用）
+  const panZoom = usePanZoom({ size })
+  const view = panZoom.view
+  const { wheelRef } = panZoom
   const [nodes, setNodes] = useState<CanvasNode[]>([])
   const [links, setLinks] = useState<CanvasLink[]>([])
 
-  // 画布容器尺寸自适应（容器高 calc(100vh-14rem)）
+  // 画布容器尺寸自适应（容器高 calc(100vh-14rem)）；容器 ref 复用 panZoom.wheelRef（wheel 原生监听同一元素）
   useEffect(() => {
-    const el = wrapRef.current
+    const el = wheelRef.current
     if (!el) return
     const ro = new ResizeObserver((entries) => {
       const r = entries[0].contentRect
@@ -83,7 +73,7 @@ export default function CrmCanvasPage() {
     })
     ro.observe(el)
     return () => ro.disconnect()
-  }, [])
+  }, [wheelRef])
 
   // 数据变化（或容器尺寸首次就绪）时重建图与仿真
   useEffect(() => {
@@ -200,72 +190,6 @@ export default function CrmCanvasPage() {
     return { x: (p.x - view.tx) / view.scale, y: (p.y - view.ty) / view.scale }
   }
 
-  // ===== 缩放（以视口中心为锚点：缩放前后中心指向的世界点不动）=====
-  function zoomTo(next: number) {
-    const s = clampScale(next)
-    setView((v) => {
-      const k = s / v.scale
-      return {
-        scale: s,
-        tx: size.w / 2 - (size.w / 2 - v.tx) * k,
-        ty: size.h / 2 - (size.h / 2 - v.ty) * k,
-      }
-    })
-  }
-
-  // 「适应画布」：重置缩放平移，使全部节点落在视口内并居中
-  function fitView() {
-    const visible = nodes.filter((n) => n.x != null && n.y != null)
-    if (visible.length === 0 || size.w === 0 || size.h === 0) {
-      setView(IDENTITY_VIEW)
-      return
-    }
-    const pad = 48
-    let minX = Infinity
-    let minY = Infinity
-    let maxX = -Infinity
-    let maxY = -Infinity
-    for (const n of visible) {
-      minX = Math.min(minX, n.x! - n.radius)
-      minY = Math.min(minY, n.y! - n.radius)
-      maxX = Math.max(maxX, n.x! + n.radius)
-      maxY = Math.max(maxY, n.y! + n.radius)
-    }
-    const bw = Math.max(maxX - minX, 1)
-    const bh = Math.max(maxY - minY, 1)
-    const scale = clampScale(Math.min((size.w - pad * 2) / bw, (size.h - pad * 2) / bh))
-    setView({
-      scale,
-      tx: size.w / 2 - ((minX + maxX) / 2) * scale,
-      ty: size.h / 2 - ((minY + maxY) / 2) * scale,
-    })
-  }
-
-  // 滚轮缩放：trackpad 捏合（ctrl+wheel）与普通滚轮都生效；preventDefault 阻止页面滚动
-  useEffect(() => {
-    const el = wrapRef.current
-    if (!el) return
-    const onWheel = (e: WheelEvent) => {
-      e.preventDefault()
-      setView((v) => {
-        const s = clampScale(v.scale * Math.exp(-e.deltaY * 0.002))
-        const k = s / v.scale
-        return {
-          scale: s,
-          tx: size.w / 2 - (size.w / 2 - v.tx) * k,
-          ty: size.h / 2 - (size.h / 2 - v.ty) * k,
-        }
-      })
-    }
-    el.addEventListener('wheel', onWheel, { passive: false })
-    return () => el.removeEventListener('wheel', onWheel)
-  }, [size.w, size.h])
-
-  // 背景空白处按下拖拽 = 平移画布（节点 onPointerDown 已 stopPropagation，不会误入此分支）
-  function onBackgroundPointerDown(e: React.PointerEvent) {
-    panStartRef.current = { x: e.clientX, y: e.clientY, tx: view.tx, ty: view.ty }
-  }
-
   function onNodePointerDown(e: React.PointerEvent, node: CanvasNode) {
     e.stopPropagation()
     e.preventDefault()
@@ -276,12 +200,7 @@ export default function CrmCanvasPage() {
   }
 
   function onPointerMove(e: React.PointerEvent) {
-    // 背景平移优先：未按住节点时拖动视口
-    const pan = panStartRef.current
-    if (!dragIdRef.current && pan) {
-      setView((v) => ({ ...v, tx: pan.tx + (e.clientX - pan.x), ty: pan.ty + (e.clientY - pan.y) }))
-      return
-    }
+    // 背景平移由 usePanZoom 的 containerProps 处理；这里只处理节点拖拽
     const id = dragIdRef.current
     if (!id) return
     const start = pointerStartRef.current
@@ -305,7 +224,6 @@ export default function CrmCanvasPage() {
   }
 
   function onPointerUp() {
-    panStartRef.current = null
     const id = dragIdRef.current
     if (!id) return
     dragIdRef.current = null
@@ -319,6 +237,34 @@ export default function CrmCanvasPage() {
 
   // 触摸拖拽被系统手势/来电等中断时：pointerup 不会派发，必须用 pointercancel 兜底清理 fx/fy
   const onPointerCancel = onPointerUp
+
+  // 「适应画布」：重置缩放平移，使全部节点落在视口内并居中
+  function fitView() {
+    const visible = nodes.filter((n) => n.x != null && n.y != null)
+    if (visible.length === 0 || size.w === 0 || size.h === 0) {
+      panZoom.setView(IDENTITY_VIEW)
+      return
+    }
+    const pad = 48
+    let minX = Infinity
+    let minY = Infinity
+    let maxX = -Infinity
+    let maxY = -Infinity
+    for (const n of visible) {
+      minX = Math.min(minX, n.x! - n.radius)
+      minY = Math.min(minY, n.y! - n.radius)
+      maxX = Math.max(maxX, n.x! + n.radius)
+      maxY = Math.max(maxY, n.y! + n.radius)
+    }
+    const bw = Math.max(maxX - minX, 1)
+    const bh = Math.max(maxY - minY, 1)
+    const scale = Math.min((size.w - pad * 2) / bw, (size.h - pad * 2) / bh)
+    panZoom.setView({
+      scale: Math.min(2, Math.max(0.5, scale)),
+      tx: size.w / 2 - ((minX + maxX) / 2) * scale,
+      ty: size.h / 2 - ((minY + maxY) / 2) * scale,
+    })
+  }
 
   function reheat() {
     nodes.forEach((n) => {
@@ -360,13 +306,22 @@ export default function CrmCanvasPage() {
 
       <Card className="overflow-hidden p-0">
         <div
-          ref={wrapRef}
+          ref={wheelRef}
           className="relative bg-surface-container-low/40"
           style={{ height: 'calc(100vh - 14rem)', minHeight: 320, touchAction: 'none' }}
-          onPointerDown={onBackgroundPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onPointerCancel={onPointerCancel}
+          {...panZoom.containerProps}
+          onPointerMove={(e) => {
+            panZoom.containerProps.onPointerMove(e)
+            onPointerMove(e)
+          }}
+          onPointerUp={() => {
+            panZoom.containerProps.onPointerUp()
+            onPointerUp()
+          }}
+          onPointerCancel={() => {
+            panZoom.containerProps.onPointerCancel()
+            onPointerCancel()
+          }}
         >
           {empty ? (
             <div className="flex h-full items-center justify-center">
@@ -475,7 +430,7 @@ export default function CrmCanvasPage() {
               <button
                 className="flex h-7 w-7 items-center justify-center rounded-lg text-[16px] font-semibold text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
                 title="缩小"
-                onClick={() => zoomTo(view.scale - 0.1)}
+                onClick={() => panZoom.zoomTo(view.scale - 0.1)}
               >
                 −
               </button>
@@ -485,7 +440,7 @@ export default function CrmCanvasPage() {
               <button
                 className="flex h-7 w-7 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
                 title="放大"
-                onClick={() => zoomTo(view.scale + 0.1)}
+                onClick={() => panZoom.zoomTo(view.scale + 0.1)}
               >
                 <Icon name="add" size={16} />
               </button>

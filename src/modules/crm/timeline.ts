@@ -20,6 +20,8 @@ export type TimelineEvent =
       kind: 'transaction'
       id: string
       at: number
+      /** 源记录 id（transactions 主键），供鱼骨穿透定位流水详情 */
+      recordId: string
       direction: 'income' | 'expense'
       amount: number
       summary: string
@@ -29,6 +31,8 @@ export type TimelineEvent =
       kind: 'todo'
       id: string
       at: number
+      /** 源记录 id（todos 主键），供鱼骨穿透定位待办（同一待办的 created/done 事件点共享） */
+      recordId: string
       /** 同一待办拆成 created / done 两个事件点（Issue #11 用户已确认接受） */
       event: 'created' | 'done'
       title: string
@@ -73,6 +77,7 @@ export function useCustomerTimeline(customerId: string | undefined): TimelineEve
           kind: 'transaction',
           id: t.id,
           at: t.occurredAt,
+          recordId: t.id,
           direction: t.type,
           amount: t.amount,
           summary: t.summary,
@@ -85,6 +90,7 @@ export function useCustomerTimeline(customerId: string | undefined): TimelineEve
         kind: 'todo',
         id: `${t.id}:created`,
         at: t.createdAt,
+        recordId: t.id,
         event: 'created',
         title: t.title,
         priority: t.priority,
@@ -94,6 +100,7 @@ export function useCustomerTimeline(customerId: string | undefined): TimelineEve
           kind: 'todo',
           id: `${t.id}:done`,
           at: t.completedAt,
+          recordId: t.id,
           event: 'done',
           title: t.title,
           priority: t.priority,

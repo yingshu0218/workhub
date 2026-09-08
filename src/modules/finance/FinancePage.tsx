@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Icon } from '@/design-system/Icon'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useCollection, useRecord } from '@/queries/hooks'
 import type { Customer, Ledger, Todo, Transaction } from '@/db/types'
 import {
@@ -61,6 +61,16 @@ export default function FinancePage() {
   useEffect(() => {
     setPage(0)
   }, [scope, typeFilter, statusFilter, keyword])
+
+  // 深链定位：/finance?focus=<transactionId>（客户时间线鱼骨穿透入口）——目标流水存在时直接打开详情抽屉
+  const [searchParams, setSearchParams] = useSearchParams()
+  const focusTxnId = searchParams.get('focus') ?? undefined
+  useEffect(() => {
+    if (!focusTxnId) return
+    if (!transactions.some((t) => t.id === focusTxnId)) return
+    setDetailId(focusTxnId)
+    setSearchParams({}, { replace: true })
+  }, [focusTxnId, transactions, setSearchParams])
 
   const ledgerMap = new Map(ledgers.map((l) => [l.id, l]))
   // 左侧账本树顺序：sortOrder 升序，旧记录（无 sortOrder）按 createdAt 兜底

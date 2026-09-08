@@ -86,3 +86,4 @@
 | 35 | 2026-09-08 | 字体预设扩充（Issue #14）：字体组合 6 组 → 12 组，新增等宽极客/仿宋公文/飘逸草体/凌厉黑体/典丽宋体/元气圆黑；设置页字体网格自适应两列/三列布局 | npc/CodeBuddy |
 | 36 | 2026-09-08 | Issue #14 审计修复：主题切换先清理旧 inline 变量再覆盖（防经典晴空/深浅互切残留污染）；楷体字体栈 `'serif'` 误引号修正为关键字 serif | npc/CodeBuddy(deepseek-v4-flash) |
 | 37 | 2026-09-08 | Issue #14 复核补充：主题/字体类型单源化（THEME_STYLES as const satisfies 派生 ThemeStyleId，SettingsAppearance.theme 收窄）+ 主题 token 除 classic 外明暗两侧补齐 19 键 + gothic 字体栈移除不可命中的 'Source Han Sans SC Heavy' | npc/CodeBuddy(deepseek-v4-flash) |
+| 38 | 2026-09-08 | Issue #11 客户三源统一时间轴：客户详情页沟通日志卡片重构为 interactions/transactions/todos 动态投影（无新表/无迁移），新增 /crm/:id/timeline 鱼骨时间线视图（共享 usePanZoom 缩放平移）；修复鱼骨待办/交易穿透（事件点补 recordId，/todo?focus= 与 /finance?focus= 深链定位 + 拖拽保护）；db/sync/schema 零侵入（PR #15） | npc/CodeBuddy |
