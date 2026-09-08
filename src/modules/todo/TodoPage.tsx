@@ -155,6 +155,9 @@ export default function TodoPage() {
   }
   function selectList(id: string) {
     setSelListId(id)
+    // 切换清单时同步重置筛选 Chip，与切换固定视图一致
+    setChipP1(false)
+    setChipDone(false)
   }
 
   async function submitCreateList() {
