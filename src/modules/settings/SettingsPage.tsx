@@ -9,7 +9,7 @@ import {
   attachmentRepo, focusSessionRepo,
 } from '@/repositories'
 import { listShortcuts } from '@/shared/shortcuts'
-import { ACCENT_PRESETS, RADIUS_PRESETS, FONT_SIZE_STEPS, LINE_HEIGHT_STEPS, FONT_PRESETS } from '@/shared/theme'
+import { ACCENT_PRESETS, RADIUS_PRESETS, FONT_SIZE_STEPS, LINE_HEIGHT_STEPS, FONT_PRESETS, THEME_STYLES, FONT_STACKS } from '@/shared/theme'
 import { pbPing, isSyncConfigured, enqueueAllForPush } from '@/sync/pocketbaseAdapter'
 import { syncEngine } from '@/sync/engine'
 import { useSyncStore } from '@/sync/store'
@@ -369,6 +369,39 @@ export default function SettingsPage() {
 
       {/* ── 外观与主题 ── */}
       {tab === 'appearance' && (
+        <div className="space-y-4">
+        <Section icon="auto_awesome" title="风格主题" desc="整套界面气质：底色基调、容器色阶与情绪色一键切换（含明暗推荐）" badge="实时生效">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {THEME_STYLES.map((t) => {
+              const active = (settings.appearance.theme ?? 'classic') === t.id
+              return (
+                <button
+                  key={t.id}
+                  className={`rounded-xl border p-4 text-left transition-colors ${
+                    active ? 'border-primary bg-primary-fixed/40' : 'border-outline-variant/50 hover:border-primary/50'
+                  }`}
+                  onClick={() => {
+                    const mode = t.mode === 'dark' ? 'dark' : 'light'
+                    const radius = ('radius' in t ? t.radius : undefined) ?? settings.appearance.radius
+                    save({ appearance: { ...settings.appearance, theme: t.id, mode, radius } })
+                  }}
+                >
+                  <div className="mb-3 flex h-16 overflow-hidden rounded-lg border border-outline-variant/40">
+                    {t.swatch.map((c, i) => (
+                      <div key={i} className="flex-1" style={{ background: c }} />
+                    ))}
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[13px] font-semibold">{t.label}</span>
+                    {active && <Icon name="check_circle" fill className="text-[18px] text-primary" />}
+                  </div>
+                  <p className="mt-1 text-[11px] leading-snug text-on-surface-variant">{t.desc}</p>
+                </button>
+              )
+            })}
+          </div>
+        </Section>
+
         <Section icon="palette" title="外观显示模式" desc="选择工作台的基础底色方案，切换实时生效" badge="实时生效">
           <div className="grid grid-cols-3 gap-3">
             {([
@@ -406,6 +439,7 @@ export default function SettingsPage() {
             ))}
           </div>
         </Section>
+        </div>
       )}
 
       {/* ── 色彩与密度 ── */}
@@ -457,8 +491,8 @@ export default function SettingsPage() {
       {/* ── 字体与排版 ── */}
       {tab === 'typography' && (
         <div className="space-y-4">
-          <Section icon="text_fields" title="字体组合" desc="切换全局 font-sans 字体栈（Inter 优先 / 系统优先 / 衬线优先）" badge="实时生效">
-            <div className="grid grid-cols-3 gap-3">
+          <Section icon="text_fields" title="字体组合" desc="切换全局 font-sans 字体栈，12 组风格预设（黑体/衬线/楷体/等宽/仿宋/草体等）" badge="实时生效">
+            <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
               {FONT_PRESETS.map((p) => (
                 <button
                   key={p.id}
@@ -470,15 +504,8 @@ export default function SettingsPage() {
                   onClick={() => save({ typography: { ...settings.typography, fontPreset: p.id } })}
                 >
                   <div
-                    className="text-[15px] font-semibold"
-                    style={{
-                      fontFamily:
-                        p.id === 'serif'
-                          ? `'Noto Serif SC', 'Songti SC', Georgia, serif`
-                          : p.id === 'system'
-                            ? `system-ui, -apple-system, 'PingFang SC', sans-serif`
-                            : `'Inter', 'PingFang SC', sans-serif`,
-                    }}
+                    className="truncate text-[15px] font-semibold"
+                    style={{ fontFamily: FONT_STACKS[p.id] }}
                   >
                     字体预设 Aa
                   </div>
