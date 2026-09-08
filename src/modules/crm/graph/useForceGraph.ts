@@ -7,8 +7,9 @@ import {
   forceSimulation,
   type Simulation,
 } from 'd3-force'
+import type { RelationCategory } from '@/db/types'
 import type { CanvasGraph } from '../hooks'
-import { buildGraph } from './buildGraph'
+import { buildGraph, type GraphMode } from './buildGraph'
 import type { GraphLink, GraphNode } from './types'
 
 /**
@@ -21,9 +22,13 @@ export interface ForceGraphOptions {
   graph: CanvasGraph
   size: { w: number; h: number }
   focusId?: string
+  /** 视图模式（Issue #34）：默认 mixed */
+  mode?: GraphMode
+  /** 关系归类筛选（customer-only 模式生效） */
+  categories?: RelationCategory[]
 }
 
-export function useForceGraph({ graph, size, focusId }: ForceGraphOptions) {
+export function useForceGraph({ graph, size, focusId, mode, categories }: ForceGraphOptions) {
   const [nodes, setNodes] = useState<GraphNode[]>([])
   const [links, setLinks] = useState<GraphLink[]>([])
   const simRef = useRef<Simulation<GraphNode, undefined> | null>(null)
@@ -32,7 +37,12 @@ export function useForceGraph({ graph, size, focusId }: ForceGraphOptions) {
   useEffect(() => {
     if (size.w === 0 || size.h === 0 || graph.customers.length === 0) return
 
-    const built = buildGraph(graph, { focusId, center: { x: size.w / 2, y: size.h / 2 } })
+    const built = buildGraph(graph, {
+      focusId,
+      mode,
+      categories,
+      center: { x: size.w / 2, y: size.h / 2 },
+    })
     const ns = built.nodes
     const ls = built.links
     if (ns.length === 0) return
@@ -80,7 +90,7 @@ export function useForceGraph({ graph, size, focusId }: ForceGraphOptions) {
         rafRef.current = null
       }
     }
-  }, [graph, size.w, size.h, focusId])
+  }, [graph, size.w, size.h, focusId, mode, categories])
 
   return { nodes, links, setNodes, setLinks, simRef }
 }

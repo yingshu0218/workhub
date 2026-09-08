@@ -1,3 +1,4 @@
+import type { RelationCategory } from '@/db/types'
 import type { SimulationNodeDatum } from 'd3-force'
 
 /**
@@ -24,6 +25,8 @@ export interface GraphLink {
   kind: GraphLinkKind
   /** 关系边（客户↔客户）的语义标签，tooltip 展示 */
   label?: string
+  /** 关系边聚合的归类维度（同一对客户所有 relation 条目的类别并集，Issue #34） */
+  categories?: RelationCategory[]
 }
 
 export const GRAPH_COLORS = {

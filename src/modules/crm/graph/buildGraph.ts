@@ -1,3 +1,4 @@
+import type { RelationCategory } from '@/db/types'
 import type { CanvasGraph } from '../hooks'
 import type { GraphLink, GraphNode } from './types'
 import { GRAPH_COLORS } from './types'
@@ -13,12 +14,19 @@ import { GRAPH_COLORS } from './types'
 export interface BuildGraphOptions {
   /** 聚焦模式：只保留该客户 + 一跳邻居（其业务实体 + 关联客户） */
   focusId?: string
+  /** 视图模式：mixed=客户+业务实体（默认，兼容原全景）；customer-only=纯客户+分类关系边 */
+  mode?: GraphMode
+  /** 关系归类筛选（customer-only 模式）：只保留含任一所选类别的边；缺省=全部 */
+  categories?: RelationCategory[]
   /** 初始打散锚点（画布中心） */
   center: { x: number; y: number }
 }
 
 const fmtMoney = (n: number) => `¥${n.toLocaleString('zh-CN')}`
 const trunc = (s: string, n = 8) => (s.length > n ? `${s.slice(0, n)}…` : s)
+
+/** 图谱视图模式（Issue #34）：混合（客户+业务实体辐条，原全景） / customer-only（纯客户关系网） */
+export type GraphMode = 'mixed' | 'customer-only'
 
 /** 组装节点与从属边（客户 → 项目/流水/待办/笔记），返回 { nodes, links } 与客户 id 集合 */
 function assemble(graph: CanvasGraph): { nodes: GraphNode[]; links: GraphLink[] } {
@@ -90,27 +98,71 @@ function assemble(graph: CanvasGraph): { nodes: GraphNode[]; links: GraphLink[] 
   return { nodes: ns, links: ls }
 }
 
-/** 客户↔客户语义关系边（kind='relation'，去重防 A-B / B-A 重复） */
+/**
+ * 客户↔客户语义关系边（kind='relation'）
+ * 去重防 A-B / B-A 重复：同一对客户只画一条无向边，该对之间所有 relation 条目的
+ * category 聚合到边上（Issue #34 裁决：单对单边 + 类别聚合），label 取首条语义
+ */
 function buildRelationLinks(graph: CanvasGraph): GraphLink[] {
-  const seen = new Set<string>()
-  const out: GraphLink[] = []
+  const byPair = new Map<string, { source: string; target: string; label: string; categories: RelationCategory[] }>()
   for (const c of graph.customers) {
     for (const r of c.relations) {
       // 悬挂防御：指向不存在/已删除客户的条目在投影层已过滤，这里再挡一层
       if (!graph.customers.some((x) => x.id === r.targetId)) continue
-      // 去重：A→B 与 B→A 只画一条（语义为弱关系，方向不敏感）
       const key = [c.id, r.targetId].sort().join('~')
-      if (seen.has(key)) continue
-      seen.add(key)
-      out.push({ source: c.id, target: r.targetId, kind: 'relation', label: r.label })
+      const hit = byPair.get(key)
+      if (hit) {
+        // 已有该对客户：聚合类别（去重），label 保留首条语义
+        if (r.category && !hit.categories.includes(r.category)) hit.categories.push(r.category)
+      } else {
+        byPair.set(key, {
+          source: c.id,
+          target: r.targetId,
+          label: r.label,
+          categories: r.category ? [r.category] : [],
+        })
+      }
     }
   }
-  return out
+  return [...byPair.values()].map((e) => ({
+    source: e.source,
+    target: e.target,
+    kind: 'relation' as const,
+    label: e.label,
+    categories: e.categories,
+  }))
 }
 
 export function buildGraph(graph: CanvasGraph, opts: BuildGraphOptions): { nodes: GraphNode[]; links: GraphLink[] } {
-  const { nodes, links } = assemble(graph)
   const relationLinks = buildRelationLinks(graph)
+
+  // ── customer-only 模式（Issue #34）：纯客户节点 + 分类关系边，业务实体节点不参与 ──
+  if (opts.mode === 'customer-only') {
+    const ns: GraphNode[] = graph.customers.map((c, i) => ({
+      id: c.id,
+      kind: 'customer' as const,
+      label: c.name,
+      color: GRAPH_COLORS.customer.stroke,
+      fill: GRAPH_COLORS.customer.fill,
+      radius: 24,
+      x: opts.center.x + Math.cos(i * 2.4) * 120,
+      y: opts.center.y + Math.sin(i * 2.4) * 90,
+    }))
+    const ids = new Set(ns.map((n) => n.id))
+    const cats = opts.categories
+    const ls = relationLinks.filter((l) => {
+      // 类别筛选：边含任一所选类别才保留（无边类别的旧数据归入 other 口径）
+      if (cats && cats.length > 0) {
+        const edgeCats = l.categories ?? []
+        const cs = edgeCats.length > 0 ? edgeCats : (['other'] as RelationCategory[])
+        if (!cs.some((c) => cats.includes(c))) return false
+      }
+      return ids.has(String(typeof l.source === 'string' ? l.source : l.source.id)) && ids.has(String(typeof l.target === 'string' ? l.target : l.target.id))
+    })
+    return { nodes: ns, links: ls }
+  }
+
+  const { nodes, links } = assemble(graph)
   const allLinks = [...links, ...relationLinks]
   const allNodes = [...nodes]
 

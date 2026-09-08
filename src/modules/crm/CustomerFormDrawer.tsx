@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useCollection } from '@/queries/hooks'
 import { customerRepo, newId } from '@/repositories'
-import type { Customer, CustomerRelation, Transaction } from '@/db/types'
+import type { Customer, CustomerRelation, RelationCategory, Transaction } from '@/db/types'
+import { RELATION_CATEGORIES } from '@/db/types'
 import { Button, Chip, Drawer, Field, inputCls } from '@/design-system/ui'
 import { MatchCombobox } from '@/design-system/MatchCombobox'
 import { createCustomerWithInit } from './hooks'
@@ -38,6 +39,7 @@ export default function CustomerFormDrawer({
   const [relations, setRelations] = useState<CustomerRelation[]>([])
   const [relTarget, setRelTarget] = useState('')
   const [relLabel, setRelLabel] = useState('')
+  const [relCategory, setRelCategory] = useState<RelationCategory | ''>('')
   // 第 4 步「跨模块关联初始化」状态（仅新建模式展示）
   const [initTodo, setInitTodo] = useState(true)
   const [initLog, setInitLog] = useState(false)
@@ -315,10 +317,12 @@ export default function CustomerFormDrawer({
               )}
               {relations.map((r) => {
                 const target = relCandidates.find((c) => c.id === r.targetId)
+                const catName = RELATION_CATEGORIES.find((c) => c.id === r.category)?.name
                 return (
                   <span key={r.targetId} className="inline-flex items-center">
                     <Chip tone="blue" icon="link">
                       {target ? `${target.name} · ${r.label}` : `${r.targetId} · ${r.label}`}
+                      {catName ? `（${catName}）` : ''}
                     </Chip>
                     <button
                       className="-ml-1 h-4 w-4 rounded-full bg-surface-container-high text-[10px] leading-none text-on-surface-variant hover:text-danger"
@@ -350,6 +354,20 @@ export default function CustomerFormDrawer({
                   ))}
                 </select>
               </Field>
+              <div className="col-span-2">
+                <Field label="归类（可选，用于图谱连线分组着色）">
+                  <select
+                    className={inputCls}
+                    value={relCategory}
+                    onChange={(e) => setRelCategory(e.target.value as RelationCategory | '')}
+                  >
+                    <option value="">未归类（图谱按「其他」展示）</option>
+                    {RELATION_CATEGORIES.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </Field>
+              </div>
             </div>
             <Button
               variant="tonal"
@@ -359,10 +377,12 @@ export default function CustomerFormDrawer({
                 if (!relTarget || !relLabel) return
                 setRelations((rs) => [
                   ...rs.filter((x) => x.targetId !== relTarget),
-                  { targetId: relTarget, label: relLabel },
+                  // category 可选（Issue #34）：仅作图谱归类展示，不填按 other 口径
+                  { targetId: relTarget, label: relLabel, ...(relCategory ? { category: relCategory } : {}) },
                 ])
                 setRelTarget('')
                 setRelLabel('')
+                setRelCategory('')
               }}
             >
               添加关联

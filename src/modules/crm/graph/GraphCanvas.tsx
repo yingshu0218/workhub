@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Card, EmptyState } from '@/design-system/ui'
 import { Icon } from '@/design-system/Icon'
+import { RELATION_CATEGORIES, type RelationCategory } from '@/db/types'
 import { IDENTITY_VIEW, usePanZoom } from '../usePanZoom'
 import { useForceGraph } from './useForceGraph'
 import { GRAPH_COLORS, type GraphNode } from './types'
+import CustomerInfoCard from './CustomerInfoCard'
 import type { CanvasGraph } from '../hooks'
 
 /**
@@ -24,16 +26,41 @@ export interface GraphCanvasProps {
   legend?: React.ReactNode
   /** 是否展示「重新布局」浮动按钮（原画布页 header 行为保留） */
   showReheat?: boolean
+  /** 视图模式（Issue #34）：mixed=客户+业务实体；customer-only=纯客户关系网 */
+  mode?: 'mixed' | 'customer-only'
 }
 
-export default function GraphCanvas({ graph, focusId, style, legend, showReheat }: GraphCanvasProps) {
+export default function GraphCanvas({ graph, focusId, style, legend, showReheat, mode = 'mixed' }: GraphCanvasProps) {
   const navigate = useNavigate()
   const svgRef = useRef<SVGSVGElement>(null)
   const dragIdRef = useRef<string | null>(null)
   const pointerStartRef = useRef<{ x: number; y: number } | null>(null)
   const draggedRef = useRef(false)
   const [size, setSize] = useState({ w: 0, h: 0 })
-  const { nodes, links, simRef } = useForceGraph({ graph, size, focusId })
+  // 单击客户节点 → 缩略信息卡（Issue #34）：记录选中客户与节点屏幕坐标
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const selectedScreenRef = useRef({ x: 0, y: 0 })
+  const [selectedScreen, setSelectedScreen] = useState({ x: 0, y: 0 })
+  // 关系归类筛选（仅 customer-only 模式展示）
+  const [activeCats, setActiveCats] = useState<RelationCategory[]>([])
+  const { nodes, links, simRef } = useForceGraph({
+    graph,
+    size,
+    focusId,
+    mode,
+    categories: mode === 'customer-only' ? activeCats : undefined,
+  })
+
+  // customer-only 模式：仅在有关系的客户对上展示归类筛选 chips（无任何归类数据时隐藏）
+  const showCatFilter =
+    mode === 'customer-only' &&
+    links.some((l) => l.kind === 'relation' && (l.categories?.length ?? 0) > 0)
+
+  // 选中客户投影（缩略卡数据源）
+  const selectedCustomer = useMemo(
+    () => (selectedId ? graph.customers.find((c) => c.id === selectedId) : undefined),
+    [selectedId, graph],
+  )
   // 共享视图变换 hook：wheel 缩放 + 空白处拖拽平移（与时间线鱼骨页共用）
   const panZoom = usePanZoom({ size })
   const view = panZoom.view
@@ -163,6 +190,24 @@ export default function GraphCanvas({ graph, focusId, style, legend, showReheat 
     requestAnimationFrame(fitView)
   }
 
+  // Esc 关闭缩略卡（与 Drawer 交互习惯一致）
+  useEffect(() => {
+    if (!selectedId) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSelectedId(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [selectedId])
+
+  // 平移/缩放后节点屏幕坐标已变：关闭浮层（节点坐标刷新需要重新点击，避免卡片错位悬挂）
+  const viewKey = `${view.tx},${view.ty},${view.scale}`
+  const lastViewKey = useRef(viewKey)
+  if (lastViewKey.current !== viewKey) {
+    lastViewKey.current = viewKey
+    if (selectedId) setSelectedId(null)
+  }
+
   const empty = graph.customers.length === 0
 
   return (
@@ -239,12 +284,18 @@ export default function GraphCanvas({ graph, focusId, style, legend, showReheat 
                     const d = Math.hypot(dx, dy) || 1
                     const cx = mx + (-dy / d) * 24
                     const cy = my + (dx / d) * 24
+                    // 类别着色（Issue #34）：单类别=类别色；多类别/未归类=默认关系色
+                    const cats = l.categories ?? []
+                    const edgeColor =
+                      cats.length === 1
+                        ? (RELATION_CATEGORIES.find((c) => c.id === cats[0])?.color ?? GRAPH_COLORS.relation.stroke)
+                        : GRAPH_COLORS.relation.stroke
                     return (
                       <g key={`r${i}`}>
                         <path
                           d={`M${s.x},${s.y} Q${cx},${cy} ${t.x},${t.y}`}
                           fill="none"
-                          stroke={GRAPH_COLORS.relation.stroke}
+                          stroke={edgeColor}
                           strokeWidth={1.5}
                           strokeDasharray="5 4"
                           opacity={0.85}
@@ -254,7 +305,7 @@ export default function GraphCanvas({ graph, focusId, style, legend, showReheat 
                           y={cy + ((cy - my) / 24) * 10}
                           textAnchor="middle"
                           style={{ fontSize: 10, fontWeight: 700 }}
-                          fill={GRAPH_COLORS.relation.text}
+                          fill={edgeColor}
                         >
                           {l.label}
                         </text>
@@ -279,8 +330,22 @@ export default function GraphCanvas({ graph, focusId, style, legend, showReheat 
                             draggedRef.current = false
                             return
                           }
-                          // 客户/项目节点单击即跳转；其余节点走双击穿透（避免误触）
-                          if (n.kind === 'customer') navigate(`/crm/${n.id}`)
+                          // 客户节点：单击弹缩略信息卡（Issue #34），「进入档案」保留原跳转；
+                          // 项目节点单击仍跳转；其余节点走双击穿透（避免误触）
+                          if (n.kind === 'customer') {
+                            if (selectedId === n.id) {
+                              setSelectedId(null)
+                              return
+                            }
+                            // 节点世界坐标 → 屏幕坐标（视口 = world*scale + t），浮层跟随节点
+                            const r = svgRef.current?.getBoundingClientRect()
+                            selectedScreenRef.current = {
+                              x: (r?.left ?? 0) + n.x! * view.scale + view.tx,
+                              y: (r?.top ?? 0) + n.y! * view.scale + view.ty,
+                            }
+                            setSelectedScreen(selectedScreenRef.current)
+                            setSelectedId(n.id)
+                          }
                           if (n.kind === 'project') navigate(`/projects/${n.id.replace('proj:', '')}`)
                         }}
                         onDoubleClick={() => {
@@ -329,6 +394,43 @@ export default function GraphCanvas({ graph, focusId, style, legend, showReheat 
               </g>
             </g>
           </svg>
+        )}
+
+        {/* 归类筛选 chips（Issue #34，仅 customer-only 模式） */}
+        {showCatFilter && (
+          <div
+            className="absolute left-3 top-3 z-10 flex flex-wrap items-center gap-1.5"
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            {RELATION_CATEGORIES.map((c) => {
+              const on = activeCats.includes(c.id)
+              return (
+                <button
+                  key={c.id}
+                  className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[12px] font-medium shadow-sm backdrop-blur transition-colors ${
+                    on
+                      ? 'border-transparent text-white'
+                      : 'border-outline-variant/40 bg-surface-container-lowest/95 text-on-surface-variant hover:bg-surface-container'
+                  }`}
+                  style={on ? { background: c.color } : undefined}
+                  onClick={() =>
+                    setActiveCats((cs) => (cs.includes(c.id) ? cs.filter((x) => x !== c.id) : [...cs, c.id]))
+                  }
+                >
+                  <span className="h-2 w-2 rounded-full" style={{ background: on ? '#fff' : c.color }} />
+                  {c.name}
+                </button>
+              )
+            })}
+            {activeCats.length > 0 && (
+              <button
+                className="rounded-full px-2 py-0.5 text-[12px] text-on-surface-variant underline-offset-2 hover:underline"
+                onClick={() => setActiveCats([])}
+              >
+                清除
+              </button>
+            )}
+          </div>
         )}
 
         {/* 左下角「重新布局」：释放全部固定点并 reheat 仿真 */}
@@ -381,6 +483,19 @@ export default function GraphCanvas({ graph, focusId, style, legend, showReheat 
               适应画布
             </button>
           </div>
+        )}
+
+        {/* 客户缩略信息卡（Issue #34）：单击节点弹出，点空白/Esc 关闭，「进入档案」跳详情 */}
+        {selectedCustomer && (
+          <CustomerInfoCard
+            customer={selectedCustomer}
+            screen={selectedScreen}
+            onEnter={() => {
+              navigate(`/crm/${selectedCustomer.id}`)
+              setSelectedId(null)
+            }}
+            onClose={() => setSelectedId(null)}
+          />
         )}
       </div>
     </Card>
