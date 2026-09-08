@@ -8,13 +8,14 @@ import CommandPalette from './CommandPalette'
 import TrophyUnlockToast from './TrophyUnlockToast'
 
 const NAV_ITEMS = [
-  { to: '/notes', icon: 'description', label: '笔记' },
   { to: '/', icon: 'dashboard', label: '工作台' },
+  { to: '/notes', icon: 'description', label: '笔记' },
   { to: '/todo', icon: 'check_circle', label: '待办事项' },
   { to: '/projects', icon: 'hub', label: '项目' },
   { to: '/crm', icon: 'group', label: '客户管理' },
   { to: '/finance', icon: 'account_balance_wallet', label: '财务中心' },
   { to: '/habits', icon: 'local_fire_department', label: '打卡习惯' },
+  { to: '/inspiration', icon: 'auto_awesome', label: '灵感闪现' },
   { to: '/trophies', icon: 'emoji_events', label: '成就奖杯' },
 ]
 
@@ -109,20 +110,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
-        {/* 灵感闪现高亮入口 */}
-        <div className="px-3">
-          <NavLink
-            to="/inspiration"
-            className="mb-3 flex items-center gap-2.5 rounded-xl bg-gradient-to-r from-primary to-primary-container px-3.5 py-2.5 text-on-primary transition-transform hover:scale-[1.01]"
-          >
-            <Icon name="auto_awesome" fill />
-            <div className="flex-1">
-              <div className="text-[13px] font-semibold leading-tight">灵感闪现</div>
-              <div className="text-[11px] opacity-80">下一件最值得推进的事</div>
-            </div>
-          </NavLink>
-        </div>
-
         <nav className="flex-1 space-y-0.5 overflow-y-auto px-3">
           {NAV_ITEMS.map((item) => (
             <NavLink
@@ -132,7 +119,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               className={({ isActive }) =>
                 `flex items-center gap-3 rounded-lg px-3 py-2 text-[13.5px] transition-colors ${
                   isActive
-                    ? 'bg-primary-fixed font-semibold text-primary'
+                    ? item.to === '/'
+                      ? 'bg-primary-fixed font-semibold text-primary ring-1 ring-primary'
+                      : 'bg-primary-fixed font-semibold text-primary'
                     : 'text-on-surface-variant hover:bg-surface-container'
                 }`
               }
