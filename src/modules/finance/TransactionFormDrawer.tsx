@@ -5,7 +5,7 @@ import { newId, saveTransactionWithAttachments } from '@/repositories'
 import { eventBus } from '@/shared/eventBus'
 import type { PutInput } from '@/repositories/repository'
 import type { Attachment } from '@/db/db'
-import type { Customer, Ledger, Todo, Transaction } from '@/db/types'
+import type { Customer, Ledger, Project, Todo, Transaction } from '@/db/types'
 import { Button, Chip, Drawer, Field, inputCls } from '@/design-system/ui'
 import dayjs from 'dayjs'
 
@@ -208,6 +208,7 @@ export default function TransactionFormDrawer({
 }) {
   const ledgers = useCollection<Ledger>('ledgers')
   const customers = useCollection<Customer>('customers')
+  const projects = useCollection<Project>('projects')
   const todos = useCollection<Todo>('todos')
   const openTodos = todos.filter((t) => t.status !== 'done')
   const [type, setType] = useState<Transaction['type']>('income')
@@ -219,6 +220,7 @@ export default function TransactionFormDrawer({
   const [tagsRaw, setTagsRaw] = useState('')
   const [customerId, setCustomerId] = useState('')
   const [todoId, setTodoId] = useState('')
+  const [projectId, setProjectId] = useState('')
   const [invoiceNo, setInvoiceNo] = useState('')
   const [note, setNote] = useState('')
   const [files, setFiles] = useState<File[]>([])
@@ -241,6 +243,7 @@ export default function TransactionFormDrawer({
         setTagsRaw(editTxn.tags.join(', '))
         setCustomerId(editTxn.customerId ?? '')
         setTodoId(editTxn.todoId ?? '')
+        setProjectId(editTxn.projectId ?? '')
         setInvoiceNo(editTxn.invoiceNo ?? '')
         setNote(editTxn.note ?? '')
       } else {
@@ -255,6 +258,7 @@ export default function TransactionFormDrawer({
         setTagsRaw('')
         setCustomerId('')
         setTodoId('')
+        setProjectId('')
         setInvoiceNo('')
         setNote('')
       }
@@ -318,6 +322,7 @@ export default function TransactionFormDrawer({
           note: note.trim() || undefined,
           customerId: customerId || undefined,
           todoId: todoId || undefined,
+          projectId: projectId || undefined,
         }
       : {
           id: txnId,
@@ -332,6 +337,7 @@ export default function TransactionFormDrawer({
           note: note.trim() || undefined,
           customerId: customerId || undefined,
           todoId: todoId || undefined,
+          projectId: projectId || undefined,
           status: '待对账',
         }
     // 附件存根：Blob 入 attachments 表，refId 指向交易；与交易同事务原子落库
@@ -464,6 +470,17 @@ export default function TransactionFormDrawer({
             emptyText="没有匹配的客户"
             onChange={setCustomerId}
           />
+        </Field>
+        <Field label="关联项目">
+          <select className={inputCls} value={projectId} onChange={(e) => setProjectId(e.target.value)}>
+            <option value="">不关联</option>
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+                {p.status === 'archived' ? '（已归档）' : ''}
+              </option>
+            ))}
+          </select>
         </Field>
         <Field label="关联待办">
           <MatchCombobox

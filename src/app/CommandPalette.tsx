@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { useCollection } from '@/queries/hooks'
 import { buildSearchIndex, searchAll } from '@/shared/search'
 import type { SearchItem } from '@/shared/search'
-import type { Customer, Todo, Transaction, Note, Habit } from '@/db/types'
+import type { Customer, Project, Todo, Transaction, Note, Habit } from '@/db/types'
 import { noteRepo, newId } from '@/repositories'
 
 /**
@@ -19,6 +19,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
   const [creatingNote, setCreatingNote] = useState(false)
 
   const customers = useCollection<Customer>('customers')
+  const projects = useCollection<Project>('projects')
   const todos = useCollection<Todo>('todos')
   const transactions = useCollection<Transaction>('transactions')
   // 搜索投影下沉：笔记仅取 id/title/tags，整篇 markdown 不进内存
@@ -28,10 +29,10 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
   const groups = useMemo(
     () =>
       searchAll(
-        buildSearchIndex({ customers, todos, transactions, notes, habits }),
+        buildSearchIndex({ customers, projects, todos, transactions, notes, habits }),
         query,
       ),
-    [customers, todos, transactions, notes, habits, query],
+    [customers, projects, todos, transactions, notes, habits, query],
   )
   const flat: (SearchItem & { icon: string })[] = useMemo(
     () => groups.flatMap((g) => g.items.map((it) => ({ ...it, icon: g.icon }))),

@@ -73,6 +73,8 @@ export class NexusDB extends Dexie {
   meta!: Table<MetaEntry, string>
   todoLists!: Table<import('./types').TodoList, string>
   noteFolders!: Table<import('./types').NoteFolder, string>
+  projects!: Table<import('./types').Project, string>
+  projectMilestones!: Table<import('./types').ProjectMilestone, string>
   focusSessions!: Table<FocusSession, string>
   settings!: Table<Settings, string>
 
@@ -119,6 +121,16 @@ export class NexusDB extends Dexie {
     // v7（账本左侧树）：账本清单化，加 sortOrder 索引支持拖拽排序
     this.version(7).stores({
       ledgers: 'id, sortOrder, updatedAt',
+    })
+    // v8（项目模块）：projects / projectMilestones 新表；
+    // transactions/todos/notes/interactions 补 projectId 索引（弱引用查询与级联解绑走索引，v5 同款纪律）
+    this.version(8).stores({
+      projects: 'id, customerId, status, updatedAt',
+      projectMilestones: 'id, projectId, sortOrder, updatedAt, [projectId+sortOrder]',
+      transactions: 'id, ledgerId, occurredAt, status, customerId, projectId, updatedAt',
+      todos: 'id, status, dueAt, priority, customerId, listId, projectId, updatedAt',
+      notes: 'id, folderId, projectId, updatedAt',
+      interactions: 'id, customerId, at, projectId, updatedAt',
     })
   }
 }

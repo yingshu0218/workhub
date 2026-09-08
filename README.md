@@ -79,6 +79,11 @@
 | 30 | 2026-09-07 | 建立进度文档 docs/PROGRESS.md（阶段/里程碑/架构定案/待办全量快照+更新规则）；README 协作约定补进度文档维护要求（同 commit 更新，最高优先） | yingshu0218 |
 | 31 | 2026-09-07 | 笔记模块 3 项增强/修复（Issue #4）：新增文件夹文件树体系（noteFolders 表 + notes.folderId，Dexie v6，PB collections 同步升级）、空文档首行 placeholder 撑高修复（改单行文案）、笔记列表进入只读查看态（?edit=1 显式编辑，新建笔记默认编辑）；PROGRESS.md / 部署指南同步更新 | cnb.cMPXRmKswEA |
 | 32 | 2026-09-07 | 同步机制 P0 修复入库（Issue #2，PR #6）：P0-1 墓碑清理竞态修复 + P0-2 推送侧 LWW 服务端校验 + P1-3 服务端墓碑 cron；合并 main（笔记文件夹改动），解决 PROGRESS/部署指南冲突，Changelog 编号修正 | npc/CodeBuddy |
+| 33 | 2026-09-07 | 风格主题体系升级（Issue #14）：8 套风格主题包（经典晴空/暖阳米白/森林薄荷/纸墨书卷/深海静谧/薄暮紫罗兰/玫瑰花园/碳黑极简，各含明暗双套变量）、强调色扩至 12 色、字体预设扩至 6 组 | npc/CodeBuddy |
 | 33 | 2026-09-07 | 账本功能调整（Issue #9）：账本列表移至页面左侧树（对齐笔记页）并支持拖拽排序（Ledger 增 sortOrder，DB v7，同步/collections 同步扩展）；记一笔账的关联客户/关联待办改可输入模糊匹配 | npc/CodeBuddy |
 | 33 | 2026-09-07 | 笔记模块 3 项交互修复（Issue #4 二轮验证反馈）：列表行固定行高不再随 hover 变化、tag/关联/文件夹等属性统一移到行尾、查看改为弹窗（背景虚化 + 居中卡片，卡片上编辑按钮跳转编辑视图，关闭/Esc 返回列表）；进度文档同步更新 | cnb.cMPXRmKswEA |
-| 34 | 2026-09-08 | Issue #11 客户三源统一时间轴：客户详情页沟通日志卡片重构为 interactions/transactions/todos 动态投影（无新表/无迁移），新增 /crm/:id/timeline 鱼骨时间线视图（共享 usePanZoom 缩放平移）；修复鱼骨待办/交易穿透（事件点补 recordId，/todo?focus= 与 /finance?focus= 深链定位 + 拖拽保护）；db/sync/schema 零侵入（PR #15） | npc/CodeBuddy |
+| 34 | 2026-09-07 | 风格主题扩充（Issue #14）：新增像素复古与 Q 版卡通两套风格主题包（各含明暗双套变量 + 推荐圆角），风格主题总数达 10 套 | npc/CodeBuddy |
+| 35 | 2026-09-08 | 字体预设扩充（Issue #14）：字体组合 6 组 → 12 组，新增等宽极客/仿宋公文/飘逸草体/凌厉黑体/典丽宋体/元气圆黑；设置页字体网格自适应两列/三列布局 | npc/CodeBuddy |
+| 36 | 2026-09-08 | Issue #14 审计修复：主题切换先清理旧 inline 变量再覆盖（防经典晴空/深浅互切残留污染）；楷体字体栈 `'serif'` 误引号修正为关键字 serif | npc/CodeBuddy(deepseek-v4-flash) |
+| 37 | 2026-09-08 | Issue #14 复核补充：主题/字体类型单源化（THEME_STYLES as const satisfies 派生 ThemeStyleId，SettingsAppearance.theme 收窄）+ 主题 token 除 classic 外明暗两侧补齐 19 键 + gothic 字体栈移除不可命中的 'Source Han Sans SC Heavy' | npc/CodeBuddy(deepseek-v4-flash) |
+| 38 | 2026-09-08 | Issue #11 客户三源统一时间轴：客户详情页沟通日志卡片重构为 interactions/transactions/todos 动态投影（无新表/无迁移），新增 /crm/:id/timeline 鱼骨时间线视图（共享 usePanZoom 缩放平移）；修复鱼骨待办/交易穿透（事件点补 recordId，/todo?focus= 与 /finance?focus= 深链定位 + 拖拽保护）；db/sync/schema 零侵入（PR #15） | npc/CodeBuddy |

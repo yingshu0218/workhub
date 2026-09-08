@@ -34,6 +34,8 @@ export const SYNC_TABLES = [
   'todos',
   'todoLists',
   'noteFolders',
+  'projects',
+  'projectMilestones',
   'notes',
   'quickNotes',
   'habits',
