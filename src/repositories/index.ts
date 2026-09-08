@@ -160,7 +160,8 @@ export function habitLogId(habitId: string, date: string): string {
 const RESTORE_TABLES = [
   'workspaces', 'customers', 'interactions', 'ledgers', 'transactions',
   'todos', 'notes', 'quickNotes', 'habits', 'habitLogs', 'trophies',
-  'attachments', 'focusSessions',
+  'attachments', 'focusSessions', 'todoLists', 'noteFolders',
+  'projects', 'projectMilestones',
 ] as const
 
 /** base64 dataUrl → Blob（附件恢复用，不依赖网络） */
@@ -380,14 +381,15 @@ export async function saveInteractionAndTouchCustomer(
  * 任一步失败整体回滚。语义：
  * 1. 软删客户（盖章 + 入队 delete）
  * 2. 软删该客户全部沟通日志（盖章 + 入队 delete）
- * 3. 解绑该客户名下交易/待办：customerId 置 undefined（盖章 + 入队 upsert）
+ * 3. 解绑该客户名下交易/待办/项目：customerId 置 undefined（盖章 + 入队 upsert）
+ *    —— projects.customerId 必须一并解绑，否则关系画布会出现「边指向已删除客户节点」的悬挂引用（崩溃根因）。
  * 客户不存在时静默返回（幂等），其余记录已属事务内一致状态。
  */
 export async function deleteCustomerCascade(customerId: string): Promise<void> {
   const now = Date.now()
   await db.transaction(
     'rw',
-    [db.customers, db.interactions, db.transactions, db.todos, db.syncQueue],
+    [db.customers, db.interactions, db.transactions, db.todos, db.projects, db.syncQueue],
     async () => {
       const prevCustomer = await db.customers.get(customerId)
       if (!prevCustomer || prevCustomer.deleted) return
@@ -456,6 +458,26 @@ export async function deleteCustomerCascade(customerId: string): Promise<void> {
         await db.syncQueue.add({
           table: 'todos',
           recordId: todo.id,
+          op: 'upsert',
+          createdAt: now,
+        })
+      }
+
+      // 解绑名下项目：项目不随客户消失，只清挂靠关系（弱引用语义，画布/CRM 下钻不悬挂）
+      const projects = await db.projects
+        .where('customerId')
+        .equals(customerId)
+        .toArray()
+      for (const proj of projects) {
+        if (proj.deleted) continue
+        await db.projects.update(proj.id, {
+          customerId: undefined,
+          updatedAt: now,
+          rev: proj.rev + 1,
+        })
+        await db.syncQueue.add({
+          table: 'projects',
+          recordId: proj.id,
           op: 'upsert',
           createdAt: now,
         })

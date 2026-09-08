@@ -90,6 +90,8 @@ export default function CrmCanvasPage() {
     if (size.w === 0 || size.h === 0 || graph.customers.length === 0) return
     const ns: CanvasNode[] = []
     const ls: CanvasLink[] = []
+    // 已有节点 ID 集合：所有连线的 source 必须命中，避免悬挂边导致 d3 崩溃
+    const nodeIds = new Set<string>()
     for (const c of graph.customers) {
       ns.push({
         id: c.id,
@@ -100,6 +102,7 @@ export default function CrmCanvasPage() {
         radius: 24,
       })
     }
+    for (const n of ns) nodeIds.add(n.id)
     // 项目节点：挂靠客户的主题容器（客户 → 项目 → 流水/待办 层级）
     for (const p of graph.projects) {
       ns.push({
@@ -111,7 +114,8 @@ export default function CrmCanvasPage() {
         fill: COLORS.project.fill,
         radius: 15,
       })
-      if (p.customerId) ls.push({ source: p.customerId, target: `proj:${p.id}` })
+      // 防御：客户可能已被删除（历史脏数据），悬挂边会让 d3 forceLink 抛 node not found 白屏
+      if (p.customerId && nodeIds.has(p.customerId)) ls.push({ source: p.customerId, target: `proj:${p.id}` })
     }
     for (const t of graph.transactions) {
       ns.push({

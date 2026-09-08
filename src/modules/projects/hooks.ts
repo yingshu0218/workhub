@@ -318,4 +318,5 @@ export async function moveNoteToProject(
     await db.notes.put({ ...prev, projectId, updatedAt: now, rev: prev.rev + 1 })
     await db.syncQueue.add({ table: 'notes', recordId: noteId, op: 'upsert', createdAt: now })
   })
+  syncEngine.requestSync()
 }

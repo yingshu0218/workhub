@@ -131,6 +131,8 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
   const customers = useCollection<Customer>('customers')
   const todos = useCollection<Todo>('todos')
   const ledgers = useCollection<Ledger>('ledgers')
+  // @提及「项目」tab 候选源（须在 mentionItems useMemo 之前声明并纳入依赖）
+  const mentionProjects = useProjects()
   const backlinks = useBacklinks(note)
 
   // 本地编辑态（以旧记录为基底，保存时展开旧记录仅覆盖所属字段）
@@ -290,8 +292,14 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
         sub: `${t.priority} · ${t.status === 'done' ? '已完成' : '进行中'}`,
       })),
       ...ledgers.map<MentionItem>((l) => ({ type: 'ledger', id: l.id, label: l.name, sub: l.currency })),
+      ...mentionProjects.map<MentionItem>((p) => ({
+          type: 'project' as const,
+          id: p.id,
+          label: p.name,
+          sub: p.status === 'archived' ? '已归档' : p.status === 'paused' ? '已搁置' : '进行中',
+        })),
     ].filter((it) => it.type === mentionTab && match(it.label))
-  }, [customers, todos, ledgers, mentionTab, mention?.query])
+  }, [customers, todos, ledgers, mentionProjects, mentionTab, mention?.query])
 
   // ===== CodeMirror 初始化（仅编辑态挂载，退出编辑即销毁，卸载前 flush 兜底已覆盖） =====
   useEffect(() => {
@@ -432,7 +440,6 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
 
   const html = useMemo(() => renderMarkdown(mdText), [mdText])
   const words = wordCount(mdText)
-  const projects = useProjects()
   const jumpTarget: Record<MentionType, (id: string) => string> = {
     customer: (eid) => `/crm/${eid}`,
     todo: () => '/todo',
@@ -627,7 +634,7 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
             onChange={(e) => void moveNoteToProject(note.id, e.target.value || undefined)}
           >
             <option value="">不归属项目</option>
-            {projects.map((p) => (
+            {mentionProjects.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
                 {p.status === 'archived' ? '（已归档）' : ''}

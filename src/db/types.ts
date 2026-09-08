@@ -40,7 +40,7 @@ export interface Customer extends SyncMeta {
 export interface Interaction extends SyncMeta {
   id: string
   customerId: string
-  type: '电话' | '会议' | '邮件' | '拜访'
+  type: '电话' | '会议' | '邮件' | '拜访' | '跟进' | '小结' | '其他'
   content: string
   at: number
   /** 所属项目（进展流水复用 CRM 沟通日志，不另建表） */

@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import type { Project } from '@/db/types'
+import type { Customer, Project } from '@/db/types'
+import { useCollection } from '@/queries/hooks'
 import { Button, Drawer, Field, inputCls } from '@/design-system/ui'
 import { saveProject } from './hooks'
 
@@ -35,10 +36,14 @@ export default function ProjectFormDrawer({
   const [name, setName] = useState('')
   const [color, setColor] = useState(COLOR_PRESETS[0])
   const [status, setStatus] = useState<Project['status']>('active')
+  const [customerId, setCustomerId] = useState('')
   const [budget, setBudget] = useState('')
   const [note, setNote] = useState('')
   const [error, setError] = useState('')
   const [seedKey, setSeedKey] = useState(0)
+
+  // 客户候选：挂靠客户打通 CRM（客户详情「名下项目」/ 关系画布「客户→项目」层级）
+  const customers = useCollection<Customer>('customers')
 
   // 打开时重置（渲染期重置模式，同 TransactionFormDrawer）
   const openKey = `${open}-${project?.id ?? 'new'}`
@@ -49,6 +54,7 @@ export default function ProjectFormDrawer({
       setName(project?.name ?? '')
       setColor(project?.color ?? COLOR_PRESETS[0])
       setStatus(project?.status ?? 'active')
+      setCustomerId(project?.customerId ?? '')
       setBudget(project?.budget != null ? String(project.budget) : '')
       setNote(project?.note ?? '')
       setError('')
@@ -72,6 +78,7 @@ export default function ProjectFormDrawer({
         name,
         color,
         status,
+        customerId: customerId || undefined,
         budget: rawBudget,
         note,
       })
@@ -124,6 +131,20 @@ export default function ProjectFormDrawer({
               </button>
             ))}
           </div>
+        </Field>
+        <Field label="挂靠客户（可选，打通 CRM 下钻）">
+          <select
+            className={inputCls}
+            value={customerId}
+            onChange={(e) => setCustomerId(e.target.value)}
+          >
+            <option value="">不挂靠</option>
+            {customers.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.company} · {c.name}
+              </option>
+            ))}
+          </select>
         </Field>
         <Field label="项目预算（可选，仅展示对比）">
           <input

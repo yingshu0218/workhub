@@ -574,9 +574,13 @@ function MilestoneCard({
   )
 }
 
+/** 快速记一笔类型：项目进展多为跟进/小结，非会议（会议仅作可选项保留） */
+const QUICK_LOG_TYPES: Interaction['type'][] = ['跟进', '会议', '小结', '其他']
+
 /** 项目快速跟进（复用 Interaction，projectId 归档；不触碰客户 lastContactAt） */
 function QuickLog({ projectId }: { projectId: string }) {
   const [content, setContent] = useState('')
+  const [logType, setLogType] = useState<Interaction['type']>('跟进')
   const [saving, setSaving] = useState(false)
 
   async function save() {
@@ -587,7 +591,7 @@ function QuickLog({ projectId }: { projectId: string }) {
       const interaction: PutInput<Interaction> = {
         id: newId('itx'),
         customerId: '',
-        type: '会议',
+        type: logType,
         content: content.trim(),
         at,
         projectId,
@@ -612,6 +616,21 @@ function QuickLog({ projectId }: { projectId: string }) {
       <div className="mb-2 flex items-center gap-1.5 text-[12px] font-semibold text-primary">
         <Icon name="bolt" className="text-[16px]" />
         快速记一笔
+      </div>
+      <div className="mb-2 flex gap-1.5">
+        {QUICK_LOG_TYPES.map((t) => (
+          <button
+            key={t}
+            onClick={() => setLogType(t)}
+            className={`rounded-full border px-2.5 py-0.5 text-[11px] ${
+              logType === t
+                ? 'border-primary bg-primary-fixed font-semibold text-primary'
+                : 'border-outline-variant text-on-surface-variant'
+            }`}
+          >
+            {t}
+          </button>
+        ))}
       </div>
       <div className="flex gap-2">
         <input
