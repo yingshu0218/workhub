@@ -27,13 +27,15 @@ import {
   reorderTodoLists,
 } from './hooks'
 
-type Filter = 'today' | 'open' | 'done' | 'p1'
+type Filter = 'all' | 'today' | 'week' | 'inbox'
 
 export default function TodoPage() {
   const todos = useCollection<Todo>('todos')
   const lists = useTodoLists()
   const listCounts = useTodoListCounts()
-  const [selKind, setSelKind] = useState<Filter>('today')
+  const [selKind, setSelKind] = useState<Filter>('all')
+  const [chipP1, setChipP1] = useState(false)
+  const [chipDone, setChipDone] = useState(false)
   const [selListId, setSelListId] = useState<string | null>(null)
   const [editing, setEditing] = useState<Todo | null>(null)
   const [creating, setCreating] = useState(false)
@@ -63,7 +65,9 @@ export default function TodoPage() {
   useEffect(() => {
     if (!focusId) return
     setSelListId(null)
-    setSelKind('open')
+    setSelKind('all')
+    setChipP1(false)
+    setChipDone(false)
     // 等过滤切换生效、列表重渲染后再滚动定位
     const t = window.setTimeout(() => {
       const el = rowRefs.current.get(focusId)
@@ -85,21 +89,31 @@ export default function TodoPage() {
     [todos],
   )
   const openTodos = sortedTodos.filter((t) => t.status !== 'done')
-  const doneTodos = sortedTodos.filter((t) => t.status === 'done')
 
-  const filtered = selListId
+  // 日历日边界：今天 = 今日截止 ∪ 逾期未完成；最近七天 = [今天, +7天] ∪ 逾期未完成
+  const weekEndStr = dayjs().add(7, 'day').format('YYYY-MM-DD')
+  const matchesSmart = (t: Todo): boolean => {
+    if (t.status !== 'done') {
+      if (selKind === 'all') return true
+      if (selKind === 'inbox') return !t.listId
+      if (!t.dueAt) return false
+      const d = dayjs(t.dueAt).format('YYYY-MM-DD')
+      if (selKind === 'today') return d <= todayStr
+      if (selKind === 'week') return d <= weekEndStr
+    }
+    return false
+  }
+  const baseScope = selListId
     ? sortedTodos.filter(
         (t) => t.listId === selListId || (focusRingId !== null && t.id === focusRingId),
       )
-    : sortedTodos.filter((t) => {
-        if (selKind === 'done') return t.status === 'done'
-        if (selKind === 'p1') return t.status !== 'done' && t.priority === 'P1'
-        if (selKind === 'today')
-          return (
-            t.status !== 'done' && !!t.dueAt && dayjs(t.dueAt).format('YYYY-MM-DD') === todayStr
-          )
-        return t.status !== 'done' || (focusRingId !== null && t.id === focusRingId)
-      })
+    : sortedTodos.filter((t) => matchesSmart(t) || (focusRingId !== null && t.id === focusRingId))
+  // P1 / 已完成降级为右侧筛选 Chip，作用于当前左栏视图/清单之内；全部未命中时兜底展示空态
+  const filtered = baseScope.filter((t) => {
+    if (chipP1 && !(t.status !== 'done' && t.priority === 'P1')) return false
+    if (chipDone && t.status !== 'done') return false
+    return true
+  })
 
   async function toggle(t: Todo) {
     if (t.status === 'done') {
@@ -109,22 +123,25 @@ export default function TodoPage() {
     }
   }
 
+  // 固定视图顺序：全部待办（默认）→ 今天 → 最近七天 → 收集箱，之后分割线接「我的清单」
+  const inboxCount = openTodos.filter((t) => !t.listId).length
   const smartLists: { key: Filter; icon: string; label: string; count: number }[] = [
+    { key: 'all', icon: 'list', label: '全部待办', count: openTodos.length },
     {
       key: 'today',
       icon: 'today',
       label: '今天',
-      count: openTodos.filter((t) => t.dueAt && dayjs(t.dueAt).format('YYYY-MM-DD') === todayStr)
+      count: openTodos.filter((t) => t.dueAt && dayjs(t.dueAt).format('YYYY-MM-DD') <= todayStr)
         .length,
     },
     {
-      key: 'p1',
-      icon: 'error',
-      label: 'P1 紧急',
-      count: openTodos.filter((t) => t.priority === 'P1').length,
+      key: 'week',
+      icon: 'calendar_month',
+      label: '最近七天',
+      count: openTodos.filter((t) => t.dueAt && dayjs(t.dueAt).format('YYYY-MM-DD') <= weekEndStr)
+        .length,
     },
-    { key: 'open', icon: 'list', label: '全部待办', count: openTodos.length },
-    { key: 'done', icon: 'check_circle', label: '已完成', count: doneTodos.length },
+    { key: 'inbox', icon: 'move_to_inbox', label: '收集箱', count: inboxCount },
   ]
   const selSmart = smartLists.find((l) => l.key === selKind)
   const selCustom = lists.find((l) => l.id === selListId)
@@ -132,10 +149,15 @@ export default function TodoPage() {
 
   function selectSmart(key: Filter) {
     setSelListId(null)
+    setChipP1(false)
+    setChipDone(false)
     setSelKind(key)
   }
   function selectList(id: string) {
     setSelListId(id)
+    // 切换清单时同步重置筛选 Chip，与切换固定视图一致
+    setChipP1(false)
+    setChipDone(false)
   }
 
   async function submitCreateList() {
@@ -163,7 +185,9 @@ export default function TodoPage() {
     await deleteTodoListCascade(id)
     if (selListId === id) {
       setSelListId(null)
-      setSelKind('open')
+      setSelKind('all')
+      setChipP1(false)
+      setChipDone(false)
     }
   }
 
@@ -267,10 +291,6 @@ export default function TodoPage() {
                 <button
                   className="min-w-0 flex-1 truncate text-left"
                   onClick={() => selectList(l.id)}
-                  onDoubleClick={() => {
-                    setRenamingId(l.id)
-                    setRenameValue(l.name)
-                  }}
                 >
                   {l.name}
                 </button>
@@ -319,14 +339,45 @@ export default function TodoPage() {
         {/* 右侧待办列表 */}
         <div>
           <Card className="mb-3 flex items-center justify-between px-4 py-2.5">
-            <span className="text-[13px] font-semibold">{selLabel}</span>
+            <div className="flex items-center gap-2">
+              <span className="text-[13px] font-semibold">{selLabel}</span>
+              {/* P1 / 已完成筛选 Chip：作用于当前左栏视图/清单之内，点击切换、再点清除 */}
+              <button
+                onClick={() => setChipP1((v) => !v)}
+                className={`rounded-full px-2.5 py-0.5 text-[12px] font-medium transition-colors ${
+                  chipP1
+                    ? 'bg-danger-container text-danger'
+                    : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
+                }`}
+              >
+                P1{chipP1 && ' ✕'}
+              </button>
+              <button
+                onClick={() => setChipDone((v) => !v)}
+                className={`rounded-full px-2.5 py-0.5 text-[12px] font-medium transition-colors ${
+                  chipDone
+                    ? 'bg-primary-fixed text-primary'
+                    : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
+                }`}
+              >
+                已完成{chipDone && ' ✕'}
+              </button>
+            </div>
             <span className="text-[11px] text-outline">
-              {selListId ? `${filtered.length} 条` : `${filtered.length} 条未完成`}
+              {chipDone ? `${filtered.length} 条` : `${filtered.length} 条未完成`}
             </span>
           </Card>
           {filtered.length === 0 ? (
             <Card className="p-6">
-              <EmptyState icon="task_alt" title="这里空空如也" description="点击右上角新建待办" />
+              {(chipP1 || chipDone) && baseScope.length > 0 ? (
+                <EmptyState
+                  icon="filter_alt_off"
+                  title="当前筛选没有命中"
+                  description="试试取消上方筛选，查看本视图全部内容"
+                />
+              ) : (
+                <EmptyState icon="task_alt" title="这里空空如也" description="点击右上角新建待办" />
+              )}
             </Card>
           ) : (
             <Card className="divide-y divide-outline-variant/30 px-5">
@@ -422,22 +473,26 @@ export default function TodoPage() {
         }}
         onSaved={(saved) => {
           if (editing) return
-          // 新建兜底：当前视图装不下新条目（默认「今天」只显示当日截止项）时，
-          // 自动切到「全部待办」，避免保存成功却"看不到任何反应"
+          // 新建兜底：当前视图装不下新条目时自动切「全部待办」，避免保存成功却"看不到任何反应"。
+          // 覆盖全部视图枚举：清单匹配、全部待办(恒可见)、今天/最近七天(含逾期口径)、收集箱(listId 空)、P1/已完成 Chip
+          const savedDay = saved.dueAt ? dayjs(saved.dueAt).format('YYYY-MM-DD') : undefined
           const visible = selListId
             ? saved.listId === selListId
-            : selKind === 'done'
-              ? saved.status === 'done'
-              : selKind === 'p1'
-                ? saved.status !== 'done' && saved.priority === 'P1'
+            : selKind === 'all'
+              ? true
+              : selKind === 'inbox'
+                ? !saved.listId
                 : selKind === 'today'
-                  ? saved.status !== 'done' &&
-                    !!saved.dueAt &&
-                    dayjs(saved.dueAt).format('YYYY-MM-DD') === todayStr
-                  : true
-          if (!visible) {
+                  ? saved.status !== 'done' && !!savedDay && savedDay <= todayStr
+                  : saved.status !== 'done' && !!savedDay && savedDay <= weekEndStr
+          const chipOk =
+            (!chipP1 || (saved.status !== 'done' && saved.priority === 'P1')) &&
+            (!chipDone || saved.status === 'done')
+          if (!visible || !chipOk) {
             setSelListId(null)
-            setSelKind('open')
+            setChipP1(false)
+            setChipDone(false)
+            setSelKind('all')
           }
         }}
       />
