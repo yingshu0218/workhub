@@ -2,7 +2,7 @@
 
 > **本仓库的唯一进度事实来源。** 所有人（含 AI 开发代理）推进或变更任何开发工作，必须在**同一个 commit** 里同步更新本文件对应状态。README 底部的 Changelog 记录"发生了什么"，本文档记录"现在处于什么状态"——前者追加式流水，后者始终反映最新全貌。
 
-**最后更新**：2026-09-08（Issue #34 客户亲密度体系落地：Customer.intimacy 手动 7 档 + 算法兜底 + moduleConfigs 同步表 v9 + 设置页「数据管理」Tab + 图谱圈层/黑名单过滤） · 维护人：yingshu0218 / cnb.cMPXRmKswEA / npc/CodeBuddy
+**最后更新**：2026-09-08（Issue #34 客户亲密度体系落地：Customer.intimacy 手动 7 档 + 算法兜底 + moduleConfigs 同步表 v9 + 设置页「数据管理」Tab + 图谱圈层/黑名单过滤；Issue #50 笔记关联体验升级：@提及浮层模糊匹配+键盘导航、编辑态关联主体/反向链接悬浮卡片） · 维护人：yingshu0218 / cnb.cMPXRmKswEA / npc/CodeBuddy
 
 ---
 
@@ -101,6 +101,16 @@
 
 - 详情页双份查询（useCustomerTimeline + 独立 txn/todo hooks）当前量级可接受；鱼骨时间线页已单源消费，后续若再加视图请复用同一投影，避免多路拉取。
 - 鱼骨穿透深链 focus 定位（/todo、/finance）已落地；TodoPage focus 消费基于 0ms 定时 + 渲染期 rowRefs，若未来改虚拟列表/懒加载需同步演进定位策略。
+
+### 笔记关联体验升级（Issue #50，方案经 deepseek-v4-flash-version 审计）
+
+| 项 | 状态 |
+|---|---|
+| 关联项目（@提及浮层项目选择视图 + Tab 联动） | ✅ 已合入 main（PR #53） |
+| PR-1 @提及浮层模糊匹配 + 键盘导航 | ✅ 已落地：复用 fuzzyMatch/fuzzySort/archivedLast（sub 仅参与匹配范围不参与排序）、归档项目沉底、↑↓/Enter 键盘选择、命中片段高亮、IME 期间不误触发 |
+| PR-2 编辑态关联主体/反向链接悬浮卡片 | ✅ 已落地：编辑态点击不再 navigate 就地弹卡（客户/待办/账本/项目摘要 + 反向链接标题/更新时间），卡片内「打开详情」走 jumpTarget 深链，实体已删显示占位；查看态保持直接跳转 |
+| PR-3 账本/记账深链补全（A1） | ⏳ 待排期：jumpTarget.todo/ledger 补 focus 深链 + FinancePage ?ledger= 与 scope 双向同步 |
+| A2 transaction 提及类型 | ⏸ 缓行（审计建议单独排期，动 NoteMention.type/MENTION_RE/TYPE_META 三处需同 commit 同步） |
 
 ### 未来项（已定但不急）
 
