@@ -21,6 +21,8 @@ export interface CanvasGraph {
     lastContactAt: number
     /** 客户间语义关系（全景图画客户↔客户边的数据源；投影时过滤掉指向已删除/不存在客户的悬挂引用） */
     relations: { targetId: string; label: string; category?: RelationCategory }[]
+    /** 亲密度手动档投影（Issue #34：圈层布局与黑名单过滤；缺省=未设置=算法兜底） */
+    intimacy?: { level: 'T1' | 'T2' | 'T3' | 'T4' | 'T5' | 'I6' | 'I7'; note?: string; updatedAt: number }
   }[]
   projects: { id: string; name: string; customerId: string }[]
   transactions: {
@@ -41,7 +43,9 @@ export interface CanvasGraph {
     projectId?: string
   }[]
   /** 沟通日志投影：桥接推导需 customerId+projectId（CanvasGraph 原不含 interaction，Issue #34 补齐） */
-  interactions: { id: string; customerId: string; projectId?: string }[]
+  interactions: { id: string; customerId: string; projectId?: string; at: number }[]
+  /** 项目状态投影（Issue #34 算法亲密度：active 项目双倍权重） */
+  projectStatuses: Record<string, 'active' | 'paused' | 'archived'>
   notes: { id: string; customerId: string; title: string }[]
 }
 
@@ -52,6 +56,7 @@ const EMPTY_GRAPH: CanvasGraph = {
   todos: [],
   interactions: [],
   notes: [],
+  projectStatuses: {},
 }
 
 export function useCanvasGraph(): CanvasGraph {
@@ -96,8 +101,12 @@ export function useCanvasGraph(): CanvasGraph {
         lastContactAt: c.lastContactAt,
         // 悬挂防御：只带出指向现存客户的 relations（删除级联已解绑，这里再挡一层历史脏数据）
         relations: (c.relations ?? []).filter((r) => customerIds.has(r.targetId)),
+        intimacy: c.intimacy
+          ? { level: c.intimacy.level, note: c.intimacy.note, updatedAt: c.intimacy.updatedAt }
+          : undefined,
       })),
       projects: projects.map((p) => ({ id: p.id, name: p.name, customerId: p.customerId ?? '' })),
+      projectStatuses: Object.fromEntries(projects.map((p) => [p.id, p.status])),
       transactions: txns.map((t) => ({
         id: t.id,
         customerId: t.customerId ?? '',
@@ -119,6 +128,7 @@ export function useCanvasGraph(): CanvasGraph {
         id: i.id,
         customerId: i.customerId ?? '',
         projectId: i.projectId ?? undefined,
+        at: i.at,
       })),
       notes: notes.map((n) => {
         const mention = n.mentions.find((m) => m.type === 'customer' && customerIds.has(m.id))

@@ -1,5 +1,6 @@
 import { Avatar, Button, Chip } from '@/design-system/ui'
 import { healthColor, fmtRelative, tierChipTone } from '../shared'
+import { useIntimacyConfig, intimacyLevelName } from '../intimacy'
 import type { Customer } from '@/db/types'
 
 /**
@@ -21,6 +22,15 @@ export default function CustomerInfoCard({
   onClose: () => void
 }) {
   const hc = healthColor(customer.healthScore)
+  // 亲密度手动档徽章（Issue #34）：未设置显示「未设置 · 算法兜底」口径，不误导为手动值
+  const cfg = useIntimacyConfig()
+  const intimacy = customer.intimacy?.level
+    ? {
+        name: intimacyLevelName(cfg, customer.intimacy.level),
+        note: customer.intimacy.note,
+        blacklisted: customer.intimacy.level === 'I7',
+      }
+    : null
   // 卡片约 240×230：贴近节点右下，靠近视口边缘时向内收（简单钳制，不做翻转）
   const left = Math.min(screen.x + 16, window.innerWidth - 268)
   const top = Math.min(screen.y + 10, window.innerHeight - 260)
@@ -41,6 +51,11 @@ export default function CustomerInfoCard({
               {customer.tier === '潜在' ? '潜在' : `${customer.tier} 层`}
             </Chip>
             {customer.decisionLevel && <Chip tone="gray">{customer.decisionLevel}</Chip>}
+            {intimacy && (
+              <Chip tone={intimacy.blacklisted ? 'red' : 'amber'} icon="favorite">
+                {intimacy.name}
+              </Chip>
+            )}
           </div>
           <div className="mt-0.5 truncate text-[12px] text-on-surface-variant">
             {customer.company || '—'}
@@ -72,6 +87,11 @@ export default function CustomerInfoCard({
         <div className="text-[11px] text-outline">
           最近联系 {fmtRelative(customer.lastContactAt)}
         </div>
+        {intimacy?.note && (
+          <div className="truncate text-[11px] text-outline" title={intimacy.note}>
+            亲密度备注：{intimacy.note}
+          </div>
+        )}
       </div>
 
       <Button className="mt-3 w-full" variant="tonal" icon="person" onClick={onEnter}>

@@ -16,6 +16,7 @@ import type {
   Trophy,
   Workspace,
   Settings,
+  ModuleConfig,
 } from '@/db/types'
 import { DEFAULT_SETTINGS } from '@/db/types'
 import type { SyncMeta } from '@/db/types'
@@ -40,6 +41,7 @@ export const projectRepo = createRepository<import('@/db/types').Project>('proje
 export const projectMilestoneRepo =
   createRepository<import('@/db/types').ProjectMilestone>('projectMilestones')
 export const attachmentRepo = createRepository<Attachment>('attachments')
+export const moduleConfigRepo = createRepository<ModuleConfig>('moduleConfigs')
 
 /**
  * 专注会话瞬态仓储（本地推导数据，不进同步队列 —— 开发计划 2.3）
@@ -177,6 +179,7 @@ const RESTORE_TABLES = [
   'noteFolders',
   'projects',
   'projectMilestones',
+  'moduleConfigs',
 ] as const
 
 /** base64 dataUrl → Blob（附件恢复用，不依赖网络） */

@@ -4,7 +4,13 @@ import { useRecord } from '@/queries/hooks'
 import type { Customer } from '@/db/types'
 import { Card, EmptyState } from '@/design-system/ui'
 import { Icon } from '@/design-system/Icon'
-import { RELATION_CATEGORIES, type RelationCategory } from '@/db/types'
+import {
+  INTIMACY_VISUAL,
+  RELATION_CATEGORIES,
+  type RelationCategory,
+  type ModuleConfigIntimacy,
+} from '@/db/types'
+import { useIntimacyConfig } from '../intimacy'
 import { IDENTITY_VIEW, usePanZoom } from '../usePanZoom'
 import { useForceGraph } from './useForceGraph'
 import { GRAPH_COLORS, type GraphNode } from './types'
@@ -34,6 +40,8 @@ export interface GraphCanvasProps {
   onGraphReady?: () => void
   /** 焦点锚定（Issue #34）：布局收敛后视图平移使该节点居中（不缩放），一进视图快速锁定焦点主体 */
   fitAnchorId?: string
+  /** 亲密度配置注入（Issue #34）：缺省内部读 moduleConfigs；customer-only 模式启用圈层与黑名单过滤 */
+  intimacyCfg?: ModuleConfigIntimacy
 }
 
 export default function GraphCanvas({
@@ -45,6 +53,7 @@ export default function GraphCanvas({
   mode = 'mixed',
   onGraphReady,
   fitAnchorId,
+  intimacyCfg: intimacyCfgProp,
 }: GraphCanvasProps) {
   const navigate = useNavigate()
   const svgRef = useRef<SVGSVGElement>(null)
@@ -58,12 +67,16 @@ export default function GraphCanvas({
   const [selectedScreen, setSelectedScreen] = useState({ x: 0, y: 0 })
   // 关系归类筛选（仅 customer-only 模式展示）
   const [activeCats, setActiveCats] = useState<RelationCategory[]>([])
+  // 亲密度配置：调用方注入优先，缺省内部订阅（moduleConfigs 变更经 useLiveQuery 实时刷新）
+  const cfgFromDb = useIntimacyConfig()
+  const intimacyCfg = intimacyCfgProp ?? (mode === 'customer-only' ? cfgFromDb : undefined)
   const { nodes, links, simRef } = useForceGraph({
     graph,
     size,
     focusId,
     mode,
     categories: mode === 'customer-only' ? activeCats : undefined,
+    intimacyCfg: mode === 'customer-only' ? intimacyCfg : undefined,
     onLayoutSettled: onGraphReady,
   })
 
@@ -584,6 +597,40 @@ export default function GraphCanvas({
                 清除
               </button>
             )}
+          </div>
+        )}
+
+        {/* 亲密度图例（Issue #34，仅 customer-only + 亲密度启用）：圈层=等级，节点大小即远近 */}
+        {mode === 'customer-only' && intimacyCfg && (
+          <div
+            className="absolute right-3 top-3 z-10 flex max-w-[240px] flex-wrap items-center justify-end gap-x-2 gap-y-1"
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <span className="text-[10px] font-medium uppercase tracking-wide text-outline">
+              亲密度圈层
+            </span>
+            {intimacyCfg.levels.map((l) => {
+              const v = INTIMACY_VISUAL[l.key]
+              const hidden = l.key === 'I7' && intimacyCfg.blacklist.hideInGraph
+              return (
+                <span
+                  key={l.key}
+                  className={`inline-flex items-center gap-1 text-[10.5px] ${hidden ? 'text-outline line-through' : 'text-on-surface-variant'}`}
+                  title={hidden ? '黑名单已在图谱隐藏' : l.desc}
+                >
+                  <span
+                    className="inline-block rounded-full"
+                    style={{
+                      width: Math.max(6, v.radius / 5),
+                      height: Math.max(6, v.radius / 5),
+                      background: v.color,
+                      opacity: hidden ? 0.35 : 0.85,
+                    }}
+                  />
+                  {l.name}
+                </span>
+              )
+            })}
           </div>
         )}
 

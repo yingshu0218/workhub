@@ -42,6 +42,7 @@ export const SYNC_TABLES = [
   'habitLogs',
   'trophies',
   'attachments',
+  'moduleConfigs',
 ] as const
 
 export type SyncTable = (typeof SYNC_TABLES)[number]
