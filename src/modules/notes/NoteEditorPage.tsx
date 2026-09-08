@@ -4,7 +4,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useCollection } from '@/queries/hooks'
 import { noteRepo } from '@/repositories'
 import type { Note, NoteMention } from '@/db/types'
-import type { Customer, Ledger, Todo } from '@/db/types'
+import type { Customer, Ledger, Todo, Project } from '@/db/types'
 import { Button, Card, Chip, EmptyState } from '@/design-system/ui'
 import { MatchCombobox } from '@/design-system/MatchCombobox'
 import dayjs from 'dayjs'
@@ -33,7 +33,13 @@ interface MentionItem {
   id: string
   label: string
   sub: string
+  /** 项目候选拓展位：命中对象透传给联动逻辑（selectProject 后切 Tab） */
+  project?: Project
 }
+
+/** @提及浮层/关联弹窗共用的 tab 维度：四类实体 + projectTab 联动锚点（Issue #50） */
+type MentionsTab = MentionType | 'projectTab'
+const MENTIONS_TABS: MentionsTab[] = ['customer', 'todo', 'ledger', 'project', 'projectTab']
 
 const TYPE_META: Record<MentionType, { tab: string; cls: string }> = {
   customer: { tab: '客户', cls: 'md-mention-customer' },
@@ -235,7 +241,9 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
     x: number
     y: number
   } | null>(null)
-  const [mentionTab, setMentionTab] = useState<MentionType>('customer')
+  const [mentionTab, setMentionTab] = useState<MentionsTab>('customer')
+  // 浮层是否切换到「项目选择」视图（编辑态下不打断写作流，直接选关联项目）
+  const [panelProject, setPanelProject] = useState(false)
 
   const noteRef = useRef(note)
   noteRef.current = note
@@ -398,6 +406,7 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
         id: p.id,
         label: p.name,
         sub: p.status === 'archived' ? '已归档' : p.status === 'paused' ? '已搁置' : '进行中',
+        project: p,
       })),
     ].filter((it) => it.type === mentionTab && match(it.label))
   }, [customers, todos, ledgers, mentionProjects, mentionTab, mention?.query])
@@ -759,6 +768,11 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
               placeholder="输入项目名称模糊搜索"
               emptyText="没有匹配的项目"
               onChange={(id) => void moveNoteToProject(note.id, id || undefined)}
+              onChangeMeta={() => {
+                // Issue #50 联动：选完项目把 @提及 Tab 切到 project，保持心智一致
+                setMentionTab('project')
+                setPanelProject(false)
+              }}
             />
           </div>
 
@@ -796,42 +810,90 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
           onMouseDown={(e) => e.preventDefault()}
         >
           <div className="flex gap-1 border-b border-outline-variant/30 bg-surface-container-low/50 px-2 py-1.5">
-            {(Object.keys(TYPE_META) as MentionType[]).map((t) => (
-              <button
-                key={t}
-                onClick={() => setMentionTab(t)}
-                className={`rounded-md px-2.5 py-1 text-[12px] transition-colors ${
-                  mentionTab === t
-                    ? 'bg-primary font-semibold text-on-primary'
-                    : 'text-on-surface-variant hover:text-on-surface'
-                }`}
-              >
-                {TYPE_META[t].tab}
-              </button>
-            ))}
+            {MENTIONS_TABS.map((t) =>
+              t === 'projectTab' ? (
+                <button
+                  key={t}
+                  title="前往所属项目选择"
+                  onClick={() => setPanelProject(true)}
+                  className={`ml-auto rounded-md px-2.5 py-1 text-[12px] transition-colors ${
+                    panelProject
+                      ? 'bg-primary font-semibold text-on-primary'
+                      : 'text-on-surface-variant hover:text-on-surface'
+                  }`}
+                >
+                  项目
+                </button>
+              ) : (
+                <button
+                  key={t}
+                  onClick={() => {
+                    setPanelProject(false)
+                    setMentionTab(t)
+                  }}
+                  className={`rounded-md px-2.5 py-1 text-[12px] transition-colors ${
+                    !panelProject && mentionTab === t
+                      ? 'bg-primary font-semibold text-on-primary'
+                      : 'text-on-surface-variant hover:text-on-surface'
+                  }`}
+                >
+                  {TYPE_META[t].tab}
+                </button>
+              ),
+            )}
             <span className="ml-auto self-center pr-1 text-[11px] text-outline">Esc 关闭</span>
           </div>
-          <div className="max-h-60 overflow-y-auto p-1">
-            {mentionItems.length === 0 ? (
-              <div className="px-3 py-4 text-center text-[12px] text-outline">无匹配项</div>
-            ) : (
-              mentionItems.map((it) => (
-                <button
-                  key={it.id}
-                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-surface-container-low"
-                  onClick={() => selectMentionItem(it)}
-                >
-                  <span className={`md-mention ${TYPE_META[it.type].cls}`}>@</span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[13px] font-medium">{it.label}</span>
-                    {it.sub && (
-                      <span className="block truncate text-[11px] text-outline">{it.sub}</span>
-                    )}
-                  </span>
-                </button>
-              ))
-            )}
-          </div>
+          {panelProject ? (
+            <div className="p-3">
+              <MatchCombobox
+                value={noteRef.current.projectId ?? ''}
+                options={mentionProjects.map((p) => ({
+                  id: p.id,
+                  label: p.name,
+                  sub: p.status === 'archived' ? '已归档' : undefined,
+                  archived: p.status === 'archived',
+                  icon: 'folder_open',
+                  project: p,
+                }))}
+                placeholder="输入项目名称模糊搜索"
+                emptyText="没有匹配的项目"
+                onChange={(pid) => void moveNoteToProject(noteRef.current.id, pid || undefined)}
+                onChangeMeta={(opt) => {
+                  // Issue #50 联动：选中某项目后，@提及 Tab 切到项目并预填筛选词
+                  setPanelProject(false)
+                  setMentionTab('project')
+                  setMention((prev) =>
+                    prev ? { ...prev, query: opt?.project?.name ?? prev.query } : prev,
+                  )
+                }}
+              />
+              <div className="mt-2 text-[11px] leading-relaxed text-outline">
+                支持模糊搜索与「不关联」，选中后 @提及浮层自动切到项目 Tab 并预填筛选词。
+              </div>
+            </div>
+          ) : (
+            <div className="max-h-60 overflow-y-auto p-1">
+              {mentionItems.length === 0 ? (
+                <div className="px-3 py-4 text-center text-[12px] text-outline">无匹配项</div>
+              ) : (
+                mentionItems.map((it) => (
+                  <button
+                    key={it.id}
+                    className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-surface-container-low"
+                    onClick={() => selectMentionItem(it)}
+                  >
+                    <span className={`md-mention ${TYPE_META[it.type].cls}`}>@</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[13px] font-medium">{it.label}</span>
+                      {it.sub && (
+                        <span className="block truncate text-[11px] text-outline">{it.sub}</span>
+                      )}
+                    </span>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

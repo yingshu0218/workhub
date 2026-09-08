@@ -50,6 +50,8 @@ export interface MatchOption {
   icon?: string
   /** 归档/沉底标记：标记项在排序结果中沉底（sub 建议传「已归档」） */
   archived?: boolean
+  /** 业务扩展位：候选携带原始实体，供 onChangeMeta 回传（如笔记 @项目联动 Tab） */
+  project?: import('@/db/types').Project
 }
 
 /**
@@ -64,12 +66,15 @@ export function MatchCombobox({
   placeholder,
   emptyText,
   onChange,
+  onChangeMeta,
 }: {
   value: string
   options: MatchOption[]
   placeholder: string
   emptyText: string
   onChange: (id: string) => void
+  /** 选中/清除时回传命中的候选原文（用于联动组件外状态，如笔记 @提及浮层切到项目 Tab） */
+  onChangeMeta?: (option: MatchOption | undefined) => void
 }) {
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
@@ -96,6 +101,7 @@ export function MatchCombobox({
 
   function commit(id: string) {
     onChange(id)
+    onChangeMeta?.(id ? options.find((o) => o.id === id) : undefined)
     setQuery('')
     setOpen(false)
   }
