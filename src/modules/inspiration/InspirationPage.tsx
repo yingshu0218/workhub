@@ -10,16 +10,16 @@ import buildCandidates from './engine'
 import type { CandidateKind, InspirationCandidate } from './engine'
 
 /**
- * 灵感闪现全屏决策态（对齐原型 02-inspiration-flash · 深色全屏，不套 AppLayout）
+ * 灵感闪现全屏决策态（对齐原型 02-inspiration-flash · 全屏决策态（样式走设计 token，自动跟随深浅模式与主题包），不套 AppLayout）
  * Space 换一个 / Enter 开始专注（联动 focus store 并跳回工作台）/ Esc 退出回工作台
  */
 
 const KIND_META: Record<CandidateKind, { chip: string; tone: string; icon: string }> = {
-  'overdue-todo': { chip: '待办灵感 · 临界推进', tone: 'bg-rose-500/15 text-rose-300 border-rose-400/40', icon: 'priority_high' },
-  'due-todo': { chip: '待办日程 · 今日到期', tone: 'bg-amber-500/15 text-amber-300 border-amber-400/40', icon: 'schedule' },
-  reconciliation: { chip: '财务灵感 · 待对账', tone: 'bg-emerald-500/15 text-emerald-300 border-emerald-400/40', icon: 'account_balance_wallet' },
-  'stale-customer': { chip: '人脉灵感 · 久未跟进', tone: 'bg-sky-500/15 text-sky-300 border-sky-400/40', icon: 'handshake' },
-  'stale-note': { chip: '笔记灵感 · 沉睡文库', tone: 'bg-violet-500/15 text-violet-300 border-violet-400/40', icon: 'auto_stories' },
+  'overdue-todo': { chip: '待办灵感 · 临界推进', tone: 'bg-danger-container text-danger border-danger/30', icon: 'priority_high' },
+  'due-todo': { chip: '待办日程 · 今日到期', tone: 'bg-warning-container text-warning border-warning/30', icon: 'schedule' },
+  reconciliation: { chip: '财务灵感 · 待对账', tone: 'bg-success-container/60 text-success border-success/30', icon: 'account_balance_wallet' },
+  'stale-customer': { chip: '人脉灵感 · 久未跟进', tone: 'bg-primary-fixed text-primary border-primary/30', icon: 'handshake' },
+  'stale-note': { chip: '笔记灵感 · 沉睡文库', tone: 'bg-primary-container text-on-primary-container border-primary/40', icon: 'auto_stories' },
 }
 
 /** 候选池开关（对齐原型 02 底部）：kind → 池 key 归组 */
@@ -49,20 +49,20 @@ function MatchRing({ pct }: { pct: number }) {
   return (
     <div className="relative h-16 w-16 shrink-0">
       <svg viewBox="0 0 64 64" className="h-16 w-16 -rotate-90">
-        <circle cx="32" cy="32" r={r} fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="5" />
+        <circle cx="32" cy="32" r={r} fill="none" stroke="var(--color-outline-variant)" strokeWidth="5" />
         <circle
           cx="32"
           cy="32"
           r={r}
           fill="none"
-          stroke="#60a5fa"
+          stroke="var(--color-primary)"
           strokeWidth="5"
           strokeLinecap="round"
           strokeDasharray={`${(c * pct) / 100} ${c}`}
           className="transition-all duration-500"
         />
       </svg>
-      <div className="absolute inset-0 flex items-center justify-center text-[13px] font-bold text-white">
+      <div className="absolute inset-0 flex items-center justify-center text-[13px] font-bold text-primary">
         {pct}%
       </div>
     </div>
@@ -173,28 +173,28 @@ export default function InspirationPage() {
 
   // 壳内全幅：负 margin 抵消 AppLayout main 的 px-8 py-6，高度补回上下 padding（3rem）
   return (
-    <div className="relative -mx-8 -my-6 flex h-[calc(100%+3rem)] flex-col overflow-hidden bg-[#0b1220] text-slate-100">
+    <div className="relative -mx-8 -my-6 flex h-[calc(100%+3rem)] flex-col overflow-hidden bg-surface text-on-surface">
       {/* 背景光晕 */}
-      <div className="pointer-events-none absolute -top-40 left-1/3 h-96 w-96 rounded-full bg-blue-600/20 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-40 right-1/4 h-96 w-96 rounded-full bg-indigo-500/10 blur-3xl" />
+      <div className="pointer-events-none absolute -top-40 left-1/3 h-96 w-96 rounded-full bg-primary/10 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-40 right-1/4 h-96 w-96 rounded-full bg-primary-fixed/60 blur-3xl" />
 
       {/* 顶栏 */}
       <header className="relative z-10 flex items-center justify-between px-8 py-5">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-on-primary">
             <Icon name="flight_takeoff" size={18} fill />
           </div>
           <div>
             <div className="text-[13.5px] font-bold leading-tight">寻鸽工作台</div>
-            <div className="text-[10px] uppercase tracking-widest text-slate-500">Nexus Workspace</div>
+            <div className="text-[10px] uppercase tracking-widest text-outline">Nexus Workspace</div>
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <span className="rounded-full border border-emerald-400/40 bg-emerald-500/10 px-3 py-1 text-[11.5px] font-medium text-emerald-300">
+          <span className="rounded-full border border-success/30 bg-success-container/60 px-3 py-1 text-[11.5px] font-medium text-success">
             ● 算法置信度 {topMatch}%
           </span>
           <button
-            className="flex h-8 items-center gap-1.5 rounded-lg border border-slate-700 px-3 text-[12px] text-slate-400 transition-colors hover:border-blue-500 hover:text-blue-300"
+            className="flex h-8 items-center gap-1.5 rounded-lg border border-outline-variant/60 px-3 text-[12px] text-on-surface-variant transition-colors hover:border-primary hover:text-primary"
             onClick={() => navigate('/')}
           >
             <Icon name="keyboard_return" size={15} />
@@ -207,13 +207,13 @@ export default function InspirationPage() {
       <main className="relative z-10 flex flex-1 items-start justify-center overflow-y-auto px-8 pb-4">
         {!current ? (
           <div className="mt-24 flex flex-col items-center gap-4 text-center">
-            <Icon name="auto_awesome" className="text-[52px] text-slate-600" />
+            <Icon name="auto_awesome" className="text-[52px] text-outline" />
             <div className="text-[17px] font-semibold">抽取池暂时是空的</div>
-            <div className="max-w-sm text-[13px] leading-relaxed text-slate-500">
+            <div className="max-w-sm text-[13px] leading-relaxed text-on-surface-variant">
               没有发现逾期待办、到期日程、待对账流水或久未跟进的客户。去工作台记录一笔，或先享受片刻清闲。
             </div>
             <button
-              className="mt-2 rounded-lg bg-blue-600 px-5 py-2.5 text-[13px] font-medium text-white hover:bg-blue-500"
+              className="mt-2 rounded-lg bg-primary px-5 py-2.5 text-[13px] font-medium text-on-primary hover:bg-primary-container"
               onClick={() => navigate('/')}
             >
               返回工作台
@@ -222,27 +222,27 @@ export default function InspirationPage() {
         ) : (
           <div className="w-full max-w-[880px]">
             {/* 标题区 */}
-            <div className="rounded-t-2xl border border-slate-800 bg-[#101a2e]/90 px-7 py-5">
+            <div className="rounded-t-2xl border border-outline-variant/40 bg-surface-container-low px-7 py-5">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex items-start gap-4">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary text-on-primary">
                     <Icon name="bolt" fill />
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="text-[17px] font-bold">灵感闪现</span>
-                      <span className="text-[10.5px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      <span className="text-[10.5px] font-semibold uppercase tracking-[0.18em] text-outline">
                         Inspiration Flash
                       </span>
-                      <kbd className="rounded bg-slate-800 px-1.5 text-[10px] text-slate-400">⌘J</kbd>
+                      <kbd className="rounded bg-surface-container-high px-1.5 text-[10px] text-on-surface-variant">⌘J</kbd>
                     </div>
-                    <p className="mt-1 max-w-[520px] text-[12px] leading-relaxed text-slate-500">
+                    <p className="mt-1 max-w-[520px] text-[12px] leading-relaxed text-on-surface-variant">
                       从待办事项、久未跟进客户、待对账流水与今日日程中，综合截止时限与商务权重，抽出当下最值得推进的事。
                     </p>
                   </div>
                 </div>
                 <button
-                  className="flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-1.5 text-[12px] text-slate-400 hover:border-blue-500 hover:text-blue-300"
+                  className="flex shrink-0 items-center gap-1.5 rounded-lg border border-outline-variant/60 bg-surface-container px-3 py-1.5 text-[12px] text-on-surface-variant hover:border-primary hover:text-primary"
                   onClick={next}
                 >
                   <Icon name="shuffle" size={15} />
@@ -252,7 +252,7 @@ export default function InspirationPage() {
             </div>
 
             {/* 候选卡片 */}
-            <div key={current.id} className="rounded-b-2xl border border-t-0 border-slate-800 bg-[#0e1626]/90 px-7 py-6">
+            <div key={current.id} className="rounded-b-2xl border border-t-0 border-outline-variant/40 bg-surface-container-lowest px-7 py-6">
               <div className="flex items-start justify-between gap-6">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
@@ -260,19 +260,19 @@ export default function InspirationPage() {
                       <Icon name={kindMeta!.icon} size={13} />
                       {kindMeta!.chip}
                     </span>
-                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/40 bg-emerald-500/10 px-2.5 py-0.5 text-[11.5px] text-emerald-300">
+                    <span className="inline-flex items-center gap-1 rounded-full border border-success/30 bg-success-container/60 px-2.5 py-0.5 text-[11.5px] text-success">
                       ✓ 综合匹配合度 {current.match}%
                     </span>
                   </div>
-                  <div className="mt-4 text-[10.5px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  <div className="mt-4 text-[10.5px] font-semibold uppercase tracking-[0.18em] text-outline">
                     Recommended Action Target
                   </div>
-                  <h1 className="mt-1 text-[26px] font-bold leading-snug text-white">{current.title}</h1>
-                  <p className="mt-1.5 text-[13px] leading-relaxed text-slate-400">{current.reason}</p>
+                  <h1 className="mt-1 text-[26px] font-bold leading-snug text-on-surface">{current.title}</h1>
+                  <p className="mt-1.5 text-[13px] leading-relaxed text-on-surface-variant">{current.reason}</p>
                 </div>
                 <div className="flex flex-col items-center gap-1 pt-1">
                   <MatchRing pct={current.match} />
-                  <span className="text-[10px] uppercase tracking-widest text-slate-500">合度</span>
+                  <span className="text-[10px] uppercase tracking-widest text-outline">合度</span>
                 </div>
               </div>
 
@@ -280,12 +280,12 @@ export default function InspirationPage() {
               {current.context.length > 0 && (
                 <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
                   {current.context.map((ctx) => (
-                    <div key={ctx.label} className="rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-3">
-                      <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500">
+                    <div key={ctx.label} className="rounded-xl border border-outline-variant/40 bg-surface-container-low px-4 py-3">
+                      <div className="flex items-center gap-1.5 text-[11px] font-medium text-outline">
                         <Icon name={ctx.icon} size={14} />
                         {ctx.label}
                       </div>
-                      <div className="mt-1 truncate text-[13px] font-medium text-slate-200">{ctx.value}</div>
+                      <div className="mt-1 truncate text-[13px] font-medium text-on-surface">{ctx.value}</div>
                     </div>
                   ))}
                 </div>
@@ -294,23 +294,23 @@ export default function InspirationPage() {
               {/* 操作区 */}
               <div className="mt-6 flex flex-wrap items-center gap-3">
                 <button
-                  className="flex h-11 items-center gap-2 rounded-xl bg-blue-600 px-5 text-[13.5px] font-semibold text-white transition-colors hover:bg-blue-500"
+                  className="flex h-11 items-center gap-2 rounded-xl bg-primary px-5 text-[13.5px] font-semibold text-on-primary transition-colors hover:bg-primary-container"
                   onClick={startFocus}
                 >
                   <Icon name="play_arrow" size={17} />
                   立即专注执行（锁定此任务）
-                  <kbd className="rounded bg-blue-500/60 px-1.5 text-[10.5px]">Enter</kbd>
+                  <kbd className="rounded bg-on-primary/20 px-1.5 text-[10.5px]">Enter</kbd>
                 </button>
                 <button
-                  className="flex h-11 items-center gap-2 rounded-xl border border-slate-700 px-4 text-[13px] text-slate-300 transition-colors hover:border-slate-500"
+                  className="flex h-11 items-center gap-2 rounded-xl border border-outline-variant/60 bg-surface-container px-4 text-[13px] text-on-surface transition-colors hover:border-outline"
                   onClick={next}
                 >
                   <Icon name="shuffle" size={16} />
                   换一个
-                  <kbd className="rounded bg-slate-800 px-1.5 text-[10.5px] text-slate-400">Space</kbd>
+                  <kbd className="rounded bg-surface-container-high px-1.5 text-[10.5px] text-on-surface-variant">Space</kbd>
                 </button>
                 <button
-                  className="flex h-11 items-center gap-1.5 rounded-xl px-3 text-[13px] text-slate-400 transition-colors hover:text-slate-200"
+                  className="flex h-11 items-center gap-1.5 rounded-xl px-3 text-[13px] text-on-surface-variant transition-colors hover:text-on-surface"
                   onClick={remindLater}
                 >
                   <Icon name="schedule" size={16} />
@@ -318,7 +318,7 @@ export default function InspirationPage() {
                 </button>
                 {current.noteId && (
                   <button
-                    className="flex h-11 items-center gap-1.5 rounded-xl px-3 text-[13px] text-violet-300 transition-colors hover:text-violet-200"
+                    className="flex h-11 items-center gap-1.5 rounded-xl px-3 text-[13px] text-primary transition-colors hover:text-primary"
                     onClick={() => navigate(`/notes/${current.noteId}`)}
                   >
                     <Icon name="auto_stories" size={16} />
@@ -327,7 +327,7 @@ export default function InspirationPage() {
                 )}
                 {current.todoId && (
                   <button
-                    className="flex h-11 items-center gap-1.5 rounded-xl px-3 text-[13px] text-emerald-400 transition-colors hover:text-emerald-300"
+                    className="flex h-11 items-center gap-1.5 rounded-xl px-3 text-[13px] text-success transition-colors hover:text-success"
                     onClick={() => void completeTodo()}
                   >
                     <Icon name="check_circle" size={16} />
@@ -338,20 +338,20 @@ export default function InspirationPage() {
             </div>
 
             {/* 候选池开关（对齐原型 02 底部） */}
-            <div className="mt-5 flex flex-wrap items-center justify-center gap-3 rounded-xl border border-slate-800/80 bg-[#0d1524]/80 px-4 py-2.5">
-              <span className="text-[11px] font-medium uppercase tracking-widest text-slate-500">候选池</span>
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-3 rounded-xl border border-outline-variant/40 bg-surface-container-low px-4 py-2.5">
+              <span className="text-[11px] font-medium uppercase tracking-widest text-outline">候选池</span>
               {POOLS.map((p) => (
                 <label
                   key={p.key}
                   className={`flex cursor-pointer select-none items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11.5px] transition-colors ${
                     pools[p.key]
-                      ? 'border-blue-500/50 bg-blue-500/10 text-blue-300'
-                      : 'border-slate-700 text-slate-500'
+                      ? 'border-primary/50 bg-primary-fixed text-primary'
+                      : 'border-outline-variant/60 text-on-surface-variant'
                   }`}
                 >
                   <input
                     type="checkbox"
-                    className="h-3 w-3 accent-blue-500"
+                    className="h-3 w-3 accent-[var(--color-primary)]"
                     checked={pools[p.key]}
                     onChange={() => togglePool(p.key)}
                   />
@@ -367,12 +367,12 @@ export default function InspirationPage() {
                   key={c.id}
                   title={c.title}
                   className={`h-2 rounded-full transition-all ${
-                    i === safeIdx ? 'w-5 bg-blue-500' : 'w-2 bg-slate-700 hover:bg-slate-500'
+                    i === safeIdx ? 'w-5 bg-primary' : 'w-2 bg-outline-variant/60 hover:bg-outline'
                   }`}
                   onClick={() => setIdx(i)}
                 />
               ))}
-              <span className="ml-3 text-[11px] text-slate-500">
+              <span className="ml-3 text-[11px] text-on-surface-variant">
                 已抽取并达成 {Math.min(candidates.length, safeIdx + 1)} / {candidates.length} 项
               </span>
             </div>
@@ -381,16 +381,16 @@ export default function InspirationPage() {
       </main>
 
       {/* 底部按键提示 */}
-      <footer className="relative z-10 flex items-center justify-center gap-6 border-t border-slate-800/80 py-3 text-[11.5px] text-slate-500">
-        <span><kbd className="rounded bg-slate-800 px-1.5 py-0.5 text-slate-300">Space</kbd> 切换下一个灵感</span>
-        <span><kbd className="rounded bg-slate-800 px-1.5 py-0.5 text-slate-300">Enter</kbd> 开启锁定强专注工作态</span>
-        <span><kbd className="rounded bg-slate-800 px-1.5 py-0.5 text-slate-300">Esc</kbd> 返回工作台</span>
+      <footer className="relative z-10 flex items-center justify-center gap-6 border-t border-outline-variant/40 py-3 text-[11.5px] text-on-surface-variant">
+        <span><kbd className="rounded bg-surface-container-high px-1.5 py-0.5 text-on-surface">Space</kbd> 切换下一个灵感</span>
+        <span><kbd className="rounded bg-surface-container-high px-1.5 py-0.5 text-on-surface">Enter</kbd> 开启锁定强专注工作态</span>
+        <span><kbd className="rounded bg-surface-container-high px-1.5 py-0.5 text-on-surface">Esc</kbd> 返回工作台</span>
       </footer>
 
       {/* 稍后提醒 Toast */}
       {reminderMsg && (
-        <div className="fixed bottom-16 left-1/2 z-50 -translate-x-1/2 rounded-full border border-slate-700 bg-slate-900/95 px-5 py-2.5 text-[12.5px] text-slate-200 shadow-xl">
-          <Icon name="notifications_active" className="mr-1.5 align-[-4px] text-[15px] text-amber-400" />
+        <div className="fixed bottom-16 left-1/2 z-50 -translate-x-1/2 rounded-full border border-outline-variant/60 bg-surface-container-high px-5 py-2.5 text-[12.5px] text-on-surface shadow-xl">
+          <Icon name="notifications_active" className="mr-1.5 align-[-4px] text-[15px] text-warning" />
           {reminderMsg}
         </div>
       )}
