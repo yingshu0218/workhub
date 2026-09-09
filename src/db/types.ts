@@ -66,6 +66,8 @@ export interface Customer extends SyncMeta {
   createdAt: number
   /** 客户间语义关系（双向弱引用；编辑抽屉维护，删除级联双向解绑） */
   relations?: CustomerRelation[]
+  /** 亲密度手动档（Issue #34）：内嵌可选字段零迁移；缺省=未设置=走算法兜底 */
+  intimacy?: CustomerIntimacy
 }
 
 export interface Interaction extends SyncMeta {
@@ -374,4 +376,106 @@ export interface CustomerOption {
   id: string
   name: string
   company: string
+}
+
+// ─────────────────────────── 客户亲密度体系（Issue #34 收敛稿） ───────────────────────────
+
+/**
+ * 亲密度等级（Issue #34 收敛稿：7 档 = 5 档信任轴 T1~T5 + 2 档隔离态 I6/I7）。
+ * key 是 code 级常量、永不增删改名（改名零迁移的前提）；显示名/描述走 moduleConfigs 配置。
+ * T 档可参与算法兜底推导；I 档是用户主动降级的意愿信号，算法永不给出。
+ */
+export type IntimacyLevel = 'T1' | 'T2' | 'T3' | 'T4' | 'T5' | 'I6' | 'I7'
+
+/** 亲密度 7 档固定 key 顺序（设置页/选择器渲染顺序，T1→I7） */
+export const INTIMACY_LEVELS: IntimacyLevel[] = ['T1', 'T2', 'T3', 'T4', 'T5', 'I6', 'I7']
+
+/** 信任轴（可被算法兜底分档）与隔离态（只能人工设置）的划分 */
+export const isIntimacyTrustLevel = (l: IntimacyLevel) => l.startsWith('T')
+
+/** 图谱圈层视觉档（Issue #34 视觉映射：内圈大/外圈小；I 档圈外弱化） */
+export const INTIMACY_VISUAL: Record<IntimacyLevel, { radius: number; color: string; ring: string }> =
+  {
+    T1: { radius: 34, color: '#004ac6', ring: '#004ac6' },
+    T2: { radius: 30, color: '#004ac6', ring: '#5a7fd6' },
+    T3: { radius: 26, color: '#0065b8', ring: '#7fa8d6' },
+    T4: { radius: 22, color: '#6f7987', ring: '#a8b0bd' },
+    T5: { radius: 18, color: '#8a94a6', ring: '#c3c9d4' },
+    I6: { radius: 14, color: '#9a9096', ring: '#c9c1c5' },
+    I7: { radius: 14, color: '#ba1a1a', ring: '#e0a9a8' },
+  }
+
+/** 亲密度等级配置行（名称/判据描述可编辑，key 固定） */
+export interface IntimacyLevelConfig {
+  key: IntimacyLevel
+  name: string
+  desc: string
+}
+
+/** 黑名单（I7）全局屏蔽开关矩阵（Issue #34 审计口径：默认只开图谱隐藏，副作用渐进开放） */
+export interface ModuleConfigBlacklist {
+  /** 图谱隐藏（I7 节点不渲染） */
+  hideInGraph: boolean
+  /** 全局搜索 / ⌘K 屏蔽 */
+  hideInSearch: boolean
+  /** 新建业务单据客户选择器不可选 */
+  excludeFromPicker: boolean
+  /** 时间线/列表隐藏（仅档案可见） */
+  hideInTimeline: boolean
+}
+
+/** 算法兜底配置：4 因子权重 + 切档阈值（Issue #34 收敛稿默认 30/30/20/20；85/70/50） */
+export interface ModuleConfigIntimacyAlgorithm {
+  /** 算法兜底总开关（手动设置始终最优先） */
+  enabled: boolean
+  weights: { contact: number; finance: number; todo: number; project: number }
+  /** 切档阈值（单调递减约束：t2 > t3 > t4；算法最多推到 T2，永不给出 T1/I6/I7） */
+  thresholds: { t2: number; t3: number; t4: number }
+}
+
+/** moduleConfigs 表 crm.intimacy 记录的 payload（key 寻址，每模块一条，随同步多端一致） */
+export interface ModuleConfigIntimacy {
+  levels: IntimacyLevelConfig[]
+  blacklist: ModuleConfigBlacklist
+  algorithm: ModuleConfigIntimacyAlgorithm
+}
+
+/** moduleConfigs 表记录：SyncMeta 全量同步元数据，id 即配置 key（如 'crm.intimacy'） */
+export interface ModuleConfig extends SyncMeta {
+  id: string
+  payload: unknown
+}
+
+/** crm.intimacy 默认配置（收敛稿默认值；levels 命名取 Issue #34 已收敛命名） */
+export const DEFAULT_INTIMACY_CONFIG: ModuleConfigIntimacy = {
+  levels: [
+    { key: 'T1', name: '核心', desc: '100% 信任，托付底线的事也放心' },
+    { key: 'T2', name: '信赖', desc: '大多数情况下可信任，有事第一时间想起' },
+    { key: 'T3', name: '合作', desc: '可以共事，有过成功协作' },
+    { key: 'T4', name: '一般', desc: '关系一般，合作慎重' },
+    { key: 'T5', name: '照面', desc: '只是有打过照面，无实质往来' },
+    { key: 'I6', name: '疏远', desc: '不想有交集，主动回避' },
+    { key: 'I7', name: '黑名单', desc: '明确拉黑，按屏蔽开关全局规避' },
+  ],
+  blacklist: {
+    hideInGraph: true,
+    hideInSearch: false,
+    hideInTimeline: false,
+    excludeFromPicker: false,
+  },
+  algorithm: {
+    enabled: true,
+    weights: { contact: 30, finance: 30, todo: 20, project: 20 },
+    thresholds: { t2: 85, t3: 70, t4: 50 },
+  },
+}
+
+/** moduleConfigs 的 crm.intimacy 配置 key（幂等寻址，全库一条） */
+export const INTIMACY_CONFIG_ID = 'crm.intimacy'
+
+/** 客户亲密度手动档：手动设置后锁定、算法分不参与；note 记原因、updatedAt 留痕可审计 */
+export interface CustomerIntimacy {
+  level: IntimacyLevel
+  note?: string
+  updatedAt: number
 }

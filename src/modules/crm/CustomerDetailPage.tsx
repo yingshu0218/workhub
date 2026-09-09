@@ -10,6 +10,7 @@ import dayjs from 'dayjs'
 import CustomerFormDrawer from './CustomerFormDrawer'
 import { useCustomerTodos, useCustomerTransactions } from './hooks'
 import { fmtRelative, healthColor, tierChipTone } from './shared'
+import IntimacyPicker from './intimacy/IntimacyPicker'
 import {
   TIMELINE_FILTERS,
   fmtTimelineTime,
@@ -176,6 +177,9 @@ export default function CustomerDetailPage() {
               </div>
             </div>
           </Card>
+
+          {/* 亲密度档位（Issue #34）：手动 7 档优先，未设置走算法兜底 */}
+          <IntimacyPicker customer={customer} />
 
           {/* 联系渠道 */}
           <Card className="p-5">

@@ -1579,5 +1579,75 @@
       "CREATE INDEX idx_projectMilestones_tombstonePushed ON projectMilestones (tombstonePushed)",
       "CREATE INDEX idx_projectMilestones_projectId ON projectMilestones (projectId)"
     ]
-  }
+  },
+ {
+  "name": "module_configs",
+  "type": "base",
+  "system": false,
+  "listRule": "@request.auth.id != ''",
+  "viewRule": "@request.auth.id != ''",
+  "createRule": "@request.auth.id != ''",
+  "updateRule": "@request.auth.id != ''",
+  "deleteRule": "@request.auth.id != ''",
+  "fields": [
+   {
+    "name": "id",
+    "type": "text",
+    "primaryKey": true,
+    "required": true,
+    "autogeneratePattern": ""
+   },
+   {
+    "name": "localId",
+    "type": "text",
+    "required": true
+   },
+   {
+    "name": "payload",
+    "type": "json"
+   },
+   {
+    "name": "updatedAt",
+    "type": "number",
+    "required": true
+   },
+   {
+    "name": "deleted",
+    "type": "number"
+   },
+   {
+    "name": "rev",
+    "type": "number"
+   },
+   {
+    "name": "created",
+    "type": "autodate",
+    "onCreate": true,
+    "onUpdate": false
+   },
+   {
+    "name": "updated",
+    "type": "autodate",
+    "onCreate": true,
+    "onUpdate": true
+   },
+   {
+    "name": "server_received_at",
+    "type": "autodate",
+    "onCreate": true,
+    "onUpdate": true
+   },
+   {
+    "name": "tombstonePushed",
+    "type": "number",
+    "required": false,
+    "presentable": false
+   }
+  ],
+  "indexes": [
+   "CREATE UNIQUE INDEX idx_module_configs_localId ON module_configs (localId)",
+   "CREATE INDEX idx_module_configs_updatedAt ON module_configs (updatedAt)",
+   "CREATE INDEX idx_module_configs_tombstonePushed ON module_configs (tombstonePushed)"
+  ]
+ }
 ]

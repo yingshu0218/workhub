@@ -35,6 +35,8 @@ import {
 import { pbPing, isSyncConfigured, enqueueAllForPush } from '@/sync/pocketbaseAdapter'
 import { syncEngine } from '@/sync/engine'
 import { useSyncStore } from '@/sync/store'
+import DataManagementTab from './DataManagementTab'
+import { moduleConfigRepo } from '@/repositories'
 
 /**
  * 系统设置（对齐原型 13~15/17/18/20 · 6 标签）
@@ -47,6 +49,7 @@ const TABS = [
   { id: 'typography', label: '字体与排版', icon: 'text_fields' },
   { id: 'shortcuts', label: '通用与快捷键', icon: 'keyboard' },
   { id: 'notifications', label: '提醒与协同', icon: 'notifications_active' },
+  { id: 'data', label: '数据管理', icon: 'tune' },
   { id: 'sync', label: '云端同步', icon: 'cloud_sync' },
   { id: 'security', label: '数据与安全', icon: 'security' },
 ] as const
@@ -237,6 +240,7 @@ export default function SettingsPage() {
         noteFolders,
         projects,
         projectMilestones,
+        moduleConfigs,
       ] = await Promise.all([
         workspaceRepo.list(),
         customerRepo.list(),
@@ -255,6 +259,7 @@ export default function SettingsPage() {
         noteFolderRepo.list(),
         projectRepo.list(),
         projectMilestoneRepo.list(),
+        moduleConfigRepo.list(),
       ])
       const attachmentRows = await Promise.all(
         attachments.map(async ({ blob, ...meta }) => ({
@@ -284,6 +289,7 @@ export default function SettingsPage() {
           noteFolders,
           projects,
           projectMilestones,
+          moduleConfigs,
         },
       }
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
@@ -485,6 +491,9 @@ export default function SettingsPage() {
           </button>
         ))}
       </div>
+
+      {/* ── 数据管理（Issue #34：亲密度/黑名单/算法权重等模块自定义配置） ── */}
+      {tab === 'data' && <DataManagementTab />}
 
       {/* ── 外观与主题 ── */}
       {tab === 'appearance' && (

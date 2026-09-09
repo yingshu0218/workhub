@@ -7,7 +7,7 @@ import {
   forceSimulation,
   type Simulation,
 } from 'd3-force'
-import type { RelationCategory } from '@/db/types'
+import type { RelationCategory, ModuleConfigIntimacy } from '@/db/types'
 import type { CanvasGraph } from '../hooks'
 import { buildGraph, type GraphMode } from './buildGraph'
 import type { GraphLink, GraphNode } from './types'
@@ -26,6 +26,8 @@ export interface ForceGraphOptions {
   mode?: GraphMode
   /** 关系归类筛选（customer-only 模式生效） */
   categories?: RelationCategory[]
+  /** 亲密度配置（Issue #34）：传入启用黑名单过滤 + 亲密度圈层布局 */
+  intimacyCfg?: ModuleConfigIntimacy
   /** 布局稳定回调（仿真自然收敛时触发一次，供调用方做首屏适应/聚焦，Issue #34） */
   onLayoutSettled?: () => void
 }
@@ -36,6 +38,7 @@ export function useForceGraph({
   focusId,
   mode,
   categories,
+  intimacyCfg,
   onLayoutSettled,
 }: ForceGraphOptions) {
   const [nodes, setNodes] = useState<GraphNode[]>([])
@@ -52,6 +55,7 @@ export function useForceGraph({
       focusId,
       mode,
       categories,
+      intimacyCfg,
       center: { x: size.w / 2, y: size.h / 2 },
     })
     const ns = built.nodes
@@ -118,7 +122,7 @@ export function useForceGraph({
         rafRef.current = null
       }
     }
-  }, [graph, size.w, size.h, focusId, mode, categories])
+  }, [graph, size.w, size.h, focusId, mode, categories, intimacyCfg])
 
   return { nodes, links, setNodes, setLinks, simRef }
 }

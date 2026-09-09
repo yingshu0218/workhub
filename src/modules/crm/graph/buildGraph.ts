@@ -1,5 +1,8 @@
-import type { RelationCategory } from '@/db/types'
+import type { IntimacyLevel, RelationCategory } from '@/db/types'
+import { INTIMACY_VISUAL } from '@/db/types'
 import type { CanvasGraph } from '../hooks'
+import { buildScoreInput, resolveIntimacyLevel, isBlacklistHidden } from '../intimacy'
+import type { ModuleConfigIntimacy } from '@/db/types'
 import type { GraphLink, GraphNode } from './types'
 import { GRAPH_COLORS } from './types'
 
@@ -20,6 +23,8 @@ export interface BuildGraphOptions {
   categories?: RelationCategory[]
   /** 初始打散锚点（画布中心） */
   center: { x: number; y: number }
+  /** 亲密度配置（Issue #34）：传入即启用黑名单过滤 + customer-only 模式下圈层布局 */
+  intimacyCfg?: ModuleConfigIntimacy
 }
 
 const fmtMoney = (n: number) => `¥${n.toLocaleString('zh-CN')}`
@@ -213,16 +218,32 @@ export function buildGraph(
 
   // ── customer-only 模式（Issue #34）：纯客户节点 + 分类关系边 + 桥接弱边，业务实体节点不参与 ──
   if (opts.mode === 'customer-only') {
-    const ns: GraphNode[] = graph.customers.map((c, i) => ({
-      id: c.id,
-      kind: 'customer' as const,
-      label: c.name,
-      color: GRAPH_COLORS.customer.stroke,
-      fill: GRAPH_COLORS.customer.fill,
-      radius: 24,
-      x: opts.center.x + Math.cos(i * 2.4) * 120,
-      y: opts.center.y + Math.sin(i * 2.4) * 90,
-    }))
+    // 黑名单过滤（Issue #34）：hideInGraph 开启时 I7 客户不渲染（图谱是经营视图，默认屏蔽）
+    const visible = opts.intimacyCfg
+      ? graph.customers.filter((c) => !isBlacklistHidden(c, opts.intimacyCfg!, 'hideInGraph'))
+      : graph.customers
+    // 亲密度档位解析（手动最优先 → 算法兜底）：档位驱动节点大小（远近即大小，二者天然一致）
+    const levelOf = new Map<string, IntimacyLevel | null>()
+    if (opts.intimacyCfg) {
+      for (const c of visible) {
+        const input = opts.intimacyCfg.algorithm.enabled ? buildScoreInput(graph, c.id) : null
+        levelOf.set(c.id, resolveIntimacyLevel(c, opts.intimacyCfg, input).level)
+      }
+    }
+    const ns: GraphNode[] = visible.map((c, i) => {
+      const lv = levelOf.get(c.id) ?? null
+      const visual = lv ? INTIMACY_VISUAL[lv] : null
+      return {
+        id: c.id,
+        kind: 'customer' as const,
+        label: c.name,
+        color: visual?.color ?? GRAPH_COLORS.customer.stroke,
+        fill: GRAPH_COLORS.customer.fill,
+        radius: visual?.radius ?? 24,
+        x: opts.center.x + Math.cos(i * 2.4) * 120,
+        y: opts.center.y + Math.sin(i * 2.4) * 90,
+      }
+    })
     const ids = new Set(ns.map((n) => n.id))
     const cats = opts.categories
     const ls = relationLinks.filter((l) => {

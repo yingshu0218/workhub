@@ -12,6 +12,7 @@ import type {
   HabitLog,
   Trophy,
   Settings,
+  ModuleConfig,
 } from './types'
 
 export interface SyncQueueItem {
@@ -77,6 +78,7 @@ export class NexusDB extends Dexie {
   projectMilestones!: Table<import('./types').ProjectMilestone, string>
   focusSessions!: Table<FocusSession, string>
   settings!: Table<Settings, string>
+  moduleConfigs!: Table<ModuleConfig, string>
 
   constructor() {
     super('nexus-workspace')
@@ -131,6 +133,11 @@ export class NexusDB extends Dexie {
       todos: 'id, status, dueAt, priority, customerId, listId, projectId, updatedAt',
       notes: 'id, folderId, projectId, updatedAt',
       interactions: 'id, customerId, at, projectId, updatedAt',
+    })
+    // v9（Issue #34 亲密度体系）：moduleConfigs 模块配置表（key 寻址，每模块一条）。
+    // 亲密度等级名/黑名单开关/算法权重随同步多端一致，走同步表而非 settings（本地偏好不进同步）
+    this.version(9).stores({
+      moduleConfigs: 'id, updatedAt',
     })
   }
 }

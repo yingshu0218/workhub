@@ -10,6 +10,8 @@ export type AppEvent = {
   'exp:changed': { delta: number; reason: string }
   'trophy:unlocked': { trophyId: string }
   'settings:changed': { settings: Settings }
+  /** 模块配置变更（Issue #34 亲密度配置走 moduleConfigs 同步表，消费端实时应用） */
+  'moduleConfig:changed': { key: string }
 }
 
 type Handler<K extends keyof AppEvent> = (payload: AppEvent[K]) => void
