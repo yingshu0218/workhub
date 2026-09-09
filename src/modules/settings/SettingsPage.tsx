@@ -372,7 +372,7 @@ export default function SettingsPage() {
       const date = (ts: number) => new Date(ts).toLocaleDateString('zh-CN')
       const stamp = new Date().toISOString().slice(0, 10)
       const txnCsv = toCsv(
-        ['日期', '类型', '金额', '币种', '渠道', '摘要', '状态', '发票号', '标签'],
+        ['日期', '类型', '金额', '币种', '渠道', '摘要', '状态', '标签'],
         txns.map((t) => [
           date(t.occurredAt),
           t.type === 'income' ? '收入' : '支出',
@@ -381,7 +381,6 @@ export default function SettingsPage() {
           t.channel,
           t.summary,
           t.status,
-          t.invoiceNo ?? '',
           t.tags.join(';'),
         ]),
       )
