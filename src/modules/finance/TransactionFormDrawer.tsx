@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useCollection } from '@/queries/hooks'
 import { newId, saveTransactionWithAttachments } from '@/repositories'
 import { eventBus } from '@/shared/eventBus'
@@ -35,17 +35,18 @@ export default function TransactionFormDrawer({
   const openTodos = todos.filter((t) => t.status !== 'done')
   const [type, setType] = useState<Transaction['type']>('income')
   const [ledgerId, setLedgerId] = useState('')
-  const [channel, setChannel] = useState<(typeof CHANNELS)[number]>('微信')
+  const [channel, setChannel] = useState('')
   const [summary, setSummary] = useState('')
   const [amount, setAmount] = useState('')
   const [occurredAt, setOccurredAt] = useState('')
-  const [tagsRaw, setTagsRaw] = useState('')
+  const [tags, setTags] = useState<string[]>([])
+  const [tagInput, setTagInput] = useState('')
   const [customerId, setCustomerId] = useState('')
   const [todoId, setTodoId] = useState('')
   const [projectId, setProjectId] = useState('')
-  const [invoiceNo, setInvoiceNo] = useState('')
   const [note, setNote] = useState('')
   const [files, setFiles] = useState<File[]>([])
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [error, setError] = useState('')
   const [seedKey, setSeedKey] = useState(0)
 
@@ -58,30 +59,33 @@ export default function TransactionFormDrawer({
       if (editTxn) {
         setType(editTxn.type)
         setLedgerId(editTxn.ledgerId)
-        setChannel(editTxn.channel as (typeof CHANNELS)[number])
+        setChannel(editTxn.channel ?? '')
         setSummary(editTxn.summary)
         setAmount(String(editTxn.amount))
-        setOccurredAt(dayjs(editTxn.occurredAt).format('YYYY-MM-DDTHH:mm'))
-        setTagsRaw(editTxn.tags.join(', '))
+        setOccurredAt(dayjs(editTxn.occurredAt).format('YYYY-MM-DD'))
+        setTags(editTxn.tags)
+        setTagInput('')
         setCustomerId(editTxn.customerId ?? '')
         setTodoId(editTxn.todoId ?? '')
         setProjectId(editTxn.projectId ?? '')
-        setInvoiceNo(editTxn.invoiceNo ?? '')
         setNote(editTxn.note ?? '')
       } else {
-        const fallback = ledgers[0]?.id ?? ''
-        const initial = defaultLedgerId && defaultLedgerId !== 'all' ? defaultLedgerId : fallback
+        // 归属账本默认值：左侧选中具体账本直接用；「全部账本」优先默认账本，再回落第一个
+        const initial =
+          defaultLedgerId && defaultLedgerId !== 'all'
+            ? defaultLedgerId
+            : (ledgers.find((l) => l.isDefault)?.id ?? ledgers[0]?.id ?? '')
         setType('income')
         setLedgerId(initial)
-        setChannel('微信')
+        setChannel('')
         setSummary('')
         setAmount('')
-        setOccurredAt(dayjs().format('YYYY-MM-DDTHH:mm'))
-        setTagsRaw('')
+        setOccurredAt(dayjs().format('YYYY-MM-DD'))
+        setTags([])
+        setTagInput('')
         setCustomerId('')
         setTodoId('')
         setProjectId('')
-        setInvoiceNo('')
         setNote('')
       }
       setFiles([])
@@ -102,14 +106,27 @@ export default function TransactionFormDrawer({
     if (done) todoOptions.push({ id: done.id, label: done.title, sub: '已完成', icon: 'task_alt' })
   }
 
-  const tags = [
-    ...new Set(
-      tagsRaw
-        .split(/[,,]/)
-        .map((t) => t.trim().replace(/^#/, ''))
-        .filter(Boolean),
-    ),
-  ]
+
+  /** 回车 / 逗号 / 失焦 → 将输入固化为标签：去 #、去重、去空 */
+  function commitTag(raw?: string) {
+    const text = (raw ?? tagInput).trim().replace(/^#/, '')
+    if (!text) {
+      setTagInput('')
+      return
+    }
+    if (!tags.includes(text)) setTags([...tags, text])
+    setTagInput('')
+  }
+
+  /** 退格：输入框为空时删除末个标签 */
+  function onTagKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault()
+      commitTag()
+    } else if (e.key === 'Backspace' && !tagInput && tags.length > 0) {
+      setTags(tags.slice(0, -1))
+    }
+  }
 
   async function save() {
     if (!summary.trim()) {
@@ -150,9 +167,9 @@ export default function TransactionFormDrawer({
           amount: amountNum,
           summary: summary.trim(),
           channel,
-          occurredAt: occurredAt ? dayjs(occurredAt).valueOf() : Date.now(),
+          // 仅日期录入：统一落当天 00:00，新老数据按天排序不受影响
+          occurredAt: occurredAt ? dayjs(occurredAt).startOf('day').valueOf() : dayjs().startOf('day').valueOf(),
           tags,
-          invoiceNo: invoiceNo.trim() || undefined,
           note: note.trim() || undefined,
           customerId: customerId || undefined,
           todoId: todoId || undefined,
@@ -165,9 +182,9 @@ export default function TransactionFormDrawer({
           amount: amountNum,
           summary: summary.trim(),
           channel,
-          occurredAt: occurredAt ? dayjs(occurredAt).valueOf() : Date.now(),
+          // 仅日期录入：统一落当天 00:00，新老数据按天排序不受影响
+          occurredAt: occurredAt ? dayjs(occurredAt).startOf('day').valueOf() : dayjs().startOf('day').valueOf(),
           tags,
-          invoiceNo: invoiceNo.trim() || undefined,
           note: note.trim() || undefined,
           customerId: customerId || undefined,
           todoId: todoId || undefined,
@@ -269,28 +286,38 @@ export default function TransactionFormDrawer({
         </Field>
         <Field label="记账时间">
           <input
-            type="datetime-local"
+            type="date"
             className={inputCls}
             value={occurredAt}
             onChange={(e) => setOccurredAt(e.target.value)}
           />
         </Field>
-        <Field label="业务标签（逗号分隔）">
-          <input
-            className={inputCls}
-            value={tagsRaw}
-            onChange={(e) => setTagsRaw(e.target.value)}
-            placeholder="大客户回款, 合同款, 核心战略"
-          />
-          {tags.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {tags.map((t) => (
-                <Chip key={t} tone="gray">
-                  #{t}
-                </Chip>
-              ))}
-            </div>
-          )}
+        <Field label="业务标签">
+          <div
+            className={`${inputCls} flex min-h-[38px] cursor-text flex-wrap items-center gap-1.5`}
+            onClick={(e) => (e.currentTarget.querySelector('input') as HTMLInputElement)?.focus()}
+          >
+            {tags.map((t) => (
+              <Chip key={t} tone="gray">
+                #{t}
+                <button
+                  className="ml-0.5 text-outline hover:text-danger"
+                  title="删除标签"
+                  onClick={() => setTags(tags.filter((x) => x !== t))}
+                >
+                  ×
+                </button>
+              </Chip>
+            ))}
+            <input
+              className="min-w-[120px] flex-1 bg-transparent text-[13px] outline-none"
+              value={tagInput}
+              onChange={(e) => setTagInput(e.target.value)}
+              onKeyDown={onTagKeyDown}
+              onBlur={() => commitTag()}
+              placeholder={tags.length === 0 ? '输入后回车确认，如：大客户回款' : ''}
+            />
+          </div>
         </Field>
         <Field label="关联客户">
           <MatchCombobox
@@ -329,14 +356,6 @@ export default function TransactionFormDrawer({
             onChange={setTodoId}
           />
         </Field>
-        <Field label="发票号">
-          <input
-            className={inputCls}
-            value={invoiceNo}
-            onChange={(e) => setInvoiceNo(e.target.value)}
-            placeholder="如：INV-2026-0892"
-          />
-        </Field>
         <Field label="备注">
           <textarea
             className={`${inputCls} h-20 resize-none`}
@@ -344,16 +363,30 @@ export default function TransactionFormDrawer({
             onChange={(e) => setNote(e.target.value)}
           />
         </Field>
-        <Field label={`附件存根（${files.length} 个，单文件 ≤ 5MB）`}>
-          <input
-            type="file"
-            multiple
-            className={`${inputCls} py-1.5`}
-            onChange={(e) => {
-              setFiles(Array.from(e.target.files ?? []))
-              e.target.value = ''
-            }}
-          />
+        <Field label={`附件（${files.length} 个，单文件 ≤ 5MB）`}>
+          <div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                // 多选追加，不覆盖已选；同名文件跳过
+                const picked = Array.from(e.target.files ?? [])
+                setFiles((prev) => {
+                  const merged = [...prev]
+                  for (const f of picked) {
+                    if (!merged.some((x) => x.name === f.name && x.size === f.size)) merged.push(f)
+                  }
+                  return merged
+                })
+                e.target.value = ''
+              }}
+            />
+            <Button variant="tonal" icon="upload_file" onClick={() => fileInputRef.current?.click()}>
+              上传附件
+            </Button>
+          </div>
           {files.length > 0 && (
             <div className="mt-2 space-y-1.5">
               {files.map((f, i) => (
@@ -365,10 +398,19 @@ export default function TransactionFormDrawer({
                       : 'border-outline-variant/40'
                   }`}
                 >
-                  <span className="truncate">{f.name}</span>
-                  <span className="ml-2 shrink-0 text-outline">
-                    {(f.size / 1024).toFixed(0)} KB
+                  <span className="truncate">
+                    {f.name}
+                    <span className="ml-2 shrink-0 text-outline">
+                      {(f.size / 1024).toFixed(0)} KB
+                    </span>
                   </span>
+                  <button
+                    className="ml-2 shrink-0 text-outline hover:text-danger"
+                    title="移除附件"
+                    onClick={() => setFiles(files.filter((_, idx) => idx !== i))}
+                  >
+                    ×
+                  </button>
                 </div>
               ))}
             </div>

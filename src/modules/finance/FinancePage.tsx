@@ -130,7 +130,7 @@ export default function FinancePage() {
       if (statusFilter !== 'all' && t.status !== statusFilter) return false
       if (keyword.trim()) {
         const kw = keyword.trim().toLowerCase()
-        const haystack = [t.summary, t.channel, t.invoiceNo ?? '', t.tags.join(' ')]
+        const haystack = [t.summary, t.channel, t.tags.join(' ')]
           .join(' ')
           .toLowerCase()
         if (!haystack.includes(kw)) return false
@@ -307,7 +307,7 @@ export default function FinancePage() {
                 className={inputCls}
                 value={keyword}
                 onChange={(e) => setKeyword(e.target.value)}
-                placeholder="按交易名称、发票号、标签检索…"
+                placeholder="按交易名称、渠道、标签检索…"
               />
             </div>
           </div>
@@ -544,7 +544,7 @@ function TransactionRow({
           {showLedger && ledger && <Chip tone={isIncome ? 'blue' : 'gray'}>{ledger.name}</Chip>}
         </div>
         <div className="mt-0.5 text-[12px] text-outline">
-          {dayjs(txn.occurredAt).format('YYYY-MM-DD HH:mm')} · {txn.channel}
+          {dayjs(txn.occurredAt).format('YYYY-MM-DD')} · {txn.channel || '—'}
         </div>
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
           {txn.tags.map((tag) => (
@@ -620,7 +620,7 @@ function TransactionDetailDrawer({
   /** 删除此笔流水：级联软删其全部附件存根，成功后关闭抽屉 */
   async function handleDelete() {
     if (!txn) return
-    if (!window.confirm(`确认删除流水「${txn.summary}」？其全部附件存根将一并删除。`)) return
+    if (!window.confirm(`确认删除流水「${txn.summary}」？其全部附件将一并删除。`)) return
     await deleteTransactionCascade(txn.id)
     setEditing(false)
     onClose()
@@ -689,12 +689,11 @@ function TransactionDetailDrawer({
           {/* 基础明细 */}
           <div className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-xl bg-surface-container-low/50 p-4">
             <DetailField label="交易类型">{txn.type === 'income' ? '收入' : '支出'}</DetailField>
-            <DetailField label="结算渠道">{txn.channel}</DetailField>
+            <DetailField label="资金渠道">{txn.channel || '—'}</DetailField>
             <DetailField label="记账时间">
-              {dayjs(txn.occurredAt).format('YYYY-MM-DD HH:mm')}
+              {dayjs(txn.occurredAt).format('YYYY-MM-DD')}
             </DetailField>
             <DetailField label="归属账本">{ledger?.name ?? '—'}</DetailField>
-            <DetailField label="发票号">{txn.invoiceNo ?? '—'}</DetailField>
             <DetailField label="关联客户">
               {customer ? `${customer.company} · ${customer.name}` : '—'}
             </DetailField>
@@ -721,13 +720,13 @@ function TransactionDetailDrawer({
             </div>
           )}
 
-          {/* 附件存根 */}
+          {/* 附件 */}
           <div>
             <div className="mb-2 text-[12px] font-medium uppercase tracking-wide text-on-surface-variant">
-              附件存根（{attachments.length}）
+              附件（{attachments.length}）
             </div>
             {attachments.length === 0 ? (
-              <div className="text-[12px] text-outline">无附件存根</div>
+              <div className="text-[12px] text-outline">无附件</div>
             ) : (
               <div className="space-y-1.5">
                 {attachments.map((a) => (

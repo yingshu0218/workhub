@@ -88,6 +88,8 @@ export interface Ledger extends SyncMeta {
   closingCycle: '月结' | '季结' | '年结' | '不封账'
   /** 左侧账本树排序（拖拽重写；旧记录缺省按 createdAt 兜底） */
   sortOrder?: number
+  /** 默认账本（Issue #67）：内嵌可选字段零迁移；全局唯一，新建流水默认选中 */
+  isDefault?: boolean
   createdAt: number
 }
 
