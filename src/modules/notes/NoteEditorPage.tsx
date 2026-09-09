@@ -91,7 +91,7 @@ const MD_ACTIONS: MdAction[] = [
     prefix: '# ',
     placeholder: '标题文本',
     linePrefix: true,
-    render: () => <span className="font-mono text-[11px] font-semibold">H1</span>,
+    render: () => <span className="font-mono text-[0.7857rem] font-semibold">H1</span>,
   },
   {
     id: 'h2',
@@ -99,7 +99,7 @@ const MD_ACTIONS: MdAction[] = [
     prefix: '## ',
     placeholder: '标题文本',
     linePrefix: true,
-    render: () => <span className="font-mono text-[11px] font-semibold">H2</span>,
+    render: () => <span className="font-mono text-[0.7857rem] font-semibold">H2</span>,
   },
   {
     id: 'ul',
@@ -107,7 +107,7 @@ const MD_ACTIONS: MdAction[] = [
     prefix: '- ',
     placeholder: '列表项',
     linePrefix: true,
-    render: () => <span className="text-[13px] leading-none">≡</span>,
+    render: () => <span className="text-[0.9286rem] leading-none">≡</span>,
   },
   {
     id: 'ol',
@@ -115,7 +115,7 @@ const MD_ACTIONS: MdAction[] = [
     prefix: '1. ',
     placeholder: '列表项',
     linePrefix: true,
-    render: () => <span className="font-mono text-[11px]">1.</span>,
+    render: () => <span className="font-mono text-[0.7857rem]">1.</span>,
   },
   {
     id: 'quote',
@@ -123,7 +123,7 @@ const MD_ACTIONS: MdAction[] = [
     prefix: '> ',
     placeholder: '引用内容',
     linePrefix: true,
-    render: () => <span className="font-serif text-[14px] leading-none">❝</span>,
+    render: () => <span className="font-serif text-[1rem] leading-none">❝</span>,
   },
   {
     id: 'code',
@@ -131,7 +131,7 @@ const MD_ACTIONS: MdAction[] = [
     prefix: '`',
     suffix: '`',
     placeholder: '代码',
-    render: () => <span className="font-mono text-[11px]">&lt;/&gt;</span>,
+    render: () => <span className="font-mono text-[0.7857rem]">&lt;/&gt;</span>,
   },
   {
     id: 'codeblock',
@@ -171,7 +171,7 @@ export default function NoteEditorPage() {
         <Card className="mt-4 p-10">
           <div className="flex flex-col items-center gap-3 text-on-surface-variant">
             <span className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-            <span className="text-[13px]">笔记加载中…</span>
+            <span className="text-[0.9286rem]">笔记加载中…</span>
           </div>
         </Card>
       </div>
@@ -496,10 +496,9 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
           ]),
           keymap.of([...defaultKeymap, ...historyKeymap]),
           EditorView.theme({
-            '&': { height: '100%', fontSize: '13px' },
+            '&': { height: '100%' },
             '.cm-scroller': {
               overflow: 'auto',
-              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
               lineHeight: '1.7',
             },
             '.cm-gutters': {
@@ -673,7 +672,7 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
         </button>
         {editing ? (
           <input
-            className="min-w-0 flex-1 rounded-lg border border-transparent px-2 py-1 text-[18px] font-bold tracking-tight outline-none transition-colors hover:border-outline-variant/40 focus:border-primary"
+            className="min-w-0 flex-1 rounded-lg border border-transparent px-2 py-1 text-[1.2857rem] font-bold tracking-tight outline-none transition-colors hover:border-outline-variant/40 focus:border-primary"
             value={title}
             onChange={(e) => {
               titleRef.current = e.target.value
@@ -683,12 +682,12 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
             placeholder="笔记标题…"
           />
         ) : (
-          <h1 className="min-w-0 flex-1 truncate px-2 text-[20px] font-bold tracking-tight">
+          <h1 className="min-w-0 flex-1 truncate px-2 text-[1.4286rem] font-bold tracking-tight">
             {title.trim() || '未命名笔记'}
           </h1>
         )}
         {editing && <SaveBadge state={saveState} at={note.updatedAt} />}
-        <span className="shrink-0 rounded bg-surface-container-high px-2 py-1 text-[11px] font-medium text-on-surface-variant">
+        <span className="shrink-0 rounded bg-surface-container-high px-2 py-1 text-[0.7857rem] font-medium text-on-surface-variant">
           {words.toLocaleString('zh-CN')} 字
         </span>
         {editing ? (
@@ -723,7 +722,7 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
         {tags.map((t) => (
           <span
             key={t}
-            className="flex items-center gap-0.5 rounded-full px-2.5 py-0.5 text-[12px] font-medium"
+            className="flex items-center gap-0.5 rounded-full px-2.5 py-0.5 text-[0.8571rem] font-medium"
             style={tagStyle(t)}
           >
             #{t}
@@ -739,11 +738,11 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
           </span>
         ))}
         {tags.length === 0 && !editing && (
-          <span className="text-[12px] text-outline">暂无标签</span>
+          <span className="text-[0.8571rem] text-outline">暂无标签</span>
         )}
         {editing && (
           <input
-            className="w-44 rounded-full bg-surface-container-low px-2.5 py-0.5 text-[12px] outline-none transition-colors placeholder:text-outline focus:bg-surface-container-high"
+            className="w-44 rounded-full bg-surface-container-low px-2.5 py-0.5 text-[0.8571rem] outline-none transition-colors placeholder:text-outline focus:bg-surface-container-high"
             value={tagInput}
             onChange={(e) => {
               const v = e.target.value
@@ -767,7 +766,7 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
       <div className="flex min-h-0 flex-1 overflow-hidden surface-card-xl shadow-sm">
         {editing && (
           <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-            <div className="flex items-center justify-between border-b border-outline-variant/30 bg-surface-container-low/40 px-4 py-1.5 text-[11px] font-medium tracking-wide text-outline">
+            <div className="flex items-center justify-between border-b border-outline-variant/30 bg-surface-container-low/40 px-4 py-1.5 text-[0.7857rem] font-medium tracking-wide text-outline">
               <span>MARKDOWN SOURCE EDITOR</span>
               <span>键入 @ 提及实体</span>
             </div>
@@ -781,7 +780,7 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
                   <button
                     type="button"
                     title={a.title}
-                    className="flex h-7 min-w-7 items-center justify-center rounded-md px-1.5 text-[12px] text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface"
+                    className="flex h-7 min-w-7 items-center justify-center rounded-md px-1.5 text-[0.8571rem] text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface"
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => applyMd(a)}
                   >
@@ -798,7 +797,7 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
         <div
           className={`flex min-w-0 flex-1 flex-col overflow-hidden ${editing ? 'border-l border-outline-variant/30' : ''}`}
         >
-          <div className="flex items-center justify-between border-b border-outline-variant/30 bg-surface-container-low/40 px-4 py-1.5 text-[11px] font-medium tracking-wide text-outline">
+          <div className="flex items-center justify-between border-b border-outline-variant/30 bg-surface-container-low/40 px-4 py-1.5 text-[0.7857rem] font-medium tracking-wide text-outline">
             <span>{editing ? 'LIVE PREVIEW' : 'PREVIEW'}</span>
             {editing ? (
               <span className="flex items-center gap-1 text-success">
@@ -822,11 +821,11 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
 
         {/* 详情侧栏：反向链接 + @提及实体 */}
         <div className="hidden w-60 shrink-0 flex-col overflow-y-auto border-l border-outline-variant/30 bg-surface-container-low/30 p-4 xl:flex">
-          <div className="mb-2 text-[11px] font-medium uppercase tracking-wide text-on-surface-variant">
+          <div className="mb-2 text-[0.7857rem] font-medium uppercase tracking-wide text-on-surface-variant">
             反向链接（{backlinks.length}）
           </div>
           {backlinks.length === 0 ? (
-            <div className="mb-5 text-[12px] leading-relaxed text-outline">
+            <div className="mb-5 text-[0.8571rem] leading-relaxed text-outline">
               暂无。在其他笔记中 @「{title.trim() || '本笔记'}」即可建立链接。
             </div>
           ) : (
@@ -839,16 +838,16 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
                     if (editing) setHoverCard({ kind: 'backlink', noteId: b.id, title: b.title })
                     else navigate(`/notes/${b.id}`)
                   }}
-                  className="flex w-full items-center gap-1.5 surface-card px-2.5 py-1.5 text-left text-[12px] transition-colors hover:border-primary"
+                  className="flex w-full items-center gap-1.5 surface-card px-2.5 py-1.5 text-left text-[0.8571rem] transition-colors hover:border-primary"
                 >
-                  <Icon name="link" className="shrink-0 text-[14px] text-primary" />
+                  <Icon name="link" className="shrink-0 text-[1rem] text-primary" />
                   <span className="truncate">{b.title}</span>
                 </button>
               ))}
             </div>
           )}
 
-          <div className="mb-2 text-[11px] font-medium uppercase tracking-wide text-on-surface-variant">
+          <div className="mb-2 text-[0.7857rem] font-medium uppercase tracking-wide text-on-surface-variant">
             所属项目
           </div>
           <div className="mb-5">
@@ -872,11 +871,11 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
             />
           </div>
 
-          <div className="mb-2 text-[11px] font-medium uppercase tracking-wide text-on-surface-variant">
+          <div className="mb-2 text-[0.7857rem] font-medium uppercase tracking-wide text-on-surface-variant">
             @提及实体（{note.mentions.length}）
           </div>
           {note.mentions.length === 0 ? (
-            <div className="text-[12px] leading-relaxed text-outline">
+            <div className="text-[0.8571rem] leading-relaxed text-outline">
               在正文中键入 @ 关联客户、待办或账本。
             </div>
           ) : (
@@ -890,7 +889,7 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
                       setHoverCard({ kind: 'mention', type: m.type, eid: m.id, label: m.label })
                     else navigate(jumpTarget[m.type](m.id))
                   }}
-                  className="flex w-full items-center gap-1.5 surface-card px-2.5 py-1.5 text-left text-[12px] transition-colors hover:border-primary"
+                  className="flex w-full items-center gap-1.5 surface-card px-2.5 py-1.5 text-left text-[0.8571rem] transition-colors hover:border-primary"
                   title={
                     editing ? `查看${TYPE_META[m.type].tab}摘要` : `跳转${TYPE_META[m.type].tab}`
                   }
@@ -920,7 +919,7 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
                 ) : (
                   <>
                     <Icon name="link" size={14} className="shrink-0 text-primary" />
-                    <span className="truncate text-[13px] font-medium">{hoverCard.title}</span>
+                    <span className="truncate text-[0.9286rem] font-medium">{hoverCard.title}</span>
                   </>
                 )}
               </div>
@@ -993,7 +992,7 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
                   key={t}
                   title="前往所属项目选择"
                   onClick={() => setPanelProject(true)}
-                  className={`ml-auto rounded-md px-2.5 py-1 text-[12px] transition-colors ${
+                  className={`ml-auto rounded-md px-2.5 py-1 text-[0.8571rem] transition-colors ${
                     panelProject
                       ? 'bg-primary font-semibold text-on-primary'
                       : 'text-on-surface-variant hover:text-on-surface'
@@ -1008,7 +1007,7 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
                     setPanelProject(false)
                     setMentionTab(t)
                   }}
-                  className={`rounded-md px-2.5 py-1 text-[12px] transition-colors ${
+                  className={`rounded-md px-2.5 py-1 text-[0.8571rem] transition-colors ${
                     !panelProject && mentionTab === t
                       ? 'bg-primary font-semibold text-on-primary'
                       : 'text-on-surface-variant hover:text-on-surface'
@@ -1018,7 +1017,7 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
                 </button>
               ),
             )}
-            <span className="ml-auto self-center pr-1 text-[11px] text-outline">Esc 关闭</span>
+            <span className="ml-auto self-center pr-1 text-[0.7857rem] text-outline">Esc 关闭</span>
           </div>
           {panelProject ? (
             <div className="p-3">
@@ -1044,14 +1043,14 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
                   )
                 }}
               />
-              <div className="mt-2 text-[11px] leading-relaxed text-outline">
+              <div className="mt-2 text-[0.7857rem] leading-relaxed text-outline">
                 支持模糊搜索与「不关联」，选中后 @提及浮层自动切到项目 Tab 并预填筛选词。
               </div>
             </div>
           ) : (
             <div className="max-h-60 overflow-y-auto p-1">
               {sortedMentionItems.length === 0 ? (
-                <div className="px-3 py-4 text-center text-[12px] text-outline">无匹配项</div>
+                <div className="px-3 py-4 text-center text-[0.8571rem] text-outline">无匹配项</div>
               ) : (
                 sortedMentionItems.map((it, i) => (
                   <button
@@ -1066,15 +1065,15 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
                   >
                     <span className={`md-mention ${TYPE_META[it.type].cls}`}>@</span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[13px] font-medium">
+                      <span className="block truncate text-[0.9286rem] font-medium">
                         <MentionHighlight label={it.label} query={mention?.query ?? ''} />
                       </span>
                       {it.sub && (
-                        <span className="block truncate text-[11px] text-outline">{it.sub}</span>
+                        <span className="block truncate text-[0.7857rem] text-outline">{it.sub}</span>
                       )}
                     </span>
                     {i === safeActiveIdx && (
-                      <span className="shrink-0 text-[10px] text-primary">↵</span>
+                      <span className="shrink-0 text-[0.7143rem] text-primary">↵</span>
                     )}
                   </button>
                 ))
@@ -1176,15 +1175,15 @@ function MentionEntitySummary({
 function CardRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline justify-between gap-3 py-0.5">
-      <span className="shrink-0 text-[11px] text-outline">{label}</span>
-      <span className="min-w-0 truncate text-right text-[12px] text-on-surface">{value}</span>
+      <span className="shrink-0 text-[0.7857rem] text-outline">{label}</span>
+      <span className="min-w-0 truncate text-right text-[0.8571rem] text-on-surface">{value}</span>
     </div>
   )
 }
 
 function EntityMissing({ name }: { name: string }) {
   return (
-    <div className="flex items-center gap-1.5 text-[12px] text-outline">
+    <div className="flex items-center gap-1.5 text-[0.8571rem] text-outline">
       <Icon name="person_off" size={14} />原{name}已删除或不存在
     </div>
   )

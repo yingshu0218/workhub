@@ -36,11 +36,11 @@ export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBo
             <Icon name="warning" size={32} fill />
           </div>
           <div>
-            <div className="text-[16px] font-semibold">模块出错了</div>
-            <div className="mt-1 max-w-[420px] text-[12.5px] leading-relaxed text-on-surface-variant">
+            <div className="text-[1.1429rem] font-semibold">模块出错了</div>
+            <div className="mt-1 max-w-[420px] text-[0.8929rem] leading-relaxed text-on-surface-variant">
               当前页面渲染发生异常，其他模块不受影响。可尝试重新加载本模块。
             </div>
-            <div className="mt-2 max-w-[520px] truncate rounded bg-surface-container px-3 py-1.5 text-[11px] text-outline">
+            <div className="mt-2 max-w-[520px] truncate rounded bg-surface-container px-3 py-1.5 text-[0.7857rem] text-outline">
               {this.state.error.message}
             </div>
           </div>

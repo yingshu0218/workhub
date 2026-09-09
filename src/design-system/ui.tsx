@@ -32,7 +32,7 @@ export function Drawer({
         style={{ width }}
       >
         <div className="flex h-14 shrink-0 items-center justify-between border-b border-outline-variant/40 px-5">
-          <h2 className="text-[15px] font-semibold">{title}</h2>
+          <h2 className="text-[1.0714rem] font-semibold">{title}</h2>
           <button className="text-outline hover:text-on-surface" onClick={onClose}>
             <Icon name="close" />
           </button>
@@ -46,7 +46,7 @@ export function Drawer({
 export function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="mb-4 block">
-      <div className="mb-1.5 text-[12px] font-medium text-on-surface-variant">{label}</div>
+      <div className="mb-1.5 text-[0.8571rem] font-medium text-on-surface-variant">{label}</div>
       {children}
     </label>
   )
@@ -73,7 +73,7 @@ export function Button({
 }) {
   const base =
     'inline-flex items-center gap-1.5 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:pointer-events-none'
-  const sizes = size === 'sm' ? 'h-8 px-3 text-[13px]' : 'h-9 px-4'
+  const sizes = size === 'sm' ? 'h-8 px-3 text-[0.9286rem]' : 'h-9 px-4'
   const variants = {
     primary: 'bg-primary text-on-primary hover:bg-primary-container',
     ghost: 'border border-primary text-primary hover:bg-primary-fixed/50',
@@ -132,7 +132,7 @@ export function Chip({
 }) {
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[12px] font-medium ${chipTones[tone]}`}
+      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[0.8571rem] font-medium ${chipTones[tone]}`}
     >
       {icon && <Icon name={icon} size={14} />}
       {children}
@@ -170,10 +170,10 @@ export function EmptyState({
 }) {
   return (
     <div className="flex flex-col items-center justify-center gap-2 py-20 text-center">
-      <Icon name={icon} className="text-[40px] text-outline" />
-      <div className="text-[15px] font-medium">{title}</div>
+      <Icon name={icon} className="text-[2.8571rem] text-outline" />
+      <div className="text-[1.0714rem] font-medium">{title}</div>
       {description && (
-        <div className="max-w-xs text-[13px] text-on-surface-variant">{description}</div>
+        <div className="max-w-xs text-[0.9286rem] text-on-surface-variant">{description}</div>
       )}
     </div>
   )
@@ -191,8 +191,8 @@ export function PageHeader({
   return (
     <div className="mb-5 flex items-start justify-between gap-4">
       <div>
-        <h1 className="text-[22px] font-bold tracking-[-0.01em]">{title}</h1>
-        {subtitle && <p className="mt-0.5 text-[13px] text-on-surface-variant">{subtitle}</p>}
+        <h1 className="text-[1.5714rem] font-bold tracking-[-0.01em]">{title}</h1>
+        {subtitle && <p className="mt-0.5 text-[0.9286rem] text-on-surface-variant">{subtitle}</p>}
       </div>
       {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
     </div>

@@ -128,7 +128,7 @@ export default function AllTimelinesPage() {
           <button
             key={f.key}
             onClick={() => setFilter(f.key)}
-            className={`rounded-full border px-2.5 py-0.5 text-[11px] transition-colors ${
+            className={`rounded-full border px-2.5 py-0.5 text-[0.7857rem] transition-colors ${
               filter === f.key
                 ? 'border-primary bg-primary-fixed font-semibold text-primary'
                 : 'border-outline-variant text-on-surface-variant hover:text-on-surface'
@@ -140,7 +140,7 @@ export default function AllTimelinesPage() {
         <span className="mx-1 h-4 w-px bg-outline-variant/40" />
         <button
           onClick={() => setCustomerFilter('all')}
-          className={`rounded-full border px-2.5 py-0.5 text-[11px] transition-colors ${
+          className={`rounded-full border px-2.5 py-0.5 text-[0.7857rem] transition-colors ${
             customerFilter === 'all'
               ? 'border-primary bg-primary-fixed font-semibold text-primary'
               : 'border-outline-variant text-on-surface-variant hover:text-on-surface'
@@ -152,7 +152,7 @@ export default function AllTimelinesPage() {
           <button
             key={c.id}
             onClick={() => setCustomerFilter(customerFilter === c.id ? 'all' : c.id)}
-            className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] transition-colors ${
+            className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[0.7857rem] transition-colors ${
               customerFilter === c.id
                 ? 'border-primary bg-primary-fixed font-semibold text-primary'
                 : 'border-outline-variant text-on-surface-variant hover:text-on-surface'
@@ -165,7 +165,7 @@ export default function AllTimelinesPage() {
             {c.name}
           </button>
         ))}
-        <span className="ml-2 text-[11px] text-outline">
+        <span className="ml-2 text-[0.7857rem] text-outline">
           滚轮缩放 · 空白处拖拽平移 · 点击骨刺穿透对应记录
         </span>
       </div>
@@ -375,9 +375,9 @@ export default function AllTimelinesPage() {
                   </Chip>
                 )}
               </div>
-              <div className="mt-1 text-[12px] leading-relaxed text-on-surface">{hover.sub}</div>
+              <div className="mt-1 text-[0.8571rem] leading-relaxed text-on-surface">{hover.sub}</div>
               {boneTarget(hover.event) && (
-                <div className="mt-1 flex items-center gap-1 text-[11px] text-primary">
+                <div className="mt-1 flex items-center gap-1 text-[0.7857rem] text-primary">
                   <Icon name="arrow_back" size={12} className="rotate-180" />
                   点击骨刺穿透
                 </div>
@@ -392,13 +392,13 @@ export default function AllTimelinesPage() {
               onPointerDown={(e) => e.stopPropagation()}
             >
               <button
-                className="flex h-7 w-7 items-center justify-center rounded-lg text-[16px] font-semibold text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
+                className="flex h-7 w-7 items-center justify-center rounded-lg text-[1.1429rem] font-semibold text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
                 title="缩小"
                 onClick={() => panZoom.zoomTo(view.scale - 0.1)}
               >
                 −
               </button>
-              <span className="w-11 text-center text-[12px] font-semibold tabular-nums text-on-surface">
+              <span className="w-11 text-center text-[0.8571rem] font-semibold tabular-nums text-on-surface">
                 {Math.round(view.scale * 100)}%
               </span>
               <button
@@ -410,7 +410,7 @@ export default function AllTimelinesPage() {
               </button>
               <span className="mx-1 h-4 w-px bg-outline-variant/40" />
               <button
-                className="flex h-7 items-center gap-1 rounded-lg px-2 text-[12px] font-medium text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
+                className="flex h-7 items-center gap-1 rounded-lg px-2 text-[0.8571rem] font-medium text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
                 title="重置缩放平移"
                 onClick={fitView}
               >

@@ -207,7 +207,7 @@ export default function TransactionFormDrawer({
               <button
                 key={t}
                 onClick={() => setType(t)}
-                className={`rounded-lg border px-4 py-1.5 text-[13px] ${
+                className={`rounded-lg border px-4 py-1.5 text-[0.9286rem] ${
                   type === t
                     ? 'border-primary bg-primary-fixed font-semibold text-primary'
                     : 'border-outline-variant text-on-surface-variant'
@@ -359,7 +359,7 @@ export default function TransactionFormDrawer({
               {files.map((f, i) => (
                 <div
                   key={`${f.name}-${i}`}
-                  className={`flex items-center justify-between rounded-lg border px-2.5 py-1.5 text-[12px] ${
+                  className={`flex items-center justify-between rounded-lg border px-2.5 py-1.5 text-[0.8571rem] ${
                     f.size > MAX_ATTACHMENT_SIZE
                       ? 'border-danger/50 text-danger'
                       : 'border-outline-variant/40'
@@ -374,7 +374,7 @@ export default function TransactionFormDrawer({
             </div>
           )}
         </Field>
-        {error && <div className="mb-3 text-[12px] text-danger">{error}</div>}
+        {error && <div className="mb-3 text-[0.8571rem] text-danger">{error}</div>}
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="tonal" onClick={onClose}>
             取消

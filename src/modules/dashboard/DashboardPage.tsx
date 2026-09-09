@@ -38,40 +38,40 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-4 gap-4">
         <Card className="p-4">
-          <div className="text-[12px] font-medium uppercase tracking-wide text-outline">
+          <div className="text-[0.8571rem] font-medium uppercase tracking-wide text-outline">
             深度专注
           </div>
-          <div className="mt-1 text-[26px] font-bold text-primary">
+          <div className="mt-1 text-[1.8571rem] font-bold text-primary">
             {focusMinutes}
-            <span className="text-[13px] text-outline"> 分钟</span>
+            <span className="text-[0.9286rem] text-outline"> 分钟</span>
           </div>
         </Card>
         <Card className="p-4">
-          <div className="text-[12px] font-medium uppercase tracking-wide text-outline">
+          <div className="text-[0.8571rem] font-medium uppercase tracking-wide text-outline">
             待办达成
           </div>
-          <div className="mt-1 text-[26px] font-bold">
+          <div className="mt-1 text-[1.8571rem] font-bold">
             {doneToday}
-            <span className="text-[13px] text-outline"> / {doneToday + openToday}</span>
+            <span className="text-[0.9286rem] text-outline"> / {doneToday + openToday}</span>
           </div>
         </Card>
         <Card className="p-4">
-          <div className="text-[12px] font-medium uppercase tracking-wide text-outline">
+          <div className="text-[0.8571rem] font-medium uppercase tracking-wide text-outline">
             习惯连击
           </div>
-          <div className="mt-1 text-[26px] font-bold text-warning">
+          <div className="mt-1 text-[1.8571rem] font-bold text-warning">
             {bestStreak}
-            <span className="text-[13px] text-outline"> 天</span>
+            <span className="text-[0.9286rem] text-outline"> 天</span>
           </div>
         </Card>
         <Card className="p-4">
-          <div className="text-[12px] font-medium uppercase tracking-wide text-outline">
+          <div className="text-[0.8571rem] font-medium uppercase tracking-wide text-outline">
             累计收款
           </div>
-          <div className="mt-1 text-[26px] font-bold text-success">
+          <div className="mt-1 text-[1.8571rem] font-bold text-success">
             ¥{income >= 10000 ? `${(income / 10000).toFixed(1)}万` : income.toLocaleString()}
           </div>
-          <div className="mt-0.5 text-[11px] text-outline">{customers.length} 位客户在册</div>
+          <div className="mt-0.5 text-[0.7857rem] text-outline">{customers.length} 位客户在册</div>
         </Card>
       </div>
 

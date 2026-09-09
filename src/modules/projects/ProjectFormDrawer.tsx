@@ -122,7 +122,7 @@ export default function ProjectFormDrawer({
               <button
                 key={s.value}
                 onClick={() => setStatus(s.value)}
-                className={`rounded-lg border px-4 py-1.5 text-[13px] ${
+                className={`rounded-lg border px-4 py-1.5 text-[0.9286rem] ${
                   status === s.value
                     ? 'border-primary bg-primary-fixed font-semibold text-primary'
                     : 'border-outline-variant text-on-surface-variant'
@@ -163,7 +163,7 @@ export default function ProjectFormDrawer({
             onChange={(e) => setNote(e.target.value)}
           />
         </Field>
-        {error && <div className="mb-3 text-[12px] text-danger">{error}</div>}
+        {error && <div className="mb-3 text-[0.8571rem] text-danger">{error}</div>}
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="tonal" onClick={onClose}>
             取消

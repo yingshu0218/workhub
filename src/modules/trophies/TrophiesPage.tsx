@@ -115,23 +115,23 @@ export default function TrophiesPage() {
             <Icon name="emoji_events" size={32} fill />
           </div>
           <div>
-            <div className="text-[20px] font-bold">
+            <div className="text-[1.4286rem] font-bold">
               {unlocked.length}{' '}
-              <span className="text-[14px] font-normal text-on-surface-variant">
+              <span className="text-[1rem] font-normal text-on-surface-variant">
                 / 总 {trophies.length}
               </span>
             </div>
-            <div className="text-[12px] text-on-surface-variant">奖杯收集进度</div>
+            <div className="text-[0.8571rem] text-on-surface-variant">奖杯收集进度</div>
           </div>
         </div>
         <div className="flex items-center gap-6">
           {tierOrder.map((tier) => (
             <div key={tier} className="flex flex-col items-center">
-              <span className={`text-[15px] font-bold ${TIER_THEME[tier].text}`}>
+              <span className={`text-[1.0714rem] font-bold ${TIER_THEME[tier].text}`}>
                 {tierCount(tier)}
-                <span className="text-[11px] font-normal text-outline">/{tierTotal(tier)}</span>
+                <span className="text-[0.7857rem] font-normal text-outline">/{tierTotal(tier)}</span>
               </span>
-              <span className="text-[11px] text-on-surface-variant">{TIER_THEME[tier].label}</span>
+              <span className="text-[0.7857rem] text-on-surface-variant">{TIER_THEME[tier].label}</span>
             </div>
           ))}
         </div>
@@ -146,12 +146,12 @@ export default function TrophiesPage() {
             <Icon name={milestone.trophy.icon} size={26} fill />
           </div>
           <div className="min-w-0 flex-1">
-            <div className="text-[11px] font-semibold uppercase tracking-wide text-outline">
+            <div className="text-[0.7857rem] font-semibold uppercase tracking-wide text-outline">
               下一里程碑
             </div>
-            <div className="mt-0.5 truncate text-[14.5px] font-semibold">
+            <div className="mt-0.5 truncate text-[1.0357rem] font-semibold">
               {milestone.trophy.name}
-              <span className="ml-2 text-[12px] font-normal text-on-surface-variant">
+              <span className="ml-2 text-[0.8571rem] font-normal text-on-surface-variant">
                 还差 {milestone.remaining} {CONDITION_UNITS[milestone.trophy.conditionType!]}解锁
               </span>
             </div>
@@ -162,12 +162,12 @@ export default function TrophiesPage() {
               />
             </div>
           </div>
-          <span className="shrink-0 text-[18px] font-bold tabular-nums text-primary">
+          <span className="shrink-0 text-[1.2857rem] font-bold tabular-nums text-primary">
             {milestone.pct}%
           </span>
         </Card>
       ) : trophies.length > 0 && unlocked.length === trophies.length ? (
-        <Card className="mb-4 flex items-center justify-center gap-2 p-4 text-[14px] font-semibold text-success">
+        <Card className="mb-4 flex items-center justify-center gap-2 p-4 text-[1rem] font-semibold text-success">
           <Icon name="emoji_events" size={20} fill />
           已收集全部奖杯 🎉
         </Card>
@@ -210,7 +210,7 @@ export default function TrophiesPage() {
                     />
                   </div>
                   <span
-                    className={`rounded px-2 py-0.5 text-[11px] font-medium ${
+                    className={`rounded px-2 py-0.5 text-[0.7857rem] font-medium ${
                       t.unlockedAt
                         ? 'bg-success-container/60 text-success'
                         : 'bg-surface-container text-on-surface-variant'
@@ -220,7 +220,7 @@ export default function TrophiesPage() {
                   </span>
                   {t.unlockedAt && (
                     <button
-                      className="ml-2 flex items-center gap-1 rounded px-2 py-0.5 text-[11px] text-primary transition-colors hover:bg-primary-fixed disabled:opacity-50"
+                      className="ml-2 flex items-center gap-1 rounded px-2 py-0.5 text-[0.7857rem] text-primary transition-colors hover:bg-primary-fixed disabled:opacity-50"
                       title="生成分享海报（Canvas 绘制 · 下载 PNG）"
                       disabled={posterId === t.id}
                       onClick={() => void sharePoster(t)}
@@ -231,15 +231,15 @@ export default function TrophiesPage() {
                   )}
                 </div>
                 <div>
-                  <div className={`text-[14px] font-semibold ${t.unlockedAt ? theme.text : ''}`}>
+                  <div className={`text-[1rem] font-semibold ${t.unlockedAt ? theme.text : ''}`}>
                     {t.name}
                   </div>
-                  <div className="mt-1 line-clamp-2 text-[11.5px] leading-snug text-on-surface-variant">
+                  <div className="mt-1 line-clamp-2 text-[0.8214rem] leading-snug text-on-surface-variant">
                     {t.description}
                   </div>
                 </div>
                 {t.unlockedAt ? (
-                  <div className="flex items-center justify-between text-[11px]">
+                  <div className="flex items-center justify-between text-[0.7857rem]">
                     <span className="font-semibold text-success">
                       {theme.label} · {t.rarity}
                     </span>
@@ -249,7 +249,7 @@ export default function TrophiesPage() {
                   </div>
                 ) : t.conditionType ? (
                   <div>
-                    <div className="mb-1 flex items-center justify-between text-[11px] text-on-surface-variant">
+                    <div className="mb-1 flex items-center justify-between text-[0.7857rem] text-on-surface-variant">
                       <span>{CONDITION_LABELS[t.conditionType]}</span>
                       <span>
                         {current}/{target}
@@ -263,7 +263,7 @@ export default function TrophiesPage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="text-[11px] text-outline">条件未登记</div>
+                  <div className="text-[0.7857rem] text-outline">条件未登记</div>
                 )}
               </Card>
             )

@@ -46,7 +46,7 @@ export default function CustomerInfoCard({
         <Avatar name={customer.name} size={40} />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="truncate text-[14px] font-bold">{customer.name}</span>
+            <span className="truncate text-[1rem] font-bold">{customer.name}</span>
             <Chip tone={tierChipTone(customer.tier)}>
               {customer.tier === '潜在' ? '潜在' : `${customer.tier} 层`}
             </Chip>
@@ -57,7 +57,7 @@ export default function CustomerInfoCard({
               </Chip>
             )}
           </div>
-          <div className="mt-0.5 truncate text-[12px] text-on-surface-variant">
+          <div className="mt-0.5 truncate text-[0.8571rem] text-on-surface-variant">
             {customer.company || '—'}
           </div>
         </div>
@@ -72,7 +72,7 @@ export default function CustomerInfoCard({
 
       {/* 健康指数 + 最近联系 */}
       <div className="mt-3 space-y-1.5">
-        <div className="flex items-center justify-between text-[12px]">
+        <div className="flex items-center justify-between text-[0.8571rem]">
           <span className="text-on-surface-variant">健康指数</span>
           <span className="font-bold" style={{ color: hc }}>
             {Math.round(customer.healthScore)}
@@ -84,11 +84,11 @@ export default function CustomerInfoCard({
             style={{ width: `${customer.healthScore}%`, background: hc }}
           />
         </div>
-        <div className="text-[11px] text-outline">
+        <div className="text-[0.7857rem] text-outline">
           最近联系 {fmtRelative(customer.lastContactAt)}
         </div>
         {intimacy?.note && (
-          <div className="truncate text-[11px] text-outline" title={intimacy.note}>
+          <div className="truncate text-[0.7857rem] text-outline" title={intimacy.note}>
             亲密度备注：{intimacy.note}
           </div>
         )}

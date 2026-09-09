@@ -29,7 +29,7 @@ export default function CrmCanvasPage() {
           <>
             <div className="mr-2 flex overflow-hidden surface-card !bg-transparent border-outline-variant/50">
               <button
-                className={`px-3 py-1.5 text-[13px] font-medium transition-colors ${
+                className={`px-3 py-1.5 text-[0.9286rem] font-medium transition-colors ${
                   mode === 'customer-only'
                     ? 'bg-primary text-on-primary'
                     : 'text-on-surface-variant hover:bg-surface-container'
@@ -39,7 +39,7 @@ export default function CrmCanvasPage() {
                 客户关系
               </button>
               <button
-                className={`px-3 py-1.5 text-[13px] font-medium transition-colors ${
+                className={`px-3 py-1.5 text-[0.9286rem] font-medium transition-colors ${
                   mode === 'mixed'
                     ? 'bg-primary text-on-primary'
                     : 'text-on-surface-variant hover:bg-surface-container'
@@ -68,7 +68,7 @@ export default function CrmCanvasPage() {
         )}
         {mode === 'mixed' ? (
           <>
-            <span className="ml-2 inline-flex items-center gap-1 text-[11px] text-outline">
+            <span className="ml-2 inline-flex items-center gap-1 text-[0.7857rem] text-outline">
               <svg width="22" height="8" className="inline-block">
                 <line
                   x1="0"
@@ -82,7 +82,7 @@ export default function CrmCanvasPage() {
               </svg>
               客户关联边（relations）
             </span>
-            <span className="ml-1 inline-flex items-center gap-1 text-[11px] text-outline">
+            <span className="ml-1 inline-flex items-center gap-1 text-[0.7857rem] text-outline">
               <svg width="22" height="8" className="inline-block">
                 <line
                   x1="0"
@@ -98,7 +98,7 @@ export default function CrmCanvasPage() {
             </span>
           </>
         ) : (
-          <span className="ml-2 inline-flex flex-wrap items-center gap-2 text-[11px] text-outline">
+          <span className="ml-2 inline-flex flex-wrap items-center gap-2 text-[0.7857rem] text-outline">
             <span className="inline-flex items-center gap-1">
               <span className="h-2 w-2 rounded-full" style={{ background: '#6d43c4' }} />
               项目
@@ -131,7 +131,7 @@ export default function CrmCanvasPage() {
             </span>
           </span>
         )}
-        <span className="text-[11px] text-outline">
+        <span className="text-[0.7857rem] text-outline">
           单击客户节点查看缩略卡 · 按住拖拽 · 滚轮缩放 · 空白处拖拽平移
         </span>
       </div>

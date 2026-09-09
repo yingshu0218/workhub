@@ -100,11 +100,11 @@ export function wordCount(md: string): number {
 // ===== 预览区基础排版（手写 prose，限定 .note-prose 作用域） =====
 
 export const NOTE_PROSE_CSS = `
-.note-prose { font-size: 14px; line-height: 1.75; color: var(--color-on-surface); word-break: break-word; }
+.note-prose { font-size: 1rem; line-height: 1.75; color: var(--color-on-surface); word-break: break-word; }
 .note-prose > :first-child { margin-top: 0; }
-.note-prose h1 { font-size: 24px; font-weight: 700; letter-spacing: -0.01em; margin: 22px 0 10px; }
-.note-prose h2 { font-size: 18px; font-weight: 600; margin: 20px 0 8px; }
-.note-prose h3 { font-size: 15.5px; font-weight: 600; margin: 16px 0 6px; }
+.note-prose h1 { font-size: 1.7143rem; font-weight: 700; letter-spacing: -0.01em; margin: 22px 0 10px; }
+.note-prose h2 { font-size: 1.2857rem; font-weight: 600; margin: 20px 0 8px; }
+.note-prose h3 { font-size: 1.1071rem; font-weight: 600; margin: 16px 0 6px; }
 .note-prose p { margin: 8px 0; }
 .note-prose ul, .note-prose ol { margin: 8px 0; padding-left: 22px; }
 .note-prose ul { list-style: disc; }
@@ -112,7 +112,7 @@ export const NOTE_PROSE_CSS = `
 .note-prose li { margin: 3px 0; }
 .note-prose li input[type="checkbox"] { margin-right: 6px; accent-color: var(--color-primary); }
 .note-prose blockquote { margin: 10px 0; padding: 8px 14px; border-left: 3px solid var(--color-primary); background: var(--color-surface-container-high); border-radius: 0 8px 8px 0; color: var(--color-on-surface-variant); }
-.note-prose code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; background: var(--color-surface-container-high); padding: 1.5px 5px; border-radius: 4px; }
+.note-prose code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.8929rem; background: var(--color-surface-container-high); padding: 1.5px 5px; border-radius: 4px; }
 .note-prose pre { background: #0b1c30; color: #e5eeff; padding: 12px 14px; border-radius: 8px; overflow-x: auto; margin: 10px 0; }
 .note-prose pre code { background: transparent; color: inherit; padding: 0; }
 .note-prose a { color: var(--color-primary); text-decoration: underline; text-underline-offset: 2px; }
@@ -123,7 +123,7 @@ export const NOTE_PROSE_CSS = `
 .note-prose th { background: var(--color-surface-container-low); font-weight: 600; }
 .note-prose strong { font-weight: 600; }
 /* @提及胶囊：按实体类型着色 */
-.note-prose .md-mention, .md-mention { display: inline-flex; align-items: center; border-radius: 999px; padding: 0 8px; font-size: 12.5px; font-weight: 500; vertical-align: baseline; line-height: 1.5; }
+.note-prose .md-mention, .md-mention { display: inline-flex; align-items: center; border-radius: 999px; padding: 0 8px; font-size: 0.8929rem; font-weight: 500; vertical-align: baseline; line-height: 1.5; }
 .note-prose .md-mention-customer { background: var(--color-primary-fixed); color: var(--color-primary); }
 .note-prose .md-mention-todo { background: var(--color-success-container); color: var(--color-success); }
 .note-prose .md-mention-ledger { background: var(--color-warning-container); color: var(--color-warning); }

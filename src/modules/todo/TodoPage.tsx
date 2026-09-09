@@ -218,14 +218,14 @@ export default function TodoPage() {
       <div className="grid grid-cols-[240px_1fr] gap-4 items-start">
         {/* 左侧清单：智能清单 + 我的清单（增删改/拖拽排序） */}
         <Card className="p-2">
-          <div className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-outline">
+          <div className="px-3 pt-2 pb-1 text-[0.7857rem] font-semibold uppercase tracking-wider text-outline">
             智能清单
           </div>
           {smartLists.map((l) => (
             <button
               key={l.key}
               onClick={() => selectSmart(l.key)}
-              className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13.5px] transition-colors ${
+              className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[0.9643rem] transition-colors ${
                 !selListId && selKind === l.key
                   ? 'bg-primary-fixed font-semibold text-primary'
                   : 'text-on-surface-variant hover:bg-surface-container'
@@ -233,12 +233,12 @@ export default function TodoPage() {
             >
               <Icon name={l.icon} size={19} />
               <span className="flex-1 text-left">{l.label}</span>
-              <span className="text-[11px] text-outline">{l.count}</span>
+              <span className="text-[0.7857rem] text-outline">{l.count}</span>
             </button>
           ))}
 
           <div className="mt-3 flex items-center justify-between border-t border-outline-variant/40 px-3 pt-2 pb-1">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-outline">
+            <span className="text-[0.7857rem] font-semibold uppercase tracking-wider text-outline">
               我的清单
             </span>
             <button
@@ -263,14 +263,14 @@ export default function TodoPage() {
               }}
               onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => handleDrop(e, l.id)}
-              className={`group/list flex w-full items-center gap-2 rounded-lg px-3 py-2 text-[13.5px] transition-colors ${
+              className={`group/list flex w-full items-center gap-2 rounded-lg px-3 py-2 text-[0.9643rem] transition-colors ${
                 selListId === l.id
                   ? 'bg-primary-fixed font-semibold text-primary'
                   : 'text-on-surface-variant hover:bg-surface-container'
               }`}
             >
               <span
-                className="cursor-grab text-[14px] leading-none text-outline/60 group-hover/list:text-outline"
+                className="cursor-grab text-[1rem] leading-none text-outline/60 group-hover/list:text-outline"
                 title="拖动排序"
               >
                 ⠿
@@ -278,7 +278,7 @@ export default function TodoPage() {
               {renamingId === l.id ? (
                 <input
                   autoFocus
-                  className="min-w-0 flex-1 rounded border border-primary px-1.5 py-0.5 text-[13px] outline-none"
+                  className="min-w-0 flex-1 rounded border border-primary px-1.5 py-0.5 text-[0.9286rem] outline-none"
                   value={renameValue}
                   onChange={(e) => setRenameValue(e.target.value)}
                   onBlur={() => void submitRename()}
@@ -295,7 +295,7 @@ export default function TodoPage() {
                   {l.name}
                 </button>
               )}
-              <span className="text-[11px] text-outline">{listCounts[l.id] ?? 0}</span>
+              <span className="text-[0.7857rem] text-outline">{listCounts[l.id] ?? 0}</span>
               <span className="hidden shrink-0 items-center gap-1 group-hover/list:flex">
                 <button
                   title="重命名"
@@ -323,7 +323,7 @@ export default function TodoPage() {
               <input
                 autoFocus
                 placeholder="清单名称，回车保存"
-                className="w-full rounded border border-primary px-2 py-1.5 text-[13px] outline-none"
+                className="w-full rounded border border-primary px-2 py-1.5 text-[0.9286rem] outline-none"
                 value={newListName}
                 onChange={(e) => setNewListName(e.target.value)}
                 onBlur={() => void submitCreateList()}
@@ -340,11 +340,11 @@ export default function TodoPage() {
         <div>
           <Card className="mb-3 flex items-center justify-between px-4 py-2.5">
             <div className="flex items-center gap-2">
-              <span className="text-[13px] font-semibold">{selLabel}</span>
+              <span className="text-[0.9286rem] font-semibold">{selLabel}</span>
               {/* P1 / 已完成筛选 Chip：作用于当前左栏视图/清单之内，点击切换、再点清除 */}
               <button
                 onClick={() => setChipP1((v) => !v)}
-                className={`rounded-full px-2.5 py-0.5 text-[12px] font-medium transition-colors ${
+                className={`rounded-full px-2.5 py-0.5 text-[0.8571rem] font-medium transition-colors ${
                   chipP1
                     ? 'bg-danger-container text-danger'
                     : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
@@ -354,7 +354,7 @@ export default function TodoPage() {
               </button>
               <button
                 onClick={() => setChipDone((v) => !v)}
-                className={`rounded-full px-2.5 py-0.5 text-[12px] font-medium transition-colors ${
+                className={`rounded-full px-2.5 py-0.5 text-[0.8571rem] font-medium transition-colors ${
                   chipDone
                     ? 'bg-primary-fixed text-primary'
                     : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
@@ -363,7 +363,7 @@ export default function TodoPage() {
                 已完成{chipDone && ' ✕'}
               </button>
             </div>
-            <span className="text-[11px] text-outline">
+            <span className="text-[0.7857rem] text-outline">
               {chipDone ? `${filtered.length} 条` : `${filtered.length} 条未完成`}
             </span>
           </Card>
@@ -413,7 +413,7 @@ export default function TodoPage() {
                     </button>
                     <div className="min-w-0 flex-1">
                       <div
-                        className={`truncate text-[14px] ${
+                        className={`truncate text-[1rem] ${
                           t.status === 'done' ? 'text-outline line-through' : 'font-medium'
                         }`}
                       >
@@ -427,7 +427,7 @@ export default function TodoPage() {
                         )}
                       </div>
                       {t.dueAt && (
-                        <div className="mt-0.5 text-[12px] text-outline">
+                        <div className="mt-0.5 text-[0.8571rem] text-outline">
                           截止 {dayjs(t.dueAt).format('M月D日 HH:mm')}
                           {t.status !== 'done' && dayjs(t.dueAt).isBefore(dayjs()) && (
                             <span className="ml-1.5 text-danger">已逾期</span>
@@ -593,7 +593,7 @@ export function TodoFormDrawer({
               <button
                 key={p}
                 onClick={() => setPriority(p)}
-                className={`rounded-lg border px-4 py-1.5 text-[13px] ${
+                className={`rounded-lg border px-4 py-1.5 text-[0.9286rem] ${
                   priority === p
                     ? 'border-primary bg-primary-fixed font-semibold text-primary'
                     : 'border-outline-variant text-on-surface-variant'
@@ -649,7 +649,7 @@ export function TodoFormDrawer({
             onChange={setCustomerId}
           />
         </Field>
-        {error && <div className="mb-3 text-[12px] text-danger">{error}</div>}
+        {error && <div className="mb-3 text-[0.8571rem] text-danger">{error}</div>}
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="tonal" onClick={onClose}>
             取消

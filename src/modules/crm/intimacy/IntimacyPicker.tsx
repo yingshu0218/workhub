@@ -54,13 +54,13 @@ export default function IntimacyPicker({ customer }: { customer: Customer }) {
   return (
     <div className="mt-3 rounded-xl bg-surface-container-low/60 p-4">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1.5 text-[12px] font-medium uppercase tracking-wide text-on-surface-variant">
-          <Icon name="favorite" className="text-[16px] text-primary" />
+        <div className="flex items-center gap-1.5 text-[0.8571rem] font-medium uppercase tracking-wide text-on-surface-variant">
+          <Icon name="favorite" className="text-[1.1429rem] text-primary" />
           亲密度
         </div>
         {current && (
           <button
-            className="text-[11px] text-on-surface-variant hover:text-on-surface hover:underline"
+            className="text-[0.7857rem] text-on-surface-variant hover:text-on-surface hover:underline"
             disabled={saving}
             onClick={() => void apply(null)}
             title="清除手动档位，回到算法兜底"
@@ -78,7 +78,7 @@ export default function IntimacyPicker({ customer }: { customer: Customer }) {
               key={l}
               disabled={saving}
               title={cfg.levels.find((x) => x.key === l)?.desc}
-              className={`rounded-full border px-2.5 py-1 text-[12px] transition-colors disabled:opacity-50 ${
+              className={`rounded-full border px-2.5 py-1 text-[0.8571rem] transition-colors disabled:opacity-50 ${
                 active
                   ? 'border-transparent font-semibold text-white'
                   : 'border-outline-variant/50 text-on-surface-variant hover:text-on-surface'
@@ -91,7 +91,7 @@ export default function IntimacyPicker({ customer }: { customer: Customer }) {
           )
         })}
       </div>
-      <div className="mt-1.5 text-[11px] text-outline">
+      <div className="mt-1.5 text-[0.7857rem] text-outline">
         {current
           ? `手动设置${current.note ? ` · ${current.note}` : ''} · 算法分不参与`
           : '未手动设置 · 由算法按联系频率/金钱往来/事项/项目兜底'}
@@ -99,7 +99,7 @@ export default function IntimacyPicker({ customer }: { customer: Customer }) {
 
       {pending && (
         <div className="mt-3 space-y-2 rounded-lg border border-outline-variant/50 p-3">
-          <div className="text-[12px] font-medium">
+          <div className="text-[0.8571rem] font-medium">
             降级为「{nameOf(pending)}」，必须留下原因（强制留痕）
           </div>
           <input
@@ -112,7 +112,7 @@ export default function IntimacyPicker({ customer }: { customer: Customer }) {
             }}
           />
           {pendingNoteMissing && (
-            <div className="text-[11px] text-danger">请填写降级原因后再确认</div>
+            <div className="text-[0.7857rem] text-danger">请填写降级原因后再确认</div>
           )}
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={() => setPendingLevel(null)}>

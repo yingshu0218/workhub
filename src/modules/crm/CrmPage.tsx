@@ -167,7 +167,7 @@ function StatCard({
   return (
     <div className="card p-4">
       <div className="flex items-center justify-between">
-        <span className="text-[12px] font-medium uppercase tracking-wide text-on-surface-variant">
+        <span className="text-[0.8571rem] font-medium uppercase tracking-wide text-on-surface-variant">
           {label}
         </span>
         <Icon
@@ -176,8 +176,8 @@ function StatCard({
           size={18}
         />
       </div>
-      <div className="mt-1 text-[22px] font-bold tracking-tight">{value}</div>
-      <div className="mt-0.5 text-[11px] text-outline">{sub}</div>
+      <div className="mt-1 text-[1.5714rem] font-bold tracking-tight">{value}</div>
+      <div className="mt-0.5 text-[0.7857rem] text-outline">{sub}</div>
     </div>
   )
 }
@@ -197,7 +197,7 @@ function Segmented({
         <button
           key={o.key}
           onClick={() => onChange(o.key)}
-          className={`rounded-md px-3 py-1.5 text-[13px] transition-colors ${
+          className={`rounded-md px-3 py-1.5 text-[0.9286rem] transition-colors ${
             value === o.key
               ? 'bg-surface-container-lowest font-semibold text-primary shadow-sm'
               : 'text-on-surface-variant hover:text-on-surface'
@@ -219,10 +219,10 @@ function CustomerRow({ customer: c, onOpen }: { customer: Customer; onOpen: () =
       <Avatar name={c.name} size={40} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="truncate text-[14px] font-semibold">{c.name}</span>
+          <span className="truncate text-[1rem] font-semibold">{c.name}</span>
           <Chip tone={tierChipTone(c.tier)}>{c.tier === '潜在' ? '潜在' : `${c.tier} 层`}</Chip>
         </div>
-        <div className="mt-0.5 truncate text-[12px] text-on-surface-variant">
+        <div className="mt-0.5 truncate text-[0.8571rem] text-on-surface-variant">
           {c.company || '—'}
           {c.title ? ` · ${c.title}` : ''}
           {c.industry ? ` · ${c.industry}` : ''}
@@ -236,7 +236,7 @@ function CustomerRow({ customer: c, onOpen }: { customer: Customer; onOpen: () =
         </div>
       </div>
       <div className="hidden w-32 shrink-0 md:block">
-        <div className="flex items-center justify-between text-[11px]">
+        <div className="flex items-center justify-between text-[0.7857rem]">
           <span className="text-on-surface-variant">健康指数</span>
           <span className="font-bold" style={{ color: healthColor(c.healthScore) }}>
             {c.healthScore}
@@ -250,12 +250,12 @@ function CustomerRow({ customer: c, onOpen }: { customer: Customer; onOpen: () =
         </div>
       </div>
       <div className="hidden w-28 shrink-0 text-right lg:block">
-        <div className="text-[12px] text-on-surface-variant">最近联系</div>
-        <div className="text-[12px] font-medium">{fmtRelative(c.lastContactAt)}</div>
+        <div className="text-[0.8571rem] text-on-surface-variant">最近联系</div>
+        <div className="text-[0.8571rem] font-medium">{fmtRelative(c.lastContactAt)}</div>
       </div>
       <Icon
         name="chevron_right"
-        className="text-[18px] text-outline opacity-0 transition-opacity group-hover:opacity-100"
+        className="text-[1.2857rem] text-outline opacity-0 transition-opacity group-hover:opacity-100"
       />
     </div>
   )

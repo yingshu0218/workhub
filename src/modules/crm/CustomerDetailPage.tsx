@@ -134,16 +134,16 @@ export default function CustomerDetailPage() {
               <Avatar name={customer.name} size={56} />
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-[18px] font-bold">{customer.name}</span>
+                  <span className="text-[1.2857rem] font-bold">{customer.name}</span>
                   <Chip tone={tierChipTone(customer.tier)}>
                     {customer.tier === '潜在' ? '潜在' : `${customer.tier} 层`}
                   </Chip>
                 </div>
-                <div className="mt-0.5 text-[13px] text-on-surface-variant">
+                <div className="mt-0.5 text-[0.9286rem] text-on-surface-variant">
                   {customer.company || '—'}
                   {customer.title ? ` · ${customer.title}` : ''}
                 </div>
-                <div className="mt-1 text-[12px] text-outline">
+                <div className="mt-1 text-[0.8571rem] text-outline">
                   {customer.industry || '—'} · {customer.decisionLevel}
                 </div>
               </div>
@@ -163,11 +163,11 @@ export default function CustomerDetailPage() {
             <div className="mt-4 flex items-center gap-4 rounded-xl bg-surface-container-low/60 p-4">
               <HealthRing score={customer.healthScore} color={hc} />
               <div className="min-w-0">
-                <div className="text-[13px] font-semibold">客情健康指数</div>
-                <div className="mt-0.5 text-[12px] text-on-surface-variant">
+                <div className="text-[0.9286rem] font-semibold">客情健康指数</div>
+                <div className="mt-0.5 text-[0.8571rem] text-on-surface-variant">
                   最近联系 {fmtRelative(customer.lastContactAt)}
                 </div>
-                <div className="mt-1 text-[11px] text-outline">
+                <div className="mt-1 text-[0.7857rem] text-outline">
                   {customer.healthScore >= 80
                     ? '互动频繁 · 关系稳固'
                     : customer.healthScore >= 60
@@ -183,7 +183,7 @@ export default function CustomerDetailPage() {
 
           {/* 联系渠道 */}
           <Card className="p-5">
-            <div className="mb-3 text-[12px] font-medium uppercase tracking-wide text-on-surface-variant">
+            <div className="mb-3 text-[0.8571rem] font-medium uppercase tracking-wide text-on-surface-variant">
               即时通讯与联系渠道
             </div>
             <div className="space-y-2">
@@ -207,8 +207,8 @@ export default function CustomerDetailPage() {
               />
             </div>
             {customer.address && (
-              <div className="mt-3 flex items-center gap-2 text-[12px] text-on-surface-variant">
-                <Icon name="location_on" className="text-[16px] text-primary" />
+              <div className="mt-3 flex items-center gap-2 text-[0.8571rem] text-on-surface-variant">
+                <Icon name="location_on" className="text-[1.1429rem] text-primary" />
                 {customer.address}
               </div>
             )}
@@ -217,12 +217,12 @@ export default function CustomerDetailPage() {
           {/* 迷你关系图谱 */}
           <Card className="p-5">
             <div className="mb-2 flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-[12px] font-medium uppercase tracking-wide text-on-surface-variant">
-                <Icon name="hub" className="text-[16px] text-primary" />
+              <div className="flex items-center gap-1.5 text-[0.8571rem] font-medium uppercase tracking-wide text-on-surface-variant">
+                <Icon name="hub" className="text-[1.1429rem] text-primary" />
                 跨系统关系图谱
               </div>
               <button
-                className="text-[12px] font-semibold text-primary hover:underline"
+                className="text-[0.8571rem] font-semibold text-primary hover:underline"
                 onClick={() => navigate(`/crm/${id}/graph`)}
               >
                 展开全屏图谱 →
@@ -240,22 +240,22 @@ export default function CustomerDetailPage() {
         <div className="space-y-4 lg:col-span-3">
           {/* 关联业务 */}
           <Card className="p-5">
-            <div className="mb-3 text-[12px] font-medium uppercase tracking-wide text-on-surface-variant">
+            <div className="mb-3 text-[0.8571rem] font-medium uppercase tracking-wide text-on-surface-variant">
               关联业务
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-xl bg-surface-container-low/60 p-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-[12px] text-on-surface-variant">关联交易流水</span>
-                  <Icon name="payments" className="text-[18px] text-success" />
+                  <span className="text-[0.8571rem] text-on-surface-variant">关联交易流水</span>
+                  <Icon name="payments" className="text-[1.2857rem] text-success" />
                 </div>
-                <div className="mt-1 text-[20px] font-bold tracking-tight">
+                <div className="mt-1 text-[1.4286rem] font-bold tracking-tight">
                   {transactions.length} 笔
                 </div>
                 {transactions.length > 0 ? (
                   <div className="mt-2 space-y-1.5">
                     {transactions.slice(0, 3).map((t) => (
-                      <div key={t.id} className="flex items-center justify-between text-[12px]">
+                      <div key={t.id} className="flex items-center justify-between text-[0.8571rem]">
                         <span className="truncate text-on-surface-variant">{t.summary}</span>
                         <span
                           className={`ml-2 shrink-0 font-bold ${t.type === 'income' ? 'text-success' : 'text-danger'}`}
@@ -265,22 +265,22 @@ export default function CustomerDetailPage() {
                         </span>
                       </div>
                     ))}
-                    <div className="text-[11px] text-outline">
+                    <div className="text-[0.7857rem] text-outline">
                       最近一笔 {dayjs(transactions[0].occurredAt).format('YYYY-MM-DD')}
                     </div>
                   </div>
                 ) : (
-                  <div className="mt-2 text-[11px] text-outline">
+                  <div className="mt-2 text-[0.7857rem] text-outline">
                     暂无关联流水，在财务中心记账时可关联该客户
                   </div>
                 )}
               </div>
               <div className="rounded-xl bg-surface-container-low/60 p-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-[12px] text-on-surface-variant">名下项目</span>
-                  <Icon name="hub" className="text-[18px] text-primary" />
+                  <span className="text-[0.8571rem] text-on-surface-variant">名下项目</span>
+                  <Icon name="hub" className="text-[1.2857rem] text-primary" />
                 </div>
-                <div className="mt-1 text-[20px] font-bold tracking-tight">
+                <div className="mt-1 text-[1.4286rem] font-bold tracking-tight">
                   {customerProjects.length} 个
                 </div>
                 {customerProjects.length > 0 ? (
@@ -288,7 +288,7 @@ export default function CustomerDetailPage() {
                     {customerProjects.slice(0, 3).map((p) => (
                       <button
                         key={p.id}
-                        className="flex w-full items-center gap-2 text-left text-[12px] hover:text-primary"
+                        className="flex w-full items-center gap-2 text-left text-[0.8571rem] hover:text-primary"
                         onClick={() => navigate(`/projects/${p.id}`)}
                       >
                         <span
@@ -300,19 +300,19 @@ export default function CustomerDetailPage() {
                     ))}
                   </div>
                 ) : (
-                  <div className="mt-2 text-[11px] text-outline">
+                  <div className="mt-2 text-[0.7857rem] text-outline">
                     暂无名下项目，在项目中可挂靠该客户
                   </div>
                 )}
               </div>
               <div className="rounded-xl bg-surface-container-low/60 p-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-[12px] text-on-surface-variant">关联待办</span>
-                  <Icon name="task_alt" className="text-[18px] text-primary" />
+                  <span className="text-[0.8571rem] text-on-surface-variant">关联待办</span>
+                  <Icon name="task_alt" className="text-[1.2857rem] text-primary" />
                 </div>
-                <div className="mt-1 text-[20px] font-bold tracking-tight">
+                <div className="mt-1 text-[1.4286rem] font-bold tracking-tight">
                   {openTodos.length} 项
-                  <span className="ml-1.5 text-[12px] font-normal text-on-surface-variant">
+                  <span className="ml-1.5 text-[0.8571rem] font-normal text-on-surface-variant">
                     进行中
                   </span>
                 </div>
@@ -321,7 +321,7 @@ export default function CustomerDetailPage() {
                     {openTodos.slice(0, 3).map((t) => (
                       <div
                         key={t.id}
-                        className="flex items-center justify-between gap-2 text-[12px]"
+                        className="flex items-center justify-between gap-2 text-[0.8571rem]"
                       >
                         <span className="truncate">{t.title}</span>
                         <Chip
@@ -335,7 +335,7 @@ export default function CustomerDetailPage() {
                     ))}
                   </div>
                 ) : (
-                  <div className="mt-2 text-[11px] text-outline">暂无进行中的关联待办</div>
+                  <div className="mt-2 text-[0.7857rem] text-outline">暂无进行中的关联待办</div>
                 )}
               </div>
             </div>
@@ -344,7 +344,7 @@ export default function CustomerDetailPage() {
           {/* 统一时间轴：手写沟通 + 关联财务 + 关联事件动态投影 */}
           <Card className="p-5">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <div className="text-[12px] font-medium uppercase tracking-wide text-on-surface-variant">
+              <div className="text-[0.8571rem] font-medium uppercase tracking-wide text-on-surface-variant">
                 深度跟进与沟通日志
               </div>
               <div className="flex gap-1">
@@ -352,7 +352,7 @@ export default function CustomerDetailPage() {
                   <button
                     key={f.key}
                     onClick={() => setTimelineFilter(f.key)}
-                    className={`rounded-full border px-2.5 py-0.5 text-[11px] transition-colors ${
+                    className={`rounded-full border px-2.5 py-0.5 text-[0.7857rem] transition-colors ${
                       timelineFilter === f.key
                         ? 'border-primary bg-primary-fixed font-semibold text-primary'
                         : 'border-outline-variant text-on-surface-variant hover:text-on-surface'
@@ -367,7 +367,7 @@ export default function CustomerDetailPage() {
             <QuickLog customerId={customer.id} />
             <div className="mt-4">
               {visibleTimeline.length === 0 ? (
-                <div className="py-6 text-center text-[12px] text-outline">
+                <div className="py-6 text-center text-[0.8571rem] text-outline">
                   暂无记录，用上方「快速记一笔」开始跟进；记账或建待办时关联该客户也会同步显示在这里
                 </div>
               ) : (
@@ -405,9 +405,9 @@ function TimelineItem({ event }: { event: TimelineEvent }) {
             关联记账 · {income ? '收入' : '支出'}
           </Chip>
           {event.status === '待对账' && <Chip tone="gray">待对账</Chip>}
-          <span className="text-[12px] text-outline">{fmtTimelineTime(event.at)}</span>
+          <span className="text-[0.8571rem] text-outline">{fmtTimelineTime(event.at)}</span>
         </div>
-        <p className="mt-1 flex flex-wrap items-center gap-2 rounded-lg bg-surface-container-low/50 px-3 py-2 text-[13px] leading-relaxed">
+        <p className="mt-1 flex flex-wrap items-center gap-2 rounded-lg bg-surface-container-low/50 px-3 py-2 text-[0.9286rem] leading-relaxed">
           <span className="truncate">{event.summary}</span>
           <span className={`ml-auto shrink-0 font-bold ${income ? 'text-success' : 'text-danger'}`}>
             {income ? '+' : '-'}
@@ -435,9 +435,9 @@ function TimelineItem({ event }: { event: TimelineEvent }) {
           <Chip tone={event.priority === 'P1' ? 'red' : event.priority === 'P2' ? 'amber' : 'gray'}>
             {event.priority}
           </Chip>
-          <span className="text-[12px] text-outline">{fmtTimelineTime(event.at)}</span>
+          <span className="text-[0.8571rem] text-outline">{fmtTimelineTime(event.at)}</span>
         </div>
-        <p className="mt-1 rounded-lg bg-surface-container-low/50 px-3 py-2 text-[13px] leading-relaxed">
+        <p className="mt-1 rounded-lg bg-surface-container-low/50 px-3 py-2 text-[0.9286rem] leading-relaxed">
           {event.title}
         </p>
       </div>
@@ -452,9 +452,9 @@ function TimelineItem({ event }: { event: TimelineEvent }) {
         <Chip tone="blue" icon={TYPE_ICONS[event.type]}>
           {event.type}
         </Chip>
-        <span className="text-[12px] text-outline">{fmtTimelineTime(event.at)}</span>
+        <span className="text-[0.8571rem] text-outline">{fmtTimelineTime(event.at)}</span>
       </div>
-      <p className="mt-1 rounded-lg bg-surface-container-low/50 px-3 py-2 text-[13px] leading-relaxed">
+      <p className="mt-1 rounded-lg bg-surface-container-low/50 px-3 py-2 text-[0.9286rem] leading-relaxed">
         {event.content}
       </p>
     </div>
@@ -512,12 +512,12 @@ function ChannelCard({
         className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary-fixed text-primary"
       />
       <div className="min-w-0 flex-1">
-        <div className="text-[11px] text-outline">{label}</div>
-        <div className="truncate text-[13px] font-medium">{value || '—'}</div>
+        <div className="text-[0.7857rem] text-outline">{label}</div>
+        <div className="truncate text-[0.9286rem] font-medium">{value || '—'}</div>
       </div>
       {value && (
         <button
-          className="shrink-0 text-[11px] font-semibold text-primary hover:underline"
+          className="shrink-0 text-[0.7857rem] font-semibold text-primary hover:underline"
           onClick={() => {
             onCopy()
             setCopied(true)
@@ -572,8 +572,8 @@ function QuickLog({ customerId }: { customerId: string }) {
 
   return (
     <div className="rounded-xl bg-surface-container-low/60 p-3">
-      <div className="mb-2 flex items-center gap-1.5 text-[12px] font-semibold text-primary">
-        <Icon name="bolt" className="text-[16px]" />
+      <div className="mb-2 flex items-center gap-1.5 text-[0.8571rem] font-semibold text-primary">
+        <Icon name="bolt" className="text-[1.1429rem]" />
         快速记一笔
       </div>
       <div className="mb-2 flex gap-1.5">
@@ -581,7 +581,7 @@ function QuickLog({ customerId }: { customerId: string }) {
           <button
             key={t}
             onClick={() => setType(t)}
-            className={`flex items-center gap-1 rounded-lg border px-2.5 py-1 text-[12px] transition-colors ${
+            className={`flex items-center gap-1 rounded-lg border px-2.5 py-1 text-[0.8571rem] transition-colors ${
               type === t
                 ? 'border-primary bg-primary-fixed font-semibold text-primary'
                 : 'border-outline-variant text-on-surface-variant hover:text-on-surface'
@@ -620,7 +620,7 @@ function MiniGraph({
 }) {
   if (txCount === 0 && todoCount === 0) {
     return (
-      <div className="py-6 text-center text-[12px] text-outline">
+      <div className="py-6 text-center text-[0.8571rem] text-outline">
         暂无关联交易与待办，图谱待建立
       </div>
     )

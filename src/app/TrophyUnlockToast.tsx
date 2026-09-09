@@ -44,7 +44,7 @@ export default function TrophyUnlockToast() {
       onClick={dismiss}
     >
       {queue.length > 1 && (
-        <div className="absolute right-6 top-6 rounded-full bg-black/40 px-3 py-1 text-[12px] font-medium text-white">
+        <div className="absolute right-6 top-6 rounded-full bg-black/40 px-3 py-1 text-[0.8571rem] font-medium text-white">
           还有 {queue.length - 1} 座奖杯待展示
         </div>
       )}
@@ -56,12 +56,12 @@ export default function TrophyUnlockToast() {
             </div>
           </div>
           <div className="text-center">
-            <div className={`text-[12px] font-bold uppercase tracking-[0.2em] ${theme.text}`}>
+            <div className={`text-[0.8571rem] font-bold uppercase tracking-[0.2em] ${theme.text}`}>
               {theme.label} · 已解锁
             </div>
-            <div className="mt-1 text-[20px] font-bold">{trophy.name}</div>
-            <div className="mt-1.5 text-[12.5px] text-on-surface-variant">{trophy.description}</div>
-            <div className="mt-1 text-[11px] text-outline">稀有度 {trophy.rarity}</div>
+            <div className="mt-1 text-[1.4286rem] font-bold">{trophy.name}</div>
+            <div className="mt-1.5 text-[0.8929rem] text-on-surface-variant">{trophy.description}</div>
+            <div className="mt-1 text-[0.7857rem] text-outline">稀有度 {trophy.rarity}</div>
           </div>
           <Button size="sm" variant="tonal" onClick={dismiss}>
             收下奖杯

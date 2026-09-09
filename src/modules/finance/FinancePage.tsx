@@ -158,12 +158,12 @@ export default function FinancePage() {
         }
       />
 
-      {ledgerError && <div className="mb-3 text-[12px] text-danger">{ledgerError}</div>}
+      {ledgerError && <div className="mb-3 text-[0.8571rem] text-danger">{ledgerError}</div>}
 
       <div className="flex items-start gap-4">
         {/* 左栏：账本树（全部账本 + 各账本，支持拖拽排序，hover 显示编辑/删除） */}
         <Card className="w-64 shrink-0 self-start p-4">
-          <div className="mb-3 flex items-center justify-between text-[12px] font-medium uppercase tracking-wide text-on-surface-variant">
+          <div className="mb-3 flex items-center justify-between text-[0.8571rem] font-medium uppercase tracking-wide text-on-surface-variant">
             <span>账本（{ledgers.length}）</span>
             <button
               className="rounded p-0.5 text-outline transition-colors hover:bg-surface-container-high hover:text-on-surface"
@@ -226,7 +226,7 @@ export default function FinancePage() {
               />
             ))}
           </div>
-          <div className="mt-2 text-[11px] leading-relaxed text-outline">拖动账本可调整排序</div>
+          <div className="mt-2 text-[0.7857rem] leading-relaxed text-outline">拖动账本可调整排序</div>
         </Card>
 
         {/* 右侧：汇总 + 流水 */}
@@ -264,18 +264,18 @@ export default function FinancePage() {
               onClick={() => setStatusFilter(statusFilter === '待对账' ? 'all' : '待对账')}
             >
               <div className="flex items-center justify-between">
-                <span className="text-[12px] font-medium uppercase tracking-wide text-on-surface-variant">
+                <span className="text-[0.8571rem] font-medium uppercase tracking-wide text-on-surface-variant">
                   待对账核验
                 </span>
                 <Icon name="fact_check" size={18} className="bg-warning-container text-warning" />
               </div>
-              <div className="mt-1 text-[22px] font-bold tracking-tight text-warning">
+              <div className="mt-1 text-[1.5714rem] font-bold tracking-tight text-warning">
                 {pending.length}
-                <span className="ml-1 text-[13px] font-normal text-on-surface-variant">
+                <span className="ml-1 text-[0.9286rem] font-normal text-on-surface-variant">
                   笔待确认
                 </span>
               </div>
-              <div className="mt-0.5 text-[11px] text-outline">
+              <div className="mt-0.5 text-[0.7857rem] text-outline">
                 {statusFilter === '待对账' ? '已筛选：仅显示待对账流水' : '点击仅查看待对账流水'}
                 {scopeNote}
               </div>
@@ -340,7 +340,7 @@ export default function FinancePage() {
             </Card>
           )}
           {list.length > 0 && (
-            <div className="mt-3 flex items-center justify-center gap-3 text-[13px] text-on-surface-variant">
+            <div className="mt-3 flex items-center justify-center gap-3 text-[0.9286rem] text-on-surface-variant">
               <Button
                 size="sm"
                 variant="tonal"
@@ -416,7 +416,7 @@ function LedgerNode({
       onDragStart={onDragStart}
       onDragOver={onDragOver}
       onDrop={onDrop}
-      className={`group flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1.5 text-[13px] transition-colors ${
+      className={`group flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1.5 text-[0.9286rem] transition-colors ${
         active
           ? 'bg-primary-fixed font-semibold text-primary'
           : 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'
@@ -424,7 +424,7 @@ function LedgerNode({
     >
       {draggable && (
         <span
-          className="cursor-grab text-[14px] leading-none text-outline/60 group-hover:text-outline"
+          className="cursor-grab text-[1rem] leading-none text-outline/60 group-hover:text-outline"
           title="拖动排序"
         >
           ⠿
@@ -440,9 +440,9 @@ function LedgerNode({
           {actions}
         </span>
       )}
-      <span className="shrink-0 text-[11px] text-outline group-hover:hidden">{count}</span>
+      <span className="shrink-0 text-[0.7857rem] text-outline group-hover:hidden">{count}</span>
       {actions && (
-        <span className="hidden shrink-0 text-[11px] text-outline group-hover:hidden">{count}</span>
+        <span className="hidden shrink-0 text-[0.7857rem] text-outline group-hover:hidden">{count}</span>
       )}
     </div>
   )
@@ -466,7 +466,7 @@ function SummaryCard({
   return (
     <Card className="p-4">
       <div className="flex items-center justify-between">
-        <span className="text-[12px] font-medium uppercase tracking-wide text-on-surface-variant">
+        <span className="text-[0.8571rem] font-medium uppercase tracking-wide text-on-surface-variant">
           {label}
         </span>
         <Icon
@@ -475,8 +475,8 @@ function SummaryCard({
           size={18}
         />
       </div>
-      <div className={`mt-1 text-[22px] font-bold tracking-tight ${valueCls}`}>{value}</div>
-      <div className="mt-0.5 text-[11px] text-outline">{sub}</div>
+      <div className={`mt-1 text-[1.5714rem] font-bold tracking-tight ${valueCls}`}>{value}</div>
+      <div className="mt-0.5 text-[0.7857rem] text-outline">{sub}</div>
     </Card>
   )
 }
@@ -496,7 +496,7 @@ function Segmented({
         <button
           key={o.key}
           onClick={() => onChange(o.key)}
-          className={`rounded-md px-3 py-1.5 text-[13px] transition-colors ${
+          className={`rounded-md px-3 py-1.5 text-[0.9286rem] transition-colors ${
             value === o.key
               ? 'bg-surface-container-lowest font-semibold text-primary shadow-sm'
               : 'text-on-surface-variant hover:text-on-surface'
@@ -540,10 +540,10 @@ function TransactionRow({
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="truncate text-[14px] font-medium">{txn.summary}</span>
+          <span className="truncate text-[1rem] font-medium">{txn.summary}</span>
           {showLedger && ledger && <Chip tone={isIncome ? 'blue' : 'gray'}>{ledger.name}</Chip>}
         </div>
-        <div className="mt-0.5 text-[12px] text-outline">
+        <div className="mt-0.5 text-[0.8571rem] text-outline">
           {dayjs(txn.occurredAt).format('YYYY-MM-DD HH:mm')} · {txn.channel}
         </div>
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
@@ -566,7 +566,7 @@ function TransactionRow({
       </div>
       <div className="flex shrink-0 flex-col items-end gap-1">
         <span
-          className={`text-[15px] font-bold tracking-tight ${isIncome ? 'text-success' : 'text-danger'}`}
+          className={`text-[1.0714rem] font-bold tracking-tight ${isIncome ? 'text-success' : 'text-danger'}`}
         >
           {fmtSigned(txn, symbol)}
         </span>
@@ -642,7 +642,7 @@ function TransactionDetailDrawer({
             }`}
           >
             <div className="flex items-center justify-between">
-              <span className="text-[12px] font-medium text-on-surface-variant">
+              <span className="text-[0.8571rem] font-medium text-on-surface-variant">
                 {txn.type === 'income' ? '收入入账' : '支出出账'}（{ledger?.currency ?? 'CNY'}）
               </span>
               <Chip
@@ -653,13 +653,13 @@ function TransactionDetailDrawer({
               </Chip>
             </div>
             <div
-              className={`mt-1 text-[28px] font-bold tracking-tight ${
+              className={`mt-1 text-[2rem] font-bold tracking-tight ${
                 txn.type === 'income' ? 'text-success' : 'text-danger'
               }`}
             >
               {fmtSigned(txn, symbol)}
             </div>
-            <div className="mt-1 text-[13px] font-medium">{txn.summary}</div>
+            <div className="mt-1 text-[0.9286rem] font-medium">{txn.summary}</div>
           </div>
 
           {/* 状态流转 + 编辑 + 删除 */}
@@ -708,7 +708,7 @@ function TransactionDetailDrawer({
           {/* 业务标签 */}
           {txn.tags.length > 0 && (
             <div>
-              <div className="mb-2 text-[12px] font-medium uppercase tracking-wide text-on-surface-variant">
+              <div className="mb-2 text-[0.8571rem] font-medium uppercase tracking-wide text-on-surface-variant">
                 业务分类标签
               </div>
               <div className="flex flex-wrap gap-1.5">
@@ -723,11 +723,11 @@ function TransactionDetailDrawer({
 
           {/* 附件存根 */}
           <div>
-            <div className="mb-2 text-[12px] font-medium uppercase tracking-wide text-on-surface-variant">
+            <div className="mb-2 text-[0.8571rem] font-medium uppercase tracking-wide text-on-surface-variant">
               附件存根（{attachments.length}）
             </div>
             {attachments.length === 0 ? (
-              <div className="text-[12px] text-outline">无附件存根</div>
+              <div className="text-[0.8571rem] text-outline">无附件存根</div>
             ) : (
               <div className="space-y-1.5">
                 {attachments.map((a) => (
@@ -736,10 +736,10 @@ function TransactionDetailDrawer({
                     className="flex items-center justify-between surface-card !bg-transparent px-3 py-2"
                   >
                     <div className="flex min-w-0 items-center gap-2">
-                      <Icon name="description" className="text-[18px] text-primary" />
+                      <Icon name="description" className="text-[1.2857rem] text-primary" />
                       <div className="min-w-0">
-                        <div className="truncate text-[13px]">{a.name}</div>
-                        <div className="text-[11px] text-outline">
+                        <div className="truncate text-[0.9286rem]">{a.name}</div>
+                        <div className="text-[0.7857rem] text-outline">
                           {(a.size / 1024).toFixed(0)} KB
                         </div>
                       </div>
@@ -761,7 +761,7 @@ function TransactionDetailDrawer({
           {/* 关联业务溯源 */}
           {(customer || todo) && (
             <div>
-              <div className="mb-2 text-[12px] font-medium uppercase tracking-wide text-on-surface-variant">
+              <div className="mb-2 text-[0.8571rem] font-medium uppercase tracking-wide text-on-surface-variant">
                 关联业务溯源
               </div>
               <div className="space-y-2">
@@ -773,15 +773,15 @@ function TransactionDetailDrawer({
                     <div className="flex min-w-0 items-center gap-3">
                       <Avatar name={customer.name} size={36} />
                       <div className="min-w-0">
-                        <div className="truncate text-[13px] font-semibold">
+                        <div className="truncate text-[0.9286rem] font-semibold">
                           {customer.company} · {customer.name}
                         </div>
-                        <div className="truncate text-[12px] text-on-surface-variant">
+                        <div className="truncate text-[0.8571rem] text-on-surface-variant">
                           {customer.title}
                         </div>
                       </div>
                     </div>
-                    <span className="flex shrink-0 items-center gap-0.5 pl-2 text-[12px] font-semibold text-primary">
+                    <span className="flex shrink-0 items-center gap-0.5 pl-2 text-[0.8571rem] font-semibold text-primary">
                       前往 CRM 档案
                       <Icon name="open_in_new" size={14} />
                     </span>
@@ -798,13 +798,13 @@ function TransactionDetailDrawer({
                         className="flex h-9 w-9 items-center justify-center rounded-xl bg-success-container/40 text-success"
                       />
                       <div className="min-w-0">
-                        <div className="truncate text-[13px] font-medium">{todo.title}</div>
-                        <div className="truncate text-[12px] text-on-surface-variant">
+                        <div className="truncate text-[0.9286rem] font-medium">{todo.title}</div>
+                        <div className="truncate text-[0.8571rem] text-on-surface-variant">
                           {todo.priority} · {todo.status === 'done' ? '已完成' : '进行中'}
                         </div>
                       </div>
                     </div>
-                    <span className="flex shrink-0 items-center gap-0.5 pl-2 text-[12px] font-semibold text-primary">
+                    <span className="flex shrink-0 items-center gap-0.5 pl-2 text-[0.8571rem] font-semibold text-primary">
                       查看待办详情
                       <Icon name="open_in_new" size={14} />
                     </span>
@@ -829,8 +829,8 @@ function TransactionDetailDrawer({
 function DetailField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="text-[11px] font-medium text-on-surface-variant">{label}</span>
-      <span className="break-all text-[13px]">{children}</span>
+      <span className="text-[0.7857rem] font-medium text-on-surface-variant">{label}</span>
+      <span className="break-all text-[0.9286rem]">{children}</span>
     </div>
   )
 }

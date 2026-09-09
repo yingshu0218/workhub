@@ -115,10 +115,10 @@ export default function HabitsPage() {
       <Card className="mb-4 p-5">
         <div className="mb-4 flex items-center justify-between">
           <div className="flex min-w-0 items-center gap-2">
-            <h2 className="text-[15px] font-semibold">本月热力图</h2>
+            <h2 className="text-[1.0714rem] font-semibold">本月热力图</h2>
             {mood && (
               <span
-                className="flex items-center gap-1.5 text-[12px] text-on-surface-variant"
+                className="flex items-center gap-1.5 text-[0.8571rem] text-on-surface-variant"
                 title="基于近 7 天完成率与当前连击推导"
               >
                 <span
@@ -135,7 +135,7 @@ export default function HabitsPage() {
             >
               <Icon name="chevron_left" size={20} />
             </button>
-            <span className="min-w-[88px] text-center text-[13px] font-medium">{monthLabel}</span>
+            <span className="min-w-[88px] text-center text-[0.9286rem] font-medium">{monthLabel}</span>
             <button
               className="rounded-md p-1.5 text-on-surface-variant hover:bg-surface-container-low"
               onClick={() => shiftMonth(1)}
@@ -145,7 +145,7 @@ export default function HabitsPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-7 gap-1.5 text-center text-[11px] text-outline">
+        <div className="grid grid-cols-7 gap-1.5 text-center text-[0.7857rem] text-outline">
           {WEEKDAYS.map((w) => (
             <span key={w}>{w}</span>
           ))}
@@ -171,14 +171,14 @@ export default function HabitsPage() {
                   isSelected ? 'ring-2 ring-primary' : ''
                 } ${isFuture ? 'opacity-40' : 'hover:scale-105'} ${isToday ? 'ring-1 ring-primary/60' : ''}`}
               >
-                <span className="text-[11px] font-semibold">{isToday ? '今' : i + 1}</span>
-                {count > 0 && <span className="text-[10px] opacity-80">{count} 项</span>}
+                <span className="text-[0.7857rem] font-semibold">{isToday ? '今' : i + 1}</span>
+                {count > 0 && <span className="text-[0.7143rem] opacity-80">{count} 项</span>}
               </button>
             )
           })}
         </div>
 
-        <div className="mt-3 flex items-center gap-2 text-[11px] text-outline">
+        <div className="mt-3 flex items-center gap-2 text-[0.7857rem] text-outline">
           <span>少</span>
           <span className="h-3 w-3 rounded bg-surface-container" />
           <span className="h-3 w-3 rounded bg-secondary-container" />
@@ -189,7 +189,7 @@ export default function HabitsPage() {
         {selectedDate && (
           <div className="mt-4 rounded-lg bg-surface-container-low p-4">
             <div className="mb-2 flex items-center justify-between">
-              <span className="text-[13px] font-semibold">
+              <span className="text-[0.9286rem] font-semibold">
                 {dayjs(selectedDate).format('M月D日')} 完成明细 · {dayHabits.length} 项
               </span>
               <button
@@ -200,11 +200,11 @@ export default function HabitsPage() {
               </button>
             </div>
             {dayHabits.length === 0 ? (
-              <div className="py-2 text-[12px] text-outline">这一天没有打卡记录</div>
+              <div className="py-2 text-[0.8571rem] text-outline">这一天没有打卡记录</div>
             ) : (
               <ul className="space-y-1.5">
                 {dayHabits.map((h) => (
-                  <li key={h.id} className="flex items-center gap-2 text-[13px]">
+                  <li key={h.id} className="flex items-center gap-2 text-[0.9286rem]">
                     <span
                       className="flex h-6 w-6 items-center justify-center rounded-md text-white"
                       style={{ background: h.color }}
@@ -212,7 +212,7 @@ export default function HabitsPage() {
                       <Icon name={h.icon} size={14} />
                     </span>
                     {h.name}
-                    <span className="text-[11px] text-outline">{h.targetMinutes} 分钟</span>
+                    <span className="text-[0.7857rem] text-outline">{h.targetMinutes} 分钟</span>
                   </li>
                 ))}
               </ul>
@@ -224,7 +224,7 @@ export default function HabitsPage() {
       {/* 活跃习惯清单 */}
       <Card className="p-5">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-[15px] font-semibold">活跃习惯 · {stats.length} 项</h2>
+          <h2 className="text-[1.0714rem] font-semibold">活跃习惯 · {stats.length} 项</h2>
         </div>
         {stats.length === 0 ? (
           <EmptyState
@@ -255,8 +255,8 @@ export default function HabitsPage() {
                   <Icon name={habit.icon} size={18} />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-[13.5px] font-medium">{habit.name}</div>
-                  <div className="truncate text-[11px] text-outline">
+                  <div className="truncate text-[0.9643rem] font-medium">{habit.name}</div>
+                  <div className="truncate text-[0.7857rem] text-outline">
                     {habit.schedule} · {habit.targetMinutes} 分钟
                     {habit.motivationNote ? ` · ${habit.motivationNote}` : ''}
                   </div>
@@ -267,7 +267,7 @@ export default function HabitsPage() {
                   </Chip>
                 )}
                 <div className="hidden w-28 shrink-0 text-right sm:block">
-                  <div className="text-[11px] text-outline">
+                  <div className="text-[0.7857rem] text-outline">
                     {monthLabel}完成 {monthChecks} 次 · {monthRate === null ? '—' : `${monthRate}%`}
                   </div>
                   <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-surface-container">
@@ -277,7 +277,7 @@ export default function HabitsPage() {
                     />
                   </div>
                 </div>
-                <div className="hidden w-16 shrink-0 text-right text-[11px] text-outline lg:block">
+                <div className="hidden w-16 shrink-0 text-right text-[0.7857rem] text-outline lg:block">
                   累计 {totalChecks} 次
                 </div>
                 <button

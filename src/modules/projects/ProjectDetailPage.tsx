@@ -120,10 +120,10 @@ export default function ProjectDetailPage() {
               </span>
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-[18px] font-bold">{project.name}</span>
+                  <span className="text-[1.2857rem] font-bold">{project.name}</span>
                   <Chip tone={meta.tone}>{meta.label}</Chip>
                 </div>
-                <div className="mt-0.5 text-[12px] text-outline">
+                <div className="mt-0.5 text-[0.8571rem] text-outline">
                   创建于 {dayjs(project.createdAt).format('YYYY-MM-DD')}
                   {project.budget != null ? ` · 预算 ${fmtMoney(project.budget)}` : ''}
                 </div>
@@ -134,10 +134,10 @@ export default function ProjectDetailPage() {
                   >
                     <Avatar name={customer.name} size={22} />
                     <span className="min-w-0">
-                      <span className="block truncate text-[12px] font-medium">
+                      <span className="block truncate text-[0.8571rem] font-medium">
                         {customer.name}
                       </span>
-                      <span className="block text-[10.5px] text-outline">
+                      <span className="block text-[0.75rem] text-outline">
                         {customer.company || '—'}
                       </span>
                     </span>
@@ -147,7 +147,7 @@ export default function ProjectDetailPage() {
               </div>
             </div>
             {project.note && (
-              <p className="mt-3 rounded-lg bg-surface-container-low/60 px-3 py-2 text-[13px] leading-relaxed">
+              <p className="mt-3 rounded-lg bg-surface-container-low/60 px-3 py-2 text-[0.9286rem] leading-relaxed">
                 {project.note}
               </p>
             )}
@@ -155,11 +155,11 @@ export default function ProjectDetailPage() {
 
           <Card className="p-5">
             <div className="mb-3 flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-[12px] font-medium uppercase tracking-wide text-on-surface-variant">
-                <Icon name="track_changes" className="text-[16px] text-primary" />
+              <div className="flex items-center gap-1.5 text-[0.8571rem] font-medium uppercase tracking-wide text-on-surface-variant">
+                <Icon name="track_changes" className="text-[1.1429rem] text-primary" />
                 项目进度
               </div>
-              <span className="text-[11px] text-outline">
+              <span className="text-[0.7857rem] text-outline">
                 {progress.source === 'milestone'
                   ? '按里程碑权重推导'
                   : progress.source === 'todo'
@@ -169,7 +169,7 @@ export default function ProjectDetailPage() {
             </div>
             <div className="flex items-center gap-4">
               <ProgressRing percent={progress.percent} />
-              <div className="min-w-0 flex-1 space-y-1.5 text-[12px]">
+              <div className="min-w-0 flex-1 space-y-1.5 text-[0.8571rem]">
                 <div className="flex justify-between">
                   <span className="text-on-surface-variant">累计收入</span>
                   <span className="font-bold text-success">+{fmtMoney(income)}</span>
@@ -197,19 +197,19 @@ export default function ProjectDetailPage() {
         <div className="space-y-4 lg:col-span-3">
           <Card className="p-5">
             <div className="mb-3 flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-[12px] font-medium uppercase tracking-wide text-on-surface-variant">
-                <Icon name="payments" className="text-[16px] text-primary" />
+              <div className="flex items-center gap-1.5 text-[0.8571rem] font-medium uppercase tracking-wide text-on-surface-variant">
+                <Icon name="payments" className="text-[1.1429rem] text-primary" />
                 项目流水（{transactions.length}）
               </div>
               <button
-                className="text-[12px] font-semibold text-primary hover:underline"
+                className="text-[0.8571rem] font-semibold text-primary hover:underline"
                 onClick={() => navigate('/finance')}
               >
                 去记账 →
               </button>
             </div>
             {transactions.length === 0 ? (
-              <div className="py-4 text-center text-[12px] text-outline">
+              <div className="py-4 text-center text-[0.8571rem] text-outline">
                 暂无关联流水，在财务中心记账时选择本项目即可归集
               </div>
             ) : (
@@ -217,7 +217,7 @@ export default function ProjectDetailPage() {
                 {transactions.slice(0, 6).map((t) => (
                   <div
                     key={t.id}
-                    className="flex items-center justify-between rounded-lg bg-surface-container-low/50 px-3 py-2 text-[12.5px]"
+                    className="flex items-center justify-between rounded-lg bg-surface-container-low/50 px-3 py-2 text-[0.8929rem]"
                   >
                     <span className="min-w-0 truncate">
                       <span className="text-outline">{dayjs(t.occurredAt).format('MM-DD')}</span>{' '}
@@ -232,7 +232,7 @@ export default function ProjectDetailPage() {
                   </div>
                 ))}
                 {transactions.length > 6 && (
-                  <div className="text-center text-[11px] text-outline">
+                  <div className="text-center text-[0.7857rem] text-outline">
                     还有 {transactions.length - 6} 笔…
                   </div>
                 )}
@@ -242,19 +242,19 @@ export default function ProjectDetailPage() {
 
           <Card className="p-5">
             <div className="mb-3 flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-[12px] font-medium uppercase tracking-wide text-on-surface-variant">
-                <Icon name="check_circle" className="text-[16px] text-primary" />
+              <div className="flex items-center gap-1.5 text-[0.8571rem] font-medium uppercase tracking-wide text-on-surface-variant">
+                <Icon name="check_circle" className="text-[1.1429rem] text-primary" />
                 项目待办（{openTodos.length} 进行中）
               </div>
               <button
-                className="text-[12px] font-semibold text-primary hover:underline"
+                className="text-[0.8571rem] font-semibold text-primary hover:underline"
                 onClick={() => navigate('/todo')}
               >
                 去安排 →
               </button>
             </div>
             {todos.length === 0 ? (
-              <div className="py-4 text-center text-[12px] text-outline">
+              <div className="py-4 text-center text-[0.8571rem] text-outline">
                 暂无关联待办，新建待办时选择本项目即可
               </div>
             ) : (
@@ -262,7 +262,7 @@ export default function ProjectDetailPage() {
                 {todos.slice(0, 6).map((t) => (
                   <div
                     key={t.id}
-                    className="flex items-center gap-2 rounded-lg bg-surface-container-low/50 px-3 py-2 text-[12.5px]"
+                    className="flex items-center gap-2 rounded-lg bg-surface-container-low/50 px-3 py-2 text-[0.8929rem]"
                   >
                     <Chip
                       tone={
@@ -283,14 +283,14 @@ export default function ProjectDetailPage() {
                       {t.title}
                     </span>
                     {t.dueAt && (
-                      <span className="ml-auto shrink-0 text-[11px] text-outline">
+                      <span className="ml-auto shrink-0 text-[0.7857rem] text-outline">
                         {dayjs(t.dueAt).format('MM-DD HH:mm')}
                       </span>
                     )}
                   </div>
                 ))}
                 {todos.length > 6 && (
-                  <div className="text-center text-[11px] text-outline">
+                  <div className="text-center text-[0.7857rem] text-outline">
                     还有 {todos.length - 6} 项…
                   </div>
                 )}
@@ -300,19 +300,19 @@ export default function ProjectDetailPage() {
 
           <Card className="p-5">
             <div className="mb-3 flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-[12px] font-medium uppercase tracking-wide text-on-surface-variant">
-                <Icon name="description" className="text-[16px] text-primary" />
+              <div className="flex items-center gap-1.5 text-[0.8571rem] font-medium uppercase tracking-wide text-on-surface-variant">
+                <Icon name="description" className="text-[1.1429rem] text-primary" />
                 项目资料（{notes.length}）
               </div>
               <button
-                className="text-[12px] font-semibold text-primary hover:underline"
+                className="text-[0.8571rem] font-semibold text-primary hover:underline"
                 onClick={() => navigate('/notes')}
               >
                 去写笔记 →
               </button>
             </div>
             {notes.length === 0 ? (
-              <div className="py-4 text-center text-[12px] text-outline">
+              <div className="py-4 text-center text-[0.8571rem] text-outline">
                 暂无归属笔记，笔记编辑页「所属项目」选择本项目即可归集
               </div>
             ) : (
@@ -321,11 +321,11 @@ export default function ProjectDetailPage() {
                   <button
                     key={n.id}
                     onClick={() => navigate(`/notes/${n.id}`)}
-                    className="flex w-full items-center gap-2 surface-card !bg-transparent px-3 py-2 text-left text-[12.5px] transition-colors hover:border-primary"
+                    className="flex w-full items-center gap-2 surface-card !bg-transparent px-3 py-2 text-left text-[0.8929rem] transition-colors hover:border-primary"
                   >
                     <Icon name="article" size={15} className="shrink-0 text-primary" />
                     <span className="min-w-0 flex-1 truncate">{n.title || '未命名笔记'}</span>
-                    <span className="shrink-0 text-[11px] text-outline">
+                    <span className="shrink-0 text-[0.7857rem] text-outline">
                       {dayjs(n.updatedAt).format('MM-DD')}
                     </span>
                   </button>
@@ -335,14 +335,14 @@ export default function ProjectDetailPage() {
           </Card>
 
           <Card className="p-5">
-            <div className="mb-3 flex items-center gap-1.5 text-[12px] font-medium uppercase tracking-wide text-on-surface-variant">
-              <Icon name="bolt" className="text-[16px] text-primary" />
+            <div className="mb-3 flex items-center gap-1.5 text-[0.8571rem] font-medium uppercase tracking-wide text-on-surface-variant">
+              <Icon name="bolt" className="text-[1.1429rem] text-primary" />
               项目跟进
             </div>
             <QuickLog projectId={project.id} />
             <div className="mt-4">
               {interactions.length === 0 ? (
-                <div className="py-4 text-center text-[12px] text-outline">
+                <div className="py-4 text-center text-[0.8571rem] text-outline">
                   暂无跟进记录，用上方「快速记一笔」开始
                 </div>
               ) : (
@@ -356,11 +356,11 @@ export default function ProjectDetailPage() {
                         <Chip tone="blue" icon="bolt">
                           {it.type}
                         </Chip>
-                        <span className="text-[12px] text-outline">
+                        <span className="text-[0.8571rem] text-outline">
                           {dayjs(it.at).format('YYYY-MM-DD HH:mm')}
                         </span>
                       </div>
-                      <p className="mt-1 rounded-lg bg-surface-container-low/50 px-3 py-2 text-[13px] leading-relaxed">
+                      <p className="mt-1 rounded-lg bg-surface-container-low/50 px-3 py-2 text-[0.9286rem] leading-relaxed">
                         {it.content}
                       </p>
                     </div>
@@ -465,12 +465,12 @@ function MilestoneCard({
   return (
     <Card className="p-5">
       <div className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-1.5 text-[12px] font-medium uppercase tracking-wide text-on-surface-variant">
-          <Icon name="flag" className="text-[16px] text-primary" />
+        <div className="flex items-center gap-1.5 text-[0.8571rem] font-medium uppercase tracking-wide text-on-surface-variant">
+          <Icon name="flag" className="text-[1.1429rem] text-primary" />
           里程碑（{milestones.length}）
         </div>
         <button
-          className="text-[12px] font-semibold text-primary hover:underline"
+          className="text-[0.8571rem] font-semibold text-primary hover:underline"
           onClick={() => setAdding((v) => !v)}
         >
           {adding ? '收起' : '+ 添加'}
@@ -503,7 +503,7 @@ function MilestoneCard({
               onChange={(e) => setDueAt(e.target.value)}
             />
           </div>
-          {error && <div className="text-[12px] text-danger">{error}</div>}
+          {error && <div className="text-[0.8571rem] text-danger">{error}</div>}
           <div className="flex justify-end gap-2">
             <Button size="sm" variant="tonal" onClick={() => setAdding(false)}>
               取消
@@ -516,7 +516,7 @@ function MilestoneCard({
       )}
 
       {milestones.length === 0 ? (
-        <div className="py-3 text-center text-[12px] text-outline">
+        <div className="py-3 text-center text-[0.8571rem] text-outline">
           暂无里程碑；添加后进度按权重加权推导（无里程碑时按待办完成率）
         </div>
       ) : (
@@ -545,16 +545,16 @@ function MilestoneCard({
                   )}
                 </button>
                 <span
-                  className={`min-w-0 flex-1 truncate text-[12.5px] ${m.status === 'done' ? 'text-outline line-through' : ''}`}
+                  className={`min-w-0 flex-1 truncate text-[0.8929rem] ${m.status === 'done' ? 'text-outline line-through' : ''}`}
                 >
                   {m.name}
                 </span>
                 <Chip tone={meta.tone}>{meta.label}</Chip>
-                <span className="shrink-0 text-[11px] text-outline" title="进度权重">
+                <span className="shrink-0 text-[0.7857rem] text-outline" title="进度权重">
                   ×{m.weight}
                 </span>
                 {m.dueAt && (
-                  <span className="shrink-0 text-[11px] text-outline">
+                  <span className="shrink-0 text-[0.7857rem] text-outline">
                     {dayjs(m.dueAt).format('MM-DD')}
                   </span>
                 )}
@@ -613,8 +613,8 @@ function QuickLog({ projectId }: { projectId: string }) {
 
   return (
     <div className="rounded-xl bg-surface-container-low/60 p-3">
-      <div className="mb-2 flex items-center gap-1.5 text-[12px] font-semibold text-primary">
-        <Icon name="bolt" className="text-[16px]" />
+      <div className="mb-2 flex items-center gap-1.5 text-[0.8571rem] font-semibold text-primary">
+        <Icon name="bolt" className="text-[1.1429rem]" />
         快速记一笔
       </div>
       <div className="mb-2 flex gap-1.5">
@@ -622,7 +622,7 @@ function QuickLog({ projectId }: { projectId: string }) {
           <button
             key={t}
             onClick={() => setLogType(t)}
-            className={`rounded-full border px-2.5 py-0.5 text-[11px] ${
+            className={`rounded-full border px-2.5 py-0.5 text-[0.7857rem] ${
               logType === t
                 ? 'border-primary bg-primary-fixed font-semibold text-primary'
                 : 'border-outline-variant text-on-surface-variant'
