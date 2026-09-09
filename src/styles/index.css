@@ -35,6 +35,13 @@
 
   --radius-card: 8px;
   --radius-xl-card: 12px;
+
+  /* Issue #54 半径治理：语义类圆角全部引用 --radius-* 档位变量，
+     运行时由 effects.ts 按圆角档位全量覆盖（md/lg/xl/2xl 联动） */
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 8px;
+  --radius-2xl: 16px;
 }
 
 /* ===== 深浅模式（Phase 6 系统设置）：工具类引用 var(--color-*)，.dark 覆盖变量即全局换肤 ===== */

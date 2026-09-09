@@ -30,7 +30,9 @@ import {
   LINE_HEIGHT_STEPS,
   FONT_PRESETS,
   THEME_STYLES,
+  SKIN_STYLES,
   FONT_STACKS,
+  type SkinStyleId,
 } from '@/shared/theme'
 import { pbPing, isSyncConfigured, enqueueAllForPush } from '@/sync/pocketbaseAdapter'
 import { syncEngine } from '@/sync/engine'
@@ -55,6 +57,59 @@ const TABS = [
 ] as const
 
 type TabId = (typeof TABS)[number]['id']
+
+/** 风格缩略预览（Issue #54）：用 mini DOM 表达各风格的形态语言，与配色色带区分开 */
+function SkinThumb({ id }: { id: SkinStyleId }) {
+  switch (id) {
+    case 'pixel':
+      return (
+        <div className="flex flex-col items-center gap-1">
+          <div className="h-6 w-12 border-2 border-on-surface bg-primary" style={{ borderRadius: 0, boxShadow: '3px 3px 0 0 var(--color-on-surface)' }} />
+          <div className="h-1.5 w-8 bg-outline-variant" style={{ borderRadius: 0 }} />
+        </div>
+      )
+    case 'cartoon':
+      return (
+        <div className="flex flex-col items-center gap-1.5">
+          <div className="h-6 w-12 rounded-lg border-2 border-outline bg-primary" style={{ boxShadow: '0 3px 6px rgba(0,0,0,0.15)' }} />
+          <div className="h-1.5 w-8 rounded-full bg-outline-variant" />
+        </div>
+      )
+    case 'cyber':
+      return (
+        <div className="flex flex-col items-center gap-1.5">
+          <div
+            className="flex h-6 w-12 items-center justify-center border border-primary text-[9px] font-semibold tracking-widest text-primary"
+            style={{ clipPath: 'polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)', boxShadow: '0 0 8px 0 color-mix(in srgb, var(--color-primary) 40%, transparent)' }}
+          >
+            HUD
+          </div>
+          <div className="h-1.5 w-8" style={{ background: 'repeating-linear-gradient(90deg, var(--color-outline-variant) 0 2px, transparent 2px 5px)' }} />
+        </div>
+      )
+    case 'glass':
+      return (
+        <div className="relative flex flex-col items-center gap-1.5">
+          <div
+            className="flex h-6 w-12 items-center justify-center rounded-2xl border border-white/60 bg-white/40 backdrop-blur-sm"
+            style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
+          >
+            <span className="text-[9px] font-semibold text-on-surface-variant">Glass</span>
+          </div>
+          <span className="absolute -top-0.5 right-3 text-[10px] text-primary">✦</span>
+          <span className="absolute -bottom-1 left-3 text-[8px] text-primary/70">✦</span>
+          <div className="h-1.5 w-8 rounded-full bg-outline-variant" />
+        </div>
+      )
+    default:
+      return (
+        <div className="flex flex-col items-center gap-1.5">
+          <div className="h-6 w-12 rounded-lg border border-outline-variant/60 bg-surface-container-lowest" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }} />
+          <div className="h-1.5 w-8 rounded-full bg-outline-variant" />
+        </div>
+      )
+  }
+}
 
 /** 下载文本文件（导出共用）：CSV 载荷自带 BOM，浏览器端生成无需依赖 */
 function downloadText(content: string, mime: string, filename: string) {
@@ -499,9 +554,48 @@ export default function SettingsPage() {
       {tab === 'appearance' && (
         <div className="space-y-4">
           <Section
+            icon="texture"
+            title="界面风格"
+            desc="第一层选择：造型语言（卡片形状 / 描边 / 投影 / 标题字体 / 纹理装饰），与配色独立、可任意叠加"
+            badge="实时生效"
+          >
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+              {SKIN_STYLES.map((sk) => {
+                const active = (settings.appearance.style ?? 'none') === sk.id
+                return (
+                  <button
+                    key={sk.id}
+                    className={`rounded-xl border p-4 text-left transition-colors ${
+                      active
+                        ? 'border-primary bg-primary-fixed/40'
+                        : 'border-outline-variant/50 hover:border-primary/50'
+                    }`}
+                    onClick={() => {
+                      const radius = ('radius' in sk ? sk.radius : undefined) ?? settings.appearance.radius
+                      save({ appearance: { ...settings.appearance, style: sk.id, radius } })
+                    }}
+                  >
+                    {/* 风格缩略预览：用形态而非色带表达风格差异 */}
+                    <div className="mb-3 flex h-16 items-center justify-center overflow-hidden surface-card !bg-transparent">
+                      <SkinThumb id={sk.id} />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[13px] font-semibold">{sk.label}</span>
+                      {active && (
+                        <Icon name="check_circle" fill className="text-[18px] text-primary" />
+                      )}
+                    </div>
+                    <p className="mt-1 text-[11px] leading-snug text-on-surface-variant">{sk.desc}</p>
+                  </button>
+                )
+              })}
+            </div>
+          </Section>
+
+          <Section
             icon="auto_awesome"
-            title="风格主题"
-            desc="整套界面气质：底色基调、容器色阶与情绪色一键切换（含明暗推荐）"
+            title="配色主题"
+            desc="第二层选择：底色基调、容器色阶与情绪色（含明暗推荐），与上方界面风格自由组合"
             badge="实时生效"
           >
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -517,9 +611,7 @@ export default function SettingsPage() {
                     }`}
                     onClick={() => {
                       const mode = t.mode === 'dark' ? 'dark' : 'light'
-                      const radius =
-                        ('radius' in t ? t.radius : undefined) ?? settings.appearance.radius
-                      save({ appearance: { ...settings.appearance, theme: t.id, mode, radius } })
+                      save({ appearance: { ...settings.appearance, theme: t.id, mode } })
                     }}
                   >
                     <div className="mb-3 flex h-16 overflow-hidden surface-card !bg-transparent">

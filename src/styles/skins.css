@@ -170,3 +170,140 @@ h4,
     );
   background-size: 32px 32px;
 }
+
+/* =====================================================================
+   Issue #54：皮肤覆盖面扩充（穿透语义类 + 裸 Tailwind 收敛面）
+   ===================================================================== */
+
+/* 通用接管：导航激活态 / chip 徽章 / 页头 / 弹窗 / 分段器 / 开关跟随卡片形态 token */
+:root[data-skin]:not([data-skin='none']) {
+  --skin-nav-active-bg: var(--color-primary);
+  --skin-nav-active-fg: var(--color-on-primary);
+}
+
+/* ---- HUD 控制台 cyber：切角面板 + 等宽大写标题（对齐参考图 3） ---- */
+:root[data-skin='cyber'] {
+  --skin-clip-panel: polygon(
+    10px 0, 100% 0, 100% calc(100% - 10px),
+    calc(100% - 10px) 100%, 0 100%, 0 10px
+  );
+  --skin-card-radius: 0;
+}
+
+:root[data-skin='cyber'] .surface-card,
+:root[data-skin='cyber'] .card {
+  clip-path: var(--skin-clip-panel);
+}
+
+:root[data-skin='cyber'] h1,
+:root[data-skin='cyber'] h2,
+:root[data-skin='cyber'] h3,
+:root[data-skin='cyber'] h4 {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* HUD 状态灯：主按钮左侧点缀 */
+:root[data-skin='cyber'] .btn-primary::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-on-primary);
+  box-shadow: 0 0 6px 1px var(--color-on-primary);
+}
+
+/* ---- 梦幻玻璃 glass（新，对齐参考图 2）：渐变画布 + 玻璃拟态 + 星闪装饰 ---- */
+:root[data-skin='glass'] {
+  --skin-border-width: 1px;
+  --skin-border-color: color-mix(in srgb, var(--color-outline-variant) 30%, transparent);
+  --skin-card-bg: color-mix(in srgb, var(--color-surface-container-lowest) 55%, transparent);
+  --skin-card-radius: calc(var(--radius-lg) * 2);
+  --skin-shadow-card: 0 8px 24px rgba(0, 0, 0, 0.08);
+  --skin-shadow-hover: 0 12px 32px rgba(0, 0, 0, 0.12);
+  --skin-shadow-btn: 0 4px 12px color-mix(in srgb, var(--color-primary) 30%, transparent);
+  --skin-heading-font:
+    'Yozai', 'ZCOOL KuaiLe', 'Yuanti SC', 'PingFang SC', 'HarmonyOS Sans SC', sans-serif;
+}
+
+/* 粉彩渐变画布（叠加在 surface 底色上，随配色联动不写死颜色） */
+:root[data-skin='glass'] body {
+  background-image:
+    radial-gradient(
+      60% 50% at 15% 10%,
+      color-mix(in srgb, var(--color-primary-container) 18%, transparent),
+      transparent
+    ),
+    radial-gradient(
+      50% 40% at 85% 85%,
+      color-mix(in srgb, var(--color-success-container) 30%, transparent),
+      transparent
+    );
+  background-attachment: fixed;
+}
+
+:root[data-skin='glass'] .surface-card,
+:root[data-skin='glass'] .card {
+  background: var(--skin-card-bg);
+  backdrop-filter: blur(12px) saturate(1.4);
+  -webkit-backdrop-filter: blur(12px) saturate(1.4);
+  border-radius: var(--skin-card-radius);
+  box-shadow: var(--skin-shadow-card);
+}
+
+:root[data-skin='glass'] .surface-card-hover:hover,
+:root[data-skin='glass'] .card-hover:hover {
+  box-shadow: var(--skin-shadow-hover);
+}
+
+:root[data-skin='glass'] .btn-primary {
+  border-radius: calc(var(--radius-lg) * 2);
+  box-shadow: var(--skin-shadow-btn);
+}
+
+:root[data-skin='glass'] .input {
+  border-radius: calc(var(--radius-lg) * 2);
+  background: color-mix(in srgb, var(--color-surface-container-lowest) 65%, transparent);
+}
+
+/* 玻璃拟态下深浅模式对比度兜底：深色侧提升卡片不透明度 */
+.dark[data-skin='glass'] .surface-card,
+:root.dark[data-skin='glass'] .card {
+  background: color-mix(in srgb, var(--color-surface-container-lowest) 78%, transparent);
+}
+
+/* ---- 童趣贴纸 cartoon：胶囊按钮（对齐参考图 1） ---- */
+:root[data-skin='cartoon'] {
+  --skin-card-radius: calc(var(--radius-lg) * 1.5);
+}
+
+:root[data-skin='cartoon'] .surface-card,
+:root[data-skin='cartoon'] .card {
+  border-radius: var(--skin-card-radius);
+}
+
+:root[data-skin='cartoon'] .btn-primary,
+:root[data-skin='cartoon'] .btn-ghost {
+  border-radius: 9999px;
+}
+
+:root[data-skin='cartoon'] .input {
+  border-radius: calc(var(--radius-lg) * 1.5);
+}
+
+/* ---- 像素复古 pixel：描边升 3px、全直角贯穿（对齐参考图 4） ---- */
+:root[data-skin='pixel'] {
+  --skin-border-width: 3px;
+  --skin-card-radius: 0;
+}
+
+:root[data-skin='pixel'] .surface-card-xl,
+:root[data-skin='pixel'] .surface-card-low,
+:root[data-skin='pixel'] .list-row-plain {
+  border: 2px solid var(--skin-border-color);
+  border-radius: 0;
+}
+
+:root[data-skin='pixel'] .section-title {
+  letter-spacing: 0.04em;
+}

@@ -33,6 +33,58 @@ export const FONT_SIZE_STEPS = [13, 14, 15, 16]
 export const LINE_HEIGHT_STEPS = [1.4, 1.6, 1.8]
 
 /**
+ * 界面风格包 SKIN_STYLES（Issue #54）：与配色解耦的独立「造型语言」维度。
+ * 配色（THEME_STYLES / ACCENT_PRESETS）管颜色，风格管形态——
+ * 卡片形状（圆角/描边粗细/描边颜色）、投影类型（硬偏移/软阴影/辉光）、
+ * 标题字体档、背景纹理、装饰元素（星闪/HUD 切角/像素角标）。
+ * 任意配色可叠加任意风格，经 settings.appearance.style 独立持久化，
+ * 由 applySettingsToDom 写入 <html data-skin="...">，见 styles/skins.css。
+ */
+/** 界面风格 id 联合类型：先于 SKIN_STYLES 声明，避免循环引用 */
+export type SkinStyleId = 'none' | 'pixel' | 'cartoon' | 'cyber' | 'glass'
+
+export interface SkinStylePreset {
+  id: SkinStyleId
+  label: string
+  desc: string
+  /** 选中该风格时推荐的圆角档位（用户可再手动改） */
+  radius?: 'sharp' | 'medium' | 'large'
+}
+
+export const SKIN_STYLES = [
+  {
+    id: 'none',
+    label: '现代默认',
+    desc: '柔和浅描边 + 软阴影，工作台默认形态',
+  },
+  {
+    id: 'pixel',
+    label: '像素复古',
+    desc: '3px 硬描边 + 右下实心硬投影 + 直角，8-bit 游戏机质感',
+    radius: 'sharp',
+  },
+  {
+    id: 'cartoon',
+    label: '童趣贴纸',
+    desc: '粗描边 + 软阴影 + 大圆角 + 胶囊按钮，贴纸绘本质感',
+    radius: 'large',
+  },
+  {
+    id: 'cyber',
+    label: 'HUD 控制台',
+    desc: '切角面板 + 霓虹辉光 + 等宽大写标题 + 网格纹理',
+    radius: 'sharp',
+  },
+  {
+    id: 'glass',
+    label: '梦幻玻璃',
+    desc: '粉彩渐变画布 + 玻璃拟态半透明卡片 + 四角星闪装饰 + 超大圆角',
+    radius: 'large',
+  },
+] as const satisfies readonly SkinStylePreset[]
+
+
+/**
  * 风格主题包（Issue #14）：不只是换强调色，而是整套界面气质——
  * 底色基调 / 容器色阶 / 灰阶轮廓 / 情绪色（success/warning/danger）/ 明暗默认值 / 圆角字体倾向。
  * 应用逻辑见 shared/effects.ts applySettingsToDom。
@@ -52,11 +104,11 @@ export interface ThemeStylePreset {
   /** 选中该风格时的推荐圆角 */
   radius?: 'sharp' | 'medium' | 'large'
   /**
-   * 主题样式包（Issue #43）：造型语言（描边/阴影/标题字体/纹理），与配色正交。
-   * 由 applySettingsToDom 写入 <html data-skin="...">，不进 settings 持久化。
-   * 默认 none = 现代默认形态，老用户零感知。
+   * 选中该风格主题时「推荐」的界面风格（Issue #54）：
+   * 仅在用户没有手动选过风格时用于首次引导，非强制捆绑。
+   * 风格与配色已解耦（settings.appearance.style 独立持久化），详见 SKIN_STYLES。
    */
-  skin?: 'none' | 'pixel' | 'cartoon' | 'cyber'
+  recommendStyle?: SkinStyleId
 }
 
 export interface ThemeVars {
@@ -444,7 +496,7 @@ export const THEME_STYLES = [
     swatch: ['#1a1c2c', '#5d275d', '#41a6f6'],
     mode: 'dark',
     radius: 'sharp',
-    skin: 'pixel',
+    recommendStyle: 'pixel',
     light: {
       surface: '#f4f4f4',
       'surface-container-lowest': '#ffffff',
@@ -495,7 +547,7 @@ export const THEME_STYLES = [
     swatch: ['#fff7fb', '#ffd6ec', '#f472b6'],
     mode: 'light',
     radius: 'large',
-    skin: 'cartoon',
+    recommendStyle: 'cartoon',
     light: {
       surface: '#fff7fb',
       'surface-container-lowest': '#ffffff',
@@ -546,7 +598,7 @@ export const THEME_STYLES = [
     swatch: ['#050a14', '#0e2a3a', '#22d3ee'],
     mode: 'dark',
     radius: 'sharp',
-    skin: 'cyber',
+    recommendStyle: 'cyber',
     light: {
       surface: '#eef6fb',
       'surface-container-lowest': '#ffffff',
