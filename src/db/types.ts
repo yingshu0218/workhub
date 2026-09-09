@@ -492,3 +492,47 @@ export interface CustomerIntimacy {
   note?: string
   updatedAt: number
 }
+
+// ─────────────────────────── 自定义客户分组（Issue #63 收敛稿） ───────────────────────────
+
+/**
+ * 用户自定义客户分组：一条 tag 判定规则，客户实时自动归组（不落命中快照 —— 分组是「规则的视图」）。
+ * 一条分组的规则 = includeTags（须全部命中，AND）+ excludeTags（命中任一即剔除，NOT）。
+ * rules 字段为将来 OR（析取范式 DNF）预留：matchGroup = rules.some(matchOne)，本期不写 OR 交互。
+ * 已知边界：单层扁平表达不了混合式 (A 或 B) 且 C —— CRM 场景罕见，不为它预支复杂度。
+ */
+export interface CustomerGroup extends SyncMeta {
+  id: string
+  name: string
+  /** AND：客户须命中全部 includeTags */
+  includeTags: string[]
+  /** NOT：客户命中任一 excludeTags 即剔除 */
+  excludeTags: string[]
+  /** DNF 预留（第一期不写 UI）：每条 rule 自带 excludeTags，避免将来 OR 下排除语义含糊 */
+  rules?: { includeTags: string[]; excludeTags: string[] }[]
+  sortOrder: number
+  createdAt: number
+}
+
+/**
+ * 分组判定纯函数（可测可复用）：输入客户对象而非裸 tags 数组，
+ * 将来想把 tier/行业纳入条件时调用方无需改动。
+ */
+export function matchGroup(customer: Pick<Customer, 'tags'>, group: CustomerGroup): boolean {
+  // 优先走 DNF 预留结构（rules 存在且非空时按 OR 求值）
+  if (group.rules && group.rules.length > 0) {
+    return group.rules.some((r) => matchesRule(customer, r.includeTags, r.excludeTags))
+  }
+  return matchesRule(customer, group.includeTags, group.excludeTags)
+}
+
+/** 单条规则判定：含全部 includeTags 且不含任何 excludeTags */
+function matchesRule(
+  customer: Pick<Customer, 'tags'>,
+  includeTags: string[],
+  excludeTags: string[],
+): boolean {
+  const tags = customer.tags ?? []
+  if (includeTags.length === 0) return false // 空规则不圈人，避免「新建即全量」
+  return includeTags.every((t) => tags.includes(t)) && !excludeTags.some((t) => tags.includes(t))
+}
