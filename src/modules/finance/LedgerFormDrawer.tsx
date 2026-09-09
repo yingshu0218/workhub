@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { ledgerRepo, newId } from '@/repositories'
+import { db } from '@/db/db'
+import { syncEngine } from '@/sync/engine'
 import { nextLedgerSortOrder } from './hooks'
 import type { Ledger } from '@/db/types'
 import { Button, Drawer, Field, inputCls } from '@/design-system/ui'
@@ -28,6 +30,7 @@ export default function LedgerFormDrawer({
   const [currency, setCurrency] = useState<(typeof CURRENCIES)[number]>('CNY')
   const [opening, setOpening] = useState('0')
   const [cycle, setCycle] = useState<Ledger['closingCycle']>('月结')
+  const [isDefault, setIsDefault] = useState(false)
   const [error, setError] = useState('')
   const [seedKey, setSeedKey] = useState(0)
 
@@ -46,11 +49,13 @@ export default function LedgerFormDrawer({
         )
         setOpening(String(editLedger.openingBalance))
         setCycle(editLedger.closingCycle)
+        setIsDefault(!!editLedger.isDefault)
       } else {
         setName('')
         setCurrency('CNY')
         setOpening('0')
         setCycle('月结')
+        setIsDefault(false)
       }
       setError('')
       setSeedKey((k) => k + 1)
@@ -67,6 +72,17 @@ export default function LedgerFormDrawer({
       setError('期初建账金额需为不小于 0 的数字')
       return
     }
+    // 设为默认账本：先清掉其它账本的 isDefault，保证全局唯一
+    if (isDefault) {
+      const others = (await db.ledgers.toArray()).filter(
+        (l) => !l.deleted && l.isDefault && l.id !== editLedger?.id,
+      )
+      const now = Date.now()
+      for (const l of others) {
+        const { isDefault: _drop, ...rest } = l
+        await ledgerRepo.put({ ...rest, updatedAt: now, rev: l.rev + 1 })
+      }
+    }
     if (editLedger) {
       await ledgerRepo.put({
         ...editLedger,
@@ -74,6 +90,8 @@ export default function LedgerFormDrawer({
         currency,
         openingBalance: openingNum,
         closingCycle: cycle,
+        // 未勾选时移除默认标记（可选字段，缺省即非默认）
+        ...(isDefault ? { isDefault: true } : {}),
       })
     } else {
       await ledgerRepo.put({
@@ -85,8 +103,10 @@ export default function LedgerFormDrawer({
         // 新账本排到左侧树末尾
         sortOrder: await nextLedgerSortOrder(),
         createdAt: Date.now(),
+        ...(isDefault ? { isDefault: true } : {}),
       })
     }
+    if (isDefault) syncEngine.requestSync()
     onClose()
   }
 
@@ -141,6 +161,30 @@ export default function LedgerFormDrawer({
               </button>
             ))}
           </div>
+        </Field>
+        <Field label="默认账本">
+          <button
+            type="button"
+            onClick={() => setIsDefault(!isDefault)}
+            className={`flex w-full items-center justify-between rounded-lg border px-3 py-2 text-[13px] transition-colors ${
+              isDefault
+                ? 'border-primary bg-primary-fixed text-primary'
+                : 'border-outline-variant text-on-surface-variant hover:text-on-surface'
+            }`}
+          >
+            <span>新建记账时默认选中此账本</span>
+            <span
+              className={`flex h-5 w-9 items-center rounded-full p-0.5 transition-colors ${
+                isDefault ? 'bg-primary' : 'bg-outline-variant'
+              }`}
+            >
+              <span
+                className={`h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                  isDefault ? 'translate-x-4' : ''
+                }`}
+              />
+            </span>
+          </button>
         </Field>
         {error && <div className="mb-3 text-[12px] text-danger">{error}</div>}
         <div className="flex justify-end gap-2 pt-2">
