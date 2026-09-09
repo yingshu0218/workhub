@@ -15,8 +15,8 @@ const NAV_ITEMS = [
   { to: '/crm', icon: 'group', label: '客户管理' },
   { to: '/finance', icon: 'account_balance_wallet', label: '财务中心' },
   { to: '/habits', icon: 'local_fire_department', label: '打卡习惯' },
-  { to: '/inspiration', icon: 'auto_awesome', label: '灵感闪现' },
   { to: '/trophies', icon: 'emoji_events', label: '成就奖杯' },
+  { to: '/inspiration', icon: 'auto_awesome', label: '灵感闪现' },
 ]
 
 const TITLES: Record<string, string> = {
@@ -111,25 +111,45 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
 
         <nav className="flex-1 space-y-0.5 overflow-y-auto px-3">
-          {NAV_ITEMS.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.to === '/'}
-              className={({ isActive }) =>
-                `flex items-center gap-3 rounded-lg px-3 py-2 text-[13.5px] transition-colors ${
-                  isActive
-                    ? item.to === '/'
-                      ? 'bg-primary-fixed font-semibold text-primary ring-1 ring-primary'
-                      : 'bg-primary-fixed font-semibold text-primary'
-                    : 'text-on-surface-variant hover:bg-surface-container'
-                }`
-              }
-            >
-              <Icon name={item.icon} />
-              {item.label}
-            </NavLink>
-          ))}
+          {NAV_ITEMS.map((item) => {
+            /* 特设高亮：工作台（置顶）+ 灵感闪现（置底）与中部常规项做视觉区分，
+               保持设计 token 驱动，随深浅模式 / 主题包 / 皮肤自动适配 */
+            const featured =
+              item.to === '/' || item.to === '/inspiration'
+                ? item.to === '/'
+                  ? 'workbench' // 工作台：品牌「首页」入口
+                  : 'inspire' // 灵感闪现：置底特设「闪念」入口
+                : undefined
+            const isFirst = item.to === '/'
+            const isLast = item.to === '/inspiration'
+            return (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={isFirst}
+                className={({ isActive }) =>
+                  [
+                    'flex items-center gap-3 rounded-lg px-3 py-2 text-[13.5px] transition-all',
+                    featured === 'workbench'
+                      ? isActive
+                        ? 'bg-primary font-semibold text-on-primary ring-1 ring-primary shadow-[0_2px_8px_rgba(0,0,0,0.18)]'
+                        : 'font-medium text-primary hover:bg-primary-fixed/70'
+                      : featured === 'inspire'
+                        ? isActive
+                          ? 'border border-primary bg-gradient-to-r from-primary to-primary-container font-semibold text-on-primary shadow-[0_2px_10px_rgba(0,0,0,0.2)]'
+                          : 'border border-primary/30 bg-primary-fixed/40 font-medium text-primary hover:border-primary hover:bg-primary-fixed/70'
+                        : isActive
+                          ? 'bg-primary-fixed font-semibold text-primary'
+                          : 'text-on-surface-variant hover:bg-surface-container',
+                    isLast ? 'mt-1.5' : '',
+                  ].filter(Boolean).join(' ')
+                }
+              >
+                <Icon name={item.icon} />
+                {item.label}
+              </NavLink>
+            )
+          })}
         </nav>
 
         <div className="border-t border-outline-variant/40 p-3">
