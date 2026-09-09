@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { db } from '@/db/db'
 import { useQuery } from '@/queries/hooks'
 import { syncEngine } from '@/sync/engine'
@@ -22,7 +23,11 @@ export interface CanvasGraph {
     /** 客户间语义关系（全景图画客户↔客户边的数据源；投影时过滤掉指向已删除/不存在客户的悬挂引用） */
     relations: { targetId: string; label: string; category?: RelationCategory }[]
     /** 亲密度手动档投影（Issue #34：圈层布局与黑名单过滤；缺省=未设置=算法兜底） */
-    intimacy?: { level: 'T1' | 'T2' | 'T3' | 'T4' | 'T5' | 'I6' | 'I7'; note?: string; updatedAt: number }
+    intimacy?: {
+      level: 'T1' | 'T2' | 'T3' | 'T4' | 'T5' | 'I6' | 'I7'
+      note?: string
+      updatedAt: number
+    }
   }[]
   projects: { id: string; name: string; customerId: string }[]
   transactions: {
@@ -290,4 +295,112 @@ export async function createCustomerWithInit(
     },
   )
   syncEngine.requestSync()
+}
+
+// ─────────────────────────── 自定义客户分组（Issue #63 收敛稿） ───────────────────────────
+
+import type { CustomerGroup } from '@/db/types'
+import { matchGroup } from '@/db/types'
+
+/** 订阅自定义分组（按 sortOrder 排序，过滤软删） */
+export function useCustomerGroups(): CustomerGroup[] {
+  const groups = useQuery<CustomerGroup[]>(async () => {
+    const all = await db.customerGroups.toArray()
+    return all.filter((g) => !g.deleted).sort((a, b) => a.sortOrder - b.sortOrder)
+  }, [])
+  return groups ?? []
+}
+
+/** 各分组实时命中人数（Dexie 全量推导，本地量级无压力；不落快照，改 tag 即进出组） */
+export function useCustomerGroupCounts(
+  customers: Customer[],
+  groups: CustomerGroup[],
+): Record<string, number> {
+  return useMemo(() => {
+    const map: Record<string, number> = {}
+    for (const g of groups) {
+      map[g.id] = customers.filter((c) => matchGroup(c, g)).length
+    }
+    return map
+  }, [customers, groups])
+}
+
+/** 新建分组（同事务入同步队列，走 TodoList 先例） */
+export async function createCustomerGroup(input: {
+  name: string
+  includeTags: string[]
+  excludeTags: string[]
+}): Promise<CustomerGroup> {
+  const all = await db.customerGroups.toArray()
+  const group: CustomerGroup = {
+    id: newId('cg'),
+    name: input.name.trim(),
+    includeTags: input.includeTags,
+    excludeTags: input.excludeTags,
+    sortOrder: all.filter((g) => !g.deleted).length,
+    createdAt: Date.now(),
+    updatedAt: 0,
+    deleted: 0,
+    rev: 0,
+  }
+  const now = Date.now()
+  await db.transaction('rw', [db.customerGroups, db.syncQueue], async () => {
+    await db.customerGroups.put({ ...group, updatedAt: now, rev: 1 })
+    await db.syncQueue.add({
+      table: 'customerGroups',
+      recordId: group.id,
+      op: 'upsert',
+      createdAt: now,
+    })
+  })
+  syncEngine.requestSync()
+  return group
+}
+
+/** 更新分组（改名 / 改规则） */
+export async function updateCustomerGroup(
+  id: string,
+  patch: Partial<Pick<CustomerGroup, 'name' | 'includeTags' | 'excludeTags'>>,
+): Promise<void> {
+  const prev = await db.customerGroups.get(id)
+  if (!prev || prev.deleted) return
+  const now = Date.now()
+  await db.transaction('rw', [db.customerGroups, db.syncQueue], async () => {
+    await db.customerGroups.put({ ...prev, ...patch, updatedAt: now, rev: prev.rev + 1 })
+    await db.syncQueue.add({
+      table: 'customerGroups',
+      recordId: id,
+      op: 'upsert',
+      createdAt: now,
+    })
+  })
+  syncEngine.requestSync()
+}
+
+/** 删除分组（纯删规则，不动客户档案 —— 分组是视图） */
+export async function deleteCustomerGroup(id: string): Promise<void> {
+  const prev = await db.customerGroups.get(id)
+  if (!prev) return
+  const now = Date.now()
+  await db.transaction('rw', [db.customerGroups, db.syncQueue], async () => {
+    await db.customerGroups.put({ ...prev, deleted: 1, updatedAt: now, rev: prev.rev + 1 })
+    await db.syncQueue.add({ table: 'customerGroups', recordId: id, op: 'delete', createdAt: now })
+  })
+  syncEngine.requestSync()
+}
+
+/** tag 实时聚合联想：从现有客户 tags distinct 出热门标签（按出现次数降序），录入与配组界面共用 */
+export function useTagSuggestions(customers: Customer[], exclude: string[] = []): string[] {
+  return useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const c of customers) {
+      for (const t of c.tags ?? []) {
+        counts.set(t, (counts.get(t) ?? 0) + 1)
+      }
+    }
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([t]) => t)
+      .filter((t) => !exclude.includes(t))
+  }, [customers, exclude])
 }

@@ -79,6 +79,7 @@ export class NexusDB extends Dexie {
   focusSessions!: Table<FocusSession, string>
   settings!: Table<Settings, string>
   moduleConfigs!: Table<ModuleConfig, string>
+  customerGroups!: Table<import('./types').CustomerGroup, string>
 
   constructor() {
     super('nexus-workspace')
@@ -133,6 +134,10 @@ export class NexusDB extends Dexie {
       todos: 'id, status, dueAt, priority, customerId, listId, projectId, updatedAt',
       notes: 'id, folderId, projectId, updatedAt',
       interactions: 'id, customerId, at, projectId, updatedAt',
+    })
+    // v10（Issue #63 自定义客户分组）：tag 规则圈人，参与同步
+    this.version(10).stores({
+      customerGroups: 'id, sortOrder, updatedAt',
     })
     // v9（Issue #34 亲密度体系）：moduleConfigs 模块配置表（key 寻址，每模块一条）。
     // 亲密度等级名/黑名单开关/算法权重随同步多端一致，走同步表而非 settings（本地偏好不进同步）

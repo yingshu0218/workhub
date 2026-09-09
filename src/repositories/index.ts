@@ -42,6 +42,8 @@ export const projectMilestoneRepo =
   createRepository<import('@/db/types').ProjectMilestone>('projectMilestones')
 export const attachmentRepo = createRepository<Attachment>('attachments')
 export const moduleConfigRepo = createRepository<ModuleConfig>('moduleConfigs')
+export const customerGroupRepo =
+  createRepository<import('@/db/types').CustomerGroup>('customerGroups')
 
 /**
  * 专注会话瞬态仓储（本地推导数据，不进同步队列 —— 开发计划 2.3）
