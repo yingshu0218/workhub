@@ -75,12 +75,12 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      <div className="mt-5 grid grid-cols-[1fr_360px] gap-4">
-        <div className="space-y-4">
+      <div className="mt-5 grid grid-cols-[1fr_360px] items-stretch gap-4">
+        <div className="grid grid-rows-[auto_1fr] gap-4">
           <FocusCard />
           <HabitLoopCard />
         </div>
-        <div className="space-y-4">
+        <div className="grid grid-rows-[auto_1fr] gap-4">
           <TodayTodosCard />
           <QuickNoteCard />
         </div>
