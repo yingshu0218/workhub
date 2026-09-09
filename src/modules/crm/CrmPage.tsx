@@ -11,7 +11,7 @@ import { fmtRelative, healthColor, tierChipTone } from './shared'
 export default function CrmPage() {
   const customers = useCollection<Customer>('customers')
   const navigate = useNavigate()
-  const [tierFilter, setTierFilter] = useState<'all' | Customer['tier']>('all')
+  const [group, setGroup] = useState<'all' | Customer['tier']>('all')
   const [industryFilter, setIndustryFilter] = useState('all')
   const [keyword, setKeyword] = useState('')
   const [formOpen, setFormOpen] = useState(false)
@@ -26,11 +26,21 @@ export default function CrmPage() {
     s: customers.filter((c) => c.tier === 'S').length,
     a: customers.filter((c) => c.tier === 'A').length,
     b: customers.filter((c) => c.tier === 'B').length,
+    potential: customers.filter((c) => c.tier === '潜在').length,
   }
+
+  /** 左侧分组项：全部 + 各分层 */
+  const groups: { key: 'all' | Customer['tier']; label: string; icon: string }[] = [
+    { key: 'all', label: '全部客户', icon: 'group' },
+    { key: 'S', label: 'S 层 · 核心战略', icon: 'workspace_premium' },
+    { key: 'A', label: 'A 层 · 重点', icon: 'star' },
+    { key: 'B', label: 'B 层 · 常规', icon: 'person' },
+    { key: '潜在', label: '潜在客户', icon: 'trending_up' },
+  ]
 
   const list = customers
     .filter((c) => {
-      if (tierFilter !== 'all' && c.tier !== tierFilter) return false
+      if (group !== 'all' && c.tier !== group) return false
       if (industryFilter !== 'all' && c.industry !== industryFilter) return false
       if (keyword.trim()) {
         const kw = keyword.trim().toLowerCase()
@@ -42,6 +52,17 @@ export default function CrmPage() {
       return true
     })
     .sort((a, b) => b.lastContactAt - a.lastContactAt)
+
+  const groupCount = (g: (typeof groups)[number]['key']) =>
+    g === 'all'
+      ? counts.total
+      : g === 'S'
+        ? counts.s
+        : g === 'A'
+          ? counts.a
+          : g === 'B'
+            ? counts.b
+            : counts.potential
 
   return (
     <div className="mx-auto max-w-[1200px]">
@@ -60,91 +81,119 @@ export default function CrmPage() {
         }
       />
 
-      {/* 顶部统计 */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard
-          label="客户总数"
-          icon="group"
-          iconCls="bg-primary-fixed text-primary"
-          value={counts.total}
-          sub="全部活跃档案"
-        />
-        <StatCard
-          label="S 层 · 核心战略"
-          icon="workspace_premium"
-          iconCls="bg-danger-container text-danger"
-          value={counts.s}
-          sub="最高优先跟进"
-        />
-        <StatCard
-          label="A 层 · 重点"
-          icon="star"
-          iconCls="bg-warning-container text-warning"
-          value={counts.a}
-          sub="重点客户池"
-        />
-        <StatCard
-          label="B 层 · 常规"
-          icon="person"
-          iconCls="bg-surface-container-high text-on-surface-variant"
-          value={counts.b}
-          sub="常规维护节奏"
-        />
-      </div>
+      <div className="flex items-start gap-4">
+        {/* 左栏：客户分组菜单 */}
+        <Card className="w-60 shrink-0 self-start p-4">
+          <div className="mb-3 text-[12px] font-medium uppercase tracking-wide text-on-surface-variant">
+            客户分组
+          </div>
+          <div className="flex flex-col gap-0.5">
+            {groups.map((g) => (
+              <button
+                key={g.key}
+                onClick={() => setGroup(g.key)}
+                className={`flex items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[13px] transition-colors ${
+                  group === g.key
+                    ? 'bg-primary-fixed font-semibold text-primary'
+                    : 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'
+                }`}
+              >
+                <Icon
+                  name={g.icon}
+                  size={16}
+                  className={group === g.key ? 'text-primary' : 'text-outline'}
+                />
+                <span className="min-w-0 flex-1 truncate">{g.label}</span>
+                <span
+                  className={`shrink-0 text-[11px] ${group === g.key ? 'text-primary/70' : 'text-outline'}`}
+                >
+                  {groupCount(g.key)}
+                </span>
+              </button>
+            ))}
+          </div>
+        </Card>
 
-      {/* 筛选工具栏：分层 / 行业 / 关键字 */}
-      <div className="mb-3 mt-5 flex flex-wrap items-center gap-2">
-        <Segmented
-          options={[
-            { key: 'all', label: `全部 (${counts.total})` },
-            { key: 'S', label: `S 层 (${counts.s})` },
-            { key: 'A', label: `A 层 (${counts.a})` },
-            { key: 'B', label: `B 层 (${counts.b})` },
-            { key: '潜在', label: '潜在' },
-          ]}
-          value={tierFilter}
-          onChange={(v) => setTierFilter(v as typeof tierFilter)}
-        />
-        <select
-          className={`${inputCls} w-44`}
-          value={industryFilter}
-          onChange={(e) => setIndustryFilter(e.target.value)}
-        >
-          <option value="all">全部行业</option>
-          {industries.map((i) => (
-            <option key={i} value={i}>
-              {i}
-            </option>
-          ))}
-        </select>
-        <div className="ml-auto w-56">
-          <input
-            className={inputCls}
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-            placeholder="按姓名、公司、职位、标签检索…"
-          />
+        {/* 右侧：统计 + 列表 */}
+        <div className="min-w-0 flex-1">
+          {/* 顶部统计 */}
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <StatCard
+              label="客户总数"
+              icon="group"
+              iconCls="bg-primary-fixed text-primary"
+              value={counts.total}
+              sub="全部活跃档案"
+            />
+            <StatCard
+              label="S 层 · 核心战略"
+              icon="workspace_premium"
+              iconCls="bg-danger-container text-danger"
+              value={counts.s}
+              sub="最高优先跟进"
+            />
+            <StatCard
+              label="A 层 · 重点"
+              icon="star"
+              iconCls="bg-warning-container text-warning"
+              value={counts.a}
+              sub="重点客户池"
+            />
+            <StatCard
+              label="B 层 · 常规"
+              icon="person"
+              iconCls="bg-surface-container-high text-on-surface-variant"
+              value={counts.b}
+              sub="常规维护节奏"
+            />
+          </div>
+
+          {/* 筛选工具栏：行业 / 关键字 */}
+          <div className="mb-3 mt-5 flex flex-wrap items-center gap-2">
+            <select
+              className={`${inputCls} w-44`}
+              value={industryFilter}
+              onChange={(e) => setIndustryFilter(e.target.value)}
+            >
+              <option value="all">全部行业</option>
+              {industries.map((i) => (
+                <option key={i} value={i}>
+                  {i}
+                </option>
+              ))}
+            </select>
+            <div className="ml-auto w-56">
+              <input
+                className={inputCls}
+                value={keyword}
+                onChange={(e) => setKeyword(e.target.value)}
+                placeholder="按姓名、公司、职位、标签检索…"
+              />
+            </div>
+          </div>
+
+          {/* 客户列表 */}
+          {list.length === 0 ? (
+            <Card className="p-6">
+              <EmptyState
+                icon="group"
+                title={customers.length === 0 ? '还没有客户档案' : '没有符合条件的客户'}
+                description={
+                  customers.length === 0
+                    ? '点击右上角「新建客户」建立第一份档案'
+                    : '调整筛选条件试试'
+                }
+              />
+            </Card>
+          ) : (
+            <Card className="divide-y divide-outline-variant/30 px-5">
+              {list.map((c) => (
+                <CustomerRow key={c.id} customer={c} onOpen={() => navigate(`/crm/${c.id}`)} />
+              ))}
+            </Card>
+          )}
         </div>
       </div>
-
-      {/* 客户列表 */}
-      {list.length === 0 ? (
-        <Card className="p-6">
-          <EmptyState
-            icon="group"
-            title={customers.length === 0 ? '还没有客户档案' : '没有符合条件的客户'}
-            description={
-              customers.length === 0 ? '点击右上角「新建客户」建立第一份档案' : '调整筛选条件试试'
-            }
-          />
-        </Card>
-      ) : (
-        <Card className="divide-y divide-outline-variant/30 px-5">
-          {list.map((c) => (
-            <CustomerRow key={c.id} customer={c} onOpen={() => navigate(`/crm/${c.id}`)} />
-          ))}
-        </Card>
-      )}
 
       <CustomerFormDrawer open={formOpen} customer={null} onClose={() => setFormOpen(false)} />
     </div>
@@ -178,34 +227,6 @@ function StatCard({
       </div>
       <div className="mt-1 text-[22px] font-bold tracking-tight">{value}</div>
       <div className="mt-0.5 text-[11px] text-outline">{sub}</div>
-    </div>
-  )
-}
-
-function Segmented({
-  options,
-  value,
-  onChange,
-}: {
-  options: { key: string; label: string }[]
-  value: string
-  onChange: (v: string) => void
-}) {
-  return (
-    <div className="flex gap-1 rounded-lg bg-surface-container p-1">
-      {options.map((o) => (
-        <button
-          key={o.key}
-          onClick={() => onChange(o.key)}
-          className={`rounded-md px-3 py-1.5 text-[13px] transition-colors ${
-            value === o.key
-              ? 'bg-surface-container-lowest font-semibold text-primary shadow-sm'
-              : 'text-on-surface-variant hover:text-on-surface'
-          }`}
-        >
-          {o.label}
-        </button>
-      ))}
     </div>
   )
 }
