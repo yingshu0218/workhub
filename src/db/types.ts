@@ -344,6 +344,15 @@ export interface SettingsSync {
   tokenUserId: string
 }
 
+/**
+ * 笔记模块本地偏好（快速记录便签：默认速记目录）
+ * 仅存本地不进同步（settingsRepo singleton），notes 段随 Settings 一起持久化。
+ */
+export interface SettingsNotes {
+  /** 侧栏快速便签保存笔记时的默认目录；缺省 undefined = 落「未归档」根层 */
+  defaultFolderId?: string
+}
+
 export interface Settings {
   key: string
   appearance: SettingsAppearance
@@ -351,6 +360,7 @@ export interface Settings {
   notifications: SettingsNotifications
   security: SettingsSecurity
   sync: SettingsSync
+  notes: SettingsNotes
 }
 
 export const SETTINGS_KEY = 'singleton'
@@ -379,6 +389,7 @@ export const DEFAULT_SETTINGS: Settings = {
   },
   security: { encryption: false, syncFrequency: 'realtime', persistCache: true },
   sync: { serverUrl: '', username: '', password: '', token: '', tokenUserId: '' },
+  notes: {},
 }
 
 export const SYNC_META_DEFAULT: SyncMeta = {

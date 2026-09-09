@@ -2,7 +2,7 @@
 
 > **本仓库的唯一进度事实来源。** 所有人（含 AI 开发代理）推进或变更任何开发工作，必须在**同一个 commit** 里同步更新本文件对应状态。README 底部的 Changelog 记录"发生了什么"，本文档记录"现在处于什么状态"——前者追加式流水，后者始终反映最新全貌。
 
-**最后更新**：2026-09-08（Issue #34 客户亲密度体系落地：Customer.intimacy 手动 7 档 + 算法兜底 + moduleConfigs 同步表 v9 + 设置页「数据管理」Tab + 图谱圈层/黑名单过滤；Issue #50 笔记关联体验升级：@提及浮层模糊匹配+键盘导航、编辑态关联主体/反向链接悬浮卡片） · 维护人：yingshu0218 / cnb.cMPXRmKswEA / npc/CodeBuddy
+**最后更新**：2026-09-08（Issue #34 客户亲密度体系落地：Customer.intimacy 手动 7 档 + 算法兜底 + moduleConfigs 同步表 v9 + 设置页「数据管理」Tab + 图谱圈层/黑名单过滤；Issue #50 笔记关联体验升级：@提及浮层模糊匹配+键盘导航、编辑态关联主体/反向链接悬浮卡片；Issue #70 侧栏快速便签：左下角折叠单行捕获 → saveQuickCapture 落正式 Note，tag「速记」+ 默认目录，设置页「笔记偏好」选目录） · 维护人：yingshu0218 / cnb.cMPXRmKswEA / npc/CodeBuddy
 
 ---
 
@@ -111,6 +111,15 @@
 | PR-2 编辑态关联主体/反向链接悬浮卡片 | ✅ 已落地：编辑态点击不再 navigate 就地弹卡（客户/待办/账本/项目摘要 + 反向链接标题/更新时间），卡片内「打开详情」走 jumpTarget 深链，实体已删显示占位；查看态保持直接跳转 |
 | PR-3 账本/记账深链补全（A1） | ⏳ 待排期：jumpTarget.todo/ledger 补 focus 深链 + FinancePage ?ledger= 与 scope 双向同步 |
 | A2 transaction 提及类型 | ⏸ 缓行（审计建议单独排期，动 NoteMention.type/MENTION_RE/TYPE_META 三处需同 commit 同步） |
+
+### 侧栏快速便签（Issue #70，已提 PR）
+
+| 项 | 状态 |
+|---|---|
+| 落库语义 | ✅ 每次保存直接 `noteRepo.put` 一条正式 Note（不做 QuickNote 暂存二次转化）：title=正文首行截 30 字、markdown=全文、folderId=设置默认目录（未设落未归档根层）、`mentions: extractMentions(content)`、自动打 tag「速记」（与 dashboard 卡片「速记归档」区分，两个入口可检索区分） |
+| 共享领域函数 | ✅ `src/modules/notes/quickCapture.ts` 的 `saveQuickCapture({ content, folderId })` 收口建 Note 逻辑；后续 dashboard 卡片「归笔记」可迁移到它（顺带修不落 folderId 旧问题，非本 Issue 必做） |
+| 侧栏 UI | ✅ `src/modules/notes/QuickCapture.tsx` 接入 `AppLayout.tsx` 底部 `border-t p-3` 区块顶部：折叠单行 → 点击展开单行输入，Enter 存、Esc/失焦收起、Shift+Enter 展开多行 textarea、mod+Enter 提交；保存即走，仅短暂提示「已记入 · 查看」跳转对应笔记，不内联历史 |
+| 设置 | ✅ `Settings.notes.defaultFolderId?`（`SettingsNotes` 段）+ `DEFAULT_SETTINGS` 缺省 + `settingsRepo.mergeSettings/save` 三层合并补 notes 段；设置页「通用与快捷键」新增「笔记偏好」下拉选默认目录（NoteFolder + 未归档根层），实时生效 |
 
 ### 未来项（已定但不急）
 

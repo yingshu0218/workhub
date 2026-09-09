@@ -85,6 +85,7 @@ function mergeSettings(prev: Settings | undefined): Settings {
     notifications: { ...DEFAULT_SETTINGS.notifications, ...base.notifications },
     security: { ...DEFAULT_SETTINGS.security, ...base.security },
     sync: { ...DEFAULT_SETTINGS.sync, ...base.sync },
+    notes: { ...DEFAULT_SETTINGS.notes, ...base.notes },
   }
 }
 
@@ -115,6 +116,7 @@ export const settingsRepo = {
         },
         security: { ...DEFAULT_SETTINGS.security, ...prev?.security, ...patch.security },
         sync: { ...DEFAULT_SETTINGS.sync, ...prev?.sync, ...patch.sync },
+        notes: { ...DEFAULT_SETTINGS.notes, ...prev?.notes, ...patch.notes },
       }
       await SETTINGS_TABLE().put(merged)
       eventBus.emit('settings:changed', { settings: merged })

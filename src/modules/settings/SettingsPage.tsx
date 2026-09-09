@@ -38,6 +38,7 @@ import { pbPing, isSyncConfigured, enqueueAllForPush } from '@/sync/pocketbaseAd
 import { syncEngine } from '@/sync/engine'
 import { useSyncStore } from '@/sync/store'
 import DataManagementTab from './DataManagementTab'
+import { useNoteFolders } from '@/modules/notes/hooks'
 import { moduleConfigRepo } from '@/repositories'
 
 /**
@@ -251,6 +252,8 @@ export default function SettingsPage() {
   const [pingMsg, setPingMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [pushingAll, setPushingAll] = useState(false)
   const syncStatus = useSyncStore()
+  // 笔记默认目录数据源（侧栏快速便签落点；设置「笔记偏好」用）
+  const noteFolders = useNoteFolders()
 
   useEffect(() => {
     void settingsRepo.get().then((s) => {
@@ -903,6 +906,40 @@ export default function SettingsPage() {
                 <input className={inputCls} value="工作台专注主页 (Nexus Workbench)" readOnly />
               </label>
             </div>
+          </Section>
+
+          <Section
+            icon="description"
+            title="笔记偏好"
+            desc="侧栏快速便签保存笔记时的默认目录（数据流 Issue #70）"
+            badge="实时生效"
+          >
+            <label className="block max-w-md">
+              <div className="mb-1.5 text-[0.8571rem] font-medium text-on-surface-variant">
+                默认速记目录
+              </div>
+              <select
+                className={inputCls}
+                value={settings.notes?.defaultFolderId ?? ''}
+                onChange={(e) =>
+                  save({
+                    notes: {
+                      defaultFolderId: e.target.value ? e.target.value : undefined,
+                    },
+                  })
+                }
+              >
+                <option value="">未归档（根层）</option>
+                {noteFolders.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.name}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1.5 text-[0.7857rem] leading-snug text-on-surface-variant">
+                快速便签每次保存会落一条正式笔记到所选目录，未设则落在「未归档」根层。
+              </p>
+            </label>
           </Section>
 
           <Section
