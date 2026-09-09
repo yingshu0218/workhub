@@ -569,7 +569,7 @@ export default function GraphCanvas({
               return (
                 <button
                   key={c.id}
-                  className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[12px] font-medium shadow-sm backdrop-blur transition-colors ${
+                  className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[0.8571rem] font-medium shadow-sm backdrop-blur transition-colors ${
                     on
                       ? 'border-transparent text-white'
                       : 'border-outline-variant/40 bg-surface-container-lowest/95 text-on-surface-variant hover:bg-surface-container'
@@ -591,7 +591,7 @@ export default function GraphCanvas({
             })}
             {activeCats.length > 0 && (
               <button
-                className="rounded-full px-2 py-0.5 text-[12px] text-on-surface-variant underline-offset-2 hover:underline"
+                className="rounded-full px-2 py-0.5 text-[0.8571rem] text-on-surface-variant underline-offset-2 hover:underline"
                 onClick={() => setActiveCats([])}
               >
                 清除
@@ -606,7 +606,7 @@ export default function GraphCanvas({
             className="absolute right-3 top-3 z-10 flex max-w-[240px] flex-wrap items-center justify-end gap-x-2 gap-y-1"
             onPointerDown={(e) => e.stopPropagation()}
           >
-            <span className="text-[10px] font-medium uppercase tracking-wide text-outline">
+            <span className="text-[0.7143rem] font-medium uppercase tracking-wide text-outline">
               亲密度圈层
             </span>
             {intimacyCfg.levels.map((l) => {
@@ -615,7 +615,7 @@ export default function GraphCanvas({
               return (
                 <span
                   key={l.key}
-                  className={`inline-flex items-center gap-1 text-[10.5px] ${hidden ? 'text-outline line-through' : 'text-on-surface-variant'}`}
+                  className={`inline-flex items-center gap-1 text-[0.75rem] ${hidden ? 'text-outline line-through' : 'text-on-surface-variant'}`}
                   title={hidden ? '黑名单已在图谱隐藏' : l.desc}
                 >
                   <span
@@ -638,7 +638,7 @@ export default function GraphCanvas({
         {!empty && showReheat && (
           <div className="absolute bottom-3 left-3 z-10" onPointerDown={(e) => e.stopPropagation()}>
             <button
-              className="flex h-7 items-center gap-1 surface-card/95 px-2 text-[12px] font-medium text-on-surface-variant shadow-md backdrop-blur transition-colors hover:bg-surface-container hover:text-on-surface"
+              className="flex h-7 items-center gap-1 surface-card/95 px-2 text-[0.8571rem] font-medium text-on-surface-variant shadow-md backdrop-blur transition-colors hover:bg-surface-container hover:text-on-surface"
               title="释放固定点并重新计算布局"
               onClick={reheat}
             >
@@ -655,13 +655,13 @@ export default function GraphCanvas({
             onPointerDown={(e) => e.stopPropagation()}
           >
             <button
-              className="flex h-7 w-7 items-center justify-center rounded-lg text-[16px] font-semibold text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
+              className="flex h-7 w-7 items-center justify-center rounded-lg text-[1.1429rem] font-semibold text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
               title="缩小"
               onClick={() => panZoom.zoomTo(view.scale - 0.1)}
             >
               −
             </button>
-            <span className="w-11 text-center text-[12px] font-semibold tabular-nums text-on-surface">
+            <span className="w-11 text-center text-[0.8571rem] font-semibold tabular-nums text-on-surface">
               {Math.round(view.scale * 100)}%
             </span>
             <button
@@ -673,7 +673,7 @@ export default function GraphCanvas({
             </button>
             <span className="mx-1 h-4 w-px bg-outline-variant/40" />
             <button
-              className="flex h-7 items-center gap-1 rounded-lg px-2 text-[12px] font-medium text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
+              className="flex h-7 items-center gap-1 rounded-lg px-2 text-[0.8571rem] font-medium text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
               title="重置缩放平移，显示全部节点"
               onClick={fitView}
             >

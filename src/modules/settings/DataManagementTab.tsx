@@ -32,8 +32,8 @@ function Section({
           <Icon name={icon} size={18} />
         </div>
         <div className="flex-1">
-          <h3 className="text-[14.5px] font-semibold">{title}</h3>
-          <p className="mt-0.5 text-[11.5px] text-on-surface-variant">{desc}</p>
+          <h3 className="text-[1.0357rem] font-semibold">{title}</h3>
+          <p className="mt-0.5 text-[0.8214rem] text-on-surface-variant">{desc}</p>
         </div>
       </div>
       {children}
@@ -171,12 +171,12 @@ export default function DataManagementTab() {
   return (
     <div className="space-y-4">
       {error && (
-        <div className="rounded-lg bg-danger-container/60 px-4 py-2.5 text-[12.5px] font-medium text-danger">
+        <div className="rounded-lg bg-danger-container/60 px-4 py-2.5 text-[0.8929rem] font-medium text-danger">
           {error}
         </div>
       )}
       {saved && (
-        <div className="rounded-lg bg-success-container/60 px-4 py-2.5 text-[12.5px] font-medium text-success">
+        <div className="rounded-lg bg-success-container/60 px-4 py-2.5 text-[0.8929rem] font-medium text-success">
           {saved}
         </div>
       )}
@@ -194,7 +194,7 @@ export default function DataManagementTab() {
             return (
               <div key={k} className="flex items-center gap-2">
                 <span
-                  className={`w-9 shrink-0 rounded px-1.5 py-1 text-center text-[11px] font-bold ${
+                  className={`w-9 shrink-0 rounded px-1.5 py-1 text-center text-[0.7857rem] font-bold ${
                     isolation ? 'bg-danger-container/60 text-danger' : 'bg-primary-fixed/60 text-primary'
                   }`}
                   title={k}
@@ -249,8 +249,8 @@ export default function DataManagementTab() {
           ).map((row) => (
             <div key={row.key} className="flex items-center justify-between gap-4">
               <div>
-                <div className="text-[13px] font-medium">{row.label}</div>
-                <div className="text-[11.5px] text-on-surface-variant">{row.desc}</div>
+                <div className="text-[0.9286rem] font-medium">{row.label}</div>
+                <div className="text-[0.8214rem] text-on-surface-variant">{row.desc}</div>
               </div>
               <Toggle
                 checked={cfg.blacklist[row.key]}
@@ -269,8 +269,8 @@ export default function DataManagementTab() {
       >
         <div className="mb-4 flex items-center justify-between">
           <div>
-            <div className="text-[13px] font-medium">算法兜底</div>
-            <div className="text-[11.5px] text-on-surface-variant">
+            <div className="text-[0.9286rem] font-medium">算法兜底</div>
+            <div className="text-[0.8214rem] text-on-surface-variant">
               关闭后未设置客户一律落「照面」档
             </div>
           </div>
@@ -283,8 +283,8 @@ export default function DataManagementTab() {
           {weightRows.map((row) => (
             <div key={row.key} className="flex items-center gap-3">
               <div className="w-40 shrink-0">
-                <div className="text-[13px] font-medium">{row.label}</div>
-                <div className="text-[11px] text-on-surface-variant">{row.desc}</div>
+                <div className="text-[0.9286rem] font-medium">{row.label}</div>
+                <div className="text-[0.7857rem] text-on-surface-variant">{row.desc}</div>
               </div>
               <input
                 type="range"
@@ -297,14 +297,14 @@ export default function DataManagementTab() {
                 onMouseUp={() => applyWeights(weights)}
                 onTouchEnd={() => applyWeights(weights)}
               />
-              <span className="w-10 text-right text-[12.5px] font-semibold tabular-nums">
+              <span className="w-10 text-right text-[0.8929rem] font-semibold tabular-nums">
                 {weights[row.key]}%
               </span>
             </div>
           ))}
         </div>
         <div className="mt-4 border-t border-outline-variant/40 pt-3">
-          <div className="mb-2 text-[13px] font-medium">切档阈值（单调递减）</div>
+          <div className="mb-2 text-[0.9286rem] font-medium">切档阈值（单调递减）</div>
           <div className="flex flex-wrap items-center gap-4">
             {(
               [
@@ -313,7 +313,7 @@ export default function DataManagementTab() {
                 { key: 't4', label: '≥ 一般 T4' },
               ] as const
             ).map((row) => (
-              <label key={row.key} className="flex items-center gap-2 text-[12.5px]">
+              <label key={row.key} className="flex items-center gap-2 text-[0.8929rem]">
                 <span className="text-on-surface-variant">{row.label}</span>
                 <input
                   type="number"
@@ -326,7 +326,7 @@ export default function DataManagementTab() {
                 />
               </label>
             ))}
-            <span className="text-[11px] text-outline">低于 T4 阈值 → 照面 T5</span>
+            <span className="text-[0.7857rem] text-outline">低于 T4 阈值 → 照面 T5</span>
           </div>
         </div>
       </Section>

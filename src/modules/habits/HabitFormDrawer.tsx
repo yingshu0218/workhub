@@ -158,7 +158,7 @@ export function HabitFormDrawer({
               <button
                 key={k}
                 onClick={() => setKind(k)}
-                className={`rounded-lg border px-3 py-1.5 text-[13px] transition-colors ${
+                className={`rounded-lg border px-3 py-1.5 text-[0.9286rem] transition-colors ${
                   kind === k
                     ? 'border-primary bg-primary-fixed font-semibold text-primary'
                     : 'border-outline-variant text-on-surface-variant'
@@ -169,7 +169,7 @@ export function HabitFormDrawer({
             ))}
             {kind === '每周N次' && (
               <select
-                className="surface-card border-outline-variant px-2 py-1.5 text-[13px]"
+                className="surface-card border-outline-variant px-2 py-1.5 text-[0.9286rem]"
                 value={timesPerWeek}
                 onChange={(e) => setTimesPerWeek(Number(e.target.value))}
               >
@@ -214,7 +214,7 @@ export function HabitFormDrawer({
         <Field label="跨模块联动">
           <button
             onClick={() => setCrossModuleSync(!crossModuleSync)}
-            className="flex items-center gap-2 text-[13px]"
+            className="flex items-center gap-2 text-[0.9286rem]"
           >
             <Icon
               name={crossModuleSync ? 'toggle_on' : 'toggle_off'}
@@ -227,7 +227,7 @@ export function HabitFormDrawer({
           </button>
         </Field>
 
-        {error && <div className="mb-3 text-[12px] text-danger">{error}</div>}
+        {error && <div className="mb-3 text-[0.8571rem] text-danger">{error}</div>}
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="tonal" onClick={onClose}>
             取消

@@ -79,7 +79,7 @@ function SkinThumb({ id }: { id: SkinStyleId }) {
       return (
         <div className="flex flex-col items-center gap-1.5">
           <div
-            className="flex h-6 w-12 items-center justify-center border border-primary text-[9px] font-semibold tracking-widest text-primary"
+            className="flex h-6 w-12 items-center justify-center border border-primary text-[0.6429rem] font-semibold tracking-widest text-primary"
             style={{ clipPath: 'polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)', boxShadow: '0 0 8px 0 color-mix(in srgb, var(--color-primary) 40%, transparent)' }}
           >
             HUD
@@ -94,10 +94,10 @@ function SkinThumb({ id }: { id: SkinStyleId }) {
             className="flex h-6 w-12 items-center justify-center rounded-2xl border border-white/60 bg-white/40 backdrop-blur-sm"
             style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
           >
-            <span className="text-[9px] font-semibold text-on-surface-variant">Glass</span>
+            <span className="text-[0.6429rem] font-semibold text-on-surface-variant">Glass</span>
           </div>
-          <span className="absolute -top-0.5 right-3 text-[10px] text-primary">✦</span>
-          <span className="absolute -bottom-1 left-3 text-[8px] text-primary/70">✦</span>
+          <span className="absolute -top-0.5 right-3 text-[0.7143rem] text-primary">✦</span>
+          <span className="absolute -bottom-1 left-3 text-[0.5714rem] text-primary/70">✦</span>
           <div className="h-1.5 w-8 rounded-full bg-outline-variant" />
         </div>
       )
@@ -162,14 +162,14 @@ function Section({
         </div>
         <div className="flex-1">
           <div className="flex items-center gap-2">
-            <h3 className="text-[14.5px] font-semibold">{title}</h3>
+            <h3 className="text-[1.0357rem] font-semibold">{title}</h3>
             {badge && (
-              <span className="rounded bg-success-container/60 px-1.5 py-0.5 text-[10px] font-medium text-success">
+              <span className="rounded bg-success-container/60 px-1.5 py-0.5 text-[0.7143rem] font-medium text-success">
                 {badge}
               </span>
             )}
           </div>
-          {desc && <p className="mt-0.5 text-[11.5px] text-on-surface-variant">{desc}</p>}
+          {desc && <p className="mt-0.5 text-[0.8214rem] text-on-surface-variant">{desc}</p>}
         </div>
       </div>
       {children}
@@ -221,7 +221,7 @@ function Segmented<T extends string | number>({
       {options.map((opt) => (
         <button
           key={String(opt)}
-          className={`rounded-md px-3 py-1.5 text-[12.5px] transition-colors ${
+          className={`rounded-md px-3 py-1.5 text-[0.8929rem] transition-colors ${
             opt === value
               ? 'bg-primary font-medium text-on-primary'
               : 'text-on-surface-variant hover:bg-surface-container'
@@ -266,7 +266,7 @@ export default function SettingsPage() {
   }, [])
 
   if (!settings) {
-    return <div className="py-20 text-center text-[13px] text-outline">设置载入中…</div>
+    return <div className="py-20 text-center text-[0.9286rem] text-outline">设置载入中…</div>
   }
 
   const save = (patch: Partial<Omit<Settings, 'key'>>) => {
@@ -533,7 +533,7 @@ export default function SettingsPage() {
         {TABS.map((t) => (
           <button
             key={t.id}
-            className={`flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-[13px] transition-colors ${
+            className={`flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-[0.9286rem] transition-colors ${
               tab === t.id
                 ? 'bg-primary font-semibold text-on-primary'
                 : 'text-on-surface-variant hover:bg-surface-container'
@@ -579,12 +579,12 @@ export default function SettingsPage() {
                       <SkinThumb id={sk.id} />
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-[13px] font-semibold">{sk.label}</span>
+                      <span className="text-[0.9286rem] font-semibold">{sk.label}</span>
                       {active && (
-                        <Icon name="check_circle" fill className="text-[18px] text-primary" />
+                        <Icon name="check_circle" fill className="text-[1.2857rem] text-primary" />
                       )}
                     </div>
-                    <p className="mt-1 text-[11px] leading-snug text-on-surface-variant">{sk.desc}</p>
+                    <p className="mt-1 text-[0.7857rem] leading-snug text-on-surface-variant">{sk.desc}</p>
                   </button>
                 )
               })}
@@ -619,12 +619,12 @@ export default function SettingsPage() {
                       ))}
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-[13px] font-semibold">{t.label}</span>
+                      <span className="text-[0.9286rem] font-semibold">{t.label}</span>
                       {active && (
-                        <Icon name="check_circle" fill className="text-[18px] text-primary" />
+                        <Icon name="check_circle" fill className="text-[1.2857rem] text-primary" />
                       )}
                     </div>
-                    <p className="mt-1 text-[11px] leading-snug text-on-surface-variant">
+                    <p className="mt-1 text-[0.7857rem] leading-snug text-on-surface-variant">
                       {t.desc}
                     </p>
                   </button>
@@ -679,12 +679,12 @@ export default function SettingsPage() {
                     ))}
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-[13px] font-semibold">{opt.label}</span>
+                    <span className="text-[0.9286rem] font-semibold">{opt.label}</span>
                     {settings.appearance.mode === opt.id && (
-                      <Icon name="check_circle" fill className="text-[18px] text-primary" />
+                      <Icon name="check_circle" fill className="text-[1.2857rem] text-primary" />
                     )}
                   </div>
-                  <p className="mt-1 text-[11px] leading-snug text-on-surface-variant">
+                  <p className="mt-1 text-[0.7857rem] leading-snug text-on-surface-variant">
                     {opt.desc}
                   </p>
                 </button>
@@ -715,9 +715,9 @@ export default function SettingsPage() {
                   onClick={() => save({ appearance: { ...settings.appearance, accent: a.id } })}
                 >
                   <span className="h-5 w-5 rounded-full" style={{ background: a.container }} />
-                  <span className="text-[12.5px] font-medium">{a.label}</span>
+                  <span className="text-[0.8929rem] font-medium">{a.label}</span>
                   {settings.appearance.accent === a.id && (
-                    <Icon name="check" fill className="text-[16px] text-primary" />
+                    <Icon name="check" fill className="text-[1.1429rem] text-primary" />
                   )}
                 </button>
               ))}
@@ -730,7 +730,7 @@ export default function SettingsPage() {
             desc="调整卡片圆角档位与全局间距基数，营造工作台氛围"
           >
             <div className="mb-4 flex items-center justify-between">
-              <span className="text-[13px] font-medium">卡片圆角</span>
+              <span className="text-[0.9286rem] font-medium">卡片圆角</span>
               <Segmented
                 options={RADIUS_PRESETS.map((r) => r.id)}
                 value={settings.appearance.radius}
@@ -739,7 +739,7 @@ export default function SettingsPage() {
               />
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-[13px] font-medium">信息密度</span>
+              <span className="text-[0.9286rem] font-medium">信息密度</span>
               <Segmented
                 options={['comfortable', 'compact'] as const}
                 value={settings.appearance.density}
@@ -772,18 +772,18 @@ export default function SettingsPage() {
                   onClick={() => save({ typography: { ...settings.typography, fontPreset: p.id } })}
                 >
                   <div
-                    className="truncate text-[15px] font-semibold"
+                    className="truncate text-[1.0714rem] font-semibold"
                     style={{ fontFamily: FONT_STACKS[p.id] }}
                   >
                     字体预设 Aa
                   </div>
-                  <div className="mt-2 flex items-center gap-1.5 text-[13px] font-medium">
+                  <div className="mt-2 flex items-center gap-1.5 text-[0.9286rem] font-medium">
                     {p.label}
                     {(settings.typography.fontPreset ?? 'inter') === p.id && (
-                      <Icon name="check_circle" fill className="text-[15px] text-primary" />
+                      <Icon name="check_circle" fill className="text-[1.0714rem] text-primary" />
                     )}
                   </div>
-                  <p className="mt-1 text-[11px] leading-snug text-on-surface-variant">{p.desc}</p>
+                  <p className="mt-1 text-[0.7857rem] leading-snug text-on-surface-variant">{p.desc}</p>
                 </button>
               ))}
             </div>
@@ -798,8 +798,8 @@ export default function SettingsPage() {
             >
               <div className="mb-5">
                 <div className="mb-2 flex items-center justify-between">
-                  <span className="text-[13px] font-medium">基准字体大小 (Base Font Size)</span>
-                  <span className="text-[12px] font-semibold text-primary">
+                  <span className="text-[0.9286rem] font-medium">基准字体大小 (Base Font Size)</span>
+                  <span className="text-[0.8571rem] font-semibold text-primary">
                     {settings.typography.fontSize} px
                   </span>
                 </div>
@@ -812,10 +812,10 @@ export default function SettingsPage() {
               </div>
               <div>
                 <div className="mb-2 flex items-center justify-between">
-                  <span className="text-[13px] font-medium">
+                  <span className="text-[0.9286rem] font-medium">
                     行高与纵向韵律 (Line Height Ratio)
                   </span>
-                  <span className="text-[12px] font-semibold text-primary">
+                  <span className="text-[0.8571rem] font-semibold text-primary">
                     {settings.typography.lineHeight}x
                   </span>
                 </div>
@@ -841,7 +841,7 @@ export default function SettingsPage() {
                   lineHeight: settings.typography.lineHeight,
                 }}
               >
-                <div className="mb-1 text-[10.5px] font-semibold uppercase tracking-widest text-primary">
+                <div className="mb-1 text-[0.75rem] font-semibold uppercase tracking-widest text-primary">
                   # 核心里程碑 · Q3 Milestone
                 </div>
                 <div className="text-[1.35em] font-bold">多维穿透工作流与团队协作网格</div>
@@ -851,7 +851,7 @@ export default function SettingsPage() {
                   对齐与财务中心之间实现零损耗上下文传递。当前预览即所保存后的全局正文渲染效果。
                 </p>
               </div>
-              <div className="mt-3 flex items-center justify-between text-[11px] text-outline">
+              <div className="mt-3 flex items-center justify-between text-[0.7857rem] text-outline">
                 <span>
                   阅读舒适度评级 <b className="text-success">99.4%</b>
                 </span>
@@ -874,30 +874,30 @@ export default function SettingsPage() {
           >
             <div className="grid grid-cols-2 gap-x-6 gap-y-3">
               <label className="block">
-                <div className="mb-1.5 text-[12px] font-medium text-on-surface-variant">
+                <div className="mb-1.5 text-[0.8571rem] font-medium text-on-surface-variant">
                   系统语言 (Language)
                 </div>
                 <input className={inputCls} value="简体中文 (Simplified Chinese)" readOnly />
               </label>
               <label className="block">
-                <div className="mb-1.5 text-[12px] font-medium text-on-surface-variant">
+                <div className="mb-1.5 text-[0.8571rem] font-medium text-on-surface-variant">
                   每周起始日
                 </div>
                 <input className={inputCls} value="星期一 (Monday) · 工作日标配" readOnly />
               </label>
               <label className="block">
-                <div className="mb-1.5 text-[12px] font-medium text-on-surface-variant">
+                <div className="mb-1.5 text-[0.8571rem] font-medium text-on-surface-variant">
                   时区与时间制
                 </div>
                 <div className="flex items-center gap-2">
                   <input className={inputCls} value="(GMT+08:00) 北京 · 上海 · 香港" readOnly />
-                  <span className="shrink-0 rounded bg-success-container/60 px-2 py-1.5 text-[11px] font-medium text-success">
+                  <span className="shrink-0 rounded bg-success-container/60 px-2 py-1.5 text-[0.7857rem] font-medium text-success">
                     ● 自动对齐网络授时
                   </span>
                 </div>
               </label>
               <label className="block">
-                <div className="mb-1.5 text-[12px] font-medium text-on-surface-variant">
+                <div className="mb-1.5 text-[0.8571rem] font-medium text-on-surface-variant">
                   启动时默认进入的模块
                 </div>
                 <input className={inputCls} value="工作台专注主页 (Nexus Workbench)" readOnly />
@@ -910,9 +910,9 @@ export default function SettingsPage() {
             title="全局高频热键映射"
             desc="Global Hotkeys Map · 快捷键走统一注册表（listShortcuts 实时读取，Phase 6 只读展示）"
           >
-            <table className="w-full text-[13px]">
+            <table className="w-full text-[0.9286rem]">
               <thead>
-                <tr className="border-b border-outline-variant/40 text-left text-[11.5px] uppercase tracking-wide text-outline">
+                <tr className="border-b border-outline-variant/40 text-left text-[0.8214rem] uppercase tracking-wide text-outline">
                   <th className="pb-2 pr-4 font-semibold">动作名称</th>
                   <th className="pb-2 pr-4 font-semibold">功能描述</th>
                   <th className="pb-2 text-right font-semibold">快捷键绑定</th>
@@ -929,7 +929,7 @@ export default function SettingsPage() {
                       {s.scope === 'global' ? '任何页面生效' : '激活页面内生效'}
                     </td>
                     <td className="py-2.5 text-right">
-                      <kbd className="rounded-md bg-surface-container-high px-2.5 py-1 text-[12px] font-semibold text-primary">
+                      <kbd className="rounded-md bg-surface-container-high px-2.5 py-1 text-[0.8571rem] font-semibold text-primary">
                         {s.combo === 'mod+k'
                           ? '⌘ K'
                           : s.combo === 'space'
@@ -1006,8 +1006,8 @@ export default function SettingsPage() {
                 className="flex items-center gap-4 border-b border-outline-variant/20 py-3.5 last:border-0"
               >
                 <div className="flex-1">
-                  <div className="text-[13.5px] font-medium">{item.title}</div>
-                  <div className="mt-0.5 text-[11.5px] text-on-surface-variant">{item.desc}</div>
+                  <div className="text-[0.9643rem] font-medium">{item.title}</div>
+                  <div className="mt-0.5 text-[0.8214rem] text-on-surface-variant">{item.desc}</div>
                 </div>
                 <Toggle
                   checked={settings.notifications[item.key]}
@@ -1043,7 +1043,7 @@ export default function SettingsPage() {
                       : 'cloud_off'
                   }
                   fill
-                  className={`text-[20px] ${
+                  className={`text-[1.4286rem] ${
                     isSyncConfigured(syncForm)
                       ? syncStatus.status === 'synced'
                         ? 'text-success'
@@ -1054,7 +1054,7 @@ export default function SettingsPage() {
                   }`}
                 />
                 <div>
-                  <div className="text-[13px] font-semibold">
+                  <div className="text-[0.9286rem] font-semibold">
                     {isSyncConfigured(syncForm)
                       ? syncStatus.status === 'synced'
                         ? '已连接 · 已同步'
@@ -1063,7 +1063,7 @@ export default function SettingsPage() {
                           : `离线待同步（${syncStatus.pendingCount} 条待传）`
                       : '本地模式（数据仅存本机）'}
                   </div>
-                  <div className="mt-0.5 text-[11.5px] text-on-surface-variant">
+                  <div className="mt-0.5 text-[0.8214rem] text-on-surface-variant">
                     {syncStatus.lastSyncAt
                       ? `上次同步：${new Date(syncStatus.lastSyncAt).toLocaleString('zh-CN')}`
                       : '尚未同步过'}
@@ -1071,7 +1071,7 @@ export default function SettingsPage() {
                 </div>
               </div>
               <span
-                className={`rounded px-2.5 py-1 text-[11.5px] font-semibold ${
+                className={`rounded px-2.5 py-1 text-[0.8214rem] font-semibold ${
                   isSyncConfigured(syncForm)
                     ? syncStatus.status === 'synced'
                       ? 'bg-success-container/60 text-success'
@@ -1085,7 +1085,7 @@ export default function SettingsPage() {
 
             <div className="grid grid-cols-2 gap-x-4 gap-y-3">
               <label className="col-span-2 block">
-                <div className="mb-1.5 text-[12px] font-medium text-on-surface-variant">
+                <div className="mb-1.5 text-[0.8571rem] font-medium text-on-surface-variant">
                   服务器地址（如 https://sync.example.com）
                 </div>
                 <input
@@ -1096,7 +1096,7 @@ export default function SettingsPage() {
                 />
               </label>
               <label className="block">
-                <div className="mb-1.5 text-[12px] font-medium text-on-surface-variant">
+                <div className="mb-1.5 text-[0.8571rem] font-medium text-on-surface-variant">
                   账号（PocketBase users）
                 </div>
                 <input
@@ -1107,7 +1107,7 @@ export default function SettingsPage() {
                 />
               </label>
               <label className="block">
-                <div className="mb-1.5 text-[12px] font-medium text-on-surface-variant">
+                <div className="mb-1.5 text-[0.8571rem] font-medium text-on-surface-variant">
                   密码（仅存本地，不上传同步载荷）
                 </div>
                 <input
@@ -1135,7 +1135,7 @@ export default function SettingsPage() {
             </div>
             {pingMsg && (
               <div
-                className={`mt-3 rounded-lg px-3 py-2 text-[12px] ${
+                className={`mt-3 rounded-lg px-3 py-2 text-[0.8571rem] ${
                   pingMsg.ok
                     ? 'bg-success-container/40 text-success'
                     : 'bg-danger-container/40 text-danger'
@@ -1154,8 +1154,8 @@ export default function SettingsPage() {
           >
             <div className="flex items-center gap-4 surface-card-low rounded-xl/60 px-5 py-4">
               <div className="flex-1">
-                <div className="text-[13.5px] font-semibold">全量推送本地数据到服务器</div>
-                <div className="mt-0.5 text-[11.5px] leading-relaxed text-on-surface-variant">
+                <div className="text-[0.9643rem] font-semibold">全量推送本地数据到服务器</div>
+                <div className="mt-0.5 text-[0.8214rem] leading-relaxed text-on-surface-variant">
                   仅在「保存并连接」成功后可用。历史数据默认不自动上传（只同步增量），首次接入服务器请执行一次。
                   详细部署步骤见 docs/部署指南.md。
                 </div>
@@ -1177,12 +1177,12 @@ export default function SettingsPage() {
       {tab === 'security' && (
         <div className="space-y-4">
           <div className="flex items-start gap-3 rounded-xl border border-success/30 bg-success-container/30 px-5 py-4">
-            <Icon name="verified_user" fill className="text-[20px] text-success" />
+            <Icon name="verified_user" fill className="text-[1.4286rem] text-success" />
             <div>
-              <div className="text-[13.5px] font-semibold">
+              <div className="text-[0.9643rem] font-semibold">
                 数据主权保障已激活 (Sovereignty Protocol v2.4)
               </div>
-              <div className="mt-0.5 text-[11.5px] leading-relaxed text-on-surface-variant">
+              <div className="mt-0.5 text-[0.8214rem] leading-relaxed text-on-surface-variant">
                 本地优先 (Local-First)
                 原则：全部文案与档案数据优先存放于您受控的本地资源池中，云端请求不迁移、厂商脱敏托管。
               </div>
@@ -1229,13 +1229,13 @@ export default function SettingsPage() {
                   className="surface-card-xl !bg-transparent border-outline-variant/50 p-4"
                 >
                   <div className="flex items-center justify-between">
-                    <Icon name={c.icon} className="text-[20px] text-primary" />
-                    <span className="text-[9.5px] font-bold uppercase tracking-widest text-outline">
+                    <Icon name={c.icon} className="text-[1.4286rem] text-primary" />
+                    <span className="text-[0.6786rem] font-bold uppercase tracking-widest text-outline">
                       {c.tag}
                     </span>
                   </div>
-                  <div className="mt-2 text-[13px] font-semibold">{c.title}</div>
-                  <p className="mt-1 line-clamp-2 text-[11px] leading-snug text-on-surface-variant">
+                  <div className="mt-2 text-[0.9286rem] font-semibold">{c.title}</div>
+                  <p className="mt-1 line-clamp-2 text-[0.7857rem] leading-snug text-on-surface-variant">
                     {c.desc}
                   </p>
                   <div className="mt-3">
@@ -1255,8 +1255,8 @@ export default function SettingsPage() {
             {/* 导入迁移：JSON 存档恢复 */}
             <div className="mt-3 flex items-center gap-4 surface-card-low rounded-xl/60 px-5 py-4">
               <div className="flex-1">
-                <div className="text-[13.5px] font-semibold">从 JSON 存档恢复（导入迁移）</div>
-                <div className="mt-0.5 text-[11.5px] text-on-surface-variant">
+                <div className="text-[0.9643rem] font-semibold">从 JSON 存档恢复（导入迁移）</div>
+                <div className="mt-0.5 text-[0.8214rem] text-on-surface-variant">
                   选择此前导出的 JSON 存档，逐表写回本地数据库；与现有记录同 id
                   的将被覆盖，恢复后自动刷新界面。
                 </div>
@@ -1290,8 +1290,8 @@ export default function SettingsPage() {
           >
             <div className="flex items-center justify-between">
               <div className="flex-1">
-                <div className="text-[13.5px] font-medium">高性能本地持久化 (IndexedDB)</div>
-                <div className="mt-0.5 text-[11.5px] text-on-surface-variant">
+                <div className="text-[0.9643rem] font-medium">高性能本地持久化 (IndexedDB)</div>
+                <div className="mt-0.5 text-[0.8214rem] text-on-surface-variant">
                   {persisted === null
                     ? '正在读取浏览器存储持久化状态…'
                     : persisted
@@ -1300,7 +1300,7 @@ export default function SettingsPage() {
                 </div>
               </div>
               <span
-                className={`mr-4 rounded px-2.5 py-1 text-[11.5px] font-semibold ${
+                className={`mr-4 rounded px-2.5 py-1 text-[0.8214rem] font-semibold ${
                   persisted
                     ? 'bg-success-container/60 text-success'
                     : persisted === false
@@ -1339,12 +1339,12 @@ export default function SettingsPage() {
           >
             <div className="flex items-center justify-between border-b border-outline-variant/20 pb-4">
               <div className="flex-1">
-                <div className="text-[13.5px] font-medium">端侧数据加密 (AES-256-GCM)</div>
-                <div className="mt-0.5 text-[11.5px] text-on-surface-variant">
+                <div className="text-[0.9643rem] font-medium">端侧数据加密 (AES-256-GCM)</div>
+                <div className="mt-0.5 text-[0.8214rem] text-on-surface-variant">
                   开启后本地数据库敏感字段将加密落盘，密钥驻留本机不上传
                 </div>
               </div>
-              <span className="mr-4 rounded bg-warning-container px-2 py-0.5 text-[10.5px] font-medium text-warning">
+              <span className="mr-4 rounded bg-warning-container px-2 py-0.5 text-[0.75rem] font-medium text-warning">
                 即将生效
               </span>
               <Toggle
@@ -1354,12 +1354,12 @@ export default function SettingsPage() {
             </div>
             <div className="flex items-center justify-between pt-4">
               <div className="flex-1">
-                <div className="text-[13.5px] font-medium">同步频率</div>
-                <div className="mt-0.5 text-[11.5px] text-on-surface-variant">
+                <div className="text-[0.9643rem] font-medium">同步频率</div>
+                <div className="mt-0.5 text-[0.8214rem] text-on-surface-variant">
                   云端同步的自动触发节奏（当前引擎为写入防抖 + 30s 心跳）
                 </div>
               </div>
-              <span className="mr-4 rounded bg-warning-container px-2 py-0.5 text-[10.5px] font-medium text-warning">
+              <span className="mr-4 rounded bg-warning-container px-2 py-0.5 text-[0.75rem] font-medium text-warning">
                 即将生效
               </span>
               <Segmented
@@ -1378,10 +1378,10 @@ export default function SettingsPage() {
           >
             <div className="flex items-center gap-4 rounded-xl border border-danger/30 bg-danger-container/30 px-5 py-4">
               <div className="flex-1">
-                <div className="text-[13.5px] font-semibold text-danger">
+                <div className="text-[0.9643rem] font-semibold text-danger">
                   清空本地缓存 (Clear Local Cache)
                 </div>
-                <div className="mt-0.5 text-[11.5px] text-on-surface-variant">
+                <div className="mt-0.5 text-[0.8214rem] text-on-surface-variant">
                   彻底重置本地 IndexedDB 数据库并重新写入演示种子，用于恢复出厂演示状态。
                 </div>
               </div>

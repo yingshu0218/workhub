@@ -105,8 +105,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <Icon name="flight_takeoff" fill />
           </div>
           <div>
-            <div className="text-[15px] font-bold leading-tight">寻鸽工作台</div>
-            <div className="text-[11px] text-outline">Nexus Workspace</div>
+            <div className="text-[1.0714rem] font-bold leading-tight">寻鸽工作台</div>
+            <div className="text-[0.7857rem] text-outline">Nexus Workspace</div>
           </div>
         </div>
 
@@ -129,7 +129,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 end={isFirst}
                 className={({ isActive }) =>
                   [
-                    'flex items-center gap-3 rounded-lg px-3 py-2 text-[13.5px] transition-all',
+                    'flex items-center gap-3 rounded-lg px-3 py-2 text-[0.9643rem] transition-all',
                     featured === 'workbench'
                       ? isActive
                         ? 'bg-primary font-semibold text-on-primary ring-1 ring-primary shadow-[0_2px_8px_rgba(0,0,0,0.18)]'
@@ -156,7 +156,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <NavLink
             to="/settings"
             className={({ isActive }) =>
-              `mb-2 flex items-center gap-3 rounded-lg px-3 py-2 text-[13.5px] ${
+              `mb-2 flex items-center gap-3 rounded-lg px-3 py-2 text-[0.9643rem] ${
                 isActive
                   ? 'bg-primary-fixed font-semibold text-primary'
                   : 'text-on-surface-variant hover:bg-surface-container'
@@ -177,20 +177,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             >
               <Avatar name="陈致远" size={32} />
               <div className="flex-1 text-left">
-                <div className="text-[13px] font-medium leading-tight">陈致远</div>
-                <div className="text-[11px] text-outline">
+                <div className="text-[0.9286rem] font-medium leading-tight">陈致远</div>
+                <div className="text-[0.7857rem] text-outline">
                   {WORKSPACES.find((w) => w.id === activeWs)?.sub ?? '青枫工作室 · Owner'}
                 </div>
               </div>
               <Icon
                 name={wsOpen ? 'expand_less' : 'expand_more'}
-                className="text-[18px] text-outline"
+                className="text-[1.2857rem] text-outline"
               />
             </button>
 
             {wsOpen && (
               <div className="absolute bottom-full left-0 z-40 mb-2 w-full overflow-hidden surface-card-xl shadow-xl">
-                <div className="border-b border-outline-variant/30 px-3.5 py-2 text-[11px] font-semibold uppercase tracking-wide text-outline">
+                <div className="border-b border-outline-variant/30 px-3.5 py-2 text-[0.7857rem] font-semibold uppercase tracking-wide text-outline">
                   工作空间与身份
                 </div>
                 {WORKSPACES.map((w) => (
@@ -206,16 +206,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   >
                     <Icon
                       name={w.role === 'Personal' ? 'person' : 'diversity_3'}
-                      className="text-[18px] text-primary"
+                      className="text-[1.2857rem] text-primary"
                     />
                     <span className="flex-1">
-                      <span className="block text-[12.5px] font-medium leading-tight">
+                      <span className="block text-[0.8929rem] font-medium leading-tight">
                         {w.name}
                       </span>
-                      <span className="block text-[10.5px] text-outline">{w.sub}</span>
+                      <span className="block text-[0.75rem] text-outline">{w.sub}</span>
                     </span>
                     {activeWs === w.id && (
-                      <Icon name="check_circle" fill className="text-[16px] text-primary" />
+                      <Icon name="check_circle" fill className="text-[1.1429rem] text-primary" />
                     )}
                   </button>
                 ))}
@@ -227,10 +227,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     setWsOpen(false)
                   }}
                 >
-                  <Icon name="manage_accounts" className="text-[18px] text-primary" />
-                  <span className="text-[12.5px] font-medium">账号偏好设置</span>
+                  <Icon name="manage_accounts" className="text-[1.2857rem] text-primary" />
+                  <span className="text-[0.8929rem] font-medium">账号偏好设置</span>
                 </button>
-                <div className="border-t border-outline-variant/30 px-3.5 py-2 text-[11px] text-outline">
+                <div className="border-t border-outline-variant/30 px-3.5 py-2 text-[0.7857rem] text-outline">
                   添加新账号 / 加入工作区（即将上线）
                 </div>
               </div>
@@ -242,16 +242,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* 主区域 */}
       <div className="flex flex-1 flex-col overflow-hidden">
         <header className="flex h-14 shrink-0 items-center justify-between border-b border-outline-variant/40 bg-surface-container-lowest px-6">
-          <div className="text-[14px] font-semibold text-on-surface-variant">{title}</div>
+          <div className="text-[1rem] font-semibold text-on-surface-variant">{title}</div>
           <div className="flex items-center gap-3">
             <button
-              className="flex h-8 items-center gap-1.5 nav-item !bg-transparent px-3 text-[12px] text-outline hover:border-primary hover:text-primary"
+              className="flex h-8 items-center gap-1.5 nav-item !bg-transparent px-3 text-[0.8571rem] text-outline hover:border-primary hover:text-primary"
               onClick={() => setPaletteOpen(true)}
               title="全局搜索（⌘K）"
             >
               <Icon name="search" size={16} />
               搜索
-              <kbd className="rounded bg-surface-container-high px-1 text-[10px]">⌘K</kbd>
+              <kbd className="rounded bg-surface-container-high px-1 text-[0.7143rem]">⌘K</kbd>
             </button>
             <SyncBadge />
           </div>

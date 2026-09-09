@@ -89,7 +89,7 @@ function MatchRing({ pct }: { pct: number }) {
           className="transition-all duration-500"
         />
       </svg>
-      <div className="absolute inset-0 flex items-center justify-center text-[13px] font-bold text-primary">
+      <div className="absolute inset-0 flex items-center justify-center text-[0.9286rem] font-bold text-primary">
         {pct}%
       </div>
     </div>
@@ -230,18 +230,18 @@ export default function InspirationPage() {
             <Icon name="flight_takeoff" size={18} fill />
           </div>
           <div>
-            <div className="text-[13.5px] font-bold leading-tight">寻鸽工作台</div>
-            <div className="text-[10px] uppercase tracking-widest text-outline">
+            <div className="text-[0.9643rem] font-bold leading-tight">寻鸽工作台</div>
+            <div className="text-[0.7143rem] uppercase tracking-widest text-outline">
               Nexus Workspace
             </div>
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <span className="rounded-full border border-success/30 bg-success-container/60 px-3 py-1 text-[11.5px] font-medium text-success">
+          <span className="rounded-full border border-success/30 bg-success-container/60 px-3 py-1 text-[0.8214rem] font-medium text-success">
             ● 算法置信度 {topMatch}%
           </span>
           <button
-            className="flex h-8 items-center gap-1.5 nav-item !bg-transparent px-3 text-[12px] text-on-surface-variant transition-colors hover:border-primary hover:text-primary"
+            className="flex h-8 items-center gap-1.5 nav-item !bg-transparent px-3 text-[0.8571rem] text-on-surface-variant transition-colors hover:border-primary hover:text-primary"
             onClick={() => navigate('/')}
           >
             <Icon name="keyboard_return" size={15} />
@@ -254,13 +254,13 @@ export default function InspirationPage() {
       <main className="relative z-10 flex flex-1 items-start justify-center overflow-y-auto px-8 pb-4">
         {!current ? (
           <div className="mt-24 flex flex-col items-center gap-4 text-center">
-            <Icon name="auto_awesome" className="text-[52px] text-outline" />
-            <div className="text-[17px] font-semibold">抽取池暂时是空的</div>
-            <div className="max-w-sm text-[13px] leading-relaxed text-on-surface-variant">
+            <Icon name="auto_awesome" className="text-[3.7143rem] text-outline" />
+            <div className="text-[1.2143rem] font-semibold">抽取池暂时是空的</div>
+            <div className="max-w-sm text-[0.9286rem] leading-relaxed text-on-surface-variant">
               没有发现逾期待办、到期日程、待对账流水或久未跟进的客户。去工作台记录一笔，或先享受片刻清闲。
             </div>
             <button
-              className="mt-2 rounded-lg bg-primary px-5 py-2.5 text-[13px] font-medium text-on-primary hover:bg-primary-container"
+              className="mt-2 rounded-lg bg-primary px-5 py-2.5 text-[0.9286rem] font-medium text-on-primary hover:bg-primary-container"
               onClick={() => navigate('/')}
             >
               返回工作台
@@ -277,21 +277,21 @@ export default function InspirationPage() {
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="text-[17px] font-bold">灵感闪现</span>
-                      <span className="text-[10.5px] font-semibold uppercase tracking-[0.18em] text-outline">
+                      <span className="text-[1.2143rem] font-bold">灵感闪现</span>
+                      <span className="text-[0.75rem] font-semibold uppercase tracking-[0.18em] text-outline">
                         Inspiration Flash
                       </span>
-                      <kbd className="rounded bg-surface-container-high px-1.5 text-[10px] text-on-surface-variant">
+                      <kbd className="rounded bg-surface-container-high px-1.5 text-[0.7143rem] text-on-surface-variant">
                         ⌘J
                       </kbd>
                     </div>
-                    <p className="mt-1 max-w-[520px] text-[12px] leading-relaxed text-on-surface-variant">
+                    <p className="mt-1 max-w-[520px] text-[0.8571rem] leading-relaxed text-on-surface-variant">
                       从待办事项、久未跟进客户、待对账流水与今日日程中，综合截止时限与商务权重，抽出当下最值得推进的事。
                     </p>
                   </div>
                 </div>
                 <button
-                  className="flex shrink-0 items-center gap-1.5 surface-card-low !bg-surface-container px-3 py-1.5 text-[12px] text-on-surface-variant hover:border-primary hover:text-primary"
+                  className="flex shrink-0 items-center gap-1.5 surface-card-low !bg-surface-container px-3 py-1.5 text-[0.8571rem] text-on-surface-variant hover:border-primary hover:text-primary"
                   onClick={next}
                 >
                   <Icon name="shuffle" size={15} />
@@ -309,28 +309,28 @@ export default function InspirationPage() {
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <span
-                      className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11.5px] font-medium ${kindMeta!.tone}`}
+                      className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[0.8214rem] font-medium ${kindMeta!.tone}`}
                     >
                       <Icon name={kindMeta!.icon} size={13} />
                       {kindMeta!.chip}
                     </span>
-                    <span className="inline-flex items-center gap-1 rounded-full border border-success/30 bg-success-container/60 px-2.5 py-0.5 text-[11.5px] text-success">
+                    <span className="inline-flex items-center gap-1 rounded-full border border-success/30 bg-success-container/60 px-2.5 py-0.5 text-[0.8214rem] text-success">
                       ✓ 综合匹配合度 {current.match}%
                     </span>
                   </div>
-                  <div className="mt-4 text-[10.5px] font-semibold uppercase tracking-[0.18em] text-outline">
+                  <div className="mt-4 text-[0.75rem] font-semibold uppercase tracking-[0.18em] text-outline">
                     Recommended Action Target
                   </div>
-                  <h1 className="mt-1 text-[26px] font-bold leading-snug text-on-surface">
+                  <h1 className="mt-1 text-[1.8571rem] font-bold leading-snug text-on-surface">
                     {current.title}
                   </h1>
-                  <p className="mt-1.5 text-[13px] leading-relaxed text-on-surface-variant">
+                  <p className="mt-1.5 text-[0.9286rem] leading-relaxed text-on-surface-variant">
                     {current.reason}
                   </p>
                 </div>
                 <div className="flex flex-col items-center gap-1 pt-1">
                   <MatchRing pct={current.match} />
-                  <span className="text-[10px] uppercase tracking-widest text-outline">合度</span>
+                  <span className="text-[0.7143rem] uppercase tracking-widest text-outline">合度</span>
                 </div>
               </div>
 
@@ -339,11 +339,11 @@ export default function InspirationPage() {
                 <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
                   {current.context.map((ctx) => (
                     <div key={ctx.label} className="surface-card-low rounded-xl px-4 py-3">
-                      <div className="flex items-center gap-1.5 text-[11px] font-medium text-outline">
+                      <div className="flex items-center gap-1.5 text-[0.7857rem] font-medium text-outline">
                         <Icon name={ctx.icon} size={14} />
                         {ctx.label}
                       </div>
-                      <div className="mt-1 truncate text-[13px] font-medium text-on-surface">
+                      <div className="mt-1 truncate text-[0.9286rem] font-medium text-on-surface">
                         {ctx.value}
                       </div>
                     </div>
@@ -354,25 +354,25 @@ export default function InspirationPage() {
               {/* 操作区 */}
               <div className="mt-6 flex flex-wrap items-center gap-3">
                 <button
-                  className="flex h-11 items-center gap-2 rounded-xl bg-primary px-5 text-[13.5px] font-semibold text-on-primary transition-colors hover:bg-primary-container"
+                  className="flex h-11 items-center gap-2 rounded-xl bg-primary px-5 text-[0.9643rem] font-semibold text-on-primary transition-colors hover:bg-primary-container"
                   onClick={startFocus}
                 >
                   <Icon name="play_arrow" size={17} />
                   立即专注执行（锁定此任务）
-                  <kbd className="rounded bg-on-primary/20 px-1.5 text-[10.5px]">Enter</kbd>
+                  <kbd className="rounded bg-on-primary/20 px-1.5 text-[0.75rem]">Enter</kbd>
                 </button>
                 <button
-                  className="flex h-11 items-center gap-2 surface-card-low rounded-xl !bg-surface-container px-4 text-[13px] text-on-surface transition-colors hover:border-outline"
+                  className="flex h-11 items-center gap-2 surface-card-low rounded-xl !bg-surface-container px-4 text-[0.9286rem] text-on-surface transition-colors hover:border-outline"
                   onClick={next}
                 >
                   <Icon name="shuffle" size={16} />
                   换一个
-                  <kbd className="rounded bg-surface-container-high px-1.5 text-[10.5px] text-on-surface-variant">
+                  <kbd className="rounded bg-surface-container-high px-1.5 text-[0.75rem] text-on-surface-variant">
                     Space
                   </kbd>
                 </button>
                 <button
-                  className="flex h-11 items-center gap-1.5 rounded-xl px-3 text-[13px] text-on-surface-variant transition-colors hover:text-on-surface"
+                  className="flex h-11 items-center gap-1.5 rounded-xl px-3 text-[0.9286rem] text-on-surface-variant transition-colors hover:text-on-surface"
                   onClick={remindLater}
                 >
                   <Icon name="schedule" size={16} />
@@ -380,7 +380,7 @@ export default function InspirationPage() {
                 </button>
                 {current.noteId && (
                   <button
-                    className="flex h-11 items-center gap-1.5 rounded-xl px-3 text-[13px] text-primary transition-colors hover:text-primary"
+                    className="flex h-11 items-center gap-1.5 rounded-xl px-3 text-[0.9286rem] text-primary transition-colors hover:text-primary"
                     onClick={() => navigate(`/notes/${current.noteId}`)}
                   >
                     <Icon name="auto_stories" size={16} />
@@ -389,7 +389,7 @@ export default function InspirationPage() {
                 )}
                 {current.todoId && (
                   <button
-                    className="flex h-11 items-center gap-1.5 rounded-xl px-3 text-[13px] text-success transition-colors hover:text-success"
+                    className="flex h-11 items-center gap-1.5 rounded-xl px-3 text-[0.9286rem] text-success transition-colors hover:text-success"
                     onClick={() => void completeTodo()}
                   >
                     <Icon name="check_circle" size={16} />
@@ -401,13 +401,13 @@ export default function InspirationPage() {
 
             {/* 候选池开关（对齐原型 02 底部） */}
             <div className="mt-5 flex flex-wrap items-center justify-center gap-3 surface-card-low rounded-xl px-4 py-2.5">
-              <span className="text-[11px] font-medium uppercase tracking-widest text-outline">
+              <span className="text-[0.7857rem] font-medium uppercase tracking-widest text-outline">
                 候选池
               </span>
               {POOLS.map((p) => (
                 <label
                   key={p.key}
-                  className={`flex cursor-pointer select-none items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11.5px] transition-colors ${
+                  className={`flex cursor-pointer select-none items-center gap-1.5 rounded-full border px-2.5 py-1 text-[0.8214rem] transition-colors ${
                     pools[p.key]
                       ? 'border-primary/50 bg-primary-fixed text-primary'
                       : 'border-outline-variant/60 text-on-surface-variant'
@@ -436,7 +436,7 @@ export default function InspirationPage() {
                   onClick={() => setIdx(i)}
                 />
               ))}
-              <span className="ml-3 text-[11px] text-on-surface-variant">
+              <span className="ml-3 text-[0.7857rem] text-on-surface-variant">
                 已抽取并达成 {Math.min(candidates.length, safeIdx + 1)} / {candidates.length} 项
               </span>
             </div>
@@ -445,7 +445,7 @@ export default function InspirationPage() {
       </main>
 
       {/* 底部按键提示 */}
-      <footer className="relative z-10 flex items-center justify-center gap-6 border-t border-outline-variant/40 py-3 text-[11.5px] text-on-surface-variant">
+      <footer className="relative z-10 flex items-center justify-center gap-6 border-t border-outline-variant/40 py-3 text-[0.8214rem] text-on-surface-variant">
         <span>
           <kbd className="rounded bg-surface-container-high px-1.5 py-0.5 text-on-surface">
             Space
@@ -466,10 +466,10 @@ export default function InspirationPage() {
 
       {/* 稍后提醒 Toast */}
       {reminderMsg && (
-        <div className="fixed bottom-16 left-1/2 z-50 -translate-x-1/2 rounded-full border border-outline-variant/60 bg-surface-container-high px-5 py-2.5 text-[12.5px] text-on-surface shadow-xl">
+        <div className="fixed bottom-16 left-1/2 z-50 -translate-x-1/2 rounded-full border border-outline-variant/60 bg-surface-container-high px-5 py-2.5 text-[0.8929rem] text-on-surface shadow-xl">
           <Icon
             name="notifications_active"
-            className="mr-1.5 align-[-4px] text-[15px] text-warning"
+            className="mr-1.5 align-[-4px] text-[1.0714rem] text-warning"
           />
           {reminderMsg}
         </div>

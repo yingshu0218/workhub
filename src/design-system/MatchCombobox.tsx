@@ -136,7 +136,7 @@ export function MatchCombobox({
         <div className="flex items-center justify-between surface-card-low px-3 py-2">
           <button
             type="button"
-            className="flex min-w-0 flex-1 items-center gap-2 text-left text-[13px]"
+            className="flex min-w-0 flex-1 items-center gap-2 text-left text-[0.9286rem]"
             title="点击重新选择"
             onClick={() => {
               setOpen(true)
@@ -146,7 +146,7 @@ export function MatchCombobox({
             <Icon name={selected.icon ?? 'person'} size={16} className="shrink-0 text-primary" />
             <span className="truncate font-medium">{selected.label}</span>
             {selected.sub && (
-              <span className="shrink-0 text-[11px] text-outline">{selected.sub}</span>
+              <span className="shrink-0 text-[0.7857rem] text-outline">{selected.sub}</span>
             )}
           </button>
           <button
@@ -159,14 +159,14 @@ export function MatchCombobox({
           {open && (
             <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-56 overflow-y-auto surface-card py-1 shadow-lg">
               {listItems.length === 0 ? (
-                <div className="px-3 py-2 text-[12px] text-outline">{emptyText}</div>
+                <div className="px-3 py-2 text-[0.8571rem] text-outline">{emptyText}</div>
               ) : (
                 listItems.map((o, i) => (
                   <button
                     key={o.id || '__none__'}
                     onClick={() => commit(o.id)}
                     onMouseEnter={() => setActiveIdx(i)}
-                    className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[13px] transition-colors ${
+                    className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[0.9286rem] transition-colors ${
                       i === safeIdx ? 'bg-primary-fixed text-primary' : 'hover:bg-surface-container'
                     }`}
                   >
@@ -176,7 +176,7 @@ export function MatchCombobox({
                       className="shrink-0 text-outline"
                     />
                     <span className="min-w-0 flex-1 truncate">{o.label}</span>
-                    {o.sub && <span className="shrink-0 text-[11px] text-outline">{o.sub}</span>}
+                    {o.sub && <span className="shrink-0 text-[0.7857rem] text-outline">{o.sub}</span>}
                   </button>
                 ))
               )}
@@ -200,14 +200,14 @@ export function MatchCombobox({
       {open && !selected && (
         <div className="absolute z-30 mt-1 max-h-56 w-full overflow-y-auto surface-card py-1 shadow-lg">
           {listItems.length === 0 ? (
-            <div className="px-3 py-2 text-[12px] text-outline">{emptyText}</div>
+            <div className="px-3 py-2 text-[0.8571rem] text-outline">{emptyText}</div>
           ) : (
             listItems.map((o, i) => (
               <button
                 key={o.id || '__none__'}
                 onClick={() => commit(o.id)}
                 onMouseEnter={() => setActiveIdx(i)}
-                className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[13px] transition-colors ${
+                className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[0.9286rem] transition-colors ${
                   i === safeIdx ? 'bg-primary-fixed text-primary' : 'hover:bg-surface-container'
                 }`}
               >
@@ -217,7 +217,7 @@ export function MatchCombobox({
                   className="shrink-0 text-outline"
                 />
                 <span className="min-w-0 flex-1 truncate">{o.label}</span>
-                {o.sub && <span className="shrink-0 text-[11px] text-outline">{o.sub}</span>}
+                {o.sub && <span className="shrink-0 text-[0.7857rem] text-outline">{o.sub}</span>}
               </button>
             ))
           )}

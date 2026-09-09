@@ -215,7 +215,7 @@ export default function CustomerFormDrawer({
               <button
                 key={t}
                 onClick={() => setTier(t)}
-                className={`flex-1 rounded-lg border px-2 py-1.5 text-[13px] transition-colors ${
+                className={`flex-1 rounded-lg border px-2 py-1.5 text-[0.9286rem] transition-colors ${
                   tier === t
                     ? 'border-primary bg-primary-fixed font-semibold text-primary'
                     : 'border-outline-variant text-on-surface-variant'
@@ -321,7 +321,7 @@ export default function CustomerFormDrawer({
             <StepHeader n={4} title="关联客户" />
             <div className="mb-2 flex flex-wrap gap-1.5">
               {relations.length === 0 && (
-                <span className="text-[11px] text-outline">暂无关联客户</span>
+                <span className="text-[0.7857rem] text-outline">暂无关联客户</span>
               )}
               {relations.map((r) => {
                 const target = relCandidates.find((c) => c.id === r.targetId)
@@ -333,7 +333,7 @@ export default function CustomerFormDrawer({
                       {catName ? `（${catName}）` : ''}
                     </Chip>
                     <button
-                      className="-ml-1 h-4 w-4 rounded-full bg-surface-container-high text-[10px] leading-none text-on-surface-variant hover:text-danger"
+                      className="-ml-1 h-4 w-4 rounded-full bg-surface-container-high text-[0.7143rem] leading-none text-on-surface-variant hover:text-danger"
                       title="移除该条关联"
                       onClick={() =>
                         setRelations((rs) => rs.filter((x) => relKey(x) !== relKey(r)))
@@ -423,7 +423,7 @@ export default function CustomerFormDrawer({
         {!customer && (
           <div className="mt-4 rounded-xl bg-surface-container-low/60 p-3">
             <StepHeader n={4} title="跨模块关联初始化" />
-            <label className="flex cursor-pointer items-center gap-2 py-1.5 text-[13px]">
+            <label className="flex cursor-pointer items-center gap-2 py-1.5 text-[0.9286rem]">
               <input
                 type="checkbox"
                 className="accent-primary"
@@ -432,7 +432,7 @@ export default function CustomerFormDrawer({
               />
               创建首联待办「首联跟进：{name.trim() || '该客户'}」（P2 · 今天）
             </label>
-            <label className="flex cursor-pointer items-center gap-2 py-1.5 text-[13px]">
+            <label className="flex cursor-pointer items-center gap-2 py-1.5 text-[0.9286rem]">
               <input
                 type="checkbox"
                 className="accent-primary"
@@ -457,7 +457,7 @@ export default function CustomerFormDrawer({
             </Field>
           </div>
         )}
-        {error && <div className="mb-3 text-[12px] text-danger">{error}</div>}
+        {error && <div className="mb-3 text-[0.8571rem] text-danger">{error}</div>}
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="tonal" onClick={onClose}>
             取消
@@ -475,10 +475,10 @@ export default function CustomerFormDrawer({
 function StepHeader({ n, title }: { n: number; title: string }) {
   return (
     <div className="mb-2.5 mt-4 flex items-center gap-2">
-      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary-fixed text-[11px] font-bold text-primary">
+      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary-fixed text-[0.7857rem] font-bold text-primary">
         {n}
       </span>
-      <span className="text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant">
+      <span className="text-[0.7857rem] font-semibold uppercase tracking-wide text-on-surface-variant">
         {title}
       </span>
     </div>

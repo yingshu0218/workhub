@@ -145,7 +145,7 @@ export default function NotesPage() {
       <div className="flex gap-4">
         {/* 左栏：文件树体系（文件夹 + 搜索 + 智能彩色标签云） */}
         <Card className="w-64 shrink-0 self-start p-4">
-          <div className="mb-3 text-[12px] font-medium uppercase tracking-wide text-on-surface-variant">
+          <div className="mb-3 text-[0.8571rem] font-medium uppercase tracking-wide text-on-surface-variant">
             文库体系（{notes.length}）
           </div>
           <input
@@ -156,7 +156,7 @@ export default function NotesPage() {
           />
 
           {/* 文件夹文件树 */}
-          <div className="mb-2 mt-4 flex items-center justify-between text-[12px] font-medium uppercase tracking-wide text-on-surface-variant">
+          <div className="mb-2 mt-4 flex items-center justify-between text-[0.8571rem] font-medium uppercase tracking-wide text-on-surface-variant">
             <span>文件夹</span>
             <button
               className="rounded p-0.5 text-outline transition-colors hover:bg-surface-container-high hover:text-on-surface"
@@ -225,7 +225,7 @@ export default function NotesPage() {
             <div className="mt-1.5 flex items-center gap-1">
               <input
                 autoFocus
-                className="min-w-0 flex-1 rounded-md border border-outline-variant bg-surface-container-lowest px-2 py-1 text-[12px] outline-none focus:border-primary"
+                className="min-w-0 flex-1 rounded-md border border-outline-variant bg-surface-container-lowest px-2 py-1 text-[0.8571rem] outline-none focus:border-primary"
                 value={newFolderName}
                 onChange={(e) => setNewFolderName(e.target.value)}
                 onKeyDown={(e) => {
@@ -238,11 +238,11 @@ export default function NotesPage() {
             </div>
           )}
 
-          <div className="mb-2 mt-4 text-[12px] font-medium uppercase tracking-wide text-on-surface-variant">
+          <div className="mb-2 mt-4 text-[0.8571rem] font-medium uppercase tracking-wide text-on-surface-variant">
             智能彩色标签
           </div>
           {tagCloud.length === 0 ? (
-            <div className="text-[12px] text-outline">暂无标签</div>
+            <div className="text-[0.8571rem] text-outline">暂无标签</div>
           ) : (
             <div className="flex flex-wrap gap-1.5">
               {tagCloud.map(([tag, count]) => {
@@ -251,7 +251,7 @@ export default function NotesPage() {
                   <button
                     key={tag}
                     onClick={() => setActiveTag(active ? null : tag)}
-                    className="rounded-full px-2.5 py-0.5 text-[12px] font-medium transition-opacity hover:opacity-80"
+                    className="rounded-full px-2.5 py-0.5 text-[0.8571rem] font-medium transition-opacity hover:opacity-80"
                     style={{
                       ...tagStyle(tag),
                       outline: active ? '2px solid currentColor' : 'none',
@@ -282,7 +282,7 @@ export default function NotesPage() {
           </Card>
         ) : (
           <Card className="flex-1 divide-y divide-outline-variant/30 px-5 py-1">
-            <div className="flex items-center justify-between py-2 text-[12px] text-outline">
+            <div className="flex items-center justify-between py-2 text-[0.8571rem] text-outline">
               <span>
                 当前范围：
                 <span className="font-medium text-on-surface-variant">{scopeLabel()}</span>
@@ -295,8 +295,8 @@ export default function NotesPage() {
                 onClick={() => setViewId(n.id)}
                 className="group flex h-11 shrink-0 cursor-pointer items-center gap-2 rounded-lg px-2 -mx-2 transition-colors hover:bg-surface-container-low/60"
               >
-                <Icon name="description" className="shrink-0 text-[18px] text-primary" />
-                <span className="min-w-0 flex-1 truncate text-[14px] font-medium group-hover:text-primary">
+                <Icon name="description" className="shrink-0 text-[1.2857rem] text-primary" />
+                <span className="min-w-0 flex-1 truncate text-[1rem] font-medium group-hover:text-primary">
                   {n.title}
                 </span>
                 {/* 属性区固定靠行尾：tag / 关联 / 文件夹 / 时间，不随 hover 变化 */}
@@ -304,20 +304,20 @@ export default function NotesPage() {
                   {n.tags.slice(0, 3).map((t) => (
                     <span
                       key={t}
-                      className="hidden rounded-full px-2 py-0.5 text-[11px] font-medium leading-none sm:inline-block"
+                      className="hidden rounded-full px-2 py-0.5 text-[0.7857rem] font-medium leading-none sm:inline-block"
                       style={tagStyle(t)}
                     >
                       #{t}
                     </span>
                   ))}
                   {n.tags.length > 3 && (
-                    <span className="hidden text-[11px] text-outline sm:inline">
+                    <span className="hidden text-[0.7857rem] text-outline sm:inline">
                       +{n.tags.length - 3}
                     </span>
                   )}
                   {n.mentions.length > 0 && (
                     <span
-                      className="flex shrink-0 items-center gap-0.5 text-[11px] text-outline"
+                      className="flex shrink-0 items-center gap-0.5 text-[0.7857rem] text-outline"
                       title={n.mentions.map((m) => m.label).join('、')}
                     >
                       <Icon name="hub" size={13} />
@@ -328,13 +328,13 @@ export default function NotesPage() {
                     const f = folders.find((x) => x.id === n.folderId)
                     if (!f) return null
                     return (
-                      <span className="hidden shrink-0 items-center gap-0.5 rounded-full bg-surface-container-low px-2 py-0.5 text-[11px] text-on-surface-variant md:flex">
+                      <span className="hidden shrink-0 items-center gap-0.5 rounded-full bg-surface-container-low px-2 py-0.5 text-[0.7857rem] text-on-surface-variant md:flex">
                         <Icon name="folder" size={12} />
                         {f.name}
                       </span>
                     )
                   })()}
-                  <span className="w-10 shrink-0 text-right text-[11px] text-outline">
+                  <span className="w-10 shrink-0 text-right text-[0.7857rem] text-outline">
                     {fmtTime(n.updatedAt)}
                   </span>
                 </span>
@@ -436,8 +436,8 @@ ${folders.map((f, i) => `${i + 1}. ${f.name}`).join('\n')}${cur.folderId ? '\n0.
       <div className="relative flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-outline-variant/50 bg-surface-container-lowest shadow-[0_24px_64px_rgba(0,0,0,0.24)]">
         {/* 卡片头：标题 + 关闭 */}
         <div className="flex shrink-0 items-center gap-2 border-b border-outline-variant/40 px-5 py-3.5">
-          <Icon name="description" className="shrink-0 text-[20px] text-primary" />
-          <h2 className="min-w-0 flex-1 truncate text-[16px] font-bold tracking-tight">
+          <Icon name="description" className="shrink-0 text-[1.4286rem] text-primary" />
+          <h2 className="min-w-0 flex-1 truncate text-[1.1429rem] font-bold tracking-tight">
             {note.title.trim() || '未命名笔记'}
           </h2>
           <button
@@ -449,18 +449,18 @@ ${folders.map((f, i) => `${i + 1}. ${f.name}`).join('\n')}${cur.folderId ? '\n0.
           </button>
         </div>
         {/* 属性行：标签 / 文件夹 / 关联 / 更新时间 / 字数（固定高度） */}
-        <div className="flex h-9 shrink-0 items-center gap-2 overflow-hidden border-b border-outline-variant/30 px-5 text-[12px] text-on-surface-variant">
+        <div className="flex h-9 shrink-0 items-center gap-2 overflow-hidden border-b border-outline-variant/30 px-5 text-[0.8571rem] text-on-surface-variant">
           {note.tags.map((t) => (
             <span
               key={t}
-              className="rounded-full px-2 py-0.5 text-[11px] font-medium leading-none"
+              className="rounded-full px-2 py-0.5 text-[0.7857rem] font-medium leading-none"
               style={tagStyle(t)}
             >
               #{t}
             </span>
           ))}
           {note.tags.length === 0 && <span className="text-outline">暂无标签</span>}
-          <span className="ml-auto flex shrink-0 items-center gap-2 text-[11px] text-outline">
+          <span className="ml-auto flex shrink-0 items-center gap-2 text-[0.7857rem] text-outline">
             {folder && (
               <span className="flex items-center gap-0.5">
                 <Icon name="folder" size={12} />
@@ -531,7 +531,7 @@ function TreeNode({
   return (
     <div
       onClick={onClick}
-      className={`group flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1 text-[13px] transition-colors ${
+      className={`group flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1 text-[0.9286rem] transition-colors ${
         active
           ? 'bg-primary-container/15 font-medium text-primary'
           : 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'
@@ -547,9 +547,9 @@ function TreeNode({
           {actions}
         </span>
       )}
-      <span className="shrink-0 text-[11px] text-outline group-hover:hidden">{count}</span>
+      <span className="shrink-0 text-[0.7857rem] text-outline group-hover:hidden">{count}</span>
       {actions && (
-        <span className="hidden shrink-0 text-[11px] text-outline group-hover:hidden">{count}</span>
+        <span className="hidden shrink-0 text-[0.7857rem] text-outline group-hover:hidden">{count}</span>
       )}
     </div>
   )

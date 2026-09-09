@@ -151,7 +151,7 @@ export default function LedgerFormDrawer({
               <button
                 key={c}
                 onClick={() => setCycle(c)}
-                className={`rounded-lg border px-3 py-1.5 text-[13px] ${
+                className={`rounded-lg border px-3 py-1.5 text-[0.9286rem] ${
                   cycle === c
                     ? 'border-primary bg-primary-fixed font-semibold text-primary'
                     : 'border-outline-variant text-on-surface-variant'
@@ -166,7 +166,7 @@ export default function LedgerFormDrawer({
           <button
             type="button"
             onClick={() => setIsDefault(!isDefault)}
-            className={`flex w-full items-center justify-between rounded-lg border px-3 py-2 text-[13px] transition-colors ${
+            className={`flex w-full items-center justify-between rounded-lg border px-3 py-2 text-[0.9286rem] transition-colors ${
               isDefault
                 ? 'border-primary bg-primary-fixed text-primary'
                 : 'border-outline-variant text-on-surface-variant hover:text-on-surface'
@@ -186,7 +186,7 @@ export default function LedgerFormDrawer({
             </span>
           </button>
         </Field>
-        {error && <div className="mb-3 text-[12px] text-danger">{error}</div>}
+        {error && <div className="mb-3 text-[0.8571rem] text-danger">{error}</div>}
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="tonal" onClick={onClose}>
             取消

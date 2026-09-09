@@ -44,7 +44,7 @@ export function FocusCard() {
   return (
     <Card className="relative overflow-hidden p-6">
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="flex items-center gap-2 text-[15px] font-semibold">
+        <h2 className="flex items-center gap-2 text-[1.0714rem] font-semibold">
           <Icon name="track_changes" fill className="text-primary" />
           NOW DOING
         </h2>
@@ -72,10 +72,10 @@ export function FocusCard() {
             />
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <div className="text-[22px] font-bold tabular-nums">
+            <div className="text-[1.5714rem] font-bold tabular-nums">
               {focus.status === 'idle' ? '25:00' : fmt(focus.remaining)}
             </div>
-            <div className="text-[11px] text-outline">
+            <div className="text-[0.7857rem] text-outline">
               {focus.status === 'running'
                 ? '专注中'
                 : focus.status === 'paused'
@@ -88,7 +88,7 @@ export function FocusCard() {
         <div className="min-w-0 flex-1">
           {focus.status === 'idle' ? (
             <>
-              <div className="mb-2 text-[13px] text-on-surface-variant">
+              <div className="mb-2 text-[0.9286rem] text-on-surface-variant">
                 {doing ? doing.title : '选择一件事，开始 25 分钟深度专注'}
               </div>
               <div className="mb-3">
@@ -119,10 +119,10 @@ export function FocusCard() {
             </>
           ) : (
             <>
-              <div className="mb-1 truncate text-[14px] font-semibold">
+              <div className="mb-1 truncate text-[1rem] font-semibold">
                 {focus.todoTitle ?? '自由专注'}
               </div>
-              <div className="mb-3 text-[12px] text-on-surface-variant">
+              <div className="mb-3 text-[0.8571rem] text-on-surface-variant">
                 完成后自动打卡「深度专注」习惯
               </div>
               {/* 关联引用小卡（对齐原型 01）：客户 / 财务账本 */}
@@ -135,10 +135,10 @@ export function FocusCard() {
                       onClick={() => navigate(`/crm/${refCustomer.id}`)}
                     >
                       <Icon name="group" size={14} className="shrink-0 text-primary" />
-                      <span className="shrink-0 text-[10.5px] font-medium text-outline">
+                      <span className="shrink-0 text-[0.75rem] font-medium text-outline">
                         关联客户
                       </span>
-                      <span className="truncate text-[11.5px] font-medium text-primary">
+                      <span className="truncate text-[0.8214rem] font-medium text-primary">
                         {customerLabel}
                       </span>
                     </button>
@@ -154,10 +154,10 @@ export function FocusCard() {
                         size={14}
                         className="shrink-0 text-warning"
                       />
-                      <span className="shrink-0 text-[10.5px] font-medium text-outline">
+                      <span className="shrink-0 text-[0.75rem] font-medium text-outline">
                         关联账本
                       </span>
-                      <span className="truncate text-[11.5px] font-medium text-primary">
+                      <span className="truncate text-[0.8214rem] font-medium text-primary">
                         {refLedger.name}
                       </span>
                     </button>
@@ -214,7 +214,7 @@ export function HabitLoopCard() {
   return (
     <Card className="p-5">
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-[15px] font-semibold">每日习惯闭环</h2>
+        <h2 className="text-[1.0714rem] font-semibold">每日习惯闭环</h2>
         <Chip tone="amber" icon="local_fire_department">
           21 天稳态
         </Chip>
@@ -252,8 +252,8 @@ export function HabitLoopCard() {
                 <Icon name={h.icon} size={16} />
               </span>
               <div className="flex-1">
-                <div className="text-[13.5px] font-medium">{h.name}</div>
-                <div className="text-[11px] text-outline">
+                <div className="text-[0.9643rem] font-medium">{h.name}</div>
+                <div className="text-[0.7857rem] text-outline">
                   {h.schedule} · {h.targetMinutes} 分钟
                 </div>
               </div>
@@ -298,7 +298,7 @@ export function TodayTodosCard() {
   return (
     <Card className="flex flex-col p-5">
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="flex items-center gap-2 text-[15px] font-semibold">
+        <h2 className="flex items-center gap-2 text-[1.0714rem] font-semibold">
           今日待办日程
           <Chip tone="blue">{list.length} 待完成</Chip>
         </h2>
@@ -312,7 +312,7 @@ export function TodayTodosCard() {
       </div>
 
       {list.length === 0 && doneToday.length === 0 ? (
-        <div className="py-6 text-center text-[12px] text-outline">
+        <div className="py-6 text-center text-[0.8571rem] text-outline">
           今日暂无安排，去待办中心创建 →
         </div>
       ) : (
@@ -326,10 +326,10 @@ export function TodayTodosCard() {
                 <Icon name="radio_button_unchecked" size={20} className="text-outline" />
               </button>
               <div className="min-w-0 flex-1">
-                <div className="truncate text-[13.5px] font-medium">{t.title}</div>
+                <div className="truncate text-[0.9643rem] font-medium">{t.title}</div>
                 {t.dueAt && (
                   <div
-                    className={`text-[11px] ${dayjs(t.dueAt).isBefore(dayjs()) ? 'text-danger' : 'text-outline'}`}
+                    className={`text-[0.7857rem] ${dayjs(t.dueAt).isBefore(dayjs()) ? 'text-danger' : 'text-outline'}`}
                   >
                     {dayjs(t.dueAt).format('HH:mm')}
                     {t.priority === 'P1' && <span className="ml-1.5 font-medium">P1 紧急</span>}
@@ -337,7 +337,7 @@ export function TodayTodosCard() {
                 )}
               </div>
               <button
-                className="shrink-0 text-[11px] text-primary hover:underline"
+                className="shrink-0 text-[0.7857rem] text-primary hover:underline"
                 onClick={() => void toggle(t)}
               >
                 完成
@@ -349,7 +349,7 @@ export function TodayTodosCard() {
               <button onClick={() => void toggle(t)} className="shrink-0">
                 <Icon name="check_box" size={20} fill className="text-success" />
               </button>
-              <span className="min-w-0 flex-1 truncate text-[12.5px] text-outline line-through">
+              <span className="min-w-0 flex-1 truncate text-[0.8929rem] text-outline line-through">
                 {t.title}
               </span>
               <Chip tone="green">已完成</Chip>
@@ -359,7 +359,7 @@ export function TodayTodosCard() {
       )}
 
       <button
-        className="mt-3 border-t border-outline-variant/40 pt-3 text-left text-[12px] text-primary hover:underline"
+        className="mt-3 border-t border-outline-variant/40 pt-3 text-left text-[0.8571rem] text-primary hover:underline"
         onClick={() => (location.href = '/todo')}
       >
         进入待办事项中心查看全部（{todos.filter((t) => t.status !== 'done').length}）→
@@ -422,10 +422,10 @@ export function QuickNoteCard() {
 
   return (
     <Card className="flex flex-col p-5">
-      <h2 className="mb-3 text-[15px] font-semibold">随手速记</h2>
+      <h2 className="mb-3 text-[1.0714rem] font-semibold">随手速记</h2>
       <div className="mb-2 flex gap-2">
         <input
-          className="flex-1 surface-card border-outline-variant px-3 py-2 text-[13px] outline-none focus:border-primary"
+          className="flex-1 surface-card border-outline-variant px-3 py-2 text-[0.9286rem] outline-none focus:border-primary"
           placeholder="灵感一闪，先记下来…"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
@@ -434,16 +434,16 @@ export function QuickNoteCard() {
         <Button size="sm" icon="add" onClick={() => void add()} />
       </div>
       {/* 字符计数（对齐原型 01：N 字符已录入 · 本地缓存已就绪） */}
-      <div className="mb-3 text-right text-[11px] text-outline">
+      <div className="mb-3 text-right text-[0.7857rem] text-outline">
         {draft.length} 字符已录入 · 本地缓存已就绪
       </div>
       {pending.length === 0 ? (
-        <div className="py-6 text-center text-[12px] text-outline">暂存区已清空</div>
+        <div className="py-6 text-center text-[0.8571rem] text-outline">暂存区已清空</div>
       ) : (
         <ul className="space-y-2 overflow-y-auto">
           {pending.map((n) => (
             <li key={n.id} className="group list-row">
-              <div className="text-[13px] leading-snug">{n.content}</div>
+              <div className="text-[0.9286rem] leading-snug">{n.content}</div>
               <div className="mt-2 flex gap-1.5 opacity-0 transition-opacity group-hover:opacity-100">
                 <Button
                   size="sm"

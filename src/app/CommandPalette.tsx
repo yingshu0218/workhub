@@ -154,7 +154,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="全局搜索任务、客户或笔记…"
-            className="h-full flex-1 bg-transparent text-[14.5px] outline-none placeholder:text-outline"
+            className="h-full flex-1 bg-transparent text-[1.0357rem] outline-none placeholder:text-outline"
           />
           <button className="text-outline hover:text-on-surface" onClick={onClose}>
             <Icon name="close" size={18} />
@@ -164,14 +164,14 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
         {/* 结果分组 */}
         <div className="max-h-[46vh] overflow-y-auto px-2 py-2">
           {flat.length === 0 ? (
-            <div className="px-4 py-10 text-center text-[13px] text-outline">
+            <div className="px-4 py-10 text-center text-[0.9286rem] text-outline">
               没有匹配「{query}」的结果
             </div>
           ) : (
             groups.map((g) => (
               <div key={g.type} className="mb-1">
-                <div className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-outline">
-                  {g.label} <span className="ml-0.5 text-[10px] font-normal">{g.items.length}</span>
+                <div className="px-3 pb-1 pt-2 text-[0.7857rem] font-semibold uppercase tracking-wide text-outline">
+                  {g.label} <span className="ml-0.5 text-[0.7143rem] font-normal">{g.items.length}</span>
                 </div>
                 {g.items.map((it) => {
                   cursor += 1
@@ -187,18 +187,18 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
                     >
                       <Icon
                         name={g.icon}
-                        className={`text-[18px] ${idx === activeIndex ? 'text-primary' : 'text-outline'}`}
+                        className={`text-[1.2857rem] ${idx === activeIndex ? 'text-primary' : 'text-outline'}`}
                       />
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[13.5px] font-medium">{it.title}</span>
+                        <span className="block truncate text-[0.9643rem] font-medium">{it.title}</span>
                         {it.subtitle && (
-                          <span className="block truncate text-[11.5px] text-on-surface-variant">
+                          <span className="block truncate text-[0.8214rem] text-on-surface-variant">
                             {it.subtitle}
                           </span>
                         )}
                       </span>
                       {idx === activeIndex && (
-                        <kbd className="shrink-0 rounded bg-surface-container-high px-1.5 text-[10px] text-outline">
+                        <kbd className="shrink-0 rounded bg-surface-container-high px-1.5 text-[0.7143rem] text-outline">
                           ↵
                         </kbd>
                       )}
@@ -213,10 +213,10 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
         {/* 快捷指令区 */}
         <div className="border-t border-outline-variant/40 bg-surface-container-low/60 px-5 py-3">
           <div className="mb-2 flex items-center justify-between">
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-outline">
+            <span className="text-[0.7857rem] font-semibold uppercase tracking-wide text-outline">
               快捷指令 / Quick Actions
             </span>
-            <span className="text-[10px] text-outline">寻鸽快速通道</span>
+            <span className="text-[0.7143rem] text-outline">寻鸽快速通道</span>
           </div>
           <div className="grid grid-cols-3 gap-2">
             {quickActions.map((a) => (
@@ -226,13 +226,13 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
                 onClick={a.run}
               >
                 <div className="flex items-center justify-between">
-                  <Icon name={a.icon} className="text-[18px] text-primary" />
-                  <kbd className="rounded-md border border-outline-variant/50 bg-surface-container-high px-1.5 py-px font-mono text-[10px] text-outline">
+                  <Icon name={a.icon} className="text-[1.2857rem] text-primary" />
+                  <kbd className="rounded-md border border-outline-variant/50 bg-surface-container-high px-1.5 py-px font-mono text-[0.7143rem] text-outline">
                     {a.kbd}
                   </kbd>
                 </div>
-                <div className="mt-1.5 text-[12.5px] font-semibold">{a.label}</div>
-                <div className="truncate text-[10.5px] text-outline">{a.desc}</div>
+                <div className="mt-1.5 text-[0.8929rem] font-semibold">{a.label}</div>
+                <div className="truncate text-[0.75rem] text-outline">{a.desc}</div>
               </button>
             ))}
           </div>

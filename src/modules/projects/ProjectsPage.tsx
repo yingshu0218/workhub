@@ -73,7 +73,7 @@ export default function ProjectsPage() {
           <button
             key={s.key}
             onClick={() => setScope(s.key)}
-            className={`rounded-lg border px-3.5 py-1.5 text-[13px] transition-colors ${
+            className={`rounded-lg border px-3.5 py-1.5 text-[0.9286rem] transition-colors ${
               scope === s.key
                 ? 'border-primary bg-primary-fixed font-semibold text-primary'
                 : 'border-outline-variant/60 text-on-surface-variant hover:text-on-surface'
@@ -108,10 +108,10 @@ export default function ProjectsPage() {
                   </span>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="truncate text-[15px] font-bold">{p.name}</span>
+                      <span className="truncate text-[1.0714rem] font-bold">{p.name}</span>
                       <Chip tone={meta.tone}>{meta.label}</Chip>
                     </div>
-                    <div className="mt-0.5 text-[12px] text-outline">
+                    <div className="mt-0.5 text-[0.8571rem] text-outline">
                       创建于 {dayjs(p.createdAt).format('YYYY-MM-DD')}
                       {p.budget != null ? ` · 预算 ¥${p.budget.toLocaleString('zh-CN')}` : ''}
                     </div>
@@ -119,20 +119,20 @@ export default function ProjectsPage() {
                 </div>
                 <div className="mt-4 grid grid-cols-3 gap-2 text-center">
                   <div className="rounded-lg bg-surface-container-low/60 py-2">
-                    <div className="text-[13px] font-bold text-success">
+                    <div className="text-[0.9286rem] font-bold text-success">
                       +¥{st.income.toLocaleString('zh-CN')}
                     </div>
-                    <div className="text-[11px] text-outline">收入</div>
+                    <div className="text-[0.7857rem] text-outline">收入</div>
                   </div>
                   <div className="rounded-lg bg-surface-container-low/60 py-2">
-                    <div className="text-[13px] font-bold text-danger">
+                    <div className="text-[0.9286rem] font-bold text-danger">
                       -¥{st.expense.toLocaleString('zh-CN')}
                     </div>
-                    <div className="text-[11px] text-outline">支出</div>
+                    <div className="text-[0.7857rem] text-outline">支出</div>
                   </div>
                   <div className="rounded-lg bg-surface-container-low/60 py-2">
-                    <div className="text-[13px] font-bold text-primary">{st.openTodos}</div>
-                    <div className="text-[11px] text-outline">进行中待办</div>
+                    <div className="text-[0.9286rem] font-bold text-primary">{st.openTodos}</div>
+                    <div className="text-[0.7857rem] text-outline">进行中待办</div>
                   </div>
                 </div>
               </Card>

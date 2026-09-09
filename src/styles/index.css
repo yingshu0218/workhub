@@ -120,11 +120,11 @@ body {
 }
 
 .input {
-  @apply w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-[13.5px] outline-none transition-shadow focus:border-primary focus:shadow-[0_0_0_3px_rgba(37,99,235,0.15)];
+  @apply w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-[0.9643rem] outline-none transition-shadow focus:border-primary focus:shadow-[0_0_0_3px_rgba(37,99,235,0.15)];
 }
 
 .nav-item {
-  @apply flex items-center gap-1.5 rounded-lg border border-outline-variant/60 px-3 text-[12px] text-on-surface-variant transition-colors hover:border-primary hover:text-primary;
+  @apply flex items-center gap-1.5 rounded-lg border border-outline-variant/60 px-3 text-[0.8571rem] text-on-surface-variant transition-colors hover:border-primary hover:text-primary;
 }
 
 .list-row {
@@ -154,7 +154,7 @@ body {
 }
 
 .section-title {
-  @apply text-[15px] font-semibold;
+  @apply text-[1.0714rem] font-semibold;
 }
 
 /* Material Symbols 对齐 */
