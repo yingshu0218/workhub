@@ -360,7 +360,9 @@ export const DEFAULT_SETTINGS: Settings = {
     accent: 'blue',
     radius: 'medium',
     density: 'comfortable',
-    style: 'none',
+    // Issue #54：style 不进 DEFAULT，缺省=「未手动选过风格」，
+    // effects.ts 据此回退主题 recommendStyle（迁移桥），老用户零感知；
+    // 用户一旦在设置页显式选风格（含 none）即持久化覆盖。
   },
   typography: { fontSize: 14, lineHeight: 1.6 },
   notifications: {

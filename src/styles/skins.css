@@ -4,7 +4,8 @@
    描边 / 阴影 / 标题字体 / 背景纹理，通过 <html data-skin="..."> 挂载。
    皮肤不写任何 radius 字面值（圆角一律引用 var(--radius-lg)，
    由配色侧 radius 档位控制）；不碰 --color-* / --font-sans（正文排版通道）。
-   皮肤由 theme.ts 中 ThemeStylePreset.skin 推荐挂载，默认 none 零命中。
+   Issue #54 起皮肤由 settings.appearance.style（SKIN_STYLES）独立持久化挂载，
+   未手动选风格的用户回退 ThemeStylePreset.recommendStyle 作迁移桥，默认 none 零命中。
    ===================================================================== */
 
 /* 皮肤形态 token 默认值（none 状态 = 现代默认，保持视觉零变化） */
