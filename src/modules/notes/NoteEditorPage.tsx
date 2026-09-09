@@ -6,7 +6,7 @@ import { noteRepo } from '@/repositories'
 import type { Note, NoteMention } from '@/db/types'
 import type { Customer, Ledger, Todo, Project } from '@/db/types'
 import { Button, Card, Chip, EmptyState } from '@/design-system/ui'
-import { MatchCombobox } from '@/design-system/MatchCombobox'
+import { archivedLast, fuzzyMatch, fuzzySort, MatchCombobox } from '@/design-system/MatchCombobox'
 import dayjs from 'dayjs'
 import { EditorState } from '@codemirror/state'
 import { EditorView, keymap, lineNumbers, placeholder } from '@codemirror/view'
@@ -35,7 +35,15 @@ interface MentionItem {
   sub: string
   /** 项目候选拓展位：命中对象透传给联动逻辑（selectProject 后切 Tab） */
   project?: Project
+  /** 归档标记（项目已归档）：候选项排序沉底 */
+  archived?: boolean
 }
+
+/** 悬浮卡片状态（Issue #50）：编辑态点击关联主体/反向链接时弹出，不离开编辑器 */
+type HoverCardState =
+  | null
+  | { kind: 'mention'; type: MentionType; eid: string; label: string }
+  | { kind: 'backlink'; noteId: string; title: string }
 
 /** @提及浮层/关联弹窗共用的 tab 维度：四类实体 + projectTab 联动锚点（Issue #50） */
 type MentionsTab = MentionType | 'projectTab'
@@ -244,6 +252,10 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
   const [mentionTab, setMentionTab] = useState<MentionsTab>('customer')
   // 浮层是否切换到「项目选择」视图（编辑态下不打断写作流，直接选关联项目）
   const [panelProject, setPanelProject] = useState(false)
+  // 浮层键盘高亮项（↑↓ 移动 / Enter 选中；候选列表变化时由 mentionItems 计算处收敛范围）
+  const [activeIdx, setActiveIdx] = useState(0)
+  // Issue #50 悬浮卡片：编辑态点击关联主体/反向链接不再跳转，就地弹卡展示摘要
+  const [hoverCard, setHoverCard] = useState<HoverCardState>(null)
 
   const noteRef = useRef(note)
   noteRef.current = note
@@ -258,6 +270,7 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
   const panelRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const handleMentionNavRef = useRef<(key: string) => boolean>(() => false)
   const dirtyRef = useRef(false)
 
   // ===== 自动保存：停顿 800ms 防抖 noteRepo.put =====
@@ -380,8 +393,10 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
   }
 
   const mentionItems = useMemo<MentionItem[]>(() => {
-    const kw = mention?.query.trim().toLowerCase() ?? ''
-    const match = (label: string) => !kw || label.toLowerCase().includes(kw)
+    const kw = mention?.query.trim() ?? ''
+    // Issue #50 模糊匹配：label 主匹配 + sub 次要文案参与匹配范围（仅命中判定，不参与排序权重），
+    // 复用 MatchCombobox 的 fuzzyMatch（子串 + 子序列）与 fuzzySort（前缀 > 子串 > 子序列，同质量稳定）
+    const match = (it: MentionItem) => !kw || fuzzyMatch(it.label, kw) || fuzzyMatch(it.sub, kw)
     return [
       ...customers.map<MentionItem>((c) => ({
         type: 'customer',
@@ -407,9 +422,54 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
         label: p.name,
         sub: p.status === 'archived' ? '已归档' : p.status === 'paused' ? '已搁置' : '进行中',
         project: p,
+        archived: p.status === 'archived',
       })),
-    ].filter((it) => it.type === mentionTab && match(it.label))
+    ].filter((it) => it.type === mentionTab && match(it))
   }, [customers, todos, ledgers, mentionProjects, mentionTab, mention?.query])
+
+  // 筛选结果先按匹配质量排序，再让归档项目沉底（fuzzySort 按 label 质量排序，同质量保持原顺序）
+  const sortedMentionItems = useMemo(
+    () => archivedLast(fuzzySort(mentionItems, (it) => it.label, mention?.query.trim() ?? '')),
+    [mentionItems, mention?.query],
+  )
+  // 候选数量变化时收敛键盘高亮范围（切 Tab / 关浮层 / 输入过滤）
+  const listLen = sortedMentionItems.length
+  useEffect(() => {
+    setActiveIdx((i) => Math.min(i, Math.max(0, listLen - 1)))
+  }, [listLen, mentionTab])
+
+  const safeActiveIdx = Math.min(activeIdx, Math.max(0, sortedMentionItems.length - 1))
+
+  /**
+   * 浮层键盘导航：↑↓ 移动高亮项、Enter 插入当前高亮候选、Esc 关闭。
+   * 返回是否已处理：CodeMirror keymap 据此拦截按键（防止光标移动把浮层关掉）；
+   * document 级监听兜底处理焦点不在编辑器时的按键（已 preventDefault 的事件跳过防二次触发）。
+   */
+  function handleMentionNav(key: string): boolean {
+    if (!mentionRef.current) return false
+    if (key === 'Escape') {
+      closeMention()
+      return true
+    }
+    if (panelProject) return false
+    const len = sortedMentionItems.length
+    if (len === 0) return true
+    if (key === 'ArrowDown') {
+      setActiveIdx((safeActiveIdx + 1) % len)
+      return true
+    }
+    if (key === 'ArrowUp') {
+      setActiveIdx((safeActiveIdx - 1 + len) % len)
+      return true
+    }
+    if (key === 'Enter') {
+      const item = sortedMentionItems[safeActiveIdx]
+      if (item) selectMentionItem(item)
+      return true
+    }
+    return false
+  }
+  handleMentionNavRef.current = handleMentionNav
 
   // ===== CodeMirror 初始化（仅编辑态挂载，退出编辑即销毁，卸载前 flush 兜底已覆盖） =====
   useEffect(() => {
@@ -427,6 +487,13 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
           markdown(),
           syntaxHighlighting(defaultHighlightStyle),
           history(),
+          // 浮层键盘导航（Issue #50）：置于 defaultKeymap 之前拦截 ↑↓/Enter/Esc，光标不再移动、浮层不被误关
+          keymap.of([
+            { key: 'ArrowDown', run: () => handleMentionNavRef.current('ArrowDown') },
+            { key: 'ArrowUp', run: () => handleMentionNavRef.current('ArrowUp') },
+            { key: 'Enter', run: () => handleMentionNavRef.current('Enter') },
+            { key: 'Escape', run: () => handleMentionNavRef.current('Escape') },
+          ]),
           keymap.of([...defaultKeymap, ...historyKeymap]),
           EditorView.theme({
             '&': { height: '100%', fontSize: '13px' },
@@ -469,6 +536,7 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
                   y: (coords?.bottom ?? 200) + 6,
                 })
                 setMentionTab('customer')
+                setActiveIdx(0)
                 return
               }
               // 浮层已开：光标后的输入即筛选词；出现空白/超长即关闭
@@ -478,7 +546,10 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
                 } else {
                   const q = u.state.doc.sliceString(m.from + 1, pos)
                   if (q.length > 24 || /[\s@]/.test(q)) closeMention()
-                  else setMention({ ...m, query: q })
+                  else {
+                    setMention({ ...m, query: q })
+                    setActiveIdx(0) // 筛选词变化后高亮回到首位，Enter 语义符合直觉
+                  }
                 }
               }
             } else if (m && (pos <= m.from || pos > m.from + 1 + m.query.length)) {
@@ -505,7 +576,9 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
       closeMention()
     }
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') closeMention()
+      // CodeMirror keymap 已处理（preventDefault）的事件不再重复响应；IME 组合输入期间不触发选择
+      if (e.defaultPrevented || e.isComposing) return
+      handleMentionNavRef.current(e.key)
     }
     document.addEventListener('mousedown', onDown)
     document.addEventListener('keydown', onKey)
@@ -514,6 +587,25 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
       document.removeEventListener('keydown', onKey)
     }
   }, [mention])
+
+  // 悬浮卡片打开时：点击外部 / Esc 关闭（面板内 mousedown 阻止默认，不抢 CodeMirror 焦点）
+  const hoverCardRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!hoverCard) return
+    const onDown = (e: MouseEvent) => {
+      if (hoverCardRef.current?.contains(e.target as Node)) return
+      setHoverCard(null)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setHoverCard(null)
+    }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [hoverCard])
 
   // ===== 标签编辑（逗号分隔） =====
   function addTagsFromInput(v: string) {
@@ -742,7 +834,11 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
               {backlinks.map((b) => (
                 <button
                   key={b.id}
-                  onClick={() => navigate(`/notes/${b.id}`)}
+                  onClick={() => {
+                    // 编辑态弹悬浮卡片保持编辑现场；查看态直接跳转
+                    if (editing) setHoverCard({ kind: 'backlink', noteId: b.id, title: b.title })
+                    else navigate(`/notes/${b.id}`)
+                  }}
                   className="flex w-full items-center gap-1.5 surface-card px-2.5 py-1.5 text-left text-[12px] transition-colors hover:border-primary"
                 >
                   <Icon name="link" className="shrink-0 text-[14px] text-primary" />
@@ -788,9 +884,16 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
               {note.mentions.map((m) => (
                 <button
                   key={`${m.type}:${m.id}`}
-                  onClick={() => navigate(jumpTarget[m.type](m.id))}
+                  onClick={() => {
+                    // 编辑态弹悬浮卡片保持编辑现场；查看态直接跳转
+                    if (editing)
+                      setHoverCard({ kind: 'mention', type: m.type, eid: m.id, label: m.label })
+                    else navigate(jumpTarget[m.type](m.id))
+                  }}
                   className="flex w-full items-center gap-1.5 surface-card px-2.5 py-1.5 text-left text-[12px] transition-colors hover:border-primary"
-                  title={`跳转${TYPE_META[m.type].tab}`}
+                  title={
+                    editing ? `查看${TYPE_META[m.type].tab}摘要` : `跳转${TYPE_META[m.type].tab}`
+                  }
                 >
                   <span className={`md-mention ${TYPE_META[m.type].cls}`}>@</span>
                   <span className="truncate">{m.label}</span>
@@ -800,6 +903,80 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
           )}
         </div>
       </div>
+
+      {/* 悬浮卡片（Issue #50）：编辑态点击关联主体/反向链接就地弹卡，不打断写作 */}
+      {hoverCard && (
+        <div className="fixed inset-0 z-40" onMouseDown={(e) => e.preventDefault()}>
+          <div
+            ref={hoverCardRef}
+            className="fixed right-[17.5rem] top-1/3 w-72 surface-card-xl p-4 shadow-[0_8px_28px_rgba(0,0,0,0.18)]"
+          >
+            <div className="mb-2 flex items-start justify-between gap-2">
+              <div className="flex min-w-0 items-center gap-1.5">
+                {hoverCard.kind === 'mention' ? (
+                  <span className={`md-mention ${TYPE_META[hoverCard.type].cls}`}>
+                    @{hoverCard.label}
+                  </span>
+                ) : (
+                  <>
+                    <Icon name="link" size={14} className="shrink-0 text-primary" />
+                    <span className="truncate text-[13px] font-medium">{hoverCard.title}</span>
+                  </>
+                )}
+              </div>
+              <button
+                className="shrink-0 rounded p-0.5 text-outline transition-colors hover:bg-surface-container-high hover:text-on-surface"
+                title="关闭"
+                onClick={() => setHoverCard(null)}
+              >
+                <Icon name="close" size={15} />
+              </button>
+            </div>
+            <div className="mb-3 border-t border-outline-variant/40 pt-2">
+              {hoverCard.kind === 'mention' ? (
+                <MentionEntitySummary
+                  type={hoverCard.type}
+                  eid={hoverCard.eid}
+                  customers={customers}
+                  todos={todos}
+                  ledgers={ledgers}
+                  projects={mentionProjects}
+                />
+              ) : (
+                (() => {
+                  const target = backlinks.find((b) => b.id === hoverCard.noteId)
+                  if (!target) return <EntityMissing name="笔记" />
+                  return (
+                    <>
+                      <CardRow label="标题" value={target.title || '未命名笔记'} />
+                      <CardRow
+                        label="更新于"
+                        value={dayjs(target.updatedAt).format('YYYY-MM-DD HH:mm')}
+                      />
+                    </>
+                  )
+                })()
+              )}
+            </div>
+            <Button
+              size="sm"
+              icon="open_in_new"
+              className="w-full"
+              onClick={() => {
+                const target = hoverCard
+                setHoverCard(null)
+                navigate(
+                  target.kind === 'mention'
+                    ? jumpTarget[target.type](target.eid)
+                    : `/notes/${target.noteId}`,
+                )
+              }}
+            >
+              打开详情
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* @提及浮层（客户 / 待办 / 账本 三类 tab） */}
       {mention && (
@@ -873,22 +1050,32 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
             </div>
           ) : (
             <div className="max-h-60 overflow-y-auto p-1">
-              {mentionItems.length === 0 ? (
+              {sortedMentionItems.length === 0 ? (
                 <div className="px-3 py-4 text-center text-[12px] text-outline">无匹配项</div>
               ) : (
-                mentionItems.map((it) => (
+                sortedMentionItems.map((it, i) => (
                   <button
                     key={it.id}
-                    className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-surface-container-low"
+                    className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left transition-colors ${
+                      i === safeActiveIdx
+                        ? 'bg-primary-fixed text-primary'
+                        : 'hover:bg-surface-container-low'
+                    }`}
                     onClick={() => selectMentionItem(it)}
+                    onMouseEnter={() => setActiveIdx(i)}
                   >
                     <span className={`md-mention ${TYPE_META[it.type].cls}`}>@</span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[13px] font-medium">{it.label}</span>
+                      <span className="block truncate text-[13px] font-medium">
+                        <MentionHighlight label={it.label} query={mention?.query ?? ''} />
+                      </span>
                       {it.sub && (
                         <span className="block truncate text-[11px] text-outline">{it.sub}</span>
                       )}
                     </span>
+                    {i === safeActiveIdx && (
+                      <span className="shrink-0 text-[10px] text-primary">↵</span>
+                    )}
                   </button>
                 ))
               )}
@@ -896,6 +1083,109 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+/** 关键词命中片段高亮：仅纯前缀/包含段加粗着色，未命中原文返回 */
+function MentionHighlight({ label, query }: { label: string; query: string }) {
+  const kw = query.trim()
+  if (!kw) return <>{label}</>
+  const idx = label.toLowerCase().indexOf(kw.toLowerCase())
+  if (idx < 0) return <>{label}</>
+  return (
+    <>
+      {label.slice(0, idx)}
+      <span className="font-semibold text-primary">{label.slice(idx, idx + kw.length)}</span>
+      {label.slice(idx + kw.length)}
+    </>
+  )
+}
+
+/** 悬浮卡片实体摘要（按提及类型），数据缺失（实体已删）显示「已失效」占位 */
+function MentionEntitySummary({
+  type,
+  eid,
+  customers,
+  todos,
+  ledgers,
+  projects,
+}: {
+  type: MentionType
+  eid: string
+  customers: Customer[]
+  todos: Todo[]
+  ledgers: Ledger[]
+  projects: Project[]
+}) {
+  if (type === 'customer') {
+    const c = customers.find((x) => x.id === eid)
+    if (!c) return <EntityMissing name="客户" />
+    return (
+      <>
+        <CardRow label="公司" value={c.company || '—'} />
+        <CardRow label="职位" value={c.title || '—'} />
+        <CardRow label="阶段" value={c.stage || '—'} />
+        <CardRow label="健康度" value={`${c.healthScore}`} />
+      </>
+    )
+  }
+  if (type === 'todo') {
+    const t = todos.find((x) => x.id === eid)
+    if (!t) return <EntityMissing name="待办" />
+    return (
+      <>
+        <CardRow
+          label="状态"
+          value={t.status === 'done' ? '已完成' : t.status === 'doing' ? '进行中' : '待处理'}
+        />
+        <CardRow label="优先级" value={t.priority} />
+        <CardRow label="截止" value={t.dueAt ? dayjs(t.dueAt).format('YYYY-MM-DD') : '无'} />
+      </>
+    )
+  }
+  if (type === 'ledger') {
+    const l = ledgers.find((x) => x.id === eid)
+    if (!l) return <EntityMissing name="账本" />
+    return (
+      <>
+        <CardRow label="币种" value={l.currency} />
+        <CardRow label="期初余额" value={String(l.openingBalance)} />
+        <CardRow label="封账周期" value={l.closingCycle} />
+      </>
+    )
+  }
+  const pj = projects.find((x) => x.id === eid)
+  if (!pj) return <EntityMissing name="项目" />
+  return (
+    <>
+      <CardRow
+        label="状态"
+        value={pj.status === 'archived' ? '已归档' : pj.status === 'paused' ? '已搁置' : '进行中'}
+      />
+      {pj.customerId && (
+        <CardRow
+          label="挂靠客户"
+          value={customers.find((c) => c.id === pj.customerId)?.name ?? '—'}
+        />
+      )}
+    </>
+  )
+}
+
+function CardRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 py-0.5">
+      <span className="shrink-0 text-[11px] text-outline">{label}</span>
+      <span className="min-w-0 truncate text-right text-[12px] text-on-surface">{value}</span>
+    </div>
+  )
+}
+
+function EntityMissing({ name }: { name: string }) {
+  return (
+    <div className="flex items-center gap-1.5 text-[12px] text-outline">
+      <Icon name="person_off" size={14} />原{name}已删除或不存在
     </div>
   )
 }

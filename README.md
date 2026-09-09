@@ -93,3 +93,4 @@
 | 42 | 2026-09-08 | Issue #20 表单关联字段模糊输入匹配：财务抽屉私有 MatchCombobox 提升为 design-system 共享组件（含 fuzzyMatch/fuzzySort/archivedLast 工具与归档沉底），统一替换 8 处实体关联字段（TodoPage 清单/项目/客户、财务关联项目、项目挂靠客户、笔记所属项目、客户新建关联交易去 50 条截断、dashboard 专注卡选待办）；修复不存在图标 block→person_off、客户 label 统一「公司 · 姓名」、编辑态已完成待办回显 | npc/CodeBuddy(glm-5.3-flash) |
 | 43 | 2026-09-08 | Issue #44 新建待办无反馈修复：TodoFormDrawer 新增 onSaved 回调，新建保存后若条目不在当前视图（默认「今天」仅显示当日截止项）则自动切换到「全部待办」，消除"保存成功但列表看不到"的错觉 | npc/CodeBuddy(glm-5.3-flash) |
 | 44 | 2026-09-08 | Issue #34 客户亲密度体系落地：Customer.intimacy 手动 7 档（T1~T5 信任轴 + I6/I7 隔离态，隔离态降级留痕）+ 算法兜底 4 因子加权（手动最优先）；moduleConfigs 同步表（Dexie v9 + module_configs 集合）承载等级名称/黑名单屏蔽开关/算法权重阈值配置；设置页新增「数据管理」Tab；customer-only 图谱按亲密度档位渲染节点大小与图例、黑名单默认图谱隐藏 | npc/CodeBuddy(glm-5.3-flash) |
+| 45 | 2026-09-08 | Issue #50 笔记关联体验升级：@提及浮层复用 fuzzyMatch/fuzzySort 模糊匹配（子串>子序列排序、sub 参与匹配、归档沉底）+ ↑↓/Enter 键盘导航 + 命中高亮；编辑态点击关联主体/反向链接改悬浮卡片就地看摘要（实体已删显示占位，「打开详情」保留深链跳转），查看态维持直接跳转 | npc/CodeBuddy(glm-5.3-flash) |
