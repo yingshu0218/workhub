@@ -1689,6 +1689,15 @@
        "type": "number"
      },
      {
+       "name": "name",
+       "type": "text",
+       "required": true
+     },
+     {
+       "name": "sortOrder",
+       "type": "number"
+     },
+     {
        "name": "server_received_at",
        "type": "autodate",
        "onCreate": true,
