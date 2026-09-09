@@ -55,19 +55,19 @@ h4,
 }
 
 :root[data-skin='pixel'] .btn-primary {
-  border: 2px solid var(--color-on-surface);
+  border: var(--skin-border-width) solid var(--color-on-surface);
   border-radius: 0;
   box-shadow: var(--skin-shadow-btn);
 }
 
 :root[data-skin='pixel'] .btn-ghost {
-  border: 2px solid var(--skin-border-color);
+  border: var(--skin-border-width) solid var(--skin-border-color);
   border-radius: 0;
 }
 
 :root[data-skin='pixel'] .input {
   border-radius: 0;
-  border: 2px solid var(--color-on-surface);
+  border: var(--skin-border-width) solid var(--color-on-surface);
 }
 
 /* 密排元素弱化变体：细描边、无硬投影（表格行/列表行/输入类内嵌元素） */
@@ -193,16 +193,17 @@ h4,
   --skin-shadow-dialog: 0 0 24px 0 color-mix(in srgb, var(--color-primary) 30%, transparent);
 }
 
-:root[data-skin='cyber'] [class*='bg-surface-container'][class*='rounded-xl'],
-:root[data-skin='cyber'] [class*='bg-surface-container'][class*='rounded-2xl'],
-:root[data-skin='cyber'] [class*='bg-surface-container'][class*='border'][class*='rounded-'] {
+:root[data-skin='cyber'] [class*='bg-surface-container'][class~='rounded-xl'],
+:root[data-skin='cyber'] [class*='bg-surface-container'][class~='rounded-2xl'],
+:root[data-skin='cyber'] [class*='bg-surface-container'][class~='border'][class~='rounded-xl'],
+:root[data-skin='cyber'] [class*='bg-surface-container'][class~='border'][class~='rounded-2xl'] {
   border: var(--skin-border-width) solid var(--skin-border-color);
   border-radius: var(--skin-card-radius);
   box-shadow: var(--skin-shadow-card);
 }
 
-:root[data-skin='cyber'] [class*='bg-surface-container'][class*='shadow-2xl'],
-:root[data-skin='cyber'] [class*='bg-surface-container'][class*='shadow-[0_24px'] {
+:root[data-skin='cyber'] [class*='bg-surface-container'][class*='shadow'][class*='shadow-2xl'],
+:root[data-skin='cyber'] [class*='bg-surface-container'][class*='shadow'][class*='shadow-[0_24px'] {
   border: var(--skin-border-width) solid var(--skin-border-color);
   border-radius: var(--skin-card-radius);
   box-shadow: var(--skin-shadow-dialog);
@@ -216,7 +217,10 @@ h4,
 :root[data-skin='cyber'] h1,
 :root[data-skin='cyber'] h2,
 :root[data-skin='cyber'] h3,
-:root[data-skin='cyber'] h4 {
+:root[data-skin='cyber'] h4,
+:root[data-skin='cyber'] .section-title {
+  font-family: var(--skin-heading-font);
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
@@ -236,6 +240,7 @@ h4,
   --skin-border-width: 1px;
   --skin-border-color: color-mix(in srgb, var(--color-outline-variant) 30%, transparent);
   --skin-card-bg: color-mix(in srgb, var(--color-surface-container-lowest) 55%, transparent);
+  --skin-input-bg: color-mix(in srgb, var(--color-surface-container-lowest) 65%, transparent);
   --skin-card-radius: calc(var(--radius-lg) * 2);
   --skin-shadow-card: 0 8px 24px rgba(0, 0, 0, 0.08);
   --skin-shadow-hover: 0 12px 32px rgba(0, 0, 0, 0.12);
@@ -282,13 +287,14 @@ h4,
 
 :root[data-skin='glass'] .input {
   border-radius: calc(var(--radius-lg) * 2);
-  background: color-mix(in srgb, var(--color-surface-container-lowest) 65%, transparent);
+  background: var(--skin-input-bg);
 }
 
 /* 裸面板兜底：玻璃拟态穿透弹窗/浮层/信息卡 */
-:root[data-skin='glass'] [class*='bg-surface-container'][class*='rounded-xl'],
-:root[data-skin='glass'] [class*='bg-surface-container'][class*='rounded-2xl'],
-:root[data-skin='glass'] [class*='bg-surface-container'][class*='border'][class*='rounded-'] {
+:root[data-skin='glass'] [class*='bg-surface-container'][class~='rounded-xl'],
+:root[data-skin='glass'] [class*='bg-surface-container'][class~='rounded-2xl'],
+:root[data-skin='glass'] [class*='bg-surface-container'][class~='border'][class~='rounded-xl'],
+:root[data-skin='glass'] [class*='bg-surface-container'][class~='border'][class~='rounded-2xl'] {
   background: var(--skin-card-bg);
   backdrop-filter: blur(12px) saturate(1.4);
   -webkit-backdrop-filter: blur(12px) saturate(1.4);
@@ -297,8 +303,8 @@ h4,
   box-shadow: var(--skin-shadow-card);
 }
 
-:root[data-skin='glass'] [class*='bg-surface-container'][class*='shadow-2xl'],
-:root[data-skin='glass'] [class*='bg-surface-container'][class*='shadow-[0_24px'] {
+:root[data-skin='glass'] [class*='bg-surface-container'][class*='shadow'][class*='shadow-2xl'],
+:root[data-skin='glass'] [class*='bg-surface-container'][class*='shadow'][class*='shadow-[0_24px'] {
   background: var(--skin-card-bg);
   backdrop-filter: blur(12px) saturate(1.4);
   -webkit-backdrop-filter: blur(12px) saturate(1.4);
@@ -307,10 +313,11 @@ h4,
   box-shadow: var(--skin-shadow-dialog);
 }
 
-/* 玻璃拟态下深浅模式对比度兜底：深色侧提升卡片不透明度 */
-.dark[data-skin='glass'] .surface-card,
-:root.dark[data-skin='glass'] .card {
-  background: color-mix(in srgb, var(--color-surface-container-lowest) 78%, transparent);
+/* 玻璃拟态深色对比度兜底：token 级提升卡面/输入/弹窗不透明度，
+   同时作用于语义类与裸面板兜底选择器（弹窗/浮层在深色下可读） */
+:root.dark[data-skin='glass'] {
+  --skin-card-bg: color-mix(in srgb, var(--color-surface-container-lowest) 80%, transparent);
+  --skin-input-bg: color-mix(in srgb, var(--color-surface-container-lowest) 80%, transparent);
 }
 
 /* ---- 童趣贴纸 cartoon：胶囊按钮（对齐参考图 1） ---- */
@@ -319,16 +326,17 @@ h4,
   --skin-shadow-dialog: 0 12px 32px rgba(0, 0, 0, 0.18);
 }
 
-:root[data-skin='cartoon'] [class*='bg-surface-container'][class*='rounded-xl'],
-:root[data-skin='cartoon'] [class*='bg-surface-container'][class*='rounded-2xl'],
-:root[data-skin='cartoon'] [class*='bg-surface-container'][class*='border'][class*='rounded-'] {
+:root[data-skin='cartoon'] [class*='bg-surface-container'][class~='rounded-xl'],
+:root[data-skin='cartoon'] [class*='bg-surface-container'][class~='rounded-2xl'],
+:root[data-skin='cartoon'] [class*='bg-surface-container'][class~='border'][class~='rounded-xl'],
+:root[data-skin='cartoon'] [class*='bg-surface-container'][class~='border'][class~='rounded-2xl'] {
   border: var(--skin-border-width) solid var(--skin-border-color);
   border-radius: var(--skin-card-radius);
   box-shadow: var(--skin-shadow-card);
 }
 
-:root[data-skin='cartoon'] [class*='bg-surface-container'][class*='shadow-2xl'],
-:root[data-skin='cartoon'] [class*='bg-surface-container'][class*='shadow-[0_24px'] {
+:root[data-skin='cartoon'] [class*='bg-surface-container'][class*='shadow'][class*='shadow-2xl'],
+:root[data-skin='cartoon'] [class*='bg-surface-container'][class*='shadow'][class*='shadow-[0_24px'] {
   border: var(--skin-border-width) solid var(--skin-border-color);
   border-radius: var(--skin-card-radius);
   box-shadow: var(--skin-shadow-dialog);
@@ -364,19 +372,23 @@ h4,
 
 /* ---- 裸 Tailwind 面板兜底（Issue #54 红线 D）：造型语言穿透语义类之外的裸面板 ----
    皮肤层补刀选择器，双锚定「surface 面板底 + 大圆角/border/shadow 面板形态」，
-   覆盖弹窗、浮层、信息卡等未迁移语义类的裸 Tailwind 面板；
-   锚定条件排除 kbd/icon 按钮/进度条/头像等小组件，避免误伤。
+   覆盖弹窗、浮层、信息卡等未迁移语义类的裸 Tailwind 面板。
+   border/rounded 用 [class~=] token 级匹配：只命中完整类名 border / rounded-xl / rounded-2xl，
+   排除 border-t/r/b/l 单侧描边、rounded-t-*/rounded-b-* 单侧圆角与 rounded-full chip，
+   避免误伤侧栏、分段头、图标按钮、胶囊徽章等小组件。
+   dialog 档多锚一层 shadow 并置于其后：带 border 的弹窗命中弹窗阴影而非卡片阴影。
    none 皮肤不含本段，默认形态零变化。 */
-:root[data-skin='pixel'] [class*='bg-surface-container'][class*='rounded-xl'],
-:root[data-skin='pixel'] [class*='bg-surface-container'][class*='rounded-2xl'],
-:root[data-skin='pixel'] [class*='bg-surface-container'][class*='border'][class*='rounded-'] {
+:root[data-skin='pixel'] [class*='bg-surface-container'][class~='rounded-xl'],
+:root[data-skin='pixel'] [class*='bg-surface-container'][class~='rounded-2xl'],
+:root[data-skin='pixel'] [class*='bg-surface-container'][class~='border'][class~='rounded-xl'],
+:root[data-skin='pixel'] [class*='bg-surface-container'][class~='border'][class~='rounded-2xl'] {
   border: var(--skin-border-width) solid var(--skin-border-color);
   border-radius: 0;
   box-shadow: var(--skin-shadow-card);
 }
 
-:root[data-skin='pixel'] [class*='bg-surface-container'][class*='shadow-2xl'],
-:root[data-skin='pixel'] [class*='bg-surface-container'][class*='shadow-[0_24px'] {
+:root[data-skin='pixel'] [class*='bg-surface-container'][class*='shadow'][class*='shadow-2xl'],
+:root[data-skin='pixel'] [class*='bg-surface-container'][class*='shadow'][class*='shadow-[0_24px'] {
   border: var(--skin-border-width) solid var(--skin-border-color);
   border-radius: 0;
   box-shadow: var(--skin-shadow-dialog);
