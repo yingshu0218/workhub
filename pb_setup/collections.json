@@ -1649,5 +1649,76 @@
    "CREATE INDEX idx_module_configs_updatedAt ON module_configs (updatedAt)",
    "CREATE INDEX idx_module_configs_tombstonePushed ON module_configs (tombstonePushed)"
   ]
+ },
+ {
+   "name": "customerGroups",
+   "type": "base",
+   "system": false,
+   "listRule": "@request.auth.id != ''",
+   "viewRule": "@request.auth.id != ''",
+   "createRule": "@request.auth.id != ''",
+   "updateRule": "@request.auth.id != ''",
+   "deleteRule": "@request.auth.id != ''",
+   "fields": [
+     {
+       "name": "id",
+       "type": "text",
+       "primaryKey": true,
+       "required": true,
+       "autogeneratePattern": ""
+     },
+     {
+       "name": "localId",
+       "type": "text",
+       "required": true
+     },
+     {
+       "name": "createdAt",
+       "type": "number"
+     },
+     {
+       "name": "updatedAt",
+       "type": "number"
+     },
+     {
+       "name": "deleted",
+       "type": "bool"
+     },
+     {
+       "name": "rev",
+       "type": "number"
+     },
+     {
+       "name": "server_received_at",
+       "type": "autodate",
+       "onCreate": true,
+       "onUpdate": false
+     },
+     {
+       "name": "tombstonePushed",
+       "type": "number",
+       "required": false,
+       "presentable": false
+     },
+     {
+       "name": "includeTags",
+       "type": "json",
+       "maxSize": 2000000
+     },
+     {
+       "name": "excludeTags",
+       "type": "json",
+       "maxSize": 2000000
+     },
+     {
+       "name": "rules",
+       "type": "json",
+       "maxSize": 2000000
+     }
+   ],
+   "indexes": [
+     "CREATE UNIQUE INDEX idx_customerGroups_localId ON customerGroups (localId)",
+     "CREATE INDEX idx_customerGroups_tombstonePushed ON customerGroups (tombstonePushed)"
+   ]
  }
 ]
