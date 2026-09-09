@@ -101,7 +101,7 @@ export default function ProjectsPage() {
               <Card key={p.id} hover onClick={() => navigate(`/projects/${p.id}`)} className="p-5">
                 <div className="flex items-start gap-3">
                   <span
-                    className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] text-white"
+                    className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-white"
                     style={{ background: p.color }}
                   >
                     <Icon name="hub" size={18} />

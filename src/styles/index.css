@@ -33,9 +33,6 @@
   --font-sans:
     'Inter', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
 
-  --radius-card: 8px;
-  --radius-xl-card: 12px;
-
   /* Issue #54 半径治理：语义类圆角全部引用 --radius-* 档位变量，
      运行时由 effects.ts 按圆角档位全量覆盖（md/lg/xl/2xl 联动） */
   --radius-md: 6px;
@@ -101,11 +98,16 @@ body {
 }
 
 .surface-card-low {
-  @apply rounded-lg border border-outline-variant/40 bg-surface-container-low;
+  @apply border border-outline-variant/40 bg-surface-container-low;
+  border-radius: var(--skin-card-radius, var(--radius-lg));
 }
 
 .surface-card-xl {
-  @apply rounded-xl border border-outline-variant/40 bg-surface-container-lowest;
+  @apply border border-outline-variant/40 bg-surface-container-lowest;
+  border-width: var(--skin-border-width, 1px);
+  border-color: var(--skin-border-color, rgba(0, 0, 0, 0));
+  border-radius: var(--skin-card-radius, var(--radius-xl));
+  box-shadow: var(--skin-shadow-card, 0 1px 3px rgba(0, 0, 0, 0.05));
 }
 
 .btn-primary {
@@ -131,6 +133,24 @@ body {
 
 .list-row-plain {
   @apply flex items-center justify-between rounded-lg border border-outline-variant/40 px-3 py-2;
+}
+
+/* Issue #54 D 缺口收敛：面板层级补档，供裸 Tailwind 面板迁移 +
+   皮肤层兜底选择器锚定，让造型语言穿透弹窗/浮层/信息卡 */
+.surface-card-high {
+  @apply border border-outline-variant/40 bg-surface-container-high;
+  border-width: var(--skin-border-width, 1px);
+  border-color: var(--skin-border-color, rgba(0, 0, 0, 0));
+  border-radius: var(--skin-card-radius, var(--radius-lg));
+  box-shadow: var(--skin-shadow-card, none);
+}
+
+.surface-card-dialog {
+  @apply border border-outline-variant/40 bg-surface-container-lowest;
+  border-width: var(--skin-border-width, 1px);
+  border-color: var(--skin-border-color, rgba(0, 0, 0, 0));
+  border-radius: var(--skin-card-radius, var(--radius-2xl));
+  box-shadow: var(--skin-shadow-dialog, 0 24px 64px rgba(0, 0, 0, 0.24));
 }
 
 .section-title {

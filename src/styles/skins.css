@@ -15,6 +15,7 @@
   --skin-shadow-card: 0 1px 3px rgba(0, 0, 0, 0.05);
   --skin-shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.08);
   --skin-shadow-btn: none;
+  --skin-shadow-dialog: 0 24px 64px rgba(0, 0, 0, 0.24);
   --skin-heading-font: inherit;
   --skin-heading-spacing: 0;
   --skin-card-radius: var(--radius-lg);
@@ -189,6 +190,22 @@ h4,
     calc(100% - 10px) 100%, 0 100%, 0 10px
   );
   --skin-card-radius: 0;
+  --skin-shadow-dialog: 0 0 24px 0 color-mix(in srgb, var(--color-primary) 30%, transparent);
+}
+
+:root[data-skin='cyber'] [class*='bg-surface-container'][class*='rounded-xl'],
+:root[data-skin='cyber'] [class*='bg-surface-container'][class*='rounded-2xl'],
+:root[data-skin='cyber'] [class*='bg-surface-container'][class*='border'][class*='rounded-'] {
+  border: var(--skin-border-width) solid var(--skin-border-color);
+  border-radius: var(--skin-card-radius);
+  box-shadow: var(--skin-shadow-card);
+}
+
+:root[data-skin='cyber'] [class*='bg-surface-container'][class*='shadow-2xl'],
+:root[data-skin='cyber'] [class*='bg-surface-container'][class*='shadow-[0_24px'] {
+  border: var(--skin-border-width) solid var(--skin-border-color);
+  border-radius: var(--skin-card-radius);
+  box-shadow: var(--skin-shadow-dialog);
 }
 
 :root[data-skin='cyber'] .surface-card,
@@ -223,6 +240,7 @@ h4,
   --skin-shadow-card: 0 8px 24px rgba(0, 0, 0, 0.08);
   --skin-shadow-hover: 0 12px 32px rgba(0, 0, 0, 0.12);
   --skin-shadow-btn: 0 4px 12px color-mix(in srgb, var(--color-primary) 30%, transparent);
+  --skin-shadow-dialog: 0 24px 56px color-mix(in srgb, var(--color-primary) 18%, transparent);
   --skin-heading-font:
     'Yozai', 'ZCOOL KuaiLe', 'Yuanti SC', 'PingFang SC', 'HarmonyOS Sans SC', sans-serif;
 }
@@ -267,6 +285,28 @@ h4,
   background: color-mix(in srgb, var(--color-surface-container-lowest) 65%, transparent);
 }
 
+/* 裸面板兜底：玻璃拟态穿透弹窗/浮层/信息卡 */
+:root[data-skin='glass'] [class*='bg-surface-container'][class*='rounded-xl'],
+:root[data-skin='glass'] [class*='bg-surface-container'][class*='rounded-2xl'],
+:root[data-skin='glass'] [class*='bg-surface-container'][class*='border'][class*='rounded-'] {
+  background: var(--skin-card-bg);
+  backdrop-filter: blur(12px) saturate(1.4);
+  -webkit-backdrop-filter: blur(12px) saturate(1.4);
+  border: var(--skin-border-width) solid var(--skin-border-color);
+  border-radius: var(--skin-card-radius);
+  box-shadow: var(--skin-shadow-card);
+}
+
+:root[data-skin='glass'] [class*='bg-surface-container'][class*='shadow-2xl'],
+:root[data-skin='glass'] [class*='bg-surface-container'][class*='shadow-[0_24px'] {
+  background: var(--skin-card-bg);
+  backdrop-filter: blur(12px) saturate(1.4);
+  -webkit-backdrop-filter: blur(12px) saturate(1.4);
+  border: var(--skin-border-width) solid var(--skin-border-color);
+  border-radius: var(--skin-card-radius);
+  box-shadow: var(--skin-shadow-dialog);
+}
+
 /* 玻璃拟态下深浅模式对比度兜底：深色侧提升卡片不透明度 */
 .dark[data-skin='glass'] .surface-card,
 :root.dark[data-skin='glass'] .card {
@@ -276,6 +316,22 @@ h4,
 /* ---- 童趣贴纸 cartoon：胶囊按钮（对齐参考图 1） ---- */
 :root[data-skin='cartoon'] {
   --skin-card-radius: calc(var(--radius-lg) * 1.5);
+  --skin-shadow-dialog: 0 12px 32px rgba(0, 0, 0, 0.18);
+}
+
+:root[data-skin='cartoon'] [class*='bg-surface-container'][class*='rounded-xl'],
+:root[data-skin='cartoon'] [class*='bg-surface-container'][class*='rounded-2xl'],
+:root[data-skin='cartoon'] [class*='bg-surface-container'][class*='border'][class*='rounded-'] {
+  border: var(--skin-border-width) solid var(--skin-border-color);
+  border-radius: var(--skin-card-radius);
+  box-shadow: var(--skin-shadow-card);
+}
+
+:root[data-skin='cartoon'] [class*='bg-surface-container'][class*='shadow-2xl'],
+:root[data-skin='cartoon'] [class*='bg-surface-container'][class*='shadow-[0_24px'] {
+  border: var(--skin-border-width) solid var(--skin-border-color);
+  border-radius: var(--skin-card-radius);
+  box-shadow: var(--skin-shadow-dialog);
 }
 
 :root[data-skin='cartoon'] .surface-card,
@@ -296,13 +352,34 @@ h4,
 :root[data-skin='pixel'] {
   --skin-border-width: 3px;
   --skin-card-radius: 0;
+  --skin-shadow-dialog: 6px 6px 0 0 var(--color-on-surface);
 }
 
 :root[data-skin='pixel'] .surface-card-xl,
 :root[data-skin='pixel'] .surface-card-low,
 :root[data-skin='pixel'] .list-row-plain {
-  border: 2px solid var(--skin-border-color);
+  border: var(--skin-border-width) solid var(--skin-border-color);
   border-radius: 0;
+}
+
+/* ---- 裸 Tailwind 面板兜底（Issue #54 红线 D）：造型语言穿透语义类之外的裸面板 ----
+   皮肤层补刀选择器，双锚定「surface 面板底 + 大圆角/border/shadow 面板形态」，
+   覆盖弹窗、浮层、信息卡等未迁移语义类的裸 Tailwind 面板；
+   锚定条件排除 kbd/icon 按钮/进度条/头像等小组件，避免误伤。
+   none 皮肤不含本段，默认形态零变化。 */
+:root[data-skin='pixel'] [class*='bg-surface-container'][class*='rounded-xl'],
+:root[data-skin='pixel'] [class*='bg-surface-container'][class*='rounded-2xl'],
+:root[data-skin='pixel'] [class*='bg-surface-container'][class*='border'][class*='rounded-'] {
+  border: var(--skin-border-width) solid var(--skin-border-color);
+  border-radius: 0;
+  box-shadow: var(--skin-shadow-card);
+}
+
+:root[data-skin='pixel'] [class*='bg-surface-container'][class*='shadow-2xl'],
+:root[data-skin='pixel'] [class*='bg-surface-container'][class*='shadow-[0_24px'] {
+  border: var(--skin-border-width) solid var(--skin-border-color);
+  border-radius: 0;
+  box-shadow: var(--skin-shadow-dialog);
 }
 
 :root[data-skin='pixel'] .section-title {

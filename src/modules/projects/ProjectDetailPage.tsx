@@ -113,7 +113,7 @@ export default function ProjectDetailPage() {
           <Card className="p-5">
             <div className="flex items-start gap-4">
               <span
-                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[12px] text-white"
+                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-white"
                 style={{ background: project.color }}
               >
                 <Icon name="hub" size={24} />
