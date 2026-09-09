@@ -1,7 +1,7 @@
 import { eventBus } from './eventBus'
 import { habitRepo, habitLogRepo, habitLogId, settingsRepo } from '@/repositories'
 import { installTrophyEngine } from '@/modules/trophies/trophyEngine'
-import { ACCENT_PRESETS, THEME_STYLES, FONT_STACKS, type FontPresetId } from './theme'
+import { ACCENT_PRESETS, THEME_STYLES, SKIN_STYLES, FONT_STACKS, type FontPresetId, type SkinStyleId } from './theme'
 import dayjs from 'dayjs'
 
 /**
@@ -34,8 +34,11 @@ export function applySettingsToDom(settings: import('@/db/types').Settings): voi
   // 切换前先清掉上一主题写入的 --color-* inline 变量，防止浅色/深色侧键数不一致时残留污染。
   const style = THEME_STYLES.find((t) => t.id === settings.appearance.theme) ?? THEME_STYLES[0]
 
-  // 主题样式包（Issue #43）：造型语言挂 <html data-skin>，与配色正交、不入 settings 持久化
-  root.dataset.skin = ('skin' in style ? style.skin : undefined) ?? 'none'
+  // 界面风格包（Issue #54）：与配色解耦的独立造型语言，挂 <html data-skin> 独立持久化。
+  // 切换配色不动风格，反之亦然；首次升级用户无 style 字段时回退主题推荐风格，老视觉零突变。
+  const legacyRecommend = 'recommendStyle' in style ? (style.recommendStyle as SkinStyleId) : undefined
+  const styleId = settings.appearance.style ?? legacyRecommend ?? 'none'
+  root.dataset.skin = SKIN_STYLES.some((sk) => sk.id === styleId) ? styleId : 'none'
   const VARS = [
     'surface',
     'surface-container-lowest',
@@ -78,10 +81,15 @@ export function applySettingsToDom(settings: import('@/db/types').Settings): voi
     `color-mix(in srgb, ${accent.container} 16%, ${mixBase})`,
   )
 
-  // 圆角档位 → 覆盖 rounded-lg/rounded-xl 引用的半径变量（.card 用 rounded-lg）
+  // 圆角档位 → 覆盖全部 Tailwind 半径档变量（Issue #54 半径治理：
+  // rounded-md/lg/xl/2xl 全量走 --radius-*，风格/主题切换时全 App 圆角一致生效）
   const radius = { sharp: '4px', medium: '8px', large: '14px' }[settings.appearance.radius]
+  root.style.setProperty('--radius-sm', `calc(${radius} / 2)`)
+  root.style.setProperty('--radius-md', `calc(${radius} * 0.75)`)
   root.style.setProperty('--radius-lg', radius)
   root.style.setProperty('--radius-xl', radius)
+  root.style.setProperty('--radius-2xl', `calc(${radius} * 2)`)
+  root.style.setProperty('--radius-3xl', `calc(${radius} * 2.5)`)
 
   // 信息密度 → Tailwind v4 spacing 基数（4px 基线；紧凑 3.5px）
   root.style.setProperty(

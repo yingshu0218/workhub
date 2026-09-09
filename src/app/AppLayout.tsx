@@ -101,7 +101,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* 侧边栏 */}
       <aside className="flex w-[232px] shrink-0 flex-col border-r border-outline-variant/40 bg-surface-container-lowest">
         <div className="flex items-center gap-2.5 px-5 py-5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-primary text-on-primary">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-on-primary">
             <Icon name="flight_takeoff" fill />
           </div>
           <div>

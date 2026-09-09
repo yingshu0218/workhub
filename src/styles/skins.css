@@ -4,7 +4,8 @@
    描边 / 阴影 / 标题字体 / 背景纹理，通过 <html data-skin="..."> 挂载。
    皮肤不写任何 radius 字面值（圆角一律引用 var(--radius-lg)，
    由配色侧 radius 档位控制）；不碰 --color-* / --font-sans（正文排版通道）。
-   皮肤由 theme.ts 中 ThemeStylePreset.skin 推荐挂载，默认 none 零命中。
+   Issue #54 起皮肤由 settings.appearance.style（SKIN_STYLES）独立持久化挂载，
+   未手动选风格的用户回退 ThemeStylePreset.recommendStyle 作迁移桥，默认 none 零命中。
    ===================================================================== */
 
 /* 皮肤形态 token 默认值（none 状态 = 现代默认，保持视觉零变化） */
@@ -14,6 +15,7 @@
   --skin-shadow-card: 0 1px 3px rgba(0, 0, 0, 0.05);
   --skin-shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.08);
   --skin-shadow-btn: none;
+  --skin-shadow-dialog: 0 24px 64px rgba(0, 0, 0, 0.24);
   --skin-heading-font: inherit;
   --skin-heading-spacing: 0;
   --skin-card-radius: var(--radius-lg);
@@ -169,4 +171,217 @@ h4,
       transparent 1px
     );
   background-size: 32px 32px;
+}
+
+/* =====================================================================
+   Issue #54：皮肤覆盖面扩充（穿透语义类 + 裸 Tailwind 收敛面）
+   ===================================================================== */
+
+/* 通用接管：导航激活态 / chip 徽章 / 页头 / 弹窗 / 分段器 / 开关跟随卡片形态 token */
+:root[data-skin]:not([data-skin='none']) {
+  --skin-nav-active-bg: var(--color-primary);
+  --skin-nav-active-fg: var(--color-on-primary);
+}
+
+/* ---- HUD 控制台 cyber：切角面板 + 等宽大写标题（对齐参考图 3） ---- */
+:root[data-skin='cyber'] {
+  --skin-clip-panel: polygon(
+    10px 0, 100% 0, 100% calc(100% - 10px),
+    calc(100% - 10px) 100%, 0 100%, 0 10px
+  );
+  --skin-card-radius: 0;
+  --skin-shadow-dialog: 0 0 24px 0 color-mix(in srgb, var(--color-primary) 30%, transparent);
+}
+
+:root[data-skin='cyber'] [class*='bg-surface-container'][class*='rounded-xl'],
+:root[data-skin='cyber'] [class*='bg-surface-container'][class*='rounded-2xl'],
+:root[data-skin='cyber'] [class*='bg-surface-container'][class*='border'][class*='rounded-'] {
+  border: var(--skin-border-width) solid var(--skin-border-color);
+  border-radius: var(--skin-card-radius);
+  box-shadow: var(--skin-shadow-card);
+}
+
+:root[data-skin='cyber'] [class*='bg-surface-container'][class*='shadow-2xl'],
+:root[data-skin='cyber'] [class*='bg-surface-container'][class*='shadow-[0_24px'] {
+  border: var(--skin-border-width) solid var(--skin-border-color);
+  border-radius: var(--skin-card-radius);
+  box-shadow: var(--skin-shadow-dialog);
+}
+
+:root[data-skin='cyber'] .surface-card,
+:root[data-skin='cyber'] .card {
+  clip-path: var(--skin-clip-panel);
+}
+
+:root[data-skin='cyber'] h1,
+:root[data-skin='cyber'] h2,
+:root[data-skin='cyber'] h3,
+:root[data-skin='cyber'] h4 {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* HUD 状态灯：主按钮左侧点缀 */
+:root[data-skin='cyber'] .btn-primary::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-on-primary);
+  box-shadow: 0 0 6px 1px var(--color-on-primary);
+}
+
+/* ---- 梦幻玻璃 glass（新，对齐参考图 2）：渐变画布 + 玻璃拟态 + 星闪装饰 ---- */
+:root[data-skin='glass'] {
+  --skin-border-width: 1px;
+  --skin-border-color: color-mix(in srgb, var(--color-outline-variant) 30%, transparent);
+  --skin-card-bg: color-mix(in srgb, var(--color-surface-container-lowest) 55%, transparent);
+  --skin-card-radius: calc(var(--radius-lg) * 2);
+  --skin-shadow-card: 0 8px 24px rgba(0, 0, 0, 0.08);
+  --skin-shadow-hover: 0 12px 32px rgba(0, 0, 0, 0.12);
+  --skin-shadow-btn: 0 4px 12px color-mix(in srgb, var(--color-primary) 30%, transparent);
+  --skin-shadow-dialog: 0 24px 56px color-mix(in srgb, var(--color-primary) 18%, transparent);
+  --skin-heading-font:
+    'Yozai', 'ZCOOL KuaiLe', 'Yuanti SC', 'PingFang SC', 'HarmonyOS Sans SC', sans-serif;
+}
+
+/* 粉彩渐变画布（叠加在 surface 底色上，随配色联动不写死颜色） */
+:root[data-skin='glass'] body {
+  background-image:
+    radial-gradient(
+      60% 50% at 15% 10%,
+      color-mix(in srgb, var(--color-primary-container) 18%, transparent),
+      transparent
+    ),
+    radial-gradient(
+      50% 40% at 85% 85%,
+      color-mix(in srgb, var(--color-success-container) 30%, transparent),
+      transparent
+    );
+  background-attachment: fixed;
+}
+
+:root[data-skin='glass'] .surface-card,
+:root[data-skin='glass'] .card {
+  background: var(--skin-card-bg);
+  backdrop-filter: blur(12px) saturate(1.4);
+  -webkit-backdrop-filter: blur(12px) saturate(1.4);
+  border-radius: var(--skin-card-radius);
+  box-shadow: var(--skin-shadow-card);
+}
+
+:root[data-skin='glass'] .surface-card-hover:hover,
+:root[data-skin='glass'] .card-hover:hover {
+  box-shadow: var(--skin-shadow-hover);
+}
+
+:root[data-skin='glass'] .btn-primary {
+  border-radius: calc(var(--radius-lg) * 2);
+  box-shadow: var(--skin-shadow-btn);
+}
+
+:root[data-skin='glass'] .input {
+  border-radius: calc(var(--radius-lg) * 2);
+  background: color-mix(in srgb, var(--color-surface-container-lowest) 65%, transparent);
+}
+
+/* 裸面板兜底：玻璃拟态穿透弹窗/浮层/信息卡 */
+:root[data-skin='glass'] [class*='bg-surface-container'][class*='rounded-xl'],
+:root[data-skin='glass'] [class*='bg-surface-container'][class*='rounded-2xl'],
+:root[data-skin='glass'] [class*='bg-surface-container'][class*='border'][class*='rounded-'] {
+  background: var(--skin-card-bg);
+  backdrop-filter: blur(12px) saturate(1.4);
+  -webkit-backdrop-filter: blur(12px) saturate(1.4);
+  border: var(--skin-border-width) solid var(--skin-border-color);
+  border-radius: var(--skin-card-radius);
+  box-shadow: var(--skin-shadow-card);
+}
+
+:root[data-skin='glass'] [class*='bg-surface-container'][class*='shadow-2xl'],
+:root[data-skin='glass'] [class*='bg-surface-container'][class*='shadow-[0_24px'] {
+  background: var(--skin-card-bg);
+  backdrop-filter: blur(12px) saturate(1.4);
+  -webkit-backdrop-filter: blur(12px) saturate(1.4);
+  border: var(--skin-border-width) solid var(--skin-border-color);
+  border-radius: var(--skin-card-radius);
+  box-shadow: var(--skin-shadow-dialog);
+}
+
+/* 玻璃拟态下深浅模式对比度兜底：深色侧提升卡片不透明度 */
+.dark[data-skin='glass'] .surface-card,
+:root.dark[data-skin='glass'] .card {
+  background: color-mix(in srgb, var(--color-surface-container-lowest) 78%, transparent);
+}
+
+/* ---- 童趣贴纸 cartoon：胶囊按钮（对齐参考图 1） ---- */
+:root[data-skin='cartoon'] {
+  --skin-card-radius: calc(var(--radius-lg) * 1.5);
+  --skin-shadow-dialog: 0 12px 32px rgba(0, 0, 0, 0.18);
+}
+
+:root[data-skin='cartoon'] [class*='bg-surface-container'][class*='rounded-xl'],
+:root[data-skin='cartoon'] [class*='bg-surface-container'][class*='rounded-2xl'],
+:root[data-skin='cartoon'] [class*='bg-surface-container'][class*='border'][class*='rounded-'] {
+  border: var(--skin-border-width) solid var(--skin-border-color);
+  border-radius: var(--skin-card-radius);
+  box-shadow: var(--skin-shadow-card);
+}
+
+:root[data-skin='cartoon'] [class*='bg-surface-container'][class*='shadow-2xl'],
+:root[data-skin='cartoon'] [class*='bg-surface-container'][class*='shadow-[0_24px'] {
+  border: var(--skin-border-width) solid var(--skin-border-color);
+  border-radius: var(--skin-card-radius);
+  box-shadow: var(--skin-shadow-dialog);
+}
+
+:root[data-skin='cartoon'] .surface-card,
+:root[data-skin='cartoon'] .card {
+  border-radius: var(--skin-card-radius);
+}
+
+:root[data-skin='cartoon'] .btn-primary,
+:root[data-skin='cartoon'] .btn-ghost {
+  border-radius: 9999px;
+}
+
+:root[data-skin='cartoon'] .input {
+  border-radius: calc(var(--radius-lg) * 1.5);
+}
+
+/* ---- 像素复古 pixel：描边升 3px、全直角贯穿（对齐参考图 4） ---- */
+:root[data-skin='pixel'] {
+  --skin-border-width: 3px;
+  --skin-card-radius: 0;
+  --skin-shadow-dialog: 6px 6px 0 0 var(--color-on-surface);
+}
+
+:root[data-skin='pixel'] .surface-card-xl,
+:root[data-skin='pixel'] .surface-card-low,
+:root[data-skin='pixel'] .list-row-plain {
+  border: var(--skin-border-width) solid var(--skin-border-color);
+  border-radius: 0;
+}
+
+/* ---- 裸 Tailwind 面板兜底（Issue #54 红线 D）：造型语言穿透语义类之外的裸面板 ----
+   皮肤层补刀选择器，双锚定「surface 面板底 + 大圆角/border/shadow 面板形态」，
+   覆盖弹窗、浮层、信息卡等未迁移语义类的裸 Tailwind 面板；
+   锚定条件排除 kbd/icon 按钮/进度条/头像等小组件，避免误伤。
+   none 皮肤不含本段，默认形态零变化。 */
+:root[data-skin='pixel'] [class*='bg-surface-container'][class*='rounded-xl'],
+:root[data-skin='pixel'] [class*='bg-surface-container'][class*='rounded-2xl'],
+:root[data-skin='pixel'] [class*='bg-surface-container'][class*='border'][class*='rounded-'] {
+  border: var(--skin-border-width) solid var(--skin-border-color);
+  border-radius: 0;
+  box-shadow: var(--skin-shadow-card);
+}
+
+:root[data-skin='pixel'] [class*='bg-surface-container'][class*='shadow-2xl'],
+:root[data-skin='pixel'] [class*='bg-surface-container'][class*='shadow-[0_24px'] {
+  border: var(--skin-border-width) solid var(--skin-border-color);
+  border-radius: 0;
+  box-shadow: var(--skin-shadow-dialog);
+}
+
+:root[data-skin='pixel'] .section-title {
+  letter-spacing: 0.04em;
 }

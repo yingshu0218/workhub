@@ -1,4 +1,4 @@
-import type { ThemeStyleId } from '@/shared/theme'
+import type { ThemeStyleId, SkinStyleId } from '@/shared/theme'
 
 /**
  * 全局实体类型定义
@@ -265,8 +265,13 @@ export interface Trophy extends SyncMeta {
 export interface SettingsAppearance {
   /** 深浅模式：light / dark / 跟随系统 */
   mode: 'light' | 'dark' | 'system'
-  /** 风格主题包（取 THEME_STYLES 的 id，见 shared/theme），换整套界面气质而非仅强调色 */
+  /** 配色主题包（取 THEME_STYLES 的 id，见 shared/theme），只管色板/情绪色，与风格正交 */
   theme?: ThemeStyleId
+  /**
+   * 界面风格包（Issue #54，取 SKIN_STYLES 的 id）：独立于配色的造型语言维度。
+   * 先选风格、再叠配色；与 theme 互不污染，切换配色不动风格，反之亦然。
+   */
+  style?: SkinStyleId
   /** 强调色（取 ACCENT_PRESETS 的 id，见 SettingsPage） */
   accent: string
   /** 圆角档位：sharp 4px / medium 8px / large 14px */
@@ -350,7 +355,15 @@ export const SETTINGS_KEY = 'singleton'
 
 export const DEFAULT_SETTINGS: Settings = {
   key: SETTINGS_KEY,
-  appearance: { mode: 'light', accent: 'blue', radius: 'medium', density: 'comfortable' },
+  appearance: {
+    mode: 'light',
+    accent: 'blue',
+    radius: 'medium',
+    density: 'comfortable',
+    // Issue #54：style 不进 DEFAULT，缺省=「未手动选过风格」，
+    // effects.ts 据此回退主题 recommendStyle（迁移桥），老用户零感知；
+    // 用户一旦在设置页显式选风格（含 none）即持久化覆盖。
+  },
   typography: { fontSize: 14, lineHeight: 1.6 },
   notifications: {
     desktopNotice: true,
