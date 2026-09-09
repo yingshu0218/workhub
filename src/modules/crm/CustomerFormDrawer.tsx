@@ -6,6 +6,7 @@ import { RELATION_CATEGORIES } from '@/db/types'
 import { Button, Chip, Drawer, Field, inputCls } from '@/design-system/ui'
 import { MatchCombobox } from '@/design-system/MatchCombobox'
 import { createCustomerWithInit } from './hooks'
+import { normalizeTags } from './shared'
 
 /** 单条关系的稳定标识（Issue #39）：优先取条目 id，旧数据按 目标::语义 兜底（同对允许多条，可逐条删除） */
 const relKey = (r: { id?: string; targetId: string; label: string }) =>
@@ -81,14 +82,8 @@ export default function CustomerFormDrawer({
     }
   }
 
-  const tags = [
-    ...new Set(
-      tagsRaw
-        .split(/[,,]/)
-        .map((t) => t.trim().replace(/^#/, ''))
-        .filter(Boolean),
-    ),
-  ]
+  // 标签归一化抽共享工具（Issue #63）：客户表单与配组界面共用，避免打错字导致分组失效
+  const tags = normalizeTags(tagsRaw)
 
   // 第 4 步可关联的交易：仅列出尚未归属任何客户的流水（已关联的可通过财务侧改）
   const transactions = useCollection<Transaction>('transactions')

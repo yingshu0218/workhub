@@ -16,7 +16,7 @@ import {
   inputCls,
 } from '@/design-system/ui'
 import CustomerFormDrawer from './CustomerFormDrawer'
-import { fmtRelative, healthColor, tierChipTone } from './shared'
+import { fmtRelative, healthColor, normalizeTags, tierChipTone } from './shared'
 import {
   useCustomerGroups,
   useCustomerGroupCounts,
@@ -414,16 +414,9 @@ function GroupEditorDrawer({
     }
   }
 
-  const normalize = (raw: string) => [
-    ...new Set(
-      raw
-        .split(/[,,]/)
-        .map((t) => t.trim().replace(/^#/, ''))
-        .filter(Boolean),
-    ),
-  ]
-  const includeTags = normalize(includeRaw)
-  const excludeTags = normalize(excludeRaw)
+  // 标签归一化抽共享工具（Issue #63）：配组界面与客户表单共用，避免打错字导致分组失效
+  const includeTags = normalizeTags(includeRaw)
+  const excludeTags = normalizeTags(excludeRaw)
 
   // 联想候选：现有客户 tags 实时 distinct（按热度排序），非强制 —— 手打照旧
   const suggestions = useTagSuggestions(customers)

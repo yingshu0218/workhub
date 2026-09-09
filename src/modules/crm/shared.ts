@@ -38,3 +38,19 @@ export function fmtRelative(ts: number): string {
   if (days < 30) return `${days} 天前`
   return dayjs(ts).format('YYYY-MM-DD')
 }
+
+/**
+ * 标签归一化（配组界面 / 客户表单共用，避免「打错字导致分组失效」）：
+ * 按英文逗号切分 → trim → 去首 # → 去空 → Set 去重。
+ * 不做强制词库约束，仅归一化，手打自由标签照旧（Issue #63 收敛稿）。
+ */
+export function normalizeTags(raw: string): string[] {
+  return [
+    ...new Set(
+      raw
+        .split(/[,,]/)
+        .map((t) => t.trim().replace(/^#/, ''))
+        .filter(Boolean),
+    ),
+  ]
+}
