@@ -6,6 +6,7 @@ import { useSyncStore } from '@/sync/store'
 import { registerShortcut } from '@/shared/shortcuts'
 import CommandPalette from './CommandPalette'
 import TrophyUnlockToast from './TrophyUnlockToast'
+import QuickCapture from '@/modules/notes/QuickCapture'
 
 const NAV_ITEMS = [
   { to: '/', icon: 'dashboard', label: '工作台' },
@@ -153,6 +154,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </nav>
 
         <div className="border-t border-outline-variant/40 p-3">
+          {/* 侧栏快速便签（Issue #70）：底部区块顶部一行，Enter 存一条正式 Note */}
+          <QuickCapture />
+
           <NavLink
             to="/settings"
             className={({ isActive }) =>
