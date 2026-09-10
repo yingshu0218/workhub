@@ -23,6 +23,10 @@ export const READ_LIMITS = {
   listTodos: 50,
   listLedgers: 50,
   listHabits: 50,
+  // P2 动作扩面：项目 / 笔记 / 文件夹（同域最小投影，上限 50）
+  listProjects: 50,
+  listNotes: 50,
+  listNoteFolders: 50,
 } as const
 
 /** 统一读结果信封：`truncated` 让 Agent 知道「还有更多」，可缩小条件重查 */
@@ -77,6 +81,23 @@ export const listLedgersSchema = z.object({}).strict()
 /** listHabits()：无入参（习惯数量有限，整体返回） */
 export const listHabitsSchema = z.object({}).strict()
 
+/** listProjects(filter)：项目最小投影（P2 动作扩面） */
+export const listProjectsSchema = z.object({
+  status: z.enum(['active', 'paused', 'archived']).optional(),
+  customerId: z.string().optional(),
+})
+
+/** listNotes(filter)：笔记最小投影（**不含 markdown 正文**，防上下文膨胀） */
+export const listNotesSchema = z.object({
+  q: z.string().trim().min(1, '搜索关键词不能为空').optional(),
+  folderId: z.string().optional(),
+  projectId: z.string().optional(),
+  tag: z.string().optional(),
+})
+
+/** listNoteFolders()：文件夹最小投影 */
+export const listNoteFoldersSchema = z.object({}).strict()
+
 /** searchEntities(q, types?)：复用 `searchAll` 6 实体投影，notes 已有字段裁剪先例（§2.2） */
 export const searchEntitiesSchema = z.object({
   q: z.string().trim().min(1, '请提供搜索关键词'),
@@ -112,6 +133,31 @@ function projectTodo(t: Todo) {
     ...(t.dueAt ? { dueAt: t.dueAt } : {}),
     ...(t.customerId ? { customerId: t.customerId } : {}),
     ...(t.projectId ? { projectId: t.projectId } : {}),
+  }
+}
+
+function projectProject(p: Project) {
+  return {
+    id: p.id,
+    name: p.name,
+    status: p.status,
+    color: p.color,
+    ...(p.customerId ? { customerId: p.customerId } : {}),
+    ...(p.budget === undefined ? {} : { budget: p.budget }),
+    ...(p.note ? { note: p.note } : {}),
+  }
+}
+
+/** 笔记投影：**绝不含 markdown 正文**（外部 Agent 读全量正文会瞬间撑爆上下文） */
+function projectNote(n: Note, folderName?: string) {
+  return {
+    id: n.id,
+    title: n.title,
+    tags: n.tags,
+    ...(n.folderId ? { folderId: n.folderId, folderName } : {}),
+    ...(n.projectId ? { projectId: n.projectId } : {}),
+    /** 正文只给长度，需要正文请用 searchEntities 命中后由用户确认，或走 UI */
+    markdownLength: (n.markdown ?? '').length,
   }
 }
 
@@ -230,6 +276,48 @@ export async function searchEntities(input: unknown): Promise<ReadResult> {
   return envelope(items, READ_LIMITS.searchEntities)
 }
 
+/** listProjects：项目清单（P2 动作扩面） */
+export async function listProjects(input: unknown): Promise<ReadResult> {
+  const d = listProjectsSchema.parse(input ?? {})
+  const rows = alive(await db.projects.toArray())
+    .filter((p) => (d.status ? p.status === d.status : true))
+    .filter((p) => (d.customerId ? p.customerId === d.customerId : true))
+    .sort((a, b) => b.createdAt - a.createdAt)
+  return envelope(rows.map(projectProject), READ_LIMITS.listProjects)
+}
+
+/**
+ * listNotes：笔记清单（**不含 markdown 正文**）。
+ * 为什么这里与 searchEntities 分开：searchAll 的笔记投影已裁剪，但 Agent 经常需要
+ * 「按目录/项目/标签列一批笔记再逐条改归属」，需要可枚举的稳定入口；两者共用同一份裁剪口径。
+ */
+export async function listNotes(input: unknown): Promise<ReadResult> {
+  const d = listNotesSchema.parse(input ?? {})
+  const folders = alive(await db.noteFolders.toArray())
+  const folderName = new Map(folders.map((f) => [f.id, f.name]))
+  const q = d.q?.toLowerCase()
+  const rows = alive(await db.notes.toArray())
+    .filter((n) => (d.folderId ? n.folderId === d.folderId : true))
+    .filter((n) => (d.projectId ? n.projectId === d.projectId : true))
+    .filter((n) => (d.tag ? n.tags.includes(d.tag) : true))
+    .filter((n) => (q ? n.title.toLowerCase().includes(q) || n.tags.some((t) => t.toLowerCase().includes(q)) : true))
+    .sort((a, b) => b.createdAt - a.createdAt)
+  return envelope(
+    rows.map((n) => projectNote(n, n.folderId ? folderName.get(n.folderId) : undefined)),
+    READ_LIMITS.listNotes,
+  )
+}
+
+/** listNoteFolders：文件夹清单 */
+export async function listNoteFolders(input: unknown): Promise<ReadResult> {
+  listNoteFoldersSchema.parse(input ?? {})
+  const rows = alive(await db.noteFolders.toArray()).sort((a, b) => a.name.localeCompare(b.name))
+  return envelope(
+    rows.map((f) => ({ id: f.id, name: f.name })),
+    READ_LIMITS.listNoteFolders,
+  )
+}
+
 /** 供测试与白名单复用的读工具清单 */
 export const READ_TOOLS = {
   resolveEntity: 'resolveEntity',
@@ -239,6 +327,9 @@ export const READ_TOOLS = {
   listTodos: 'listTodos',
   listLedgers: 'listLedgers',
   listHabits: 'listHabits',
+  listProjects: 'listProjects',
+  listNotes: 'listNotes',
+  listNoteFolders: 'listNoteFolders',
 } as const
 
 export type { Project }

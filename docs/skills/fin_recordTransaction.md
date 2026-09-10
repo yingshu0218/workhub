@@ -10,7 +10,7 @@
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---|---|---|
-| `ledgerId` | string | 是 | — |  |
+| `ledgerId` | string | 否 | — |  |
 | `summary` | string | 是 | — |  |
 | `amount` | number | 是 | — |  |
 | `type` | enum(income / expense) | 否 | `"expense"` |  |
@@ -37,7 +37,7 @@
 
 ## 实体引用规则
 
-实体引用（客户/项目/待办/账本/习惯）必须先调 `resolveEntity` 消解；候选不唯一必须反问答用户，禁止猜 id。 ledgerId 必须来自 resolveEntity('ledger') 或明确账本；customerId/todoId/projectId 同理。
+实体引用（客户/项目/待办/账本/习惯）必须先调 `resolveEntity` 消解；候选不唯一必须反问答用户，禁止猜 id。 ledgerId 可缺省（缺省走「默认账本 → 唯一账本 → 反问」策略；多账本且无默认时会要求你指定）；customerId/todoId/projectId 同理。
 
 ## 典型说法
 

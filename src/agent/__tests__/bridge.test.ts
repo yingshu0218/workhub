@@ -28,10 +28,11 @@ describe('zod → JSON Schema（单源生成）', () => {
       required: string[]
     }
     expect(s.type).toBe('object')
-    // ledgerId/summary/amount 必填
-    expect(s.required).toContain('ledgerId')
+    // summary/amount 必填；ledgerId 可缺省（缺省走领域层「isDefault → 唯一账本 → 反问」策略，
+    // 与 UI 在「全部账本」视图下自动选默认账本的行为对齐）
     expect(s.required).toContain('summary')
     expect(s.required).toContain('amount')
+    expect(s.required).not.toContain('ledgerId')
     // status 有 default → 不列入 required，且带 default
     expect(s.required).not.toContain('status')
     expect(s.properties.status.default).toBe('待对账')
@@ -46,7 +47,7 @@ describe('zod → JSON Schema（单源生成）', () => {
 
   it('enum / 简单 string 工具 schema 生成稳定', () => {
     const s = zodToJsonSchema(resolveEntitySchema) as { properties: Record<string, Record<string, unknown>>; required: string[] }
-    expect(s.properties.type.enum).toEqual(['customer', 'project', 'todo', 'ledger', 'habit'])
+    expect(s.properties.type.enum).toEqual(['customer', 'project', 'todo', 'ledger', 'habit', 'note', 'noteFolder'])
     expect(s.required).toEqual(expect.arrayContaining(['query', 'type']))
 
     const t = zodToJsonSchema(createTodoSchema) as { properties: Record<string, Record<string, unknown>> }

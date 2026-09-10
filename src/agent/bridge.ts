@@ -134,15 +134,30 @@ export class AgentBridge {
       if (msg.kind === 'tools/call') {
         const name = String(msg.name ?? '')
         const domains = await this.loadDomains()
-        // 中风险 + 未携带已核销 confirmToken：返回预览材料，要求 Agent 转述用户确认后再执行（§四.4）
+        // 中风险 + 未携带 confirmToken：返回预览材料，要求 Agent 转述用户确认后再执行（§四.4）
         const risk = TOOL_RISK[name]
-        if (risk === 'medium' && !msg.meta?.confirmToken) {
+        // medium（需确认）与 high（二次确认 + 副作用清单）都必须先经 preview；
+        // high 的差异在 preview 载荷里补 sideEffects 说明（§四.4 高风险语义），
+        // 并在无票据时**额外强调不可逆**，防止 Agent 把「删除」当普通动作转述给用户。
+        if ((risk === 'medium' || risk === 'high') && !msg.meta?.confirmToken) {
           this.respond(requestId, true, {
             preview: true,
             tool: name,
             risk,
             args: msg.args,
-            note: '这是中风险操作。请向用户转述以上参数并取得确认；用户确认后携带 relay 签发的 confirmToken 重新调用本工具。',
+            // 确认票据的请求入口：Agent 拿到用户确认后调 confirm_preview 取票再重试本工具。
+            // 没有这一句，preview → 确认 → execute 三步在非 --dev 下**物理上走不通**
+            // （票据只能由 relay 签发，而 Agent 不知道去哪儿取），确认闸门就成了死循环。
+            confirmHint: {
+              tool: 'confirm_preview',
+              args: { tool: name, args: msg.args },
+              note: '用户确认后调用 confirm_preview 取得一次性 confirmToken，再以同一参数重试本工具。',
+            },
+            note:
+              risk === 'high'
+                ? '这是**不可逆**的高风险操作。务必先向用户逐字转述以上参数与影响（删除后数据不可恢复），取得明确确认后调用 confirm_preview 取得 confirmToken，再重试本工具。'
+                : '这是中风险操作。请向用户转述以上参数并取得确认；用户确认后调用 confirm_preview 取得 confirmToken，再重试本工具。',
+            ...(risk === 'high' ? { irreversible: true } : {}),
           })
           return
         }

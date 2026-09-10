@@ -2,7 +2,7 @@
   "generatedBy": "scripts/gen-skills.mjs",
   "source": "src/agent/skillSource.ts",
   "protocolVersion": "2024-11-05",
-  "toolCount": 15,
+  "toolCount": 27,
   "tools": [
     {
       "name": "fin_recordTransaction",
@@ -69,7 +69,6 @@
           }
         },
         "required": [
-          "ledgerId",
           "summary",
           "amount"
         ]
@@ -391,6 +390,357 @@
       ]
     },
     {
+      "name": "todo_updateTodo",
+      "description": "编辑待办（标题/描述/优先级/截止时间/关联）",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "todoId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "desc": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "P1",
+              "P2",
+              "P3"
+            ]
+          },
+          "dueAt": {
+            "type": "number"
+          },
+          "customerId": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "listId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "todoId"
+        ]
+      },
+      "annotations": {
+        "risk": "low",
+        "domain": "todo",
+        "readOnly": false
+      },
+      "events": []
+    },
+    {
+      "name": "todo_deleteTodo",
+      "description": "删除待办（不可逆）",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "todoId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "todoId"
+        ]
+      },
+      "annotations": {
+        "risk": "high",
+        "domain": "todo",
+        "readOnly": false
+      },
+      "events": []
+    },
+    {
+      "name": "crm_updateCustomer",
+      "description": "编辑客户档案（姓名/公司/职位/tier/健康分档位/联系方式）",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "customerId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "company": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "decisionLevel": {
+            "type": "string",
+            "enum": [
+              "决策人",
+              "影响者",
+              "使用者",
+              "把关人"
+            ]
+          },
+          "tier": {
+            "type": "string",
+            "enum": [
+              "S",
+              "A",
+              "B",
+              "潜在"
+            ]
+          },
+          "intimacyLevel": {
+            "type": "string",
+            "enum": [
+              "T1",
+              "T2",
+              "T3",
+              "T4",
+              "T5",
+              "I6",
+              "I7"
+            ]
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "phone": {
+            "type": "string"
+          },
+          "wechat": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "customerId"
+        ]
+      },
+      "annotations": {
+        "risk": "medium",
+        "domain": "crm",
+        "readOnly": false
+      },
+      "events": []
+    },
+    {
+      "name": "project_createProject",
+      "description": "新建项目",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "customerId": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "paused",
+              "archived"
+            ],
+            "default": "active"
+          },
+          "budget": {
+            "type": "number"
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "annotations": {
+        "risk": "low",
+        "domain": "project",
+        "readOnly": false
+      },
+      "events": []
+    },
+    {
+      "name": "project_updateProject",
+      "description": "编辑项目（改名/归档/搁置/挂靠客户/预算）",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "paused",
+              "archived"
+            ]
+          },
+          "customerId": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string"
+          },
+          "budget": {
+            "type": "number"
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId"
+        ]
+      },
+      "annotations": {
+        "risk": "medium",
+        "domain": "project",
+        "readOnly": false
+      },
+      "events": []
+    },
+    {
+      "name": "note_createNote",
+      "description": "新建笔记",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "markdown": {
+            "type": "string",
+            "default": ""
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": []
+          },
+          "folderId": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ]
+      },
+      "annotations": {
+        "risk": "low",
+        "domain": "note",
+        "readOnly": false
+      },
+      "events": []
+    },
+    {
+      "name": "note_updateNote",
+      "description": "编辑笔记（标题/正文/标签/归属）",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "noteId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "markdown": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "folderId": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "noteId"
+        ]
+      },
+      "annotations": {
+        "risk": "medium",
+        "domain": "note",
+        "readOnly": false
+      },
+      "events": []
+    },
+    {
+      "name": "note_createFolder",
+      "description": "新建笔记文件夹",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "annotations": {
+        "risk": "low",
+        "domain": "note",
+        "readOnly": false
+      },
+      "events": []
+    },
+    {
+      "name": "habit_deleteHabit",
+      "description": "删除习惯（不可逆，级联清打卡记录）",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "habitId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "habitId"
+        ]
+      },
+      "annotations": {
+        "risk": "high",
+        "domain": "habit",
+        "readOnly": false
+      },
+      "events": []
+    },
+    {
       "name": "resolveEntity",
       "description": "把自然语言里的实体名消解为真实 id（写工具的前置）",
       "inputSchema": {
@@ -406,7 +756,9 @@
               "project",
               "todo",
               "ledger",
-              "habit"
+              "habit",
+              "note",
+              "noteFolder"
             ]
           }
         },
@@ -572,6 +924,73 @@
     {
       "name": "listHabits",
       "description": "列习惯",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "annotations": {
+        "risk": "low",
+        "domain": "read",
+        "readOnly": true
+      },
+      "events": []
+    },
+    {
+      "name": "listProjects",
+      "description": "列项目（可按状态/挂靠客户过滤）",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "paused",
+              "archived"
+            ]
+          },
+          "customerId": {
+            "type": "string"
+          }
+        }
+      },
+      "annotations": {
+        "risk": "low",
+        "domain": "read",
+        "readOnly": true
+      },
+      "events": []
+    },
+    {
+      "name": "listNotes",
+      "description": "列笔记（标题/标签/归属，**不含正文**）",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "q": {
+            "type": "string"
+          },
+          "folderId": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "tag": {
+            "type": "string"
+          }
+        }
+      },
+      "annotations": {
+        "risk": "low",
+        "domain": "read",
+        "readOnly": true
+      },
+      "events": []
+    },
+    {
+      "name": "listNoteFolders",
+      "description": "列笔记文件夹",
       "inputSchema": {
         "type": "object",
         "properties": {}

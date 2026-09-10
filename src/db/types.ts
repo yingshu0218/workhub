@@ -370,13 +370,17 @@ export interface SettingsAi {
   bridgeUrl?: string
   /**
    * 能力白名单：按域开关。缺省 undefined = 该域未显式配置，取 DEFAULT_AI_DOMAINS 默认值。
-   * 域前缀与工具命名对齐（§2.3）：fin_ / crm_ / todo_ / habit_ / note_ / read_（读工具）
+   * 域前缀与工具命名对齐（§2.3）：fin_ / crm_ / todo_ / project_ / habit_ / note_ / read_（读工具）
    */
   domains?: Partial<Record<AiDomain, boolean>>
 }
 
-/** 能力白名单域（与工具域前缀一一对应） */
-export type AiDomain = 'fin' | 'crm' | 'todo' | 'habit' | 'note' | 'read'
+/**
+ * 能力白名单域（与工具域前缀一一对应）。
+ * `project`：项目域（P2 动作扩面新增）——与笔记域分开，「项目」是跨模块主题容器，
+ * 关掉它不应连带关掉笔记读写。
+ */
+export type AiDomain = 'fin' | 'crm' | 'todo' | 'project' | 'habit' | 'note' | 'read'
 
 export interface Settings {
   key: string

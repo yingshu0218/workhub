@@ -154,6 +154,28 @@ export async function resetAndSeedLocalData(): Promise<void> {
   await seedIfEmpty()
 }
 
+/**
+ * 默认账本唯一性收口（P1 补强 · 第 4/7 步跨轮一致性）：
+ *
+ * 现状是 UI（`LedgerFormDrawer.save()`）与 agentOps（`fin_createLedger`）**各自内联**同一段
+ * 「先清其它账本 isDefault 再落库」，属 §9.7 第 3 步注同款「全仓重复的内联约定」——
+ * 两处一旦漂移（如漏掉某一侧、或某侧漏传 updatedAt/rev）就会出现「两个默认账本」，
+ * 而 `TransactionFormDrawer` 的记账缺省账本取 `ledgers.find(l => l.isDefault)` 是**取第一个命中**，
+ * 双默认下记账会静默挂到不确定的账本上。故收口为唯一实现，两路共用。
+ *
+ * 语义与 UI 完全一致：只清「非自身」的默认标记；清标记走 ledgerRepo.put（自动盖章 + 入队）。
+ */
+export async function clearOtherDefaultLedgers(keepId?: string): Promise<void> {
+  const now = Date.now()
+  const others = (await db.ledgers.toArray()).filter(
+    (l) => !l.deleted && l.isDefault && l.id !== keepId,
+  )
+  for (const l of others) {
+    const { isDefault: _drop, ...rest } = l
+    await ledgerRepo.put({ ...rest, updatedAt: now, rev: l.rev + 1 })
+  }
+}
+
 /** 习惯打卡确定性 id：同日同习惯恒为同一条记录（幂等，杜绝重复打卡/幽灵记录） */
 export function habitLogId(habitId: string, date: string): string {
   return `hl-${habitId}-${date}`

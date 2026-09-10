@@ -153,7 +153,7 @@ describe('schema 口径（§9.4）', () => {
 })
 
 describe('风险分级接线（P1 复审 ① 防再犯）', () => {
-  it('AGENT_TOOLS 每个工具的 risk 必须是 low/medium 字面量，且与 TOOL_RISK 声明一致', async () => {
+  it('AGENT_TOOLS 每个工具的 risk 必须是 low/medium/high 字面量，且与 TOOL_RISK 声明一致', async () => {
     const { AGENT_TOOLS } = await import('../executor')
     const { TOOL_RISK } = await import('../schema')
 
@@ -162,7 +162,7 @@ describe('风险分级接线（P1 复审 ① 防再犯）', () => {
 
     for (const [name, tool] of Object.entries(AGENT_TOOLS)) {
       // 若误把整张 TOOL_RISK map 赋给 risk，此断言立即失败（map 是 object 不是字面量）
-      expect(['low', 'medium']).toContain(tool.risk)
+      expect(['low', 'medium', 'high']).toContain(tool.risk)
       expect(tool.risk).toBe(TOOL_RISK[name])
     }
   })

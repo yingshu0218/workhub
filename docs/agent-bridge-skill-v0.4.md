@@ -311,6 +311,15 @@ repositories（createRepository 工厂保持纯写）→ 同步引擎 / eventBus
 > `inputSchema` 一份定义（`skill.parity.test.ts` 断言三方一致）。
 > **第 7 步（E2E 主干验收）已交付**，P1 七步全部落地。
 >
+> **P1 收尾补强 + P2 动作扩面（同日交付）**：① relay 新增内置 MCP 工具 **`confirm_preview`**——
+> 此前中风险 `preview` 能拦下操作，但票据只能由 relay 签发而 Agent 无从取票，
+> **非 `--dev` 下「预览 → 用户确认 → 执行」物理上走不通**（确认闸门退化成「永远执行不了」）。
+> 现由 relay 缓存 `(tool,args)` 预览记录、校验后才签发一次性票据，**票据绑定参数**；
+> ② `RiskLevel` 扩为 `low/medium/high` 三档，删除类为 `high`（预览标 `irreversible`、执行回 `sideEffects`）；
+> ③ 新增**领域命令层 `src/domain/`**，把「记账时间口径 / 缺省账本策略 / 建账本」从 UI 与 AI
+> 两份内联实现收口为唯一实现体；④ 默认账本唯一性收口 `repositories.clearOtherDefaultLedgers`；
+> ⑤ **P2 动作扩面**：工具面 15 → 27（编辑 / 删除 / 项目 / 笔记），详见 §9.13。
+>
 > **E2E 形态**（`src/agent/__tests__/e2e.acceptance.test.ts` + `e2e.harness.ts`）：
 > MCP 客户端（真 WS）→ **真实 relay 子进程**（真 RFC6455 + 真 MCP 路由）→ 页面内 `AgentBridge`（**原样复用未改**）
 > → agentOps → repositories → Dexie（`fake-indexeddb`）。唯一替换项是 Node 没有原生 `WebSocket`，
@@ -407,6 +416,94 @@ repositories（createRepository 工厂保持纯写）→ 同步引擎 / eventBus
 **Relay 与 Agent 之间的协议形态**：~~stdio 优先还是 WebSocket 优先？建议 stdio 优先 + WS 同进程并存，第 4 步动工前由小蓝指定一个先行实测的 Agent。~~
 
 **2026-09-10 裁定（见 §10.1）**：桥只暴露**标准 MCP 协议**（`tools/list` + `tools/call`），**stdio 与 WS 双入口同进程并存**，共用同一 MCP 路由。取消「指定先行 Agent」——协议锁死后，任一 MCP Agent 接入即验证。此项不再待拍板。
+
+### 9.13 P2 动作扩面与领域命令层（2026-09-10）
+
+> 承接 §六「P2：多模块全量动作」。本节记录本轮实际交付范围与**取舍理由**，不改架构。
+
+**A. 为什么先做「编辑 / 删除」而不是继续铺新模块**
+
+P1 面上 AI 能建、不能改、更不能删——建错一条客户 / 待办只能靠人工到界面里收拾，
+等于「AI 可写但不可修」。而 UI 早有编辑 / 删除入口且已有级联语义。
+先把动作面与 UI **对齐**，才谈得上 Issue #33 原始诉求的「AI 能完整使用本项目的所有功能」；
+继续铺新模块只会让「能建不能改」的面积更大。
+
+**B. 新增工具（15 → 27）**
+
+| 工具 | 域 | 风险 | 落库路径 |
+|---|---|---|---|
+| `todo_updateTodo` | todo | low | `todoRepo.put`（nullable 三态：未传=不动 / null=清空 / 值=设置） |
+| `todo_deleteTodo` | todo | **high** | `todoRepo.softDelete` |
+| `crm_updateCustomer` | crm | medium | `customerRepo.put`（`intimacyLevel: null` = 清除手动档位、交算法兜底） |
+| `project_createProject` | project | low | `projectRepo.put` |
+| `project_updateProject` | project | medium | `projectRepo.put`（含归档 / 搁置） |
+| `note_createNote` | note | low | `noteRepo.put` |
+| `note_updateNote` | note | medium | `noteRepo.put` |
+| `note_createFolder` | note | low | `noteFolderRepo.put` |
+| `habit_deleteHabit` | habit | **high** | `deleteHabitCascade`（级联清日志，返回条数） |
+| `listProjects` / `listNotes` / `listNoteFolders` | read | low | 只读，投影白名单 + 上限 50 |
+
+**C. 新增白名单域 `project`**
+
+项目是跨模块主题容器（交易 / 待办 / 笔记 / 沟通都挂它），与「笔记读写」是两件事：
+关掉项目域不应连带关掉笔记域。故 `AiDomain` 增 `project`，设置页「能力白名单」同步多一行。
+
+**D. 消解器扩展**
+
+`ResolvableType` 增 `note` / `noteFolder`。否则「把这条笔记挪到 Q3 复盘目录」这类指令
+只能靠猜 id，违背 §2.3「写工具只接受消解后的 id」。`labelOfType` 同步补中文别名供反问文案用。
+
+**E. 读限幅：`listNotes` 不下发正文**
+
+`listNotes` 投影**不含 markdown 正文**，只给 `markdownLength`。依据 §10.3 token 开销口径：
+外部 Agent 若能把全库笔记正文一次性拉走，限幅就形同虚设。需要正文的正确路径是
+用户主动把内容贴给 Agent，而不是让 Agent 全量拉取。
+
+**F. 四条纪律（测试逐条固定）**
+
+1. **不新增领域事件**——这些动作在 UI 同入口也不发事件，`TOOL_EVENTS` 保持为空；
+2. **删除走既有级联函数**——不新写删除逻辑，`sideEffects` 回受影响记录数供 Agent 转述；
+3. **幽灵记录一律可操作错误**——对不存在 / 已删记录返回「成功」是最危险的假阳性；
+4. **关联校验前置**——挂靠不存在的客户 / 项目 / 文件夹一律拒绝，不产生悬挂引用
+   （否则画布会出现「边指向已删节点」，与 Issue #22 同源）。
+
+**G. 领域命令层 `src/domain/`（P1 收尾补强）**
+
+§2.1 硬规则是「一个业务动作只应有一处实现」。第 2 步收口了**事件**，
+但**动作编排**仍是两份：`TransactionFormDrawer` 与 `fin_recordTransaction` 各写一遍
+`startOf('day')` 与缺省账本取值。而 §7.1 验收要求「AI 记的账 vs 手工记的账逐字段一致」——
+两份实现下只能靠巧合成立。
+
+`src/domain/index.ts`：`normalizeOccurredAt` / `resolveDefaultLedgerId` / `recordTransaction` /
+`createLedger`，UI 与 AI 共同依赖。**领域层不产事件**——事件仍由 repositories 复合函数在
+事务 commit 后发出，保持 §2.1 两条不变式。
+
+配套：`fin_recordTransaction` 的 `ledgerId` 由必填改为**可缺省**，缺省走
+`isDefault → 唯一账本 → 反问`。依据即 §9.4 对齐原则——UI 表单在「全部账本」视图下
+本就自动选默认账本，工具层强制必填反而使两条路径行为不一致。
+
+**H. P1 收尾补强：确认流程闭环（补 §四.4 的流程断点）**
+
+`preview` 此前能正确拦下中风险操作，但**票据只能由 relay 签发而 Agent 无从取票**——
+非 `--dev` 下「预览 → 用户确认 → 执行」物理上走不通，确认闸门退化成「永远执行不了」。
+新增 relay 内置 MCP 工具 **`confirm_preview`**：
+
+1. 浏览器回预览材料时 relay 记下 `(tool,args)`（TTL 5 分钟）；
+2. Agent 把预览转述用户、取得确认后调 `confirm_preview(tool, args)`；
+3. relay 校验「该组参数确实被预览过」才签发一次性 confirmToken（核销即删、防重放）。
+
+**票据绑定参数**，堵死「拿确认票执行另一组参数」的越权路径。这与 §10.1
+「relay 只是通道，不是安全边界」并不矛盾——relay 不冒充用户确认，
+只保证「同一组参数被确认过一次」这一事实不被伪造。
+
+**I. 遗留（未做，理由写明）**
+
+- relay 启动方式仍是本地独立进程（`npm run relay` / `npm run relay:stdio`），
+  **未接 CNB 流水线**——涉及「谁来跑、跑在哪」，需用户拍板，不擅自决定；
+- P3 项（Node 侧车形态、离线规则模板兜底、多步编排与跨会话）未动；
+- `--dev`（预览自动附票）保留为本地自动化便利，**真实用法走 `confirm_preview` 取票**，
+  两者协议一致、不冲突。
+
 
 ### 9.10 交付载体与 PR 治理（v0.6 修正）
 

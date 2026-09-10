@@ -47,9 +47,66 @@ function requestFromBrowser(payload) {
       pending.delete(requestId)
       reject(new Error('浏览器响应超时（15s）'))
     }, 15_000)
-    pending.set(requestId, { resolve, reject, timer })
+    // track：tools/call 记录 {name,args}，供预览回包落地为 confirm_preview 的校验依据
+    const track = payload.kind === 'tools/call' ? { name: payload.name, args: payload.args } : undefined
+    pending.set(requestId, { resolve, reject, timer, track })
     browserConn.send(JSON.stringify({ type: 'agentops:call', requestId, ...payload }))
   })
+}
+
+/**
+ * preview 材料缓存（中风险「预览 → 确认 → 执行」的绑定环节）。
+ *
+ * 为什么必须在 relay 侧：preview 的入参只有浏览器侧知道（工具参数由页面进程的 agentOps schema 决定），
+ * relay 若不缓存，「用户确认后取票」这一步就无从校验「票据对的是同一组参数」——
+ * 会出现「Agent 预览了 A，却拿着票执行了 B」的越权路径（确认闸门被架空）。
+ * 缓存以 tool:argsHash 为键、TTL 5 分钟、取票时消费即删（与 confirmToken 同生命周期）。
+ */
+const previewStore = new Map()
+const PREVIEW_TTL_MS = 5 * 60 * 1000
+
+function argsHash(tool, args) {
+  const s = `${tool}::${JSON.stringify(args ?? {})}`
+  let h = 0
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0
+  return `p${(h >>> 0).toString(36)}`
+}
+
+function rememberPreview(key) {
+  previewStore.set(key, Date.now() + PREVIEW_TTL_MS)
+  for (const [k, exp] of previewStore) if (Date.now() > exp) previewStore.delete(k)
+}
+
+function consumePreview(key) {
+  const exp = previewStore.get(key)
+  if (exp === undefined) return false
+  previewStore.delete(key)
+  return Date.now() <= exp
+}
+
+/**
+ * 确认票据签发入口（MCP 工具 `confirm_preview`）。
+ *
+ * 非 --dev 下的**唯一取票路径**：Agent 完成「预览 → 向用户转述 → 用户确认」后调用本工具，
+ * relay 校验「该 (tool,args) 组合确实被 preview 过」才签发一次性 confirmToken。
+ * relay 依此在不冒充用户的前提下，把「用户确认」这一事实的可信边界交给 Agent 的转述，
+ * 同时用 preview 绑定堵死「拿着确认票执行另一组参数」。
+ */
+const CONFIRM_TOOL = 'confirm_preview'
+
+function confirmPreview(args) {
+  const tool = String(args?.tool ?? '')
+  const toolArgs = args?.args ?? {}
+  if (!tool) return { ok: false, error: 'confirm_preview 缺少 tool' }
+  const key = argsHash(tool, toolArgs)
+  if (!consumePreview(key)) {
+    return {
+      ok: false,
+      error: `未找到工具 ${tool} 的预览记录（须先以相同参数调用一次本工具取得预览，票据绑定该组参数且 5 分钟内有效）`,
+    }
+  }
+  const issued = router.issueConfirm({ tool, source: 'confirm_preview' })
+  return { ok: true, data: { ...issued, tool, note: '请以同一参数重试该工具，并携带 confirmToken。' } }
 }
 
 const router = createMcpRouter({
@@ -58,10 +115,45 @@ const router = createMcpRouter({
   autoIssueConfirm: wantDev,
   // tools/list 由浏览器回传（白名单关闭的域不出现；relay 不认识具体工具）
   // 注意信封：requestFromBrowser 已统一 resolve {ok, data}，工具清单在 data.tools 上。
-  listTools: () =>
-    requestFromBrowser({ kind: 'tools/list' }).then((r) => r.data?.tools ?? []),
-  callTool: (name, toolArgs, meta) =>
-    requestFromBrowser({ kind: 'tools/call', name, args: toolArgs, meta: { confirmToken: meta?.confirmToken } }),
+  listTools: () => {
+    const fromBrowser = () =>
+      requestFromBrowser({ kind: 'tools/list' }).then((r) => r.data?.tools ?? [])
+    // confirm_preview 由 relay 自己实现（票据只能由 relay 签发），与浏览器工具清单**合并**下发：
+    // 不合并的话，非 --dev 下 Agent 根本看不到取票入口，中风险工具永远执行不了。
+    return fromBrowser().then((tools) => [
+      ...tools,
+      {
+        name: CONFIRM_TOOL,
+        description:
+          '中风险操作确认取票（relay 内置）：完成「预览 → 向用户转述 → 用户确认」后，以与预览相同的参数调用本工具取得一次性 confirmToken，再重试原工具。',
+        risk: 'low',
+        domain: 'read',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            tool: { type: 'string', description: '要执行的中风险工具名' },
+            args: { type: 'object', description: '与该次预览完全一致的入参' },
+          },
+          required: ['tool', 'args'],
+        },
+      },
+    ])
+  },
+  callTool: (name, toolArgs, meta) => {
+    if (name === CONFIRM_TOOL) {
+      try {
+        return Promise.resolve(confirmPreview(toolArgs))
+      } catch (e) {
+        return Promise.resolve({ ok: false, error: e?.message ?? String(e) })
+      }
+    }
+    return requestFromBrowser({
+      kind: 'tools/call',
+      name,
+      args: toolArgs,
+      meta: { confirmToken: meta?.confirmToken },
+    })
+  },
   log,
 })
 
@@ -82,6 +174,11 @@ function onBrowserMessage(raw) {
     if (process.env.WORKHUB_RELAY_DEBUG) log(`[relay] 匹配到 pending，准备回给 MCP 客户端：${msg.requestId}`)
     // 必须把桥的 ok/error 一起带回 —— 只 resolve(data) 会把 ok 丢掉，
     // 下游 `res.ok !== true` 恒真（data 只有业务字段，没有 ok），表现为「工具明明执行成功却回执行失败」。
+    // 浏览器回了预览材料 → 记下「(tool,args) 已预览」，供 confirm_preview 校验并绑定票据。
+    // p.meta 由 requestFromBrowser 调用点带上（tools/call 才有）。
+    if (msg.ok && msg.data?.preview === true && p.track) {
+      rememberPreview(argsHash(p.track.name, p.track.args))
+    }
     if (msg.ok) p.resolve({ ok: true, data: msg.data ?? {} })
     else p.resolve({ ok: false, error: msg.error ?? '浏览器执行失败' })
   }

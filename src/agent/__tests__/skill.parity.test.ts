@@ -23,7 +23,7 @@ describe('工具集同源（实现 ↔ skill 生成源）', () => {
   it('每个工具都有域归属与风险级（白名单与确认机制不漏筛）', () => {
     for (const t of ALL_TOOL_SKILLS) {
       expect(TOOL_DOMAIN[t.name], `${t.name} 缺域归属`).toBeTruthy()
-      expect(['low', 'medium']).toContain(TOOL_RISK[t.name])
+      expect(['low', 'medium', 'high']).toContain(TOOL_RISK[t.name])
     }
   })
 

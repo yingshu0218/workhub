@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { useCollection } from '@/queries/hooks'
 import { newId, saveTransactionWithAttachments } from '@/repositories'
+import { normalizeOccurredAt } from '@/domain'
 import type { PutInput } from '@/repositories/repository'
 import type { Attachment } from '@/db/db'
 import type { Customer, Ledger, Project, Todo, Transaction } from '@/db/types'
@@ -163,6 +164,9 @@ export default function TransactionFormDrawer({
       return
     }
     const txnId = editTxn?.id ?? newId('txn')
+    // 记账时间口径走领域层 `normalizeOccurredAt`（仅日期录入 → 落当天 00:00）。
+    // 该口径与 agentOps 的 fin_recordTransaction 同源一份实现（P1 补强：消除 UI/AI 两份内联拼接）。
+    const occurredAtMs = normalizeOccurredAt(occurredAt)
     // 编辑模式以旧记录展开为基底，保留 status/todoId 等表单外字段
     const record: PutInput<Transaction> = editTxn
       ? {
@@ -172,8 +176,7 @@ export default function TransactionFormDrawer({
           amount: amountNum,
           summary: summary.trim(),
           channel,
-          // 仅日期录入：统一落当天 00:00，新老数据按天排序不受影响
-          occurredAt: occurredAt ? dayjs(occurredAt).startOf('day').valueOf() : dayjs().startOf('day').valueOf(),
+          occurredAt: occurredAtMs,
           tags,
           note: note.trim() || undefined,
           customerId: customerId || undefined,
@@ -187,8 +190,7 @@ export default function TransactionFormDrawer({
           amount: amountNum,
           summary: summary.trim(),
           channel,
-          // 仅日期录入：统一落当天 00:00，新老数据按天排序不受影响
-          occurredAt: occurredAt ? dayjs(occurredAt).startOf('day').valueOf() : dayjs().startOf('day').valueOf(),
+          occurredAt: occurredAtMs,
           tags,
           note: note.trim() || undefined,
           customerId: customerId || undefined,

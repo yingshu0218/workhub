@@ -1,6 +1,5 @@
 import { useState } from 'react'
-import { ledgerRepo, newId } from '@/repositories'
-import { db } from '@/db/db'
+import { clearOtherDefaultLedgers, ledgerRepo, newId } from '@/repositories'
 import { syncEngine } from '@/sync/engine'
 import { nextLedgerSortOrder } from './hooks'
 import type { Ledger } from '@/db/types'
@@ -73,16 +72,11 @@ export default function LedgerFormDrawer({
       setError('期初建账金额需为不小于 0 的数字')
       return
     }
-    // 设为默认账本：先清掉其它账本的 isDefault，保证全局唯一
+    // 设为默认账本：先清掉其它账本的 isDefault，保证全局唯一。
+    // 收口到 repositories（P1 补强）：与 agentOps 的 fin_createLedger 共用同一实现，
+    // 消除「UI 一处 / AI 一处」两条内联路径漂移出「双默认账本」的可能。
     if (isDefault) {
-      const others = (await db.ledgers.toArray()).filter(
-        (l) => !l.deleted && l.isDefault && l.id !== editLedger?.id,
-      )
-      const now = Date.now()
-      for (const l of others) {
-        const { isDefault: _drop, ...rest } = l
-        await ledgerRepo.put({ ...rest, updatedAt: now, rev: l.rev + 1 })
-      }
+      await clearOtherDefaultLedgers(editLedger?.id)
     }
     if (editLedger) {
       await ledgerRepo.put({

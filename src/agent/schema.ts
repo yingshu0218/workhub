@@ -12,8 +12,13 @@ import type { AiDomain } from '@/db/types'
  * - 必填/可缺省口径对齐 UI 实际落库行为（§9.4）：UI 未校验的字段不强制必填。
  */
 
-/** 风险分级：低=执行+undo 提示；中=执行前需 confirmToken（预览确认） */
-export type RiskLevel = 'low' | 'medium'
+/**
+ * 风险分级（§四.4）：
+ * - `low`：执行 + undo 提示（可撤销的轻量写）；
+ * - `medium`：执行前需 confirmToken（预览 → 向用户转述确认 → 执行）；
+ * - `high`：**二次确认 + 副作用清单**（删除类不可逆动作，必须先列受影响记录数）。
+ */
+export type RiskLevel = 'low' | 'medium' | 'high'
 
 /** 领域事件声明（§2.1 事件声明表，agentOps 唯一事件出口） */
 export type AgentEventDeclaration =
@@ -65,8 +70,14 @@ const amountSchema = z
 
 /** fin_recordTransaction —— 落库 saveTransactionWithAttachments（不含附件，Blob 通道 P1 后补） */
 export const recordTransactionSchema = z.object({
-  /** 账本归属必填：为空返回可操作错误（§9.3 D7），不做隐式缺省 */
-  ledgerId: z.string().min(1, '请先创建账本'),
+  /**
+   * 账本归属：**可缺省**，缺省走领域层统一策略 `isDefault → 唯一账本 → 反问`（§9.3 D3/D7）。
+   * 为什么从「必填」改为「可缺省」：§9.4 的对齐原则是「工具层口径一律对齐 UI 实际落库行为」——
+   * UI 记账表单在「全部账本」视图下就是**自动选默认账本**（TransactionFormDrawer 初值逻辑），
+   * 工具层强制必填会让 AI 必须先反查账本再记一笔，而「请先创建账本」的无账本场景
+   * 恰恰由领域层策略给出更准确的可操作错误（无账本 / 多账本无默认，两种提示不同）。
+   */
+  ledgerId: z.string().min(1, '账本 id 不能为空').optional(),
   summary: z.string().trim().min(1, '请填写交易名称'),
   amount: amountSchema,
   type: z.enum(['income', 'expense']).default('expense'),
@@ -156,6 +167,132 @@ export const checkinHabitSchema = z.object({
   undo: z.boolean().default(false),
 })
 
+/* ─────────────── P2 动作扩面（编辑 / 删除 / 项目 / 笔记） ─────────────── *
+ * 方案 §六 P2「多模块全量动作」。取舍原则：
+ * - 只加**已有 UI 入口、语义明确**的动作，不发明新的业务语义；
+ * - 删除类一律走既有级联 / 软删函数（`deleteCustomerCascade` / `deleteHabitCascade` /
+ *   `repo.softDelete`），不新写删除逻辑；
+ * - 这类动作**不新增任何领域事件**（现有 UI 入口同样不发），事件声明表保持窄。
+ *
+ * 为什么这轮必须先于「审计」落地：P1 面上 AI 能建、不能改、更不能删——
+ * 建错一条客户 / 待办只能靠人工到界面里收拾，等于「AI 可写但不可修」，
+ * 而 UI 早有编辑 / 删除入口且已有级联语义。补齐后 AI 的动作面与 UI 对齐，
+ * 才谈得上「AI 能完整使用本项目的所有功能」（Issue #33 原始诉求）。
+ * ------------------------------------------------------------------- */
+
+/** todo_updateTodo —— 编辑待办（不含完成态：完成态一律走 todo_completeTodo，避免两处写 status/completedAt） */
+export const updateTodoSchema = z
+  .object({
+    todoId: z.string().min(1, 'todoId 必须由 resolveEntity 消解产出'),
+    title: z.string().trim().min(1).optional(),
+    desc: z.string().optional(),
+    priority: z.enum(['P1', 'P2', 'P3']).optional(),
+    /** 传 null 表示清空（对齐 UI「不关联」语义） */
+    dueAt: z.number().int().positive().nullable().optional(),
+    customerId: z.string().nullable().optional(),
+    projectId: z.string().nullable().optional(),
+    listId: z.string().nullable().optional(),
+  })
+  .refine(
+    (v) =>
+      Object.keys(v).some((k) => k !== 'todoId' && (v as Record<string, unknown>)[k] !== undefined),
+    '至少提供一个要修改的字段',
+  )
+
+/** todo_deleteTodo —— 删除待办（软删 + 入队，与 UI 删除同源） */
+export const deleteTodoSchema = z.object({
+  todoId: z.string().min(1, 'todoId 必须由 resolveEntity 消解产出'),
+})
+
+/** crm_updateCustomer —— 编辑客户档案（relations 走 crm_addRelation，不在此内联） */
+export const updateCustomerSchema = z
+  .object({
+    customerId: z.string().min(1, 'customerId 必须由 resolveEntity 消解产出'),
+    name: z.string().trim().min(1).optional(),
+    company: z.string().optional(),
+    title: z.string().optional(),
+    decisionLevel: z.enum(['决策人', '影响者', '使用者', '把关人']).optional(),
+    tier: z.enum(['S', 'A', 'B', '潜在']).optional(),
+    /** 关系档位（Issue #108 健康分单一来源）；显式 null = 清除手动档位、交算法兜底 */
+    intimacyLevel: z.enum(['T1', 'T2', 'T3', 'T4', 'T5', 'I6', 'I7']).nullable().optional(),
+    tags: z.array(z.string()).optional(),
+    phone: z.string().optional(),
+    wechat: z.string().optional(),
+    email: z.string().optional(),
+    address: z.string().optional(),
+  })
+  .refine(
+    (v) =>
+      Object.keys(v).some(
+        (k) => k !== 'customerId' && (v as Record<string, unknown>)[k] !== undefined,
+      ),
+    '至少提供一个要修改的字段',
+  )
+
+/** project_createProject —— 建项目（默认 active；archived 项目在候选池沉底） */
+export const createProjectSchema = z.object({
+  name: z.string().trim().min(1, '请填写项目名称'),
+  customerId: z.string().optional(),
+  color: z.string().optional(),
+  status: z.enum(['active', 'paused', 'archived']).default('active'),
+  budget: z.number().min(0).optional(),
+  note: z.string().optional(),
+})
+
+/** project_updateProject —— 编辑项目（含归档 / 搁置状态切换） */
+export const updateProjectSchema = z
+  .object({
+    projectId: z.string().min(1, 'projectId 必须由 resolveEntity 消解产出'),
+    name: z.string().trim().min(1).optional(),
+    status: z.enum(['active', 'paused', 'archived']).optional(),
+    customerId: z.string().nullable().optional(),
+    color: z.string().optional(),
+    budget: z.number().min(0).nullable().optional(),
+    note: z.string().optional(),
+  })
+  .refine(
+    (v) =>
+      Object.keys(v).some(
+        (k) => k !== 'projectId' && (v as Record<string, unknown>)[k] !== undefined,
+      ),
+    '至少提供一个要修改的字段',
+  )
+
+/** note_createNote —— 建笔记（markdown 正文 + 可选目录 / 项目 / 标签） */
+export const createNoteSchema = z.object({
+  title: z.string().trim().min(1, '请填写笔记标题'),
+  markdown: z.string().default(''),
+  tags: z.array(z.string()).default([]),
+  folderId: z.string().optional(),
+  projectId: z.string().optional(),
+})
+
+/** note_updateNote —— 编辑笔记（标题 / 正文 / 标签 / 归属） */
+export const updateNoteSchema = z
+  .object({
+    noteId: z.string().min(1, 'noteId 必须由 resolveEntity 消解产出'),
+    title: z.string().trim().min(1).optional(),
+    markdown: z.string().optional(),
+    tags: z.array(z.string()).optional(),
+    folderId: z.string().nullable().optional(),
+    projectId: z.string().nullable().optional(),
+  })
+  .refine(
+    (v) =>
+      Object.keys(v).some((k) => k !== 'noteId' && (v as Record<string, unknown>)[k] !== undefined),
+    '至少提供一个要修改的字段',
+  )
+
+/** note_createFolder —— 建笔记文件夹（单层平铺） */
+export const createFolderSchema = z.object({
+  name: z.string().trim().min(1, '请填写文件夹名称'),
+})
+
+/** habit_deleteHabit —— 删除习惯（走 deleteHabitCascade，级联清日志） */
+export const deleteHabitSchema = z.object({
+  habitId: z.string().min(1, 'habitId 必须由 resolveEntity 消解产出'),
+})
+
 /** 各写工具的风险分级（§四.4：低=执行+undo；中=先 preview 拿 confirmToken 再 execute） */
 export const TOOL_RISK: Record<string, RiskLevel> = {
   'fin_recordTransaction': 'medium',
@@ -166,6 +303,16 @@ export const TOOL_RISK: Record<string, RiskLevel> = {
   'todo_createTodo': 'low',
   'todo_completeTodo': 'low',
   'habit_checkin': 'low',
+  // ── P2 动作扩面：删除类为 high（不可逆，需二次确认 + 副作用清单） ──
+  'todo_updateTodo': 'low',
+  'todo_deleteTodo': 'high',
+  'crm_updateCustomer': 'medium',
+  'project_createProject': 'low',
+  'project_updateProject': 'medium',
+  'note_createNote': 'low',
+  'note_updateNote': 'medium',
+  'note_createFolder': 'low',
+  'habit_deleteHabit': 'high',
   /** 读工具：无副作用，风险恒为 low（不进 TOOL_EVENTS，读操作不产领域事件） */
   'resolveEntity': 'low',
   'searchEntities': 'low',
@@ -174,6 +321,9 @@ export const TOOL_RISK: Record<string, RiskLevel> = {
   'listTodos': 'low',
   'listLedgers': 'low',
   'listHabits': 'low',
+  'listProjects': 'low',
+  'listNotes': 'low',
+  'listNoteFolders': 'low',
 }
 
 /**
@@ -210,7 +360,7 @@ export function agentLayerEvents(tool: string): AgentEventDeclaration['event'][]
 /** resolveEntity —— 读工具（§2.2）：候选 id + label + sub，不含全字段与 relations */
 export const resolveEntitySchema = z.object({
   query: z.string().min(1, '请提供要消解的实体名称'),
-  type: z.enum(['customer', 'project', 'todo', 'ledger', 'habit']),
+  type: z.enum(['customer', 'project', 'todo', 'ledger', 'habit', 'note', 'noteFolder']),
 })
 
 /**
@@ -223,9 +373,19 @@ export const TOOL_DOMAIN: Record<string, AiDomain> = {
   crm_createCustomer: 'crm',
   crm_addInteraction: 'crm',
   crm_addRelation: 'crm',
+  crm_updateCustomer: 'crm',
   todo_createTodo: 'todo',
   todo_completeTodo: 'todo',
+  todo_updateTodo: 'todo',
+  todo_deleteTodo: 'todo',
   habit_checkin: 'habit',
+  habit_deleteHabit: 'habit',
+  // ── P2 动作扩面 ──
+  project_createProject: 'project',
+  project_updateProject: 'project',
+  note_createNote: 'note',
+  note_updateNote: 'note',
+  note_createFolder: 'note',
   resolveEntity: 'read',
   searchEntities: 'read',
   getCustomer: 'read',
@@ -233,6 +393,9 @@ export const TOOL_DOMAIN: Record<string, AiDomain> = {
   listTodos: 'read',
   listLedgers: 'read',
   listHabits: 'read',
+  listProjects: 'read',
+  listNotes: 'read',
+  listNoteFolders: 'read',
 }
 
 /** 域默认开关（settings.ai.domains 缺省时的兜底；写域默认全开、读域默认开） */
@@ -240,6 +403,7 @@ export const DEFAULT_AI_DOMAINS: Record<AiDomain, boolean> = {
   fin: true,
   crm: true,
   todo: true,
+  project: true,
   habit: true,
   note: true,
   read: true,

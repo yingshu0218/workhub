@@ -118,12 +118,16 @@ describe('relay 真机回归（E2E 暴露的三处缺陷）', () => {
     expect(r.result.content[0].text).toBe('页面侧明确报错')
   })
 
-  it('③ tools/list 走 data.tools 信封：清单完整穿过 relay', async () => {
+  it('③ tools/list 走 data.tools 信封：页面侧工具清单完整穿过 relay', async () => {
     browserBehaviour = 'tools'
     const r = await call('tools/list', {}, 203)
     // 信封错位（直接 r.tools）时这里会是空数组，不报错但静默丢光全部工具 —— 必须断言条数
-    expect(r.result.tools).toHaveLength(1)
-    expect(r.result.tools[0]).toMatchObject({ name: 'x_tool', annotations: { risk: 'low', domain: 'x' } })
+    // relay 会在页面清单之外**追加内置的 confirm_preview**（中风险确认取票入口），故按名字断言。
+    const names = r.result.tools.map((t) => t.name)
+    expect(names).toContain('x_tool')
+    expect(r.result.tools.find((t) => t.name === 'x_tool')).toMatchObject({
+      annotations: { risk: 'low', domain: 'x' },
+    })
   })
 
   it('④ ping 不依赖浏览器，仍即时应答（链路区分「要唤醒页面」与「纯协议」）', async () => {
@@ -157,7 +161,7 @@ describe('relay 真机回归（E2E 暴露的三处缺陷）', () => {
     await new Promise((r) => setTimeout(r, 200))
     browserBehaviour = 'tools'
     const r = await call('tools/list', {}, 205)
-    expect(r.result.tools).toHaveLength(1)
+    expect(r.result.tools.some((t) => t.name === 'x_tool')).toBe(true)
     bogus.close()
   })
 })

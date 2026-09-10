@@ -81,7 +81,8 @@ function newCustomer(id: string, name: string, over: Record<string, unknown> = {
   }
 }
 
-/** 造一个账本（记账前置；工具要求显式 ledgerId，不允许隐式缺省） */
+/** 造一个默认账本（记账前置）。注：`ledgerId` 自本轮起**可缺省**（缺省走领域层
+ *  isDefault → 唯一账本 → 反问），本 harness 仍显式传入以固定测试数据形态。 */
 async function ensureLedger(id = 'ldg-e2e'): Promise<string> {
   const existing = await db.ledgers.get(id)
   if (!existing || existing.deleted) {
@@ -231,7 +232,7 @@ describe('P1 第 7 步 E2E 主干验收（§9.8）', () => {
     expect(foundRes.id).toBe(customerId)
 
     /* 5. 账本：Agent 先 listLedgers 发现，无账本时按 skill 指引先建默认账本
-          （记账工具要求显式 ledgerId，不做隐式缺省 —— §9.3 D7） */
+          （记账工具 ledgerId 可缺省，缺省走 isDefault → 唯一账本 → 反问；这里走显式路径） */
     const empty = await mcp.callTool('listLedgers', {})
     expect((empty.data as ReadEnvelope).count).toBe(0)
     const createdLedger = await mcp.callTool('fin_createLedger', { name: '默认账本', isDefault: true })
@@ -413,6 +414,86 @@ describe('P1 第 7 步 E2E 主干验收（§9.8）', () => {
   })
 
   /* ============ 补强断言 ③-b：幂等语义可被 Agent 观察到 ============ */
+
+  /* ========== 补强断言 ⑤：P2 动作扩面经真实 relay 全链路可达 ========== */
+
+  it('⑤ P2 扩面动作经 relay 全链路可跑通（改档位 → 归档项目 → 记/改笔记 → 删待办）', async () => {
+    /* 建客户（中风险，走 preview → confirm → execute） */
+    const createArgs = { name: '赵六', company: '远山设计', tier: 'B' as const }
+    const createPreview = await mcp.callTool('crm_createCustomer', createArgs)
+    expect((createPreview.data as { preview?: boolean }).preview).toBe(true)
+    const created = await mcp.callTool('crm_createCustomer', createArgs, previewToken(createPreview))
+    expect(created.ok, created.text).toBe(true)
+    const customerId = (created.data as { customerId: string }).customerId
+
+    /* 编辑客户档案 + 设置健康分档位（medium） */
+    const upArgs = { customerId, tier: 'S' as const, intimacyLevel: 'T2' as const }
+    const upPreview = await mcp.callTool('crm_updateCustomer', upArgs)
+    expect((upPreview.data as { preview?: boolean }).preview).toBe(true)
+    const up = await mcp.callTool('crm_updateCustomer', upArgs, previewToken(upPreview))
+    expect(up.ok, up.text).toBe(true)
+    const after = await db.customers.get(customerId)
+    expect(after!.tier).toBe('S')
+    expect(after!.intimacy?.level).toBe('T2')
+
+    /* 建项目（low，免预览）→ 挂到客户 → 归档 */
+    const prj = await mcp.callTool('project_createProject', { name: '远山年度视觉', customerId })
+    expect(prj.ok, prj.text).toBe(true)
+    const projectId = (prj.data as { projectId: string }).projectId
+    const archArgs = { projectId, status: 'archived' as const }
+    const archPreview = await mcp.callTool('project_updateProject', archArgs)
+    expect((archPreview.data as { preview?: boolean }).preview).toBe(true)
+    const arch = await mcp.callTool('project_updateProject', archArgs, previewToken(archPreview))
+    expect(arch.ok, arch.text).toBe(true)
+    expect((await db.projects.get(projectId))!.status).toBe('archived')
+
+    /* 建文件夹 → 建笔记 → 改归属（folderId: null 移出） */
+    const folder = await mcp.callTool('note_createFolder', { name: '远山资料' })
+    expect(folder.ok, folder.text).toBe(true)
+    const folderId = (folder.data as { folderId: string }).folderId
+    const noteArgs = { title: '远山需求要点', markdown: '# 要点', folderId, projectId }
+    const note = await mcp.callTool('note_createNote', noteArgs)
+    expect(note.ok, note.text).toBe(true)
+    const noteId = (note.data as { noteId: string }).noteId
+    const noteUpArgs = { noteId, folderId: null, title: '远山需求要点（终稿）' }
+    const noteUpPreview = await mcp.callTool('note_updateNote', noteUpArgs)
+    expect((noteUpPreview.data as { preview?: boolean }).preview).toBe(true)
+    const noteUp = await mcp.callTool('note_updateNote', noteUpArgs, previewToken(noteUpPreview))
+    expect(noteUp.ok, noteUp.text).toBe(true)
+    const noteRow = await db.notes.get(noteId)
+    expect(noteRow!.folderId).toBeUndefined()
+    expect(noteRow!.title).toBe('远山需求要点（终稿）')
+
+    /* 读工具：listNotes 不下发正文；listProjects 能查到归档项目 */
+    const notes = await mcp.callTool('listNotes', {})
+    expect(notes.ok, notes.text).toBe(true)
+    const noteItems = (notes.data as ReadEnvelope<{ markdown?: string; markdownLength?: number }>).items
+    expect(noteItems.every((n) => n.markdown === undefined)).toBe(true)
+    const projects = await mcp.callTool('listProjects', { status: 'archived' })
+    expect((projects.data as ReadEnvelope<{ id: string }>).items.some((p) => p.id === projectId)).toBe(true)
+
+    /* 删除待办（high 风险：预览须标 irreversible，且未确认不落库） */
+    const tid = 'td-e2e-del'
+    await db.todos.put({
+      id: tid,
+      title: '临时想法',
+      desc: '',
+      priority: 'P2',
+      status: 'todo',
+      createdAt: Date.now(),
+      updatedAt: 0,
+      deleted: 0,
+      rev: 0,
+    } as never)
+    const delPreview = await mcp.callTool('todo_deleteTodo', { todoId: tid })
+    const delData = delPreview.data as { preview?: boolean; irreversible?: boolean }
+    expect(delData.preview).toBe(true)
+    expect(delData.irreversible).toBe(true)
+    expect((await db.todos.get(tid))!.deleted).toBe(0)
+    const del = await mcp.callTool('todo_deleteTodo', { todoId: tid }, previewToken(delPreview))
+    expect(del.ok, del.text).toBe(true)
+    expect((await db.todos.get(tid))!.deleted).toBe(1)
+  }, 60_000)
 
   it('③-b habit_checkin 幂等：重复调用 created=false 且不重复 emit', async () => {
     const habitId = 'habit-e2e'

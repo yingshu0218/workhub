@@ -94,10 +94,16 @@ export default function TodoPage() {
   const rowRefs = useRef<Map<string, HTMLDivElement>>(new Map())
   useEffect(() => {
     if (!focusId) return
+    // 目标待办是否已完成**必须在这里判**（Issue #111 同款口径）：
+    // 已完成条目仅在勾选「已完成」Chip 时才可见（matchesSmart 的 includeDone 分支），
+    // 而穿透入口（客户时间线鱼骨 / CRM 活动流）恰恰最常指向**已完成**的待办——
+    // 此前一律 setChipDone(false)，表现为「点进去跳了、但目标行不见」，
+    // 兜底切视图那句注释写着「已完成同步勾上」，实际在隐式重置里被抹掉。
+    const target = todos.find((t) => t.id === focusId)
     setSelListId(null)
     setSelKind('all')
     setChipP1(false)
-    setChipDone(false)
+    setChipDone(!!target && !isTodoOpen(target))
     // 等过滤切换生效、列表重渲染后再滚动定位
     const t = window.setTimeout(() => {
       const el = rowRefs.current.get(focusId)
@@ -109,7 +115,7 @@ export default function TodoPage() {
       setSearchParams({}, { replace: true })
     }, 0)
     return () => window.clearTimeout(t)
-  }, [focusId, setSearchParams])
+  }, [focusId, setSearchParams, todos])
 
   const todayStr = dayjs().format('YYYY-MM-DD')
 

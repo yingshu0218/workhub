@@ -11,7 +11,7 @@
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---|---|---|
 | `query` | string | 是 | — |  |
-| `type` | enum(customer / project / todo / ledger / habit) | 是 | — |  |
+| `type` | enum(customer / project / todo / ledger / habit / note / noteFolder) | 是 | — |  |
 
 ## 副作用
 
