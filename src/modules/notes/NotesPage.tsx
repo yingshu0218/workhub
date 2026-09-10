@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Icon } from '@/design-system/Icon'
 import { useNavigate } from 'react-router-dom'
 import { noteRepo, newId } from '@/repositories'
-import { Button, Card, EmptyState, PageHeader, inputCls } from '@/design-system/ui'
+import { Button, Card, ConfirmDialog, EmptyState, PageHeader, inputCls } from '@/design-system/ui'
 import dayjs from 'dayjs'
 import { NOTE_PROSE_CSS, renderMarkdown, tagStyle, wordCount } from './shared'
 import {
@@ -40,6 +40,8 @@ export default function NotesPage() {
   const [addingFolder, setAddingFolder] = useState(false)
   // 查看弹窗：当前正在弹窗预览的笔记 id（null=关闭）
   const [viewId, setViewId] = useState<string | null>(null)
+  // 删除确认弹窗（应用风格，替代 window.confirm）
+  const [confirmFolder, setConfirmFolder] = useState<NoteFolder | null>(null)
 
   /** 标签聚合（含计数），按引用次数降序 */
   const tagCloud = useMemo(() => {
@@ -113,15 +115,7 @@ export default function NotesPage() {
   }
 
   async function handleDeleteFolder(f: NoteFolder) {
-    const count = folderCounts.get(f.id) ?? 0
-    if (
-      !window.confirm(
-        `确认删除文件夹「${f.name}」？${count > 0 ? `名下 ${count} 篇笔记将移回「未归档」。` : ''}`,
-      )
-    )
-      return
-    await deleteNoteFolderCascade(f.id)
-    if (scope.kind === 'folder' && scope.folder.id === f.id) setScope({ kind: 'all' })
+    setConfirmFolder(f)
   }
 
   function scopeLabel(): string {
@@ -345,6 +339,25 @@ export default function NotesPage() {
       </div>
 
       {/* 查看弹窗：背景虚化遮罩 + 居中卡片，关闭即返回列表 */}
+      <ConfirmDialog
+        open={!!confirmFolder}
+        title={`删除文件夹「${confirmFolder?.name ?? ''}」`}
+        message={
+          confirmFolder && (folderCounts.get(confirmFolder.id) ?? 0) > 0
+            ? `名下 ${folderCounts.get(confirmFolder.id)} 篇笔记将移回「未归档」。`
+            : undefined
+        }
+        confirmText="删除"
+        danger
+        onConfirm={() => {
+          if (confirmFolder) void deleteNoteFolderCascade(confirmFolder.id)
+          if (confirmFolder && scope.kind === 'folder' && scope.folder.id === confirmFolder.id)
+            setScope({ kind: 'all' })
+          setConfirmFolder(null)
+        }}
+        onCancel={() => setConfirmFolder(null)}
+      />
+
       {viewId && (
         <NoteViewModal
           noteId={viewId}
@@ -372,6 +385,8 @@ function NoteViewModal({
   const note = useNoteRecord(noteId)
   const folders = useNoteFolders()
   const html = useMemo(() => renderMarkdown(note?.markdown ?? ''), [note?.markdown])
+  // 删除确认弹窗（应用风格，替代 window.confirm）
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   // Esc 关闭 + 弹窗期间锁定背景滚动
   useEffect(() => {
@@ -401,9 +416,13 @@ function NoteViewModal({
     setTimeout(() => URL.revokeObjectURL(url), 3000)
   }
 
-  async function handleDelete() {
-    if (!window.confirm(`确认删除笔记「${cur.title}」？`)) return
+  function handleDelete() {
+    setConfirmDelete(true)
+  }
+
+  async function doDelete() {
     await noteRepo.softDelete(cur.id)
+    setConfirmDelete(false)
     onClose()
   }
 
@@ -508,6 +527,15 @@ ${folders.map((f, i) => `${i + 1}. ${f.name}`).join('\n')}${cur.folderId ? '\n0.
           </Button>
         </div>
       </div>
+      <ConfirmDialog
+        open={confirmDelete}
+        title={`删除笔记「${cur.title}」`}
+        message="删除后可在回收站恢复。"
+        confirmText="删除"
+        danger
+        onConfirm={() => void doDelete()}
+        onCancel={() => setConfirmDelete(false)}
+      />
     </div>
   )
 }

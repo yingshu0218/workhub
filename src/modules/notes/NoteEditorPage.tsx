@@ -5,7 +5,7 @@ import { useCollection } from '@/queries/hooks'
 import { noteRepo } from '@/repositories'
 import type { Note, NoteMention } from '@/db/types'
 import type { Customer, Ledger, Todo, Project } from '@/db/types'
-import { Button, Card, Chip, EmptyState } from '@/design-system/ui'
+import { Button, Card, Chip, ConfirmDialog, EmptyState } from '@/design-system/ui'
 import { archivedLast, fuzzyMatch, fuzzySort, MatchCombobox } from '@/design-system/MatchCombobox'
 import dayjs from 'dayjs'
 import { EditorState } from '@codemirror/state'
@@ -254,6 +254,8 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
   const [activeIdx, setActiveIdx] = useState(0)
   // Issue #50 悬浮卡片：编辑态点击关联主体/反向链接不再跳转，就地弹卡展示摘要
   const [hoverCard, setHoverCard] = useState<HoverCardState>(null)
+  // 删除确认弹窗（应用风格，替代 window.confirm）
+  const [confirmDelete, setConfirmDelete] = useState<{ open: boolean; title: string } | null>(null)
 
   const noteRef = useRef(note)
   noteRef.current = note
@@ -642,12 +644,16 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
     setTimeout(() => URL.revokeObjectURL(url), 3000)
   }
 
-  // ===== 删除（软删 + 跳回列表） =====
-  async function handleDelete() {
-    if (!window.confirm(`确认删除笔记「${noteRef.current.title}」？`)) return
+  // ===== 删除（软删 + 跳回列表，应用风格确认弹窗） =====
+  function handleDelete() {
+    setConfirmDelete({ open: true, title: noteRef.current.title })
+  }
+
+  async function doDelete() {
     clearTimeout(timerRef.current)
     dirtyRef.current = false
     await noteRepo.softDelete(noteRef.current.id)
+    setConfirmDelete(null)
     navigate('/notes')
   }
 
@@ -1068,6 +1074,15 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
           </div>
         </div>
       )}
+      <ConfirmDialog
+        open={!!confirmDelete?.open}
+        title={`删除笔记「${confirmDelete?.title ?? ''}」`}
+        message="删除后可在回收站恢复。"
+        confirmText="删除"
+        danger
+        onConfirm={() => void doDelete()}
+        onCancel={() => setConfirmDelete(null)}
+      />
     </div>
   )
 }
