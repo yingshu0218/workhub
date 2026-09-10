@@ -54,6 +54,15 @@ export function createRelay({ token = generateToken(), autoIssueConfirm = false,
     if (!browserConn) throw new Error('寻鸽工作台未连接 relay（请确保应用已打开且已启用 AI 桥）')
   }
 
+  /**
+   * 浏览器桥是否在线。用于把「应用没开」与「工具真的执行失败」两类错误分开上报：
+   * 前者是可操作的前置条件缺失（告诉 Agent「去把应用打开并启用 AI 桥」），
+   * 后者才是工具自身的执行异常。两者混为一谈会让 Agent 反复重试一个永远不可能成功的调用。
+   */
+  function isBrowserOnline() {
+    return browserConn !== null
+  }
+
   /** 唤醒浏览器：下发工具调用请求并等待回包 */
   function requestFromBrowser(payload) {
     assertBrowser()
@@ -120,6 +129,11 @@ export function createRelay({ token = generateToken(), autoIssueConfirm = false,
   const router = createMcpRouter({
     token,
     autoIssueConfirm,
+    // 浏览器离线 = 工具清单不可用。这里**显式抛错**，由 mcp-relay 的 `tools/list` 分支
+    // 捕获并转成 JSON-RPC 错误返回（而不是让异常穿出 handle()，见下）。
+    // 反例：直接返回空数组会让 Agent 误判「这个应用没有任何工具可用」，
+    // 从而放弃重试、也拿不到「应用未打开」这条可操作提示。
+    isBrowserOnline,
     listTools: () => {
       const fromBrowser = () => requestFromBrowser({ kind: 'tools/list' }).then((r) => r.data?.tools ?? [])
       // confirm_preview 由 relay 自己实现（票据只能由 relay 签发），与浏览器工具清单**合并**下发
@@ -299,7 +313,7 @@ export function createRelay({ token = generateToken(), autoIssueConfirm = false,
     browserConn = null
   }
 
-  return { token, path, protocolVersion: MCP_PROTOCOL_VERSION, handleUpgrade, attachStdio, close, issueConfirm: router.issueConfirm, confirmStore: router.confirmStore }
+  return { token, path, protocolVersion: MCP_PROTOCOL_VERSION, handleUpgrade, attachStdio, close, issueConfirm: router.issueConfirm, confirmStore: router.confirmStore, isBrowserOnline }
 }
 
 /** @typedef {ReturnType<typeof createRelay>} RelayHandle */

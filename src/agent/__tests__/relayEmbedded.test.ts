@@ -31,6 +31,31 @@ async function mountRelay(opts: { path?: string; token: string }): Promise<{ por
   return { port: typeof addr === 'object' && addr ? addr.port : 0 }
 }
 
+/** 在给定 ws 地址上做一次 initialize + 一次指定方法调用，返回该次调用的 JSON-RPC 响应 */
+function mcpCall(
+  url: string,
+  token: string,
+  method: string,
+  params: Record<string, unknown> = {},
+): Promise<Record<string, unknown>> {
+  return new Promise((res, rej) => {
+    const ws = new WebSocket(url)
+    const t = setTimeout(() => { ws.close(); rej(new Error('timeout')) }, 4000)
+    ws.onopen = () =>
+      ws.send(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { accessToken: token } }))
+    ws.onmessage = (e) => {
+      const msg = JSON.parse(String(e.data)) as { id?: number; method?: string }
+      if (msg.id === 1) {
+        ws.send(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }))
+        ws.send(JSON.stringify({ jsonrpc: '2.0', id: 2, method, params }))
+        return
+      }
+      if (msg.id === 2) { clearTimeout(t); ws.close(); res(msg as Record<string, unknown>) }
+    }
+    ws.onerror = (e) => { clearTimeout(t); rej(new Error((e as { message?: string })?.message ?? 'ws error')) }
+  })
+}
+
 /** 在给定 ws 地址上做一次 MCP initialize */
 function initialize(url: string, token: string): Promise<Record<string, unknown>> {
   return new Promise((res, rej) => {
@@ -81,5 +106,46 @@ describe('整合形态的源码事实（防回归）', () => {
     const serve = readFileSync(resolve(__dirname, '../../../scripts/serve.mjs'), 'utf8')
     expect(serve).toContain('createRelay')
     expect(serve).toContain("server.on('upgrade'")
+  })
+})
+
+/**
+ * 浏览器离线时的错误语义（P1 修复回归）
+ *
+ * 背景（实机复现）：relay 与站点同源同进程（`npm run serve`）时，Agent 已 initialize、
+ * 但页面尚未启用 AI 桥 → `assertBrowser()` 在 `listTools()` 里抛错，异常穿出
+ * `router.handle()` → WS 宿主的 `async (raw) => { await router.handle(...) }` 没有 try/catch
+ * → **未处理的 Promise rejection，relay/站点进程一起退出**（curl 站点直接 ECONNREFUSED）。
+ *
+ * 修复口径：`tools/list` 必须把该异常转成 **JSON-RPC 错误返回**；`tools/call` 必须
+ * 把「应用没开」与「工具执行失败」分开上报。下面两条用例在修复前会失败（抛错/文案错位）。
+ */
+describe('浏览器离线：错误必须返回而非崩溃进程', () => {
+  it('Agent initialize 后调 tools/list（无浏览器）→ 返回错误且 relay 仍存活', async () => {
+    const token = 'offline-token-1234567890'
+    const { port } = await mountRelay({ token })
+
+    const first = await mcpCall(`ws://127.0.0.1:${port}/relay`, token, 'tools/list')
+    // 修复前：这里拿不到任何回包（进程已被未捕获异常打死）
+    expect(first.id).toBe(2)
+    expect((first.error as { code?: number; message?: string })?.code).toBe(-32001)
+    expect(String((first.error as { message?: string })?.message)).toContain('工具清单不可用')
+
+    // relay 进程仍存活：同一连接上再握手一次依然成功
+    const again = await initialize(`ws://127.0.0.1:${port}/relay`, token)
+    expect((again.result as { serverInfo?: { name?: string } })?.serverInfo?.name).toBe('workhub-agentops-relay')
+  })
+
+  it('浏览器离线时调 tools/call → 提示「应用未连接」而非「工具执行异常」', async () => {
+    const token = 'offline-token-1234567890'
+    const { port } = await mountRelay({ token })
+    const out = await mcpCall(`ws://127.0.0.1:${port}/relay`, token, 'tools/call', {
+      name: 'listLedgers',
+      arguments: {},
+    })
+    const text = ((out.result as { content?: { text?: string }[] })?.content?.[0]?.text) ?? ''
+    expect(text).toContain('应用未连接')
+    expect(text).toContain('AI Agent 桥')
+    expect(text).not.toContain('工具执行异常')
   })
 })
