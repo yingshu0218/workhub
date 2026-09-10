@@ -45,7 +45,7 @@ type HoverCardState =
   | { kind: 'mention'; type: MentionType; eid: string; label: string }
   | { kind: 'backlink'; noteId: string; title: string }
 
-/** @提及浮层 tab 维度：客户 / 待办 / 账本 / 项目 四类实体，交互逻辑完全一致（Issue #50） */
+/** @提及浮层 tab 维度：四类实体横向标签页，交互逻辑统一（Issue #50） */
 type MentionsTab = MentionType
 const MENTIONS_TABS: MentionsTab[] = ['customer', 'todo', 'ledger', 'project']
 
@@ -265,9 +265,9 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
   tagsRef.current = tags
   const mentionRef = useRef(mention)
   mentionRef.current = mention
-  const panelRef = useRef<HTMLDivElement>(null)
-  // 浮层筛选输入框（Issue #50：第一行即可输入模糊匹配词，四类 tab 交互一致）
+  // 浮层顶部筛选输入框：@ 唤起后主输入落在这里，正文不再参与筛选词提取（Issue #50）
   const mentionInputRef = useRef<HTMLInputElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   const handleMentionNavRef = useRef<(key: string) => boolean>(() => false)
@@ -333,21 +333,25 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
   // ===== @提及浮层 =====
   function closeMention() {
     setMention(null)
-    // 浮层输入框夺走焦点后，关闭时把焦点交还 CodeMirror，便于继续写作
+    // 关闭后焦点还给编辑器（搜索框输入/键盘选择/Esc/外点关闭均不丢写作焦点）
     viewRef.current?.focus()
+  }
+
+  /** 键入 @ 后打开浮层：记录 @ 位置，筛选词主输入迁移到浮层顶部输入框（Issue #50） */
+  function openMention(from: number, x: number, y: number) {
+    setMention({ from, query: '', x, y })
+    setMentionTab('customer')
+    setActiveIdx(0)
   }
 
   function selectMentionItem(item: MentionItem) {
     const view = viewRef.current
     const m = mentionRef.current
     if (!view || !m) return
-    // Issue #50：筛选词已迁到浮层输入框，正文 @ 之后不再续写筛选词，
-    // 因此插入区间固定为 @ 自身位置到当前光标（防御性取二者较大值）。
-    const pos = Math.max(view.state.selection.main.head, m.from + 1)
-    // label 剔除 ]/) 防止 MENTION_RE 解析断裂（审计 P2-1）
+    // label 剔除 ]/) 防止 MENTION_RE 解析断裂（审计 P2-1）；筛选词在输入框里，正文只需替换 @ 符号
     const insert = `@[${safeMentionLabel(item.label)}](${item.type}:${item.id}) `
     view.dispatch({
-      changes: { from: m.from, to: pos, insert },
+      changes: { from: m.from, to: m.from + 1, insert },
       selection: { anchor: m.from + insert.length },
     })
     view.focus()
@@ -485,7 +489,7 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
         extensions: [
           lineNumbers(),
           // placeholder 必须单行：CodeMirror 以 inline-block widget 插入空文档行首，两行文本会把首行行盒撑成 2 行高
-          placeholder('开始写点什么… 键入 @ 唤起 客户 / 待办 / 账本 选择器'),
+          placeholder('开始写点什么… 键入 @ 关联 客户 / 待办 / 账本 / 项目'),
           EditorView.lineWrapping,
           markdown(),
           syntaxHighlighting(defaultHighlightStyle),
@@ -524,27 +528,26 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
             const pos = u.state.selection.main.head
             const m = mentionRef.current
             if (u.docChanged) {
-              // 刚键入 '@'：打开浮层、记录 '@' 位置，并把焦点交给浮层输入框（筛选词在框内输入）
+              // 刚键入 '@'：打开浮层并记录 '@' 位置；筛选词此后由浮层顶部输入框接管（Issue #50）
               let typed = ''
               u.changes.iterChanges((_fA, _tA, _fB, _tB, inserted) => {
                 typed = inserted.toString()
               })
               if (typed.endsWith('@')) {
                 const coords = view.coordsAtPos(pos)
-                setMention({
-                  from: pos - 1,
-                  query: '',
-                  x: coords?.left ?? 200,
-                  y: (coords?.bottom ?? 200) + 6,
-                })
-                setMentionTab('customer')
-                setActiveIdx(0)
+                openMention(
+                  pos - 1,
+                  coords?.left ?? 200,
+                  (coords?.bottom ?? 200) + 6,
+                )
                 return
               }
-              // 浮层已开：正文中 @ 之后不再承载筛选词，仅在 @ 被删除时关闭浮层
-              if (m && pos <= m.from) closeMention()
+              // 浮层已开：删除 @ 或插入空白即关闭（正文不再承载筛选词）
+              if (m && (pos <= m.from || /[\s@]/.test(u.state.doc.sliceString(pos - 1, pos)))) {
+                closeMention()
+              }
             } else if (m && pos <= m.from) {
-              // 光标移到 @ 之前：关闭浮层
+              // 光标移出提及起始位置：关闭
               closeMention()
             }
           }),
@@ -569,6 +572,8 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
   // 浮层打开时：点击外部 / Esc 关闭（面板内 mousedown 已阻止默认，不丢 CM 焦点）
   useEffect(() => {
     if (!mention) return
+    // 主输入迁移到浮层搜索框：打开即聚焦，后续筛选词都从这里输入（Issue #50）
+    requestAnimationFrame(() => mentionInputRef.current?.focus())
     const onDown = (e: MouseEvent) => {
       if (panelRef.current?.contains(e.target as Node)) return
       closeMention()
@@ -975,7 +980,7 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
         </div>
       )}
 
-      {/* @提及浮层（Issue #50：第一行筛选输入框 + 客户 / 待办 / 账本 / 项目 四类统一 tab） */}
+      {/* @提及浮层：顶部筛选输入框 + 客户/待办/账本/项目 四类横向 tab（Issue #50） */}
       {mention && (
         <div
           ref={panelRef}
@@ -983,7 +988,7 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
           style={{ left: Math.min(mention.x, window.innerWidth - 340), top: mention.y }}
         >
           {/* 第一行：模糊匹配输入框（自动聚焦，筛选词在框内输入，不写进正文） */}
-          <div className="border-b border-outline-variant/30 bg-surface-container-low/50 px-2 py-1.5">
+          <div className="border-b border-outline-variant/30 bg-surface-container-low/50 px-2.5 py-2">
             <input
               ref={mentionInputRef}
               value={mention.query}
