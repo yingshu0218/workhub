@@ -3,7 +3,7 @@ import { Card, PageHeader, Button } from '@/design-system/ui'
 import type { Todo, Customer, Transaction } from '@/db/types'
 import { FocusCard, HabitLoopCard, QuickNoteCard, TodayTodosCard } from './cards'
 import dayjs from 'dayjs'
-import { isDueToday } from '@/modules/todo/domain'
+import { isDueToday, isTodoDone } from '@/modules/todo/domain'
 import { useUserName } from '@/modules/identity'
 
 /** Focus Synchronizer 仪表盘（Phase 1 实装版） */
@@ -17,8 +17,9 @@ export default function DashboardPage() {
   const todayStr = dayjs().format('YYYY-MM-DD')
   const hour = dayjs().hour()
   const greeting = hour < 6 ? '凌晨好' : hour < 12 ? '早上好' : hour < 18 ? '下午好' : '晚上好'
+  // 「今日已完成」口径（Issue #128）：只认已完成态；作废条目不算完成、也不计入分母
   const doneToday = todos.filter(
-    (t) => t.status === 'done' && t.completedAt && dayjs(t.completedAt).isSame(dayjs(), 'day'),
+    (t) => isTodoDone(t) && t.completedAt && dayjs(t.completedAt).isSame(dayjs(), 'day'),
   ).length
   // 「今天」口径（Issue #74）：今日到期 ∪ 逾期未完成，与待办中心/今日日程卡一致
   const openToday = todos.filter((t) => isDueToday(t, todayStr)).length

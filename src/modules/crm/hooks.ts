@@ -11,7 +11,7 @@ import type {
   Todo,
   Transaction,
 } from '@/db/types'
-import { isTodoOpen } from '@/modules/todo/domain'
+import { isTodoOpen, isTodoDone } from '@/modules/todo/domain'
 import type { computeIntimacyScore } from './intimacy'
 
 /**
@@ -259,7 +259,8 @@ export function buildScoreInputFromRows(
       .filter((t) => t.customerId === customerId)
       .reduce((sum, t) => sum + t.amount, 0),
     activeTodos: rows.todos.filter((t) => t.customerId === customerId && isTodoOpen(t)).length,
-    doneTodos: rows.todos.filter((t) => t.customerId === customerId && !isTodoOpen(t)).length,
+    // 已完成口径（Issue #128）：只数 done；作废条目（终止）不计入完成数
+    doneTodos: rows.todos.filter((t) => t.customerId === customerId && isTodoDone(t)).length,
     projects: rows.projects.filter((p) => p.customerId === customerId).length,
     activeProjects: rows.projects.filter(
       (p) => p.customerId === customerId && p.status === 'active',

@@ -7,7 +7,7 @@ import { MatchCombobox } from '@/design-system/MatchCombobox'
 import { eventBus } from '@/shared/eventBus'
 import { todoRepo, checkinHabit, uncheckHabit, newId } from '@/repositories'
 import { toggleTodoDone } from '@/modules/todo/toggle'
-import { isDueToday, isTodoOpen } from '@/modules/todo/domain'
+import { isDueToday, isTodoOpen, isTodoDone } from '@/modules/todo/domain'
 import { useState } from 'react'
 import type { Todo, Customer, Ledger } from '@/db/types'
 import dayjs from 'dayjs'
@@ -276,11 +276,9 @@ export function TodayTodosCard() {
     // 「今天」口径（Issue #74）：今日截止 ∪ 逾期未完成，与待办中心一致
     .filter((t) => isDueToday(t, todayStr))
     .sort((a, b) => (a.dueAt ?? Infinity) - (b.dueAt ?? Infinity))
+  // 「今日已完成」（Issue #128）：作废条目不计入（终止 ≠ 完成）
   const doneToday = todos.filter(
-    (t) =>
-      t.status === 'done' &&
-      t.completedAt &&
-      dayjs(t.completedAt).format('YYYY-MM-DD') === todayStr,
+    (t) => isTodoDone(t) && t.completedAt && dayjs(t.completedAt).format('YYYY-MM-DD') === todayStr,
   )
 
   // 打勾完成/取消完成统一走领域函数（与待办中心同一口径，Issue #74）
