@@ -24,7 +24,7 @@
 - agentOps 门面 = 写操作单点收口（schema 校验 + 风险分级 + 领域事件收口 + create 门控 + 事务外 emit 硬规则）
 - v0.3 事件声明表终稿（P1 四条写工具事件 + `quicknote:convert` P2 占位）
 - 事件下沉三边界：①create/edit 门控（仅新 id 才 emit `transaction:created`）②interaction 统一 emit（项目跟进也算客户联系，已裁决文档化）③**事件一律在落库事务 commit 之后发，永不进事务体**
-- 语义引用消解：候选池走活记录、按 id 去重、**去重后 id 唯一才自动消解**，重名/命中超阈值必反问，空/过短输入前置拦截；Project 归档沉底、Customer 不沉底（无归档字段）
+- 语义引用消解：候选池走活记录、按 id 去重、**去重后 id 唯一才自动消解**，重名/命中超阈值必反问，空/过短输入前置拦截；Project 归档沉底（须先映射 `archived` 字段，见 §9.7 第 3 步注）、Customer 不沉底（无归档字段）
 - 强原子链 `saveTxnAndInteractionAndTouch`（记账+关联+补拜访），先 `transaction:created` 后 `customer:contacted`，均在事务外；其余多步意图默认弱关联 + 逐条勾选
 - 验收断点挂 `transaction:created`（`customer:contacted` 是孤儿事件仅保留契约，不挂钩奖杯/EXP 断言）
 - `fuzzyMatch/fuzzySort` 从 MatchCombobox 提升到 shared（P1 显式任务）；`createCustomerWithInit` 下沉 repositories；打卡抽共享 `checkinHabit`（打卡幂等与 toggle 取消分离，**收口 3 处调用点**）
@@ -71,7 +71,7 @@ repositories（纯存储）→ 同步引擎 / eventBus → 奖杯、仪表盘联
 
 ### 2.2 读工具（新增设计，外部形态硬要求）
 
-外部 Agent 比内置 UI 更容易滥读。每个读工具声明**投影字段白名单 + 条数上限**，防止把 17 张表拉出去当上下文：
+外部 Agent 比内置 UI 更容易滥读。每个读工具声明**投影字段白名单 + 条数上限**，防止把 18 张同步表拉出去当上下文：
 
 | 读工具 | 返回投影（白名单） | 上限 |
 |---|---|---|
@@ -93,7 +93,7 @@ repositories（纯存储）→ 同步引擎 / eventBus → 奖杯、仪表盘联
 
 **事实基准（对码核验）**：
 
-- `src/db/db.ts`：17 张表 + 附件 Blob 全存 IndexedDB，纯浏览器运行时；
+- `src/db/db.ts`：**18 张同步表**（另有 4 张本地独占表 `syncQueue`/`meta`/`focusSessions`/`settings`，全库共 22 张 Dexie 表）+ 附件 Blob 全存 IndexedDB，纯浏览器运行时；
 - `repository.ts` / `repositories/index.ts`：写路径 `db.<table>.transaction` + `syncEngine.requestSync()`；
 - `sync/engine.ts`：`window.addEventListener` / `navigator.onLine` / `setInterval`，绑死浏览器 API；
 - 全仓无 Node 侧入口、无独立 server 层。
@@ -134,7 +134,7 @@ repositories（纯存储）→ 同步引擎 / eventBus → 奖杯、仪表盘联
 - **P1（本期交付，按序）**：
   1. agentOps 门面 + 事件对齐测试（第一步，未完成不碰工具）
   2. 事件下沉 repositories（v0.3 三边界：create 门控 / interaction 统一 emit / 事务外硬规则）
-  3. 消解器（id 去重 / 阈值反问 / 空输入拦截 / Project 归档沉底）+ `resolveEntity` 工具
+  3. 消解器（id 去重 / 阈值反问 / 空输入拦截 / Project 归档沉底，含 archived 字段映射）+ `resolveEntity` 工具
   4. 应用内 Agent 桥（WebSocket 127.0.0.1 + HTTP fallback + token 接入）
   5. 读工具集（投影白名单 + 条数上限）
   6. 写工具集：财务记账（唯一账本缺省 / 多账本反问 / status 枚举锁死默认已结算）、CRM 四件套（建客户含首联下沉 / 记沟通 / relations 双向落两侧 / 查询）、待办
@@ -175,7 +175,7 @@ repositories（纯存储）→ 同步引擎 / eventBus → 奖杯、仪表盘联
 
 - 全仓 `grep -rn "WebSocket\|ws://\|127.0.0.1" src/` **零命中**——不存在任何服务端端点代码；
 - `package.json` 依赖仅有 dexie / react / vite 等浏览器侧包，**无 ws / socket.io / express / node:http 任何一个**；
-- `src/db/db.ts` 17 张表 + 附件 Blob 全落 IndexedDB；`sync/engine.ts` 绑死 `window.addEventListener('online')` 与 `navigator.onLine`；
+- `src/db/db.ts` 18 张同步表 + 附件 Blob 全落 IndexedDB；`sync/engine.ts` 绑死 `window.addEventListener('online')` 与 `navigator.onLine`；
 - 结论：**浏览器 JS 无法 `listen()`。浏览器只能作为 WebSocket 的「客户端」发起外连，无法作为「服务端」被 Agent 连入。** v0.4 §三「应用运行时内起本地服务端点（WebSocket 优先，HTTP fallback）」在物理上不可实现，v0.5 全盘继承了这个错误。
 
 **v0.6 纠正**：桥的形态由「应用内监听端口」改为**反向连接（Outbound）**——应用主动外连一个本地 relay，Agent 也连同一个 relay，二者在 relay 上配对：
@@ -197,7 +197,7 @@ repositories（纯存储）→ 同步引擎 / eventBus → 奖杯、仪表盘联
 - **数据不动，指令动**：权威数据始终在浏览器 IndexedDB 里，agentOps 在页面进程内执行写库；relay 只转发「工具调用请求 / 结果」，绝不持有数据。这保留了 v0.4「Node 侧车直读 IndexedDB 不可行」的正确裁决，同时修掉了「浏览器能监听端口」的错误假设。
 - **为什么不是「Node 侧车直连数据库」**：附件是 Blob、同步引擎绑 `window/navigator`、repository 耦合 `@/db` 单例——v0.4 §三的三条理由依旧成立，不重开。
 - **为什么不是「应用内监听」**：见上，浏览器无 `listen` 能力。
-- **CORS/CSP 前置**：`index.html` 的 CSP 为 `connect-src 'self' blob: https: http:`——`ws://127.0.0.1` 不在白名单内，需在桥落地时补 `ws:`（同 commit）。这是 v0.4/v0.5 完全没核到的硬阻塞点。
+- **CORS/CSP 前置**：`index.html` 的 CSP 为 `connect-src 'self' blob: https: http:`——`ws://127.0.0.1` 不在白名单内，需在桥落地时补 `ws:`（同 commit）。**范围限定（v0.7）**：CSP 全站生效，补 `ws:` 会同时放开生产环境外连能力——**仅 dev/本地自用构建注入 `ws://127.0.0.1`，生产构建的 CSP 不含 `ws:`**（配合本节「relay 首版仅服务 dev/本地自用」定调）。这是 v0.4/v0.5 完全没核到的硬阻塞点。
 - **HTTPS 部署场景**：生产跑在 `https://` 时浏览器**禁止**连 `ws://`（混合内容），relay 必须走 `wss://` 或仅限 dev 模式。v0.6 定：**relay 首版仅服务 dev/本地自用，不做生产暴露**。
 
 ### 9.2 前提链纠正：skill/MCP 不是「第一件事」，是「最后一件」
@@ -215,7 +215,7 @@ skill 文件 + MCP tools schema（同一套 zod schema 生成，杜绝双份漂�
    ↓ 最后一步，Agent 靠它理解意图
 ```
 
-**只配 skill/MCP 而没有 agentOps = 把 17 张表裸暴露给外部 Agent。** 这是本轮对用户预想的**唯一实质性修正**。
+**只配 skill/MCP 而没有 agentOps = 把 18 张同步表裸暴露给外部 Agent。** 这是本轮对用户预想的**唯一实质性修正**。
 
 ### 9.3 对 main 最新代码的第二轮漂移核验（hy4-preview 对码，v0.5 之后又有 4 处新增漂移）
 
@@ -242,6 +242,8 @@ skill 文件 + MCP tools schema（同一套 zod schema 生成，杜绝双份漂�
 **`channel` 口径注（v0.6 修正）**：`CHANNELS`（`TransactionFormDrawer.tsx:13`）确为五选一 `['微信','支付宝','银行卡','现金','对公转账']`，但 `save()`（`:140-160`）**只校验 `amount` / `ledgerId` / 附件大小，不校验 `channel` 非空**——即手工路径允许空渠道落库。故工具层 `channel` **可缺省**（缺省为空，或按 UI 现状不填），仅当显式传入时才做五选一枚举校验。**不得**把 `channel` 声明为必填。
 
 **`tier` / `decisionLevel` / `healthScore` 口径注（v0.6 复核）**：三者默认值已逐条对码 `CustomerFormDrawer.tsx`（`:32` 决策人 / `:33` A / `:39` 60），文档取值与 UI 初值一致，**维持不变**（此项为审计要求复核确认，非臆造）。
+
+> **tier 二次复核（v0.7）**：`CustomerFormDrawer` 全仓仅两处挂载——`CrmPage.tsx:269`（新建，`customer=null`）与 `CustomerDetailPage.tsx:388`（编辑）。新建入口唯一，无快速建档等覆盖默认值的其它入口，**`tier` 默认 `A` 口径成立**。
 
 ### 9.5 两个被 v0.4/v0.5 忽略的既有 bug（顺带修，成本极低）
 
@@ -278,8 +280,10 @@ repositories（createRepository 工厂保持纯写）→ 同步引擎 / eventBus
 
 1. **agentOps 门面 + 事件对齐测试**（断点 `transaction:created`，含 §9.5 两个 bug 修复）
 2. 事件下沉 repositories（三边界：create 门控 / interaction 统一 emit / 事务外硬规则）
-3. 消解器 + `resolveEntity`（id 去重 / 阈值反问 / 空输入拦截 / Project 归档沉底）
-4. **本地 Relay**（Node 进程 + token + 白名单 + confirmToken）+ **CSP 补 `ws:`**
+3. 消解器 + `resolveEntity`（id 去重 / 阈值反问 / 空输入拦截 / Project 归档沉底，含 archived 字段映射）
+
+   > **archived 映射注（v0.7 审计修正）**：`archivedLast`（`MatchCombobox.tsx:40`）只认 `archived?: boolean`，而 `Project` 归档态用的是 `status:'archived'`（`types.ts:151`）。现有调用方 `NoteEditorPage.tsx:436` 是**手工映射** `archived: p.status === 'archived'` 后才传入。消解器若直接对 repo 原始 Project 调 `archivedLast` 将**完全不生效**——候选池组装时必须先做该字段映射，再执行沉底。
+4. **本地 Relay**（Node 进程 + token + 白名单 + confirmToken）+ **CSP 补 `ws://127.0.0.1`（仅 dev/本地自用构建注入，生产构建 CSP 不含 `ws:`）**
 5. 读写工具集（按 §9.3/§9.4 修正版；含 `toggleTodoDone`；`checkinHabit`/`uncheckHabit` 按 §9.6.1 **一次收口 3 处调用点**）
 6. skill 文件首版（与 MCP tools schema 同源 zod 生成）
 7. 跑通 E2E 场景 = P1 主干验收
