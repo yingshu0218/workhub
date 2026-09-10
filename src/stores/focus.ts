@@ -39,7 +39,7 @@ function elapsedSec(startedAt: number, pausedAccumMs: number): number {
   return Math.max(0, Math.floor((Date.now() - startedAt - pausedAccumMs) / 1000))
 }
 
-async function recordSession(startedAt: number, seconds: number, todoId?: string) {
+async function recordSession(startedAt: number, seconds: number, _todoId?: string) {
   const minutes = Math.floor(seconds / 60)
   if (minutes < 1) return
   await db.focusSessions.put({
@@ -48,7 +48,8 @@ async function recordSession(startedAt: number, seconds: number, todoId?: string
     completedAt: Date.now(),
     minutes,
   })
-  void todoId // P2 联动待办状态
+  // 口径统一（Issue #74）：「专注中」是运行时 UI 状态，不回写 todo.status（已收窄两态）
+  void _todoId
   eventBus.emit('focus:completed', { minutes })
 }
 

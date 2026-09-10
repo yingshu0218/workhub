@@ -23,6 +23,7 @@ import {
   projectRepo,
   projectMilestoneRepo,
 } from '@/repositories'
+import { useNavigate } from 'react-router-dom'
 import { listShortcuts } from '@/shared/shortcuts'
 import {
   ACCENT_PRESETS,
@@ -44,6 +45,8 @@ import { moduleConfigRepo } from '@/repositories'
 /**
  * 系统设置（对齐原型 13~15/17/18/20 · 7 标签）
  * 所有改动经 settingsRepo.save 即时落库并广播 settings:changed，各消费端实时应用（无「保存更改」按钮）
+ * 边界（Issue #86）：本页只管「应用长什么样 / 怎么跑」的本地偏好（settings singleton，不进同步）；
+ * 业务模块的规则配置（亲密度权重等，写 moduleConfigs 同步表）已迁至 /module-config，本页仅留指路牌。
  */
 
 const TABS = [
@@ -236,6 +239,7 @@ function Segmented<T extends string | number>({
 }
 
 export default function SettingsPage() {
+  const navigate = useNavigate()
   const [tab, setTab] = useState<TabId>('appearance')
   const [settings, setSettings] = useState<Settings | null>(null)
   const [persisted, setPersisted] = useState<boolean | null>(null)
@@ -557,8 +561,22 @@ export default function SettingsPage() {
     <div className="mx-auto max-w-[1200px]">
       <PageHeader
         title="系统设置"
-        subtitle="定制您的专属工作台界面风格、工作流偏好与数据安全策略 · 配置即时生效并本地持久化"
+        subtitle="界面风格、排版、快捷键、通知、同步与数据安全等应用级偏好 · 业务模块规则（亲密度权重等）见侧栏「功能配置」"
       />
+
+      {/* 功能配置入口（Issue #86）：业务规则配置已独立成页，这里只留指路牌，避免两类配置混用 */}
+      <div className="mb-4 flex items-center gap-3 rounded-xl border border-primary/30 bg-primary-fixed/30 px-4 py-3">
+        <Icon name="tune" className="text-[1.4286rem] text-primary" />
+        <div className="flex-1">
+          <div className="text-[0.9286rem] font-semibold">业务模块的规则配置已移到「功能配置」</div>
+          <div className="mt-0.5 text-[0.8214rem] text-on-surface-variant">
+            亲密度权重、黑名单屏蔽等影响数据算出来结果的配置请到功能页设置；本页只管应用自身的界面与运行偏好
+          </div>
+        </div>
+        <Button size="sm" variant="ghost" icon="tune" onClick={() => navigate('/module-config')}>
+          前往功能配置
+        </Button>
+      </div>
 
       {/* 标签栏 */}
       <div className="mb-5 flex flex-wrap gap-1.5 surface-card-xl p-1.5">

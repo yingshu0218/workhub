@@ -17,6 +17,7 @@ import {
   inputCls,
 } from '@/design-system/ui'
 import dayjs from 'dayjs'
+import { isTodoOpen } from '@/modules/todo/domain'
 import ProjectFormDrawer from './ProjectFormDrawer'
 import {
   deleteMilestone,
@@ -82,7 +83,7 @@ export default function ProjectDetailPage() {
 
   const income = transactions.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0)
   const expense = transactions.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
-  const openTodos = todos.filter((t) => t.status !== 'done')
+  const openTodos = todos.filter(isTodoOpen)
   const customer = project.customerId
     ? customers.find((c) => c.id === project.customerId)
     : undefined
@@ -249,7 +250,7 @@ export default function ProjectDetailPage() {
             <div className="mb-3 flex items-center justify-between">
               <div className="flex items-center gap-1.5 text-[0.8571rem] font-medium uppercase tracking-wide text-on-surface-variant">
                 <Icon name="check_circle" className="text-[1.1429rem] text-primary" />
-                项目待办（{openTodos.length} 进行中）
+                项目待办（{openTodos.length} 待处理）
               </div>
               <button
                 className="text-[0.8571rem] font-semibold text-primary hover:underline"
