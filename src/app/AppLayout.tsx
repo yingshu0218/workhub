@@ -6,7 +6,7 @@ import { useSyncStore } from '@/sync/store'
 import { registerShortcut } from '@/shared/shortcuts'
 import CommandPalette from './CommandPalette'
 import TrophyUnlockToast from './TrophyUnlockToast'
-import QuickCapture from '@/modules/notes/QuickCapture'
+import QuickCapture from '@/modules/notes/QuickCapturePanel'
 
 const NAV_ITEMS = [
   { to: '/', icon: 'dashboard', label: '工作台' },
