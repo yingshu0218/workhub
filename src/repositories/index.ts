@@ -17,6 +17,7 @@ import type {
   Workspace,
   Settings,
   ModuleConfig,
+  RelationCategory,
 } from '@/db/types'
 import { DEFAULT_SETTINGS } from '@/db/types'
 import type { SyncMeta } from '@/db/types'
@@ -498,6 +499,68 @@ export async function saveInteractionAndTouchCustomer(
   eventBus.emit('customer:contacted', { customerId })
   syncEngine.requestSync()
   return interaction.id
+}
+
+/**
+ * 客户关系新增：**双向落两侧**（v0.2 裁决——存储只在各自 `relations[]` 内保存一条，
+ * 客户详情页只读自己的 relations，故 A/B 两侧都要写，B 侧才看得到）。
+ *
+ * 单事务覆盖 customers + syncQueue；任一步失败整体回滚。
+ * 单一来源：UI（CustomerFormDrawer 编辑态）与 agentOps（crm_addRelation）**都经此**，
+ * 避免「各写一份盖章/入队」漂移（此前 agent 侧手写 update+syncQueue.add，
+ * 漏了 syncEngine.requestSync()，只能等 30s 心跳才推送，且与 repository 盖章口径两套实现）。
+ *
+ * @returns `{ relationId, deduped }`；同 `目标 + 语义` 已存在时幂等返回既有关系（deduped=true）
+ */
+export async function addCustomerRelation(
+  customerId: string,
+  targetId: string,
+  label: string,
+  category?: RelationCategory,
+): Promise<{ relationId: string; deduped: boolean }> {
+  if (customerId === targetId) throw new Error('addCustomerRelation: 不能与自身建立关系')
+  const now = Date.now()
+  let relationId = ''
+  let deduped = false
+  await db.transaction('rw', [db.customers, db.syncQueue], async () => {
+    const [a, b] = await Promise.all([db.customers.get(customerId), db.customers.get(targetId)])
+    if (!a || a.deleted) throw new Error(`addCustomerRelation: customer ${customerId} not found`)
+    if (!b || b.deleted) throw new Error(`addCustomerRelation: customer ${targetId} not found`)
+
+    // 同 目标+语义 判重（与 UI 同款纪律，Issue #39）：命中即幂等返回，不重复写
+    const aRels = a.relations ?? []
+    const existing = aRels.find((r) => r.targetId === targetId && r.label === label)
+    if (existing) {
+      // 旧数据可能无 id（Issue #39 前落库的条目）：有则复用，无则按目标+语义回填一个稳定 id
+      relationId = existing.id ?? newId('rel')
+      deduped = true
+      return
+    }
+
+    relationId = newId('rel')
+    await db.customers.update(a.id, {
+      relations: [
+        ...aRels,
+        { id: relationId, targetId, label, ...(category ? { category } : {}) },
+      ],
+      updatedAt: now,
+      rev: a.rev + 1,
+    })
+    await db.syncQueue.add({ table: 'customers', recordId: a.id, op: 'upsert', createdAt: now })
+
+    const bRels = b.relations ?? []
+    await db.customers.update(b.id, {
+      // B 侧反向写回 A：无该关系才写（防重复调用把 B 侧写重）
+      relations: bRels.some((r) => r.targetId === a.id && r.label === label)
+        ? bRels
+        : [...bRels, { id: newId('rel'), targetId: a.id, label, ...(category ? { category } : {}) }],
+      updatedAt: now,
+      rev: b.rev + 1,
+    })
+    await db.syncQueue.add({ table: 'customers', recordId: b.id, op: 'upsert', createdAt: now })
+  })
+  syncEngine.requestSync()
+  return { relationId, deduped }
 }
 
 /**

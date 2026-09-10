@@ -9,6 +9,7 @@ import {
   checkinHabit,
   uncheckHabit,
   deleteHabitCascade,
+  addCustomerRelation,
   todoRepo,
 } from '@/repositories'
 import { toggleTodoDone } from '@/modules/todo/toggle'
@@ -249,39 +250,23 @@ export async function crm_addRelation(input: unknown): Promise<AgentOpResult> {
   const d = parsed.data
   if (d.customerId === d.targetId) return err('不能与自身建立关系')
 
-  const [a, b] = await Promise.all([
-    db.customers.get(d.customerId),
-    db.customers.get(d.targetId),
-  ])
-  if (!a || a.deleted) return err(`客户不存在：${d.customerId}`)
-  if (!b || b.deleted) return err(`目标客户不存在：${d.targetId}`)
-
-  const now = Date.now()
-  const relId = newId('rel')
-  // 同 目标+语义 判重（UI 同款纪律，Issue #39）
-  const aRels = a.relations ?? []
-  if (aRels.some((r) => r.targetId === d.targetId && r.label === d.label)) {
-    return ok({ relationId: aRels.find((r) => r.targetId === d.targetId && r.label === d.label)!.id, deduped: true })
+  // 收口到 repositories 领域函数（单一来源）——此前本函数手写 update + syncQueue.add，
+  // 与 UI 的 customerRepo.put 形成两套盖章/入队实现，且**漏了 syncEngine.requestSync()**，
+  // 只能等 30s 心跳才推送。现在 UI 与 agentOps 走同一实现。
+  try {
+    const { relationId, deduped } = await addCustomerRelation(
+      d.customerId,
+      d.targetId,
+      d.label,
+      d.category,
+    )
+    return ok({ relationId, deduped })
+  } catch (e) {
+    const msg = (e as Error).message
+    if (msg.includes('不能与自身')) return err('不能与自身建立关系')
+    if (msg.includes('not found')) return err('客户不存在：请先用 resolveEntity 确认双方客户')
+    throw e
   }
-
-  const bRels = b.relations ?? []
-  await db.transaction('rw', [db.customers, db.syncQueue], async () => {
-    // A 侧：正向语义（张三是李四的转介绍人 → A 的 relations 写「李四 / 转介绍人」）
-    await db.customers.update(a.id, {
-      relations: [...aRels, { id: relId, targetId: d.targetId, label: d.label, ...(d.category ? { category: d.category } : {}) }],
-      updatedAt: now,
-      rev: a.rev + 1,
-    })
-    await db.syncQueue.add({ table: 'customers', recordId: a.id, op: 'upsert', createdAt: now })
-    // B 侧：双向落两侧，B 侧也可见该关系
-    await db.customers.update(b.id, {
-      relations: [...bRels, { id: newId('rel'), targetId: a.id, label: d.label, ...(d.category ? { category: d.category } : {}) }],
-      updatedAt: now,
-      rev: b.rev + 1,
-    })
-    await db.syncQueue.add({ table: 'customers', recordId: b.id, op: 'upsert', createdAt: now })
-  })
-  return ok({ relationId: relId })
 }
 
 /** todo_createTodo：建待办 */
