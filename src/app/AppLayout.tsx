@@ -10,17 +10,45 @@ import { ToastProvider } from '@/design-system/Toast'
 import QuickCapture from '@/modules/notes/QuickCapturePanel'
 import { DEFAULT_WORKSPACE_SUB, useIdentity } from '@/modules/identity'
 
+/**
+ * 侧栏菜单（顺序即渲染顺序）。
+ * `childPrefixed`：该菜单是否含子路由——为 true 时子路径仍算选中（见 isNavItemActive）。
+ * 它是菜单自身的属性，新增带子路由的菜单只需在数据上标一个字段，无需再维护一份白名单。
+ */
 const NAV_ITEMS = [
   { to: '/', icon: 'dashboard', label: '工作台' },
   { to: '/notes', icon: 'description', label: '笔记' },
   { to: '/todo', icon: 'check_circle', label: '待办事项' },
-  { to: '/projects', icon: 'hub', label: '项目' },
-  { to: '/crm', icon: 'group', label: '客户管理' },
+  { to: '/projects', icon: 'hub', label: '项目', childPrefixed: true },
+  { to: '/crm', icon: 'group', label: '客户管理', childPrefixed: true },
   { to: '/finance', icon: 'account_balance_wallet', label: '财务中心' },
   { to: '/habits', icon: 'local_fire_department', label: '打卡习惯' },
   { to: '/trophies', icon: 'emoji_events', label: '成就奖杯' },
   { to: '/inspiration', icon: 'auto_awesome', label: '灵感闪现' },
 ]
+
+/**
+ * 侧栏选中判定（Issue #128）——「菜单选中后色块高亮一直存在」的修复。
+ *
+ * 成因：NavLink 默认 `isActive` 是**前缀匹配**，`/todo` 在进入 `/module-config/...`、
+ * `/todo/xxx` 等更长路径时仍被判为 active，色块一直挂着（视觉上像"卡住了"）。
+ *
+ * 口径：只有**当前页面就属于该菜单**才高亮——
+ * - `/`      仅根路径（end 精确）
+ * - 下列「有子路由」的菜单：该段自身及其子路径都算（如 `/crm/canvas` 仍属客户管理、
+ *   `/module-config/crm/intimacy` 仍属功能配置）
+ * - 其余一律精确匹配：跨到别的模块（如 /todo → /module-config）立即失去高亮
+ */
+const NAV_CHILD_PREFIXED = new Set<string>([
+  ...NAV_ITEMS.filter((i) => 'childPrefixed' in i && i.childPrefixed).map((i) => i.to),
+  // 功能配置菜单不在 NAV_ITEMS 里（渲染在侧栏底部独立区块），单独登记
+  '/module-config',
+])
+export function isNavItemActive(pathname: string, to: string): boolean {
+  if (to === '/') return pathname === '/'
+  if (NAV_CHILD_PREFIXED.has(to)) return pathname === to || pathname.startsWith(`${to}/`)
+  return pathname === to
+}
 
 const TITLES: Record<string, string> = {
   '/': 'Focus Synchronizer',
@@ -134,8 +162,11 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
                 key={item.to}
                 to={item.to}
                 end={isFirst}
-                className={({ isActive }) =>
-                  [
+                className={() => {
+                  // NavLink 默认前缀匹配会把「待办事项」在 /module-config 等路径下误判为选中
+                  // （Issue #128：色块高亮一直存在），统一改用 isNavItemActive 做精确/受控段判定
+                  const isActive = isNavItemActive(pathname, item.to)
+                  return [
                     'app-nav-link flex items-center gap-3 rounded-lg px-3 py-2 text-[0.9643rem] transition-all',
                     isActive ? 'is-active' : '',
                     featured === 'workbench'
@@ -152,7 +183,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
                   ]
                     .filter(Boolean)
                     .join(' ')
-                }
+                }}
               >
                 <Icon name={item.icon} />
                 {item.label}
@@ -169,9 +200,10 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
         <div className="border-t border-outline-variant/40 p-3">
           <NavLink
             to="/module-config"
-            className={({ isActive }) =>
+            className={() =>
               `app-nav-link mb-1 flex items-center gap-3 rounded-lg px-3 py-2 text-[0.9643rem] ${
-                isActive
+                // 功能配置含子路由（/module-config/:moduleId/:itemId），按段判定才正确高亮
+                isNavItemActive(pathname, '/module-config')
                   ? 'is-active bg-primary-fixed font-semibold text-primary'
                   : 'text-on-surface-variant hover:bg-surface-container'
               }`
@@ -184,9 +216,9 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
 
           <NavLink
             to="/settings"
-            className={({ isActive }) =>
+            className={() =>
               `app-nav-link mb-2 flex items-center gap-3 rounded-lg px-3 py-2 text-[0.9643rem] ${
-                isActive
+                isNavItemActive(pathname, '/settings')
                   ? 'is-active bg-primary-fixed font-semibold text-primary'
                   : 'text-on-surface-variant hover:bg-surface-container'
               }`

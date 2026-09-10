@@ -3,6 +3,7 @@ import { newId } from '@/repositories'
 import type { TodoList, Todo } from '@/db/types'
 import { useQuery } from '@/queries/hooks'
 import { syncEngine } from '@/sync/engine'
+import { isTodoOpen } from './domain'
 import dayjs from 'dayjs'
 
 /**
@@ -99,7 +100,8 @@ export function useTodoListCounts(): Record<string, number> {
     const todos = await db.todos.toArray()
     const map: Record<string, number> = {}
     for (const t of todos) {
-      if (t.deleted || t.status === 'done' || !t.listId) continue
+      // 清单计数 = 未完成数（Issue #128）：已完成与已作废都不计入（与左栏智能清单口径一致）
+      if (t.deleted || !isTodoOpen(t) || !t.listId) continue
       map[t.listId] = (map[t.listId] ?? 0) + 1
     }
     return map

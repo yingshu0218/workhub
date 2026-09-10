@@ -20,8 +20,8 @@ import { MatchCombobox } from '@/design-system/MatchCombobox'
 import { toArchivedFlag } from '@/shared/search'
 import dayjs from 'dayjs'
 import { useFocusStore } from '@/stores/focus'
-import { toggleTodoDone } from './toggle'
-import { isTodoOpen, isDueToday } from './domain'
+import { toggleTodoDone, voidTodo, restoreTodo } from './toggle'
+import { isTodoOpen, isTodoDone, isTodoVoided, isDueToday } from './domain'
 import {
   useTodoLists,
   useTodoListCounts,
@@ -32,7 +32,12 @@ import {
   reorderTodoLists,
 } from './hooks'
 
-type Filter = 'all' | 'today' | 'week' | 'inbox'
+/**
+ * 智能清单视图（Issue #128）：
+ * - all/inbox/today/week：未完成口径（「全部待办」= 只看未完成，已完成/已作废不再混入）
+ * - done/voided：新增的两个终态视图，分别只列已完成 / 已作废
+ */
+type Filter = 'all' | 'today' | 'week' | 'inbox' | 'done' | 'voided'
 
 export default function TodoPage() {
   const todos = useCollection<Todo>('todos')
@@ -52,7 +57,6 @@ export default function TodoPage() {
   const listName = useMemo(() => new Map(lists.map((l) => [l.id, l.name])), [lists])
   const [selKind, setSelKind] = useState<Filter>('all')
   const [chipP1, setChipP1] = useState(false)
-  const [chipDone, setChipDone] = useState(false)
   const [selListId, setSelListId] = useState<string | null>(null)
   const [editing, setEditing] = useState<Todo | null>(null)
   const [creating, setCreating] = useState(false)
@@ -97,7 +101,6 @@ export default function TodoPage() {
     setSelListId(null)
     setSelKind('all')
     setChipP1(false)
-    setChipDone(false)
     // 等过滤切换生效、列表重渲染后再滚动定位
     const t = window.setTimeout(() => {
       const el = rowRefs.current.get(focusId)
@@ -122,9 +125,12 @@ export default function TodoPage() {
       }),
     [todos, sortDir],
   )
-  // 未完成口径统一走领域层 isTodoOpen()，不再手写 status !== 'done'
+  // 三态口径统一走领域层（Issue #128），不再手写 status === 'done' 之类的判据
   const openTodos = sortedTodos.filter(isTodoOpen)
-  // 逾期提醒（P1-2 死开关接通）：全局未完成且已过截止时间，按设置开关决定是否提示
+  const doneTodos = sortedTodos.filter(isTodoDone)
+  const voidedTodos = sortedTodos.filter(isTodoVoided)
+  // 逾期提醒（P1-2 死开关接通）：全局未完成且已过截止时间，按设置开关决定是否提示；
+  // 已作废条目（Issue #128）不进逾期口径——事项已终止，不再催办
   const overdueTodos = useMemo(
     () => openTodos.filter((t) => t.dueAt && dayjs(t.dueAt).isBefore(dayjs())),
     [openTodos],
@@ -132,20 +138,18 @@ export default function TodoPage() {
 
   // 日历日边界：今天 = 今日截止 ∪ 逾期未完成；最近七天 = [今天, +7天] ∪ 逾期未完成
   const weekEndStr = dayjs().add(7, 'day').format('YYYY-MM-DD')
-  // 智能视图范围口径：未完成恒可见；已完成仅勾选「已完成」Chip 时纳入本视图范围（Issue #111）。
-  // 已完成按各视图同口径归属：今天=完成时间在今天（无完成时间回退截止日期）、最近七天=落在区间内、收集箱=无清单。
-  const matchesSmart = (t: Todo, includeDone: boolean): boolean => {
+  /**
+   * 智能视图范围口径（Issue #128 重写）：
+   * - 「全部待办 / 收集箱 / 今天 / 最近七天」只装**未完成**条目，已完成/已作废不再混入；
+   * - 「已完成」「已作废」两个新视图是终态视图，只装对应状态，勾选框与操作按钮随之切换。
+   */
+  const matchesSmart = (t: Todo): boolean => {
+    // 终态视图：只认自己的状态，与日期/清单无关
+    if (selKind === 'done') return isTodoDone(t)
+    if (selKind === 'voided') return isTodoVoided(t)
+    // 未完成视图：已完成/已作废一律排除
+    if (!isTodoOpen(t)) return false
     if (selKind === 'all') return true
-    if (!isTodoOpen(t)) {
-      if (!includeDone) return false
-      if (selKind === 'inbox') return !t.listId
-      const stamp = t.completedAt ?? t.dueAt
-      if (!stamp) return false
-      const d = dayjs(stamp).format('YYYY-MM-DD')
-      if (selKind === 'today') return d === todayStr
-      if (selKind === 'week') return todayStr <= d && d <= weekEndStr
-      return false
-    }
     if (selKind === 'inbox') return !t.listId
     if (!t.dueAt) return false
     const d = dayjs(t.dueAt).format('YYYY-MM-DD')
@@ -153,25 +157,31 @@ export default function TodoPage() {
     if (selKind === 'week') return d <= weekEndStr
     return false
   }
-  // doneInScope 与 chipDone 解耦统计（Chip 禁用态依据），避免「关 Chip 后范围不含已完成 → 计数 0 → 无法再开启」死循环
-  const scopeOf = (includeDone: boolean) =>
-    selListId
-      ? sortedTodos.filter(
-          (t) => t.listId === selListId || (focusRingId !== null && t.id === focusRingId),
-        )
-      : sortedTodos.filter(
-          (t) =>
-            matchesSmart(t, includeDone) || (focusRingId !== null && t.id === focusRingId),
-        )
-  const baseScope = scopeOf(chipDone)
-  // 当前视图范围内（含未勾选时潜在可见的已完成）的已完成数：为 0 时「已完成」Chip 置灰
-  const doneInScope = scopeOf(true).filter((t) => !isTodoOpen(t)).length
-  // P1 / 已完成降级为右侧筛选 Chip，作用于当前左栏视图/清单之内；全部未命中时兜底展示空态
+  // 深链定位（Issue #128）：焦点条目并集兜底时必须过「当前视图」这道闸门，
+  // 否则一条已作废/已完成的待办会被并进「全部待办」，还计入「N 条未完成」——与「全部待办=只看未完成」口径打架。
+  const inFocusScope = (t: Todo): boolean => {
+    if (focusRingId === null || t.id !== focusRingId) return false
+    if (selListId) return true
+    // 终态视图：只并对应的终态；未完成视图：只并未完成
+    if (selKind === 'done') return isTodoDone(t)
+    if (selKind === 'voided') return isTodoVoided(t)
+    return isTodoOpen(t)
+  }
+  // 当前视图范围 = 智能视图/清单过滤 ∪ 深链定位条目（保证跳转目标在当前口径内可见）
+  const baseScope = selListId
+    ? sortedTodos.filter((t) => t.listId === selListId || inFocusScope(t))
+    : sortedTodos.filter((t) => matchesSmart(t) || inFocusScope(t))
+  // P1 降级为右侧筛选 Chip，作用于当前左栏视图/清单之内；全部未命中时兜底展示空态
   const filtered = baseScope.filter((t) => {
     if (chipP1 && !(isTodoOpen(t) && t.priority === 'P1')) return false
-    if (chipDone && isTodoOpen(t)) return false
     return true
   })
+  // 当前视图是否为终态视图（已完成/已作废）：决定空态文案与行内可用操作
+  const isDoneView = selKind === 'done' && !selListId
+  const isVoidedView = selKind === 'voided' && !selListId
+  const isTerminalView = isDoneView || isVoidedView
+  // Chip 仅在未完成视图有意义（终态视图本身已按状态过滤）
+  const showP1Chip = !isTerminalView
 
   // 打勾完成/取消完成统一走领域函数（status 与 completedAt 成对写入，Issue #74）
   // 写库失败（配额超限/隐私模式等）不再静默：catch 后给出可见提示
@@ -184,7 +194,28 @@ export default function TodoPage() {
     }
   }
 
-  // 固定视图顺序：全部待办 → 收集箱 → 今天 → 最近七天，之后分割线接「我的清单」
+  /** 一键作废（Issue #128，行内按钮入口）：区别于「删除」——不删记录、可恢复、事项终止 */
+  async function handleVoid(t: Todo) {
+    try {
+      await voidTodo(t)
+    } catch (err) {
+      console.error('[todo] 作废失败', err)
+      window.alert('作废待办失败，请稍后重试。')
+    }
+  }
+
+  /** 一键恢复（已作废视图行内按钮入口） */
+  async function handleRestore(t: Todo) {
+    try {
+      await restoreTodo(t)
+    } catch (err) {
+      console.error('[todo] 恢复失败', err)
+      window.alert('恢复待办失败，请稍后重试。')
+    }
+  }
+
+  // 固定视图顺序（Issue #128）：未完成区（全部待办 → 收集箱 → 今天 → 最近七天）
+  // 之后接终态区（已完成 / 已作废），最后分割线接「我的清单」
   const inboxCount = openTodos.filter((t) => !t.listId).length
   const smartLists: {
     key: Filter
@@ -193,6 +224,8 @@ export default function TodoPage() {
     count: number
     /** 突出显示的固定入口：未选中时也用主色调样式与普通清单拉开层次 */
     prominent?: boolean
+    /** 终态视图（已完成/已作废）：与未完成视图之间加一条分隔线，视觉上分组（Issue #128） */
+    terminal?: boolean
   }[] = [
     { key: 'all', icon: 'list', label: '全部待办', count: openTodos.length, prominent: true },
     {
@@ -215,6 +248,10 @@ export default function TodoPage() {
       count: openTodos.filter((t) => t.dueAt && dayjs(t.dueAt).format('YYYY-MM-DD') <= weekEndStr)
         .length,
     },
+    // 终态视图（Issue #128）：与上方未完成视图同一层级，各自只装对应状态。
+    // 计数恒显示（含 0），让「已完成/已作废」入口始终可点——无需先有数据才能进去看口径
+    { key: 'done', icon: 'task_alt', label: '已完成', count: doneTodos.length, terminal: true },
+    { key: 'voided', icon: 'block', label: '已作废', count: voidedTodos.length, terminal: true },
   ]
   const selSmart = smartLists.find((l) => l.key === selKind)
   const selCustom = lists.find((l) => l.id === selListId)
@@ -223,14 +260,12 @@ export default function TodoPage() {
   function selectSmart(key: Filter) {
     setSelListId(null)
     setChipP1(false)
-    setChipDone(false)
     setSelKind(key)
   }
   function selectList(id: string) {
     setSelListId(id)
     // 切换清单时同步重置筛选 Chip，与切换固定视图一致
     setChipP1(false)
-    setChipDone(false)
   }
 
   async function submitCreateList() {
@@ -265,7 +300,6 @@ export default function TodoPage() {
       setSelListId(null)
       setSelKind('all')
       setChipP1(false)
-      setChipDone(false)
     }
   }
 
@@ -306,7 +340,6 @@ export default function TodoPage() {
             onClick={() => {
               setSelListId(null)
               setChipP1(false)
-              setChipDone(false)
               setSelKind('today')
             }}
           >
@@ -321,32 +354,39 @@ export default function TodoPage() {
           <div className="px-3 pt-2 pb-1 text-[0.7857rem] font-semibold uppercase tracking-wider text-outline">
             智能清单
           </div>
-          {smartLists.map((l) => (
-            <button
-              key={l.key}
-              onClick={() => selectSmart(l.key)}
-              className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[0.9643rem] transition-colors ${
-                !selListId && selKind === l.key
-                  ? l.prominent
-                    ? 'bg-primary font-semibold text-on-primary'
-                    : 'bg-primary-fixed font-semibold text-primary'
-                  : l.prominent
-                    ? 'bg-primary-container/10 font-semibold text-primary hover:bg-primary-container/20'
-                    : 'text-on-surface-variant hover:bg-surface-container'
-              }`}
-            >
-              <Icon name={l.icon} size={19} />
-              <span className="flex-1 text-left">{l.label}</span>
-              <span
-                className={`text-[0.7857rem] ${
-                  l.prominent && (selListId || selKind !== l.key)
-                    ? 'font-semibold text-primary/70'
-                    : 'text-outline'
+          {smartLists.map((l, i) => (
+            <div key={l.key}>
+              {/* 终态区（已完成/已作废）之前加一条细分隔线，与未完成视图拉开层次（Issue #128） */}
+              {l.terminal && !smartLists[i - 1]?.terminal && (
+                <div className="my-2 border-t border-outline-variant/40" />
+              )}
+              <button
+                onClick={() => selectSmart(l.key)}
+                className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[0.9643rem] transition-colors ${
+                  !selListId && selKind === l.key
+                    ? l.prominent
+                      ? 'bg-primary font-semibold text-on-primary'
+                      : l.terminal
+                        ? 'bg-outline/15 font-semibold text-on-surface'
+                        : 'bg-primary-fixed font-semibold text-primary'
+                    : l.prominent
+                      ? 'bg-primary-container/10 font-semibold text-primary hover:bg-primary-container/20'
+                      : 'text-on-surface-variant hover:bg-surface-container'
                 }`}
               >
-                {l.count}
-              </span>
-            </button>
+                <Icon name={l.icon} size={19} />
+                <span className="flex-1 text-left">{l.label}</span>
+                <span
+                  className={`text-[0.7857rem] ${
+                    l.prominent && (selListId || selKind !== l.key)
+                      ? 'font-semibold text-primary/70'
+                      : 'text-outline'
+                  }`}
+                >
+                  {l.count}
+                </span>
+              </button>
+            </div>
           ))}
 
           <div className="mt-3 flex items-center justify-between border-t border-outline-variant/40 px-3 pt-2 pb-1">
@@ -453,31 +493,31 @@ export default function TodoPage() {
           <Card className="mb-3 flex items-center justify-between px-4 py-2.5">
             <div className="flex items-center gap-2">
               <span className="text-[0.9286rem] font-semibold">{selLabel}</span>
-              {/* P1 / 已完成筛选 Chip：作用于当前左栏视图/清单之内，点击切换、再点清除 */}
-              <button
-                onClick={() => setChipP1((v) => !v)}
-                className={`rounded-full px-2.5 py-0.5 text-[0.8571rem] font-medium transition-colors ${
-                  chipP1
-                    ? 'bg-danger-container text-danger'
-                    : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
-                }`}
-              >
-                P1{chipP1 && ' ✕'}
-              </button>
-              <button
-                onClick={() => setChipDone((v) => !v)}
-                disabled={doneInScope === 0}
-                title={doneInScope === 0 ? '当前视图暂无已完成待办' : undefined}
-                className={`rounded-full px-2.5 py-0.5 text-[0.8571rem] font-medium transition-colors ${
-                  chipDone
-                    ? 'bg-primary-fixed text-primary'
-                    : doneInScope === 0
-                      ? 'cursor-not-allowed bg-surface-container text-outline/60'
+              {/* 状态徽标：终态视图给一个明确的状态标记，避免与未完成视图混淆（Issue #128） */}
+              {isDoneView && (
+                <Chip tone="green" icon="task_alt">
+                  已完成
+                </Chip>
+              )}
+              {isVoidedView && (
+                <Chip tone="gray" icon="block">
+                  已作废
+                </Chip>
+              )}
+              {/* P1 筛选 Chip：作用于当前左栏视图/清单之内，点击切换、再点清除。
+                  终态视图（已完成/已作废）本身已按状态过滤，不再重复给 P1 入口 */}
+              {showP1Chip && (
+                <button
+                  onClick={() => setChipP1((v) => !v)}
+                  className={`rounded-full px-2.5 py-0.5 text-[0.8571rem] font-medium transition-colors ${
+                    chipP1
+                      ? 'bg-danger-container text-danger'
                       : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
-                }`}
-              >
-                已完成{chipDone && ' ✕'}
-              </button>
+                  }`}
+                >
+                  P1{chipP1 && ' ✕'}
+                </button>
+              )}
             </div>
             <div className="flex items-center gap-2">
               {/* 排序按钮：按创建时间升序 / 降序 */}
@@ -504,17 +544,29 @@ export default function TodoPage() {
                 <Icon name="arrow_downward" size={18} />
               </button>
               <span className="text-[0.7857rem] text-outline">
-                {chipDone ? `${filtered.length} 条` : `${filtered.length} 条未完成`}
+                {isTerminalView ? `${filtered.length} 条` : `${filtered.length} 条未完成`}
               </span>
             </div>
           </Card>
           {filtered.length === 0 ? (
             <Card className="p-6">
-              {(chipP1 || chipDone) && baseScope.length > 0 ? (
+              {chipP1 && baseScope.length > 0 ? (
                 <EmptyState
                   icon="filter_alt_off"
                   title="当前筛选没有命中"
                   description="试试取消上方筛选，查看本视图全部内容"
+                />
+              ) : isDoneView ? (
+                <EmptyState
+                  icon="task_alt"
+                  title="还没有已完成的待办"
+                  description="在「全部待办」里打勾即可完成，条目会归档到这里"
+                />
+              ) : isVoidedView ? (
+                <EmptyState
+                  icon="block"
+                  title="还没有已作废的待办"
+                  description="作废用于终止不再推进的事项，与删除不同——记录会保留在这里供回溯"
                 />
               ) : (
                 <EmptyState icon="task_alt" title="这里空空如也" description="点击右上角新建待办" />
@@ -538,32 +590,52 @@ export default function TodoPage() {
                         : ''
                     }`}
                   >
-                    <button onClick={() => toggle(t)} className="shrink-0">
-                      <Icon
-                        name={!isTodoOpen(t) ? 'check_circle' : 'radio_button_unchecked'}
-                        size={20}
-                        fill={!isTodoOpen(t)}
-                        className={
-                          isTodoOpen(t) && t.priority === 'P1'
-                            ? 'text-danger'
-                            : isTodoOpen(t)
-                              ? 'text-outline'
-                              : ''
-                        }
-                      />
-                    </button>
+                    {/* 状态勾选框（Issue #128 三态）：
+                        未完成 → 打勾完成；已完成 → 取消完成回到待处理；
+                        已作废 → 不可打勾（终止事项不得被「完成」，需先恢复），用 block 图标表达 */}
+                    {isTodoVoided(t) ? (
+                      <span className="shrink-0 text-outline/70" title="已作废：恢复后才可完成">
+                        <Icon name="block" size={20} />
+                      </span>
+                    ) : (
+                      <button onClick={() => toggle(t)} className="shrink-0">
+                        <Icon
+                          name={isTodoDone(t) ? 'check_circle' : 'radio_button_unchecked'}
+                          size={20}
+                          fill={isTodoDone(t)}
+                          className={
+                            isTodoOpen(t) && t.priority === 'P1'
+                              ? 'text-danger'
+                              : isTodoOpen(t)
+                                ? 'text-outline'
+                                : 'text-success'
+                          }
+                        />
+                      </button>
+                    )}
                     <div className="min-w-0 flex-1">
                       <div
                         className={`truncate text-[1rem] ${
-                          !isTodoOpen(t) ? 'text-outline line-through' : 'font-medium'
+                          isTodoOpen(t)
+                            ? 'font-medium'
+                            : isTodoDone(t)
+                              ? 'text-outline line-through'
+                              : 'text-outline/70 line-through'
                         }`}
                       >
                         {t.title}
-                        {/* 状态只留两态（Issue #74），「专注中」为专注计时运行时态，与持久化状态独立 */}
-                        {isDoing && (
+                        {/* 「专注中」为专注计时运行时态，与持久化状态独立；作废条目不再显示 */}
+                        {isDoing && isTodoOpen(t) && (
                           <span className="ml-2 align-middle">
                             <Chip tone="blue" icon="timer">
                               专注中
+                            </Chip>
+                          </span>
+                        )}
+                        {isTodoVoided(t) && (
+                          <span className="ml-2 align-middle">
+                            <Chip tone="gray" icon="block">
+                              已作废
                             </Chip>
                           </span>
                         )}
@@ -576,10 +648,26 @@ export default function TodoPage() {
                           )}
                         </div>
                       )}
+                      {/* 终态时间说明：完成/作废时间各自展示，口径可追溯 */}
+                      {isTodoDone(t) && t.completedAt && (
+                        <div className="mt-0.5 text-[0.8571rem] text-success/80">
+                          完成于 {dayjs(t.completedAt).format('M月D日 HH:mm')}
+                        </div>
+                      )}
+                      {isTodoVoided(t) && (
+                        <div className="mt-0.5 text-[0.8571rem] text-outline/80">
+                          {t.voidedAt
+                            ? `作废于 ${dayjs(t.voidedAt).format('M月D日 HH:mm')}`
+                            : '已作废'}
+                          {' · 记录保留，可随时恢复'}
+                        </div>
+                      )}
                       {/* 归属信息：仅在有归属时展示；弱引用被级联解绑后自然消失，可即时感知 */}
                       {(() => {
                         const owner = [
-                          t.customerId ? `客户 ${customerName.get(t.customerId) ?? '已删除'}` : null,
+                          t.customerId
+                            ? `客户 ${customerName.get(t.customerId) ?? '已删除'}`
+                            : null,
                           t.projectId ? `项目 ${projectName.get(t.projectId) ?? '已删除'}` : null,
                           t.listId ? `清单 ${listName.get(t.listId) ?? '已删除'}` : null,
                         ].filter(Boolean)
@@ -605,6 +693,26 @@ export default function TodoPage() {
                       >
                         专注
                       </Button>
+                    )}
+                    {/* 作废 / 恢复（Issue #128）：常显，是行内的一等动作，不藏在 hover 里 */}
+                    {isTodoVoided(t) ? (
+                      <Button
+                        size="sm"
+                        variant="tonal"
+                        icon="restart_alt"
+                        onClick={() => void handleRestore(t)}
+                      >
+                        恢复
+                      </Button>
+                    ) : (
+                      <button
+                        title="作废（终止事项，记录保留，可恢复）"
+                        className="flex shrink-0 items-center gap-1 rounded-lg border border-outline-variant/60 px-2.5 py-1 text-[0.8571rem] text-on-surface-variant transition-colors hover:border-warning hover:text-warning"
+                        onClick={() => void handleVoid(t)}
+                      >
+                        <Icon name="block" size={16} />
+                        作废
+                      </button>
                     )}
                     <button
                       title="编辑待办"
@@ -651,27 +759,28 @@ export default function TodoPage() {
         }}
         onSaved={(saved) => {
           if (editing) return
-          // 新建兜底：当前视图装不下新条目时自动切「全部待办」，避免保存成功却"看不到任何反应"。
-          // 覆盖全部视图枚举：清单匹配、全部待办(恒可见)、今天/最近七天(含逾期口径)、收集箱(listId 空)、P1/已完成 Chip
+          // 新建兜底：当前视图装不下新条目时自动切到能装下它的视图，避免保存成功却"看不到任何反应"。
+          // 视图枚举（Issue #128 三态）：清单匹配 / 全部待办(未完成恒可见) / 今天·最近七天(含逾期口径) /
+          // 收集箱(listId 空) / 已完成 / 已作废。终态条目自动落到对应终态视图。
           const savedDay = saved.dueAt ? dayjs(saved.dueAt).format('YYYY-MM-DD') : undefined
           const visible = selListId
             ? saved.listId === selListId
-            : selKind === 'all'
-              ? true
-              : selKind === 'inbox'
-                ? !saved.listId
-                : selKind === 'today'
-                  ? isTodoOpen(saved) && !!savedDay && savedDay <= todayStr
-                  : isTodoOpen(saved) && !!savedDay && savedDay <= weekEndStr
-          const chipOk =
-            (!chipP1 || (isTodoOpen(saved) && saved.priority === 'P1')) &&
-            (!chipDone || !isTodoOpen(saved))
+            : selKind === 'done'
+              ? isTodoDone(saved)
+              : selKind === 'voided'
+                ? isTodoVoided(saved)
+                : selKind === 'all'
+                  ? isTodoOpen(saved)
+                  : selKind === 'inbox'
+                    ? isTodoOpen(saved) && !saved.listId
+                    : selKind === 'today'
+                      ? isTodoOpen(saved) && !!savedDay && savedDay <= todayStr
+                      : isTodoOpen(saved) && !!savedDay && savedDay <= weekEndStr
+          const chipOk = !chipP1 || (isTodoOpen(saved) && saved.priority === 'P1')
           if (!visible || !chipOk) {
             setSelListId(null)
             setChipP1(false)
-            // 已完成条目仅在勾选「已完成」Chip 时可见，兜底切视图时同步勾上（Issue #111）
-            setChipDone(!isTodoOpen(saved))
-            setSelKind('all')
+            setSelKind(isTodoDone(saved) ? 'done' : isTodoVoided(saved) ? 'voided' : 'all')
           }
         }}
       />
@@ -752,8 +861,10 @@ export function TodoFormDrawer({
       desc: desc.trim(),
       priority,
       status,
-      // 完成时间与状态成对维护：切到 done 时补时间戳，切离 done 时显式清空
+      // 完成/作废时间与状态成对维护（Issue #128）：切到 done 补 completedAt、切到 voided 补 voidedAt，
+      // 两个时间戳互斥（作废不是完成，同时存在会污染完成率口径），切离终态时显式清空
       completedAt: status === 'done' ? (todo?.completedAt ?? Date.now()) : undefined,
+      voidedAt: status === 'voided' ? (todo?.voidedAt ?? Date.now()) : undefined,
       dueAt: dueAt ? dayjs(dueAt).valueOf() : undefined,
       customerId: customerId || undefined,
       listId: listId || undefined,
@@ -769,12 +880,7 @@ export function TodoFormDrawer({
   }
 
   return (
-    <Modal
-      open={open}
-      title={todo ? '编辑待办' : '新建待办'}
-      onClose={onClose}
-      size="md"
-    >
+    <Modal open={open} title={todo ? '编辑待办' : '新建待办'} onClose={onClose} size="md">
       <div key={seedKey}>
         <Field label="标题 *">
           <input
@@ -809,12 +915,14 @@ export function TodoFormDrawer({
             ))}
           </div>
         </Field>
+        {/* 三态（Issue #128）：待处理 / 已完成 / 已作废——编辑弹窗也能终止或恢复事项 */}
         <Field label="状态">
           <div className="flex gap-2">
             {(
               [
                 { key: 'todo', label: '待处理' },
                 { key: 'done', label: '已完成' },
+                { key: 'voided', label: '已作废' },
               ] as const
             ).map((opt) => (
               <button
@@ -830,6 +938,11 @@ export function TodoFormDrawer({
               </button>
             ))}
           </div>
+          {status === 'voided' && (
+            <p className="mt-1.5 text-[0.7857rem] text-outline">
+              作废即终止事项：记录保留、可随时恢复，与「删除」不同。
+            </p>
+          )}
         </Field>
         <Field label="截止时间">
           <input

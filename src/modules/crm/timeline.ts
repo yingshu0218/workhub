@@ -33,8 +33,12 @@ export type TimelineEvent = { customerId?: string } & (
       at: number
       /** 源记录 id（todos 主键），供鱼骨穿透定位待办 */
       recordId: string
-      /** 同一待办只投影一条事件（Issue #108 推翻 Issue #11 拆分决议）：状态用 status 表达 */
-      status: 'open' | 'done'
+      /**
+       * 同一待办只投影一条事件（Issue #108 推翻 Issue #11 拆分决议）：状态用 status 表达。
+       * Issue #128 扩入 'voided'：作废条目仍在时间轴上可见（记录保留），但样式与文案
+       * 与完成/进行中区分，且不参与任何完成率口径。
+       */
+      status: 'open' | 'done' | 'voided'
       title: string
       priority: Todo['priority']
     }
@@ -73,14 +77,16 @@ export function mergeTimelineEvents(
     })),
   ]
   for (const t of todos) {
-    // 单事件投影（Issue #108）：锚点取「最新动态时刻」——已完成取 completedAt，进行中取 createdAt
+    // 单事件投影（Issue #108）：锚点取「最新动态时刻」——已完成取 completedAt、
+    // 已作废取 voidedAt（Issue #128）、进行中取 createdAt
     const done = t.status === 'done' && !!t.completedAt
+    const voided = t.status === 'voided'
     out.push({
       kind: 'todo',
       id: t.id,
-      at: done ? t.completedAt! : t.createdAt,
+      at: done ? t.completedAt! : voided ? (t.voidedAt ?? t.createdAt) : t.createdAt,
       recordId: t.id,
-      status: done ? 'done' : 'open',
+      status: done ? 'done' : voided ? 'voided' : 'open',
       title: t.title,
       priority: t.priority,
     })

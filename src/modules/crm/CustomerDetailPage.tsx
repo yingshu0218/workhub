@@ -695,19 +695,21 @@ function TimelineItem({ event }: { event: TimelineEvent }) {
     )
   }
   if (event.kind === 'todo') {
+    // 三态（Issue #128）：完成=绿「完成待办」/ 作废=灰「作废待办」/ 进行中=琥珀「新增待办」
     const done = event.status === 'done'
+    const voided = event.status === 'voided'
     return (
       <div className="relative">
         <span className="absolute -left-[22px] top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-surface-container-low">
           <Icon
-            name={KIND_ICONS.todo}
+            name={voided ? 'block' : KIND_ICONS.todo}
             size={12}
-            className={done ? 'text-success' : 'text-primary'}
+            className={done ? 'text-success' : voided ? 'text-outline' : 'text-primary'}
           />
         </span>
         <div className="flex flex-wrap items-center gap-2">
-          <Chip tone={done ? 'green' : 'amber'} icon={KIND_ICONS.todo}>
-            {done ? '完成待办' : '新增待办'}
+          <Chip tone={done ? 'green' : voided ? 'gray' : 'amber'} icon={voided ? 'block' : KIND_ICONS.todo}>
+            {done ? '完成待办' : voided ? '作废待办' : '新增待办'}
           </Chip>
           <Chip tone={event.priority === 'P1' ? 'red' : event.priority === 'P2' ? 'amber' : 'gray'}>
             {event.priority}

@@ -416,7 +416,9 @@ export default function CustomerTimelinePage() {
                       : hover.event.kind === 'todo'
                         ? hover.event.status === 'done'
                           ? 'green'
-                          : 'amber'
+                          : hover.event.status === 'voided'
+                            ? 'gray'
+                            : 'amber'
                         : 'blue'
                   }
                   icon={

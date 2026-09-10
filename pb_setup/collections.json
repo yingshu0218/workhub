@@ -610,6 +610,11 @@
         "type": "number",
         "required": false,
         "presentable": false
+      },
+      {
+        "name": "voidedAt",
+        "type": "number",
+        "required": false
       }
     ],
     "indexes": [
