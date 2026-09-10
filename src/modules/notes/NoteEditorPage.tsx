@@ -186,7 +186,7 @@ export default function NoteEditorPage() {
         </Button>
         <Card className="mt-4 p-6">
           <EmptyState
-            icon="note_delete"
+            icon="note_alt"
             title="笔记不存在或已删除"
             description="可能已被移除，返回列表查看其他笔记"
           />
