@@ -258,11 +258,11 @@ repositories（createRepository 工厂保持纯写）→ 同步引擎 / eventBus
 
 ### 9.7 P1 推进顺序（v0.6 修订）
 
-1. **agentOps 门面 + 事件对齐测试**（断点 `transaction:created`，含 §10.5 两个 bug 修复）
+1. **agentOps 门面 + 事件对齐测试**（断点 `transaction:created`，含 §9.5 两个 bug 修复）
 2. 事件下沉 repositories（三边界：create 门控 / interaction 统一 emit / 事务外硬规则）
 3. 消解器 + `resolveEntity`（id 去重 / 阈值反问 / 空输入拦截 / Project 归档沉底）
 4. **本地 Relay**（Node 进程 + token + 白名单 + confirmToken）+ **CSP 补 `ws:`**
-5. 读写工具集（按 §10.3/§10.4 修正版；含 `toggleTodoDone`）
+5. 读写工具集（按 §9.3/§9.4 修正版；含 `toggleTodoDone`）
 6. skill 文件首版（与 MCP tools schema 同源 zod 生成）
 7. 跑通 E2E 场景 = P1 主干验收
 
