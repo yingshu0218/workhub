@@ -20,7 +20,7 @@ export function acceptKey(key) {
 }
 
 /** 单条连接：把二进制流解成 message 事件，提供 send/close */
-class WsConnection extends EventEmitter {
+export class WsConnection extends EventEmitter {
   constructor(socket) {
     super()
     this.socket = socket
