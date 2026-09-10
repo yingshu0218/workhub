@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Icon } from '@/design-system/Icon'
 import type { Habit } from '@/db/types'
 import { habitRepo, newId } from '@/repositories'
-import { Drawer, Field, inputCls, Button } from '@/design-system/ui'
+import { Field, Modal, inputCls, Button, useAutoFocus } from '@/design-system/ui'
 
 /** 预设图标（material symbols 8 选 1） */
 export const HABIT_ICONS = [
@@ -55,6 +55,7 @@ export function HabitFormDrawer({
   const [category, setCategory] = useState('成长')
   const [crossModuleSync, setCrossModuleSync] = useState(false)
   const [error, setError] = useState('')
+  const nameRef = useAutoFocus<HTMLInputElement>()
 
   // 打开时以旧记录为基底重置表单
   const openKey = `${open}-${habit?.id ?? 'new'}`
@@ -107,15 +108,15 @@ export function HabitFormDrawer({
   }
 
   return (
-    <Drawer open={open} title={habit ? '编辑习惯' : '新建习惯'} onClose={onClose}>
+    <Modal open={open} title={habit ? '编辑习惯' : '新建习惯'} onClose={onClose} size="md">
       <div>
         <Field label="名称 *">
           <input
+            ref={nameRef}
             className={inputCls}
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="例如：晨间研读 25 分钟"
-            autoFocus
           />
         </Field>
 
@@ -235,6 +236,6 @@ export function HabitFormDrawer({
           <Button onClick={() => void save()}>{habit ? '保存修改' : '创建习惯'}</Button>
         </div>
       </div>
-    </Drawer>
+    </Modal>
   )
 }

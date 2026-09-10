@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Icon } from '@/design-system/Icon'
 import { inputCls } from '@/design-system/ui'
 
@@ -157,7 +158,7 @@ export function MatchCombobox({
             <Icon name="close" size={16} />
           </button>
           {open && (
-            <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-56 overflow-y-auto surface-card py-1 shadow-lg">
+            <DropdownPortal anchorRef={boxRef} onClose={() => setOpen(false)}>
               {listItems.length === 0 ? (
                 <div className="px-3 py-2 text-[0.8571rem] text-outline">{emptyText}</div>
               ) : (
@@ -180,7 +181,7 @@ export function MatchCombobox({
                   </button>
                 ))
               )}
-            </div>
+            </DropdownPortal>
           )}
         </div>
       ) : (
@@ -198,7 +199,7 @@ export function MatchCombobox({
         />
       )}
       {open && !selected && (
-        <div className="absolute z-30 mt-1 max-h-56 w-full overflow-y-auto surface-card py-1 shadow-lg">
+        <DropdownPortal anchorRef={boxRef} onClose={() => setOpen(false)}>
           {listItems.length === 0 ? (
             <div className="px-3 py-2 text-[0.8571rem] text-outline">{emptyText}</div>
           ) : (
@@ -221,8 +222,51 @@ export function MatchCombobox({
               </button>
             ))
           )}
-        </div>
+        </DropdownPortal>
       )}
     </div>
+  )
+}
+
+/**
+ * 候选浮层 portal 容器：渲染到 body 并对齐触发框，避免被居中弹窗的 overflow 裁切；
+ * 层级 z-[70] 高于 Modal（z-50 / z-[55]）与 ConfirmDialog（z-[60]）。
+ * 浮层内点击不冒泡到 document，防止误触 Modal 遮罩关闭。
+ */
+function DropdownPortal({
+  anchorRef,
+  onClose,
+  children,
+}: {
+  anchorRef: React.RefObject<HTMLDivElement | null>
+  onClose: () => void
+  children: React.ReactNode
+}) {
+  const [rect, setRect] = useState<DOMRect | null>(null)
+
+  useLayoutEffect(() => {
+    const update = () => setRect(anchorRef.current?.getBoundingClientRect() ?? null)
+    update()
+    window.addEventListener('scroll', update, true)
+    window.addEventListener('resize', update)
+    return () => {
+      window.removeEventListener('scroll', update, true)
+      window.removeEventListener('resize', update)
+    }
+  }, [anchorRef])
+
+  if (!rect) return null
+  return createPortal(
+    <div
+      className="fixed z-[70] max-h-56 overflow-y-auto surface-card py-1 shadow-lg"
+      style={{ left: rect.left, top: rect.bottom + 4, width: rect.width }}
+      onMouseDown={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => e.key === 'Escape' && onClose()}
+    >
+      {children}
+    </div>,
+    document.body,
   )
 }

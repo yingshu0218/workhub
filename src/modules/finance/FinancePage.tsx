@@ -844,11 +844,13 @@ function TransactionDetailDrawer({
           )}
         </div>
       )}
-      {/* 编辑模式：以当前流水为基底回填表单，保存后详情随 liveQuery 刷新 */}
+      {/* 编辑模式：以当前流水为基底回填表单，保存后详情随 liveQuery 刷新；
+          该表单从详情抽屉内打开，需 elevated 抬到更高层级 */}
       <TransactionFormDrawer
         open={editing}
         defaultLedgerId={txn?.ledgerId ?? 'all'}
         editTxn={txn}
+        elevated
         onClose={() => setEditing(false)}
       />
 

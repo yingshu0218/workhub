@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { Customer, Project } from '@/db/types'
 import { useCollection } from '@/queries/hooks'
-import { Button, Drawer, Field, inputCls } from '@/design-system/ui'
+import { Button, Field, Modal, inputCls, useAutoFocus } from '@/design-system/ui'
 import { MatchCombobox } from '@/design-system/MatchCombobox'
 import { saveProject } from './hooks'
 
@@ -42,6 +42,7 @@ export default function ProjectFormDrawer({
   const [note, setNote] = useState('')
   const [error, setError] = useState('')
   const [seedKey, setSeedKey] = useState(0)
+  const nameRef = useAutoFocus<HTMLInputElement>()
 
   // 客户候选：挂靠客户打通 CRM（客户详情「名下项目」/ 关系画布「客户→项目」层级）
   const customers = useCollection<Customer>('customers')
@@ -90,15 +91,15 @@ export default function ProjectFormDrawer({
   }
 
   return (
-    <Drawer open={open} title={project ? '编辑项目' : '新建项目'} onClose={onClose} width={460}>
+    <Modal open={open} title={project ? '编辑项目' : '新建项目'} onClose={onClose}>
       <div key={seedKey}>
         <Field label="项目名称 *">
           <input
+            ref={nameRef}
             className={inputCls}
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="如：深蓝科技二期交付 / 年度外包 / 装修工程"
-            autoFocus
           />
         </Field>
         <Field label="标识色">
@@ -173,6 +174,6 @@ export default function ProjectFormDrawer({
           </Button>
         </div>
       </div>
-    </Drawer>
+    </Modal>
   )
 }
