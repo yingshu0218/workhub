@@ -7,6 +7,7 @@ import type { Note, NoteMention } from '@/db/types'
 import type { Customer, Ledger, Todo, Project } from '@/db/types'
 import { Button, Card, Chip, ConfirmDialog, EmptyState } from '@/design-system/ui'
 import { archivedLast, fuzzyMatch, fuzzySort, MatchCombobox } from '@/design-system/MatchCombobox'
+import { toArchivedFlag } from '@/shared/search'
 import dayjs from 'dayjs'
 import { todoStatusLabel } from '@/modules/todo/domain'
 import { EditorState } from '@codemirror/state'
@@ -441,7 +442,7 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
         label: p.name,
         sub: p.status === 'archived' ? '已归档' : p.status === 'paused' ? '已搁置' : '进行中',
         project: p,
-        archived: p.status === 'archived',
+        ...toArchivedFlag(p),
       })),
     ].filter((it) => it.type === mentionTab && match(it))
   }, [customers, todos, ledgers, mentionProjects, mentionTab, mention?.query])
@@ -884,7 +885,7 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
                 id: p.id,
                 label: p.name,
                 sub: p.status === 'archived' ? '已归档' : undefined,
-                archived: p.status === 'archived',
+                ...toArchivedFlag(p),
                 icon: 'folder_open',
               }))}
               placeholder="输入项目名称模糊搜索"

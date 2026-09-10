@@ -86,6 +86,8 @@ function mergeSettings(prev: Settings | undefined): Settings {
     security: { ...DEFAULT_SETTINGS.security, ...base.security },
     sync: { ...DEFAULT_SETTINGS.sync, ...base.sync },
     notes: { ...DEFAULT_SETTINGS.notes, ...base.notes },
+    // ai 段含 domains 子对象：整体展开即可（调用方按域传 patch，见 §四.3 能力白名单）
+    ai: { ...DEFAULT_SETTINGS.ai, ...base.ai },
   }
 }
 
@@ -117,6 +119,8 @@ export const settingsRepo = {
         security: { ...DEFAULT_SETTINGS.security, ...prev?.security, ...patch.security },
         sync: { ...DEFAULT_SETTINGS.sync, ...prev?.sync, ...patch.sync },
         notes: { ...DEFAULT_SETTINGS.notes, ...prev?.notes, ...patch.notes },
+        // 新增段必须在此登记，否则段内单字段 patch 会整体丢失（本函数是段内展开合并）
+        ai: { ...DEFAULT_SETTINGS.ai, ...prev?.ai, ...patch.ai },
       }
       await SETTINGS_TABLE().put(merged)
       eventBus.emit('settings:changed', { settings: merged })

@@ -290,6 +290,18 @@ repositories（createRepository 工厂保持纯写）→ 同步引擎 / eventBus
 
 ### 9.7 P1 推进顺序（v0.6 修订）
 
+> **落地进度（2026-09-10 增补）**：第 1 步（agentOps 门面 + 事件对齐测试）已交付，随后按第 1 步注完成
+> 「历史欠缺补齐」四项中的三项：① `fuzzyMatch/fuzzySort/archivedLast` 已提升到 `shared/search.ts`
+> （`MatchCombobox` re-export，5 个使用方零改动，消除 shared ↔ design-system 反向依赖）；
+> ② Project 归档映射已收口为 `shared/search.ts` 的 `isProjectArchived`/`toArchivedFlag`，
+> UI 4 处内联映射（`NoteEditorPage` ×2 / `TransactionFormDrawer` / `TodoPage`）改为调用收口函数，
+> 并补对照断言；③ 能力白名单已落 settings `ai` 段 + 白名单闸门（`visibleToolNames`/`listVisibleTools`/
+> `dispatchAgentTool`），关闭的域在 tools 清单中直接不出现。
+> 第 3 步（消解器 + `resolveEntity`）已同步交付：`src/agent/resolver.ts` 落实
+> 「只取活记录 / 按 id 去重后数唯一 / 去重唯一才静默消解 / 命中超阈值反问 / 空输入前置拦截 / 归档沉底」六条纪律。
+> **尚未开工**：第 2 步（事件下沉 repositories 三边界）、第 4 步（Relay + CSP + confirmToken）、
+> 第 5 步（读写工具集补全）、第 6 步（skill 文件首版）；白名单**配置页壳**（UI）与 relay 侧过滤仍未拆出交付。
+
 1. **agentOps 门面 + 事件对齐测试**（断点 `transaction:created`，含 §9.5 两个 bug 修复）
 
    > **待提 PR 注（v0.8 审计补强）**：第 1 步应连带解决下面两处「声明完整但未开工」的历史欠缺，否则首轮交付即带漂移：

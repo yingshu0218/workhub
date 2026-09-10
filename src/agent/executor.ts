@@ -13,8 +13,12 @@ import {
 import { toggleTodoDone } from '@/modules/todo/toggle'
 import type { PutInput } from '@/repositories/repository'
 import type { Ledger, Todo, Transaction, Customer } from '@/db/types'
+import { resolveEntity, type ResolveResult } from './resolver'
 import {
   recordTransactionSchema,
+  resolveEntitySchema,
+  TOOL_DOMAIN,
+  DEFAULT_AI_DOMAINS,
   createCustomerSchema,
   addInteractionSchema,
   createTodoSchema,
@@ -326,6 +330,33 @@ export async function fin_createLedger(input: unknown): Promise<AgentOpResult> {
   return ok({ ledgerId: id })
 }
 
+/** resolveEntity：读工具入口（薄包装，实现在 resolver.ts 保持可独立测试） */
+export async function agent_resolveEntity(input: unknown): Promise<AgentOpResult> {
+  const parsed = parseOrError(resolveEntitySchema, input)
+  if (!parsed.ok) return parsed
+  const r = await resolveEntity(parsed.data.query, parsed.data.type)
+  return ok({ ...r } as unknown as Record<string, unknown>)
+}
+
+export type { ResolveResult }
+
+/**
+ * 统一调度入口（桥唯一调用面）：先过白名单闸门，再按工具名分发。
+ * 白名单外的工具不执行（即使调用方直接点名）——闸门不含任何来源判断。
+ */
+export async function dispatchAgentTool(
+  name: string,
+  input: unknown,
+  domains?: Partial<Record<string, boolean>>,
+): Promise<AgentOpResult> {
+  if (!isToolAllowed(name, domains)) {
+    return err(`工具 ${name} 不在能力白名单内（域：${TOOL_DOMAIN[name] ?? '未知'}），已被拒绝`)
+  }
+  const tool = AGENT_TOOLS[name as keyof typeof AGENT_TOOLS]
+  if (!tool) return err(`未知工具：${name}`)
+  return tool.run(input)
+}
+
 /** 工具注册表：桥与测试统一从这里取（域前缀命名，§2.3） */
 export const AGENT_TOOLS = {
   'fin_recordTransaction': { risk: TOOL_RISK['fin_recordTransaction'], schema: recordTransactionSchema, run: fin_recordTransaction },
@@ -335,7 +366,35 @@ export const AGENT_TOOLS = {
   'todo_createTodo': { risk: TOOL_RISK['todo_createTodo'], schema: createTodoSchema, run: todo_createTodo },
   'todo_completeTodo': { risk: TOOL_RISK['todo_completeTodo'], schema: completeTodoSchema, run: todo_completeTodo },
   'fin_createLedger': { risk: TOOL_RISK['fin_createLedger'], schema: createLedgerSchema, run: fin_createLedger },
+  'resolveEntity': { risk: TOOL_RISK['resolveEntity'], schema: resolveEntitySchema, run: agent_resolveEntity },
 } as const
+
+/**
+ * 能力白名单过滤（§四.3）：白名单关闭的域，工具**对桥不可见**——
+ * 不是「调用时拒绝」，而是 tools 清单里就不出现。
+ * 白名单事实源是 settings `ai.domains`（本地 singleton，不进同步队列）。
+ */
+export function visibleToolNames(domains?: Partial<Record<string, boolean>>): string[] {
+  return Object.keys(AGENT_TOOLS).filter((name) => {
+    const domain = TOOL_DOMAIN[name]
+    if (!domain) return false
+    const enabled = domains?.[domain] ?? DEFAULT_AI_DOMAINS[domain]
+    return enabled
+  })
+}
+
+/** 白名单内工具清单（供桥的 tools/list 使用；含风险级与幂等语义标注，§2.3） */
+export function listVisibleTools(domains?: Partial<Record<string, boolean>>) {
+  return visibleToolNames(domains).map((name) => {
+    const tool = AGENT_TOOLS[name as keyof typeof AGENT_TOOLS]
+    return { name, risk: tool.risk, domain: TOOL_DOMAIN[name] }
+  })
+}
+
+/** 调用前白名单闸门：白名单外工具一律拒绝，且不区分调用来源（§十.4 验收） */
+export function isToolAllowed(name: string, domains?: Partial<Record<string, boolean>>): boolean {
+  return visibleToolNames(domains).includes(name)
+}
 
 // 防再犯断言（P1 复审 ①）：注册表每项 risk 必须是 low/medium 字面量。
 // 若哪次改动又把整张 TOOL_RISK map 当 risk 赋值，这里会立刻在类型/运行时炸出来。

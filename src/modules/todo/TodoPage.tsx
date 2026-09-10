@@ -17,6 +17,7 @@ import {
   inputCls,
 } from '@/design-system/ui'
 import { MatchCombobox } from '@/design-system/MatchCombobox'
+import { toArchivedFlag } from '@/shared/search'
 import dayjs from 'dayjs'
 import { useFocusStore } from '@/stores/focus'
 import { toggleTodoDone } from './toggle'
@@ -854,7 +855,7 @@ export function TodoFormDrawer({
               id: p.id,
               label: p.name,
               sub: p.status === 'archived' ? '已归档' : undefined,
-              archived: p.status === 'archived',
+              ...toArchivedFlag(p),
               icon: 'folder_open',
             }))}
             placeholder="输入项目名称模糊搜索"

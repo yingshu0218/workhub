@@ -351,6 +351,28 @@ export interface SettingsNotes {
   defaultFolderId?: string
 }
 
+/**
+ * AI Agent 桥本地配置（Issue #33 · agentOps P1 第 1 步）
+ *
+ * 仅存本地、绝不进同步（settings singleton 不在同步白名单），延续 `sync.password` 先例。
+ * 边界：本段是「能力白名单」的唯一事实源——白名单外的工具对桥不可见
+ * （§四.3：不仅拒绝调用，tools 清单里就不出现）。
+ */
+export interface SettingsAi {
+  /** 桥接入开关（默认关；关闭时桥不启动，tools 清单为空） */
+  bridgeEnabled: boolean
+  /** 接入 token：桥启用时生成，Agent 连接必须携带；仅存本地，可重置 */
+  bridgeToken?: string
+  /**
+   * 能力白名单：按域开关。缺省 undefined = 该域未显式配置，取 DEFAULT_AI_DOMAINS 默认值。
+   * 域前缀与工具命名对齐（§2.3）：fin_ / crm_ / todo_ / habit_ / note_ / read_（读工具）
+   */
+  domains?: Partial<Record<AiDomain, boolean>>
+}
+
+/** 能力白名单域（与工具域前缀一一对应） */
+export type AiDomain = 'fin' | 'crm' | 'todo' | 'habit' | 'note' | 'read'
+
 export interface Settings {
   key: string
   appearance: SettingsAppearance
@@ -359,6 +381,7 @@ export interface Settings {
   security: SettingsSecurity
   sync: SettingsSync
   notes: SettingsNotes
+  ai: SettingsAi
 }
 
 export const SETTINGS_KEY = 'singleton'
@@ -388,6 +411,7 @@ export const DEFAULT_SETTINGS: Settings = {
   security: { encryption: false, syncFrequency: 'realtime', persistCache: true },
   sync: { serverUrl: '', username: '', password: '', token: '', tokenUserId: '' },
   notes: {},
+  ai: { bridgeEnabled: false },
 }
 
 export const SYNC_META_DEFAULT: SyncMeta = {
