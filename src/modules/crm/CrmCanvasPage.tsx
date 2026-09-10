@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, Chip, PageHeader } from '@/design-system/ui'
 import { useCanvasGraph } from './hooks'
@@ -26,6 +26,12 @@ export default function CrmCanvasPage() {
     anchorDoneRef.current = true
     setFitAnchor(pickCanvasAnchor(graph, intimacyCfg))
   }
+  // 「我」节点标识（Issue #116）：锚点客户即「我」，节点角标直显「我」字，
+  // 虚线焦点环强化——上一轮修复只做了视口锚定，节点本身看不出是「我」
+  const selfAnchorId = useMemo(
+    () => pickCanvasAnchor(graph, intimacyCfg),
+    [graph, intimacyCfg],
+  )
 
   return (
     <div className="mx-auto max-w-[1200px]">
@@ -155,6 +161,7 @@ export default function CrmCanvasPage() {
         showReheat
         onGraphReady={handleGraphReady}
         fitAnchorId={fitAnchor ?? undefined}
+        selfNodeId={selfAnchorId ?? undefined}
       />
     </div>
   )
