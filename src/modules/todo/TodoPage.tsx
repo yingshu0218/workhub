@@ -131,22 +131,40 @@ export default function TodoPage() {
 
   // 日历日边界：今天 = 今日截止 ∪ 逾期未完成；最近七天 = [今天, +7天] ∪ 逾期未完成
   const weekEndStr = dayjs().add(7, 'day').format('YYYY-MM-DD')
-  const matchesSmart = (t: Todo): boolean => {
-    if (isTodoOpen(t)) {
-      if (selKind === 'all') return true
+  // 智能视图范围口径：未完成恒可见；已完成仅勾选「已完成」Chip 时纳入本视图范围（Issue #111）。
+  // 已完成按各视图同口径归属：今天=完成时间在今天（无完成时间回退截止日期）、最近七天=落在区间内、收集箱=无清单。
+  const matchesSmart = (t: Todo, includeDone: boolean): boolean => {
+    if (selKind === 'all') return true
+    if (!isTodoOpen(t)) {
+      if (!includeDone) return false
       if (selKind === 'inbox') return !t.listId
-      if (!t.dueAt) return false
-      const d = dayjs(t.dueAt).format('YYYY-MM-DD')
-      if (selKind === 'today') return isDueToday(t, todayStr)
-      if (selKind === 'week') return d <= weekEndStr
+      const stamp = t.completedAt ?? t.dueAt
+      if (!stamp) return false
+      const d = dayjs(stamp).format('YYYY-MM-DD')
+      if (selKind === 'today') return d === todayStr
+      if (selKind === 'week') return todayStr <= d && d <= weekEndStr
+      return false
     }
+    if (selKind === 'inbox') return !t.listId
+    if (!t.dueAt) return false
+    const d = dayjs(t.dueAt).format('YYYY-MM-DD')
+    if (selKind === 'today') return isDueToday(t, todayStr)
+    if (selKind === 'week') return d <= weekEndStr
     return false
   }
-  const baseScope = selListId
-    ? sortedTodos.filter(
-        (t) => t.listId === selListId || (focusRingId !== null && t.id === focusRingId),
-      )
-    : sortedTodos.filter((t) => matchesSmart(t) || (focusRingId !== null && t.id === focusRingId))
+  // doneInScope 与 chipDone 解耦统计（Chip 禁用态依据），避免「关 Chip 后范围不含已完成 → 计数 0 → 无法再开启」死循环
+  const scopeOf = (includeDone: boolean) =>
+    selListId
+      ? sortedTodos.filter(
+          (t) => t.listId === selListId || (focusRingId !== null && t.id === focusRingId),
+        )
+      : sortedTodos.filter(
+          (t) =>
+            matchesSmart(t, includeDone) || (focusRingId !== null && t.id === focusRingId),
+        )
+  const baseScope = scopeOf(chipDone)
+  // 当前视图范围内（含未勾选时潜在可见的已完成）的已完成数：为 0 时「已完成」Chip 置灰
+  const doneInScope = scopeOf(true).filter((t) => !isTodoOpen(t)).length
   // P1 / 已完成降级为右侧筛选 Chip，作用于当前左栏视图/清单之内；全部未命中时兜底展示空态
   const filtered = baseScope.filter((t) => {
     if (chipP1 && !(isTodoOpen(t) && t.priority === 'P1')) return false
@@ -447,10 +465,14 @@ export default function TodoPage() {
               </button>
               <button
                 onClick={() => setChipDone((v) => !v)}
+                disabled={doneInScope === 0}
+                title={doneInScope === 0 ? '当前视图暂无已完成待办' : undefined}
                 className={`rounded-full px-2.5 py-0.5 text-[0.8571rem] font-medium transition-colors ${
                   chipDone
                     ? 'bg-primary-fixed text-primary'
-                    : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
+                    : doneInScope === 0
+                      ? 'cursor-not-allowed bg-surface-container text-outline/60'
+                      : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
                 }`}
               >
                 已完成{chipDone && ' ✕'}
@@ -646,7 +668,8 @@ export default function TodoPage() {
           if (!visible || !chipOk) {
             setSelListId(null)
             setChipP1(false)
-            setChipDone(false)
+            // 已完成条目仅在勾选「已完成」Chip 时可见，兜底切视图时同步勾上（Issue #111）
+            setChipDone(!isTodoOpen(saved))
             setSelKind('all')
           }
         }}
