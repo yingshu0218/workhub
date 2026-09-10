@@ -1,5 +1,5 @@
 import { eventBus } from './eventBus'
-import { habitRepo, habitLogRepo, habitLogId, settingsRepo } from '@/repositories'
+import { habitRepo, checkinHabit, settingsRepo } from '@/repositories'
 import { installTrophyEngine } from '@/modules/trophies/trophyEngine'
 import { ACCENT_PRESETS, THEME_STYLES, SKIN_STYLES, FONT_STACKS, type FontPresetId, type SkinStyleId } from './theme'
 import dayjs from 'dayjs'
@@ -125,18 +125,9 @@ export function installModuleEffects() {
       )
       if (!focusHabit || minutes < focusHabit.targetMinutes) return
       const date = dayjs().format('YYYY-MM-DD')
-      // 确定性 id 幂等：同日同习惯恒为同一条记录，存在即跳过
-      const logId = habitLogId(focusHabit.id, date)
-      const existing = await habitLogRepo.get(logId)
-      if (existing) return
-      await habitLogRepo.put({
-        id: logId,
-        habitId: focusHabit.id,
-        date,
-        completedAt: Date.now(),
-        evidence: `深度专注 ${minutes} 分钟`,
-      })
-      eventBus.emit('habit:checked', { habitId: focusHabit.id, date })
+      // 走领域命令单点收口（§9.6.1）：checkinHabit 内建确定性 id 幂等，
+      // 已存在即 { created: false } 且不 emit（原「存在即跳过」语义等价）
+      await checkinHabit(focusHabit.id, date, { evidence: `深度专注 ${minutes} 分钟` })
     } catch (err) {
       console.error('[effects] focus→habit 联动失败', err)
     }

@@ -7,6 +7,8 @@ import {
   saveTransactionWithAttachments,
   saveInteractionAndTouchCustomer,
   createCustomerWithInit,
+  checkinHabit,
+  uncheckHabit,
   todoRepo,
   ledgerRepo,
 } from '@/repositories'
@@ -15,6 +17,7 @@ import type { PutInput } from '@/repositories/repository'
 import type { Ledger, Todo, Transaction, Customer } from '@/db/types'
 import { resolveEntity, type ResolveResult } from './resolver'
 import {
+  checkinHabitSchema,
   recordTransactionSchema,
   resolveEntitySchema,
   TOOL_DOMAIN,
@@ -30,6 +33,20 @@ import {
   SUNK_EVENTS,
   type AgentEventDeclaration,
 } from './schema'
+import {
+  listTransactions,
+  getCustomer,
+  listTodos,
+  listLedgers,
+  listHabits,
+  searchEntities,
+  listTransactionsSchema,
+  getCustomerSchema,
+  listTodosSchema,
+  listLedgersSchema,
+  searchEntitiesSchema,
+  type ReadResult,
+} from './reads'
 
 /**
  * agentOps 执行器 —— P1 第 1 步（方案 §9.7 第 1 步 / §2.1 事件声明表）
@@ -330,6 +347,78 @@ export async function fin_createLedger(input: unknown): Promise<AgentOpResult> {
   return ok({ ledgerId: id })
 }
 
+/**
+ * habit_checkin：习惯打卡 / 取消（§9.6.1 收口后的领域命令）。
+ *
+ * 幂等口径：`checkinHabit` 只在**实际新建**时才 emit `habit:checked`（已下沉 repositories，事务 commit 后）；
+ * 重复调用返回 `{ created: false }`，外部 Agent 重试安全。`undo: true` 走 `uncheckHabit`（软删、不 emit）。
+ */
+export async function habit_checkin(input: unknown): Promise<AgentOpResult> {
+  const parsed = parseOrError(checkinHabitSchema, input)
+  if (!parsed.ok) return parsed
+  const d = parsed.data
+
+  const habit = await db.habits.get(d.habitId)
+  if (!habit || habit.deleted) {
+    return err(`习惯不存在：${d.habitId}，请先 resolveEntity 消解`)
+  }
+  const date = d.date ?? dayjs().format('YYYY-MM-DD')
+  if (d.undo) {
+    await uncheckHabit(d.habitId, date)
+    return ok({ habitId: d.habitId, date, checked: false })
+  }
+  const { created } = await checkinHabit(d.habitId, date)
+  return ok({ habitId: d.habitId, date, checked: true, created })
+}
+
+/* ------------------------------- 读工具出口 ------------------------------- *
+ * 读工具**不产领域事件**（§2.2），故不进 TOOL_EVENTS / emitDeclared；
+ * 参数经 schema 校验（parseOrError 统一可操作错误），异常统一转 `ok/err` 信封。
+ * 投影白名单与条数上限在 `reads.ts` 落实，本层只做校验 + 信封包装。
+ * ------------------------------------------------------------------------- */
+
+/** 包装读工具：schema 校验 → 返回 items/count/truncated 信封 */
+async function wrapRead<S extends z.ZodTypeAny>(
+  schema: S,
+  fn: (input: z.output<S>) => Promise<ReadResult>,
+  input: unknown,
+): Promise<AgentOpResult> {
+  const parsed = parseOrError(schema, input ?? {})
+  if (!parsed.ok) return parsed
+  const r = await fn(parsed.data)
+  return ok({ items: r.items, count: r.count, truncated: r.truncated })
+}
+
+/** searchEntities：跨实体检索（6 实体投影，notes 走字段裁剪） */
+export function agent_searchEntities(input: unknown): Promise<AgentOpResult> {
+  return wrapRead(searchEntitiesSchema, searchEntities, input)
+}
+
+/** getCustomer：单客户档案（不含 relations 全量与附件） */
+export function agent_getCustomer(input: unknown): Promise<AgentOpResult> {
+  return wrapRead(getCustomerSchema, getCustomer, input)
+}
+
+/** listTransactions：账目查询（投影白名单 + 上限 50） */
+export function agent_listTransactions(input: unknown): Promise<AgentOpResult> {
+  return wrapRead(listTransactionsSchema, listTransactions, input)
+}
+
+/** listTodos：待办查询 */
+export function agent_listTodos(input: unknown): Promise<AgentOpResult> {
+  return wrapRead(listTodosSchema, listTodos, input)
+}
+
+/** listLedgers：账本清单 */
+export function agent_listLedgers(input: unknown): Promise<AgentOpResult> {
+  return wrapRead(listLedgersSchema, listLedgers, input)
+}
+
+/** listHabits：习惯清单 */
+export function agent_listHabits(input: unknown): Promise<AgentOpResult> {
+  return wrapRead(z.object({}).strict(), listHabits, input)
+}
+
 /** resolveEntity：读工具入口（薄包装，实现在 resolver.ts 保持可独立测试） */
 export async function agent_resolveEntity(input: unknown): Promise<AgentOpResult> {
   const parsed = parseOrError(resolveEntitySchema, input)
@@ -365,8 +454,15 @@ export const AGENT_TOOLS = {
   'crm_addRelation': { risk: TOOL_RISK['crm_addRelation'], schema: addRelationSchema, run: crm_addRelation },
   'todo_createTodo': { risk: TOOL_RISK['todo_createTodo'], schema: createTodoSchema, run: todo_createTodo },
   'todo_completeTodo': { risk: TOOL_RISK['todo_completeTodo'], schema: completeTodoSchema, run: todo_completeTodo },
+  'habit_checkin': { risk: TOOL_RISK['habit_checkin'], schema: checkinHabitSchema, run: habit_checkin },
   'fin_createLedger': { risk: TOOL_RISK['fin_createLedger'], schema: createLedgerSchema, run: fin_createLedger },
   'resolveEntity': { risk: TOOL_RISK['resolveEntity'], schema: resolveEntitySchema, run: agent_resolveEntity },
+  'searchEntities': { risk: TOOL_RISK['searchEntities'], schema: searchEntitiesSchema, run: agent_searchEntities },
+  'getCustomer': { risk: TOOL_RISK['getCustomer'], schema: getCustomerSchema, run: agent_getCustomer },
+  'listTransactions': { risk: TOOL_RISK['listTransactions'], schema: listTransactionsSchema, run: agent_listTransactions },
+  'listTodos': { risk: TOOL_RISK['listTodos'], schema: listTodosSchema, run: agent_listTodos },
+  'listLedgers': { risk: TOOL_RISK['listLedgers'], schema: listLedgersSchema, run: agent_listLedgers },
+  'listHabits': { risk: TOOL_RISK['listHabits'], schema: z.object({}).strict(), run: agent_listHabits },
 } as const
 
 /**

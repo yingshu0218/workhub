@@ -160,6 +160,49 @@ export function habitLogId(habitId: string, date: string): string {
 }
 
 /**
+ * 习惯打卡 / 取消打卡 —— 领域命令单点收口（方案 §9.6.1 / §9.7 第 5 步）。
+ *
+ * 收口前「打卡」逻辑内联重复在 3 处（`HabitsPage` 手工 toggle / `dashboard/cards` HabitLoopCard /
+ * `shared/effects` 专注→习惯联动），各自 `put` + `emit('habit:checked')`，存在漂移风险：
+ * 任一处漏 emit 或软删按 `existing.id` 而非确定性 `habitLogId` 派生 id，同一习惯就会出现
+ * 「一条记录两套删除语义」。本函数把语义收敛为唯一一份。
+ *
+ * 幂等口径（§2.3 skill 幂等语义）：
+ * - `checkinHabit` 只在**实际新建**（或软删后原地复活）时 emit `habit:checked`，已存在即 `{ created: false }` 且不 emit；
+ * - 事件在**事务 commit 之后**发出（与 §2.1 事件纪律一致）；
+ * - `uncheckHabit` 软删确定性 id，**不 emit**（取消不是「打卡成功」）；
+ * - 打卡为空操作（新建/复活/已存在）语义由返回值 `{ created }` 表达，供调用方与测试观察。
+ *
+ * @param date YYYY-MM-DD；缺省为业务日（由调用方传入，保持与 UI「今天」口径同源）
+ * @param opts.evidence 专注联动证据文案（`shared/effects` 传入）
+ */
+export async function checkinHabit(
+  habitId: string,
+  date: string,
+  opts: { evidence?: string } = {},
+): Promise<{ created: boolean }> {
+  const id = habitLogId(habitId, date)
+  const prev = await habitLogRepo.get(id)
+  // 已存在（未软删）→ 幂等空操作，不落库不 emit
+  if (prev) return { created: false }
+  await habitLogRepo.put({
+    id,
+    habitId,
+    date,
+    completedAt: Date.now(),
+    ...(opts.evidence ? { evidence: opts.evidence } : {}),
+  } as PutInput<HabitLog>)
+  // 事务 commit 之后 emit（仅实际新建/复活时）
+  eventBus.emit('habit:checked', { habitId, date })
+  return { created: true }
+}
+
+/** 取消打卡：软删确定性 id 派生的记录；不 emit `habit:checked`（§9.6.1 收口口径） */
+export async function uncheckHabit(habitId: string, date: string): Promise<void> {
+  await habitLogRepo.softDelete(habitLogId(habitId, date))
+}
+
+/**
  * JSON 存档恢复（设置页「数据与安全」导入迁移用）：
  * 校验导出格式 → 单事务逐表 bulkPut（保留记录自带的 updatedAt/rev/deleted 盖章）。
  * 覆盖语义：与本地同 id 的记录整体被存档版本覆盖。

@@ -5,7 +5,7 @@ import { useFocusStore, FOCUS_TOTAL_SEC } from '@/stores/focus'
 import { Button, Card, Chip } from '@/design-system/ui'
 import { MatchCombobox } from '@/design-system/MatchCombobox'
 import { eventBus } from '@/shared/eventBus'
-import { todoRepo, habitLogRepo, habitLogId, newId } from '@/repositories'
+import { todoRepo, checkinHabit, uncheckHabit, newId } from '@/repositories'
 import { toggleTodoDone } from '@/modules/todo/toggle'
 import { isDueToday, isTodoOpen } from '@/modules/todo/domain'
 import { useState } from 'react'
@@ -199,17 +199,12 @@ export function HabitLoopCard() {
 
   async function toggle(habitId: string) {
     const existing = logs.find((l) => l.habitId === habitId && l.date === todayStr)
+    // 走领域命令单点收口（§9.6.1）：软删也统一按确定性 habitLogId 派生 id，
+    // 消除「按 existing.id 删」与「按确定性 id 删」两套语义
     if (existing) {
-      await habitLogRepo.softDelete(existing.id)
+      await uncheckHabit(habitId, todayStr)
     } else {
-      // 确定性 id 幂等：同日同习惯恒为同一条记录（若之前软删过则原地复活）
-      await habitLogRepo.put({
-        id: habitLogId(habitId, todayStr),
-        habitId,
-        date: todayStr,
-        completedAt: Date.now(),
-      })
-      eventBus.emit('habit:checked', { habitId, date: todayStr })
+      await checkinHabit(habitId, todayStr)
     }
   }
 

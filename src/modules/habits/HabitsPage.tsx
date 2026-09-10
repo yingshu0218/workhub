@@ -2,8 +2,7 @@ import { useState } from 'react'
 import { Icon } from '@/design-system/Icon'
 import dayjs from 'dayjs'
 import type { Habit } from '@/db/types'
-import { habitLogRepo, habitLogId, deleteHabitCascade } from '@/repositories'
-import { eventBus } from '@/shared/eventBus'
+import { checkinHabit, uncheckHabit, deleteHabitCascade } from '@/repositories'
 import { Button, Card, Chip, ConfirmDialog, EmptyState, PageHeader } from '@/design-system/ui'
 import {
   useHabitStats,
@@ -62,18 +61,12 @@ export default function HabitsPage() {
     setSelectedDate(undefined)
   }
 
-  /** 打卡/取消打卡 —— 与工作台 HabitLoopCard 同款 habitLogId 幂等逻辑 */
+  /** 打卡/取消打卡 —— 走领域命令单点收口（checkinHabit/uncheckHabit，§9.6.1） */
   async function toggleCheck(habit: Habit, doneToday: boolean) {
     if (doneToday) {
-      await habitLogRepo.softDelete(habitLogId(habit.id, todayStr))
+      await uncheckHabit(habit.id, todayStr)
     } else {
-      await habitLogRepo.put({
-        id: habitLogId(habit.id, todayStr),
-        habitId: habit.id,
-        date: todayStr,
-        completedAt: Date.now(),
-      })
-      eventBus.emit('habit:checked', { habitId: habit.id, date: todayStr })
+      await checkinHabit(habit.id, todayStr)
     }
   }
 

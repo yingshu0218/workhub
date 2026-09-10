@@ -205,8 +205,13 @@ describe('边界③ 事务外硬规则：事件在事务 commit 之后发', () =
 })
 
 describe('下沉后防漂移：agentOps 不得重复 emit 已下沉事件', () => {
-  it('SUNK_EVENTS 覆盖 P1 全部两个领域事件，且 agent 层事件列表为空', () => {
-    expect([...SUNK_EVENTS].sort()).toEqual(['customer:contacted', 'transaction:created'])
+  it('SUNK_EVENTS 覆盖 P1 全部三个领域事件，且 agent 层事件列表为空', () => {
+    // 第 2 步下沉 transaction:created / customer:contacted；第 5 步随 checkinHabit 下沉 habit:checked
+    expect([...SUNK_EVENTS].sort()).toEqual([
+      'customer:contacted',
+      'habit:checked',
+      'transaction:created',
+    ])
     for (const name of Object.keys(AGENT_TOOLS)) {
       expect(agentLayerEvents(name)).toEqual([])
     }
@@ -221,9 +226,10 @@ describe('下沉后防漂移：agentOps 不得重复 emit 已下沉事件', () =
     ).toThrow(/已下沉/)
   })
 
-  it('声明表仍声明两个事件（唯一事实源不因下沉而删条目）', () => {
+  it('声明表仍声明三个事件（唯一事实源不因下沉而删条目）', () => {
     expect(TOOL_EVENTS['fin_recordTransaction']).toEqual(['transaction:created'])
     expect(TOOL_EVENTS['crm_addInteraction']).toEqual(['customer:contacted'])
+    expect(TOOL_EVENTS['habit_checkin']).toEqual(['habit:checked'])
   })
 })
 

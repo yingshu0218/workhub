@@ -299,8 +299,8 @@ repositories（createRepository 工厂保持纯写）→ 同步引擎 / eventBus
 > `dispatchAgentTool`），关闭的域在 tools 清单中直接不出现。
 > 第 3 步（消解器 + `resolveEntity`）已同步交付：`src/agent/resolver.ts` 落实
 > 「只取活记录 / 按 id 去重后数唯一 / 去重唯一才静默消解 / 命中超阈值反问 / 空输入前置拦截 / 归档沉底」六条纪律。
-> **尚未开工**：第 2 步（事件下沉 repositories 三边界）、第 4 步（Relay + CSP + confirmToken）、
-> 第 5 步（读写工具集补全）、第 6 步（skill 文件首版）；白名单**配置页壳**（UI）与 relay 侧过滤仍未拆出交付。
+> **尚未开工**：第 4 步（Relay + CSP + confirmToken）、第 6 步（skill 文件首版）；
+> 白名单**配置页壳**（UI）与 relay 侧过滤仍未拆出交付。
 
 1. **agentOps 门面 + 事件对齐测试**（断点 `transaction:created`，含 §9.5 两个 bug 修复）
 
@@ -320,6 +320,24 @@ repositories（createRepository 工厂保持纯写）→ 同步引擎 / eventBus
    > **archived 映射注（v0.7 审计修正）**：`archivedLast`（`MatchCombobox.tsx:40`）只认 `archived?: boolean`，而 `Project` 归档态用的是 `status:'archived'`（`types.ts:151`）。现行 **4 处调用方均手工映射** `archived: p.status === 'archived'`（`NoteEditorPage.tsx:436`、`NoteEditorPage.tsx:879`、`TransactionFormDrawer.tsx:352`、`TodoPage.tsx:857`）后才传入，属全仓重复的内联约定而非孤例——P1 实现该映射时应收口成 `toArchivedFlag(p)` 工具函数。消解器若直接对 repo 原始 Project 调 `archivedLast` 将**完全不生效**——候选池组装时必须先做该字段映射，再执行沉底。
 4. **本地 Relay**（Node 进程 + token + 白名单 + confirmToken）+ **CSP 补 `ws://127.0.0.1`（仅 dev/本地自用构建注入，生产构建 CSP 不含 `ws:`；注入机制：vite `transformIndexHtml` 按 mode 改写 meta，现仓 `vite.config.ts` 无任何 CSP 构建处理，需一并新增）**
 5. 读写工具集（按 §9.3/§9.4 修正版；含 `toggleTodoDone`；`checkinHabit`/`uncheckHabit` 按 §9.6.1 **一次收口 3 处调用点**）
+
+   > **交付记录（v0.8 补注）**：第 5 步已交付。
+   > - **打卡收口（§9.6.1）**：`checkinHabit(habitId, date, { evidence })` 返回 `{ created }`，**仅实际新建**
+   >   （含软删后复活）才 emit `habit:checked`，事件在事务 commit 后发出；`uncheckHabit` 软删确定性
+   >   `habitLogId` 派生 id、**不 emit**。原 3 处内联重复（`HabitsPage` / `dashboard/cards` / `shared/effects`
+   >   专注联动）全部迁入，`dashboard` 软删入口由「按 `existing.id` 删」统一为确定性 id，消除两套删除语义；
+   >   `grep -rn "habitLogId" src/modules src/shared` 现仅剩注释引用（`db/seed.ts` 造数除外）。
+   > - **读工具集（§2.2）**：`src/agent/reads.ts` 新增 `searchEntities`（≤20，复用 `searchAll` 6 实体投影，
+   >   notes 字段裁剪不含 markdown）/ `getCustomer`（投影不含 relations 全量与附件，仅 `relationCount`）/
+   >   `listTransactions`（≤50，金额/日期/状态/customerId/ledgerId，不含附件 Blob）/ `listTodos` /
+   >   `listLedgers` / `listHabits`（各 ≤50）。三条纪律：只走活记录、投影白名单、超限**截断并返回
+   >   `truncated: true`**（绝不静默全量返回）。读工具不产事件，不进 `TOOL_EVENTS`。
+   > - **写工具 `habit_checkin`**：走收口函数，**目标态 + 幂等**语义（重试返回 `{ created: false }`、不重复入队），
+   >   `undo: true` 走 `uncheckHabit`；白名单域 `habit`。`habit:checked` 随 `checkinHabit` 一并下沉
+   >   （`SUNK_EVENTS` 现有 3 条），`emitDeclared` 对已下沉事件仍抛错防双发。
+   > - 对照测试 `src/agent/__tests__/step5.tools.test.ts`（16 条）：打卡收口幂等 / 事务外 emit / evidence 透传、
+   >   `habit_checkin` 工具与白名单闸门、读工具投影白名单与条数截断、软删过滤。
+   > - 说明：`todo_*` 已于第 1 步落地（`todoCompleteTodo` 走 `toggleTodoDone`），本步补齐 `habit_*` 与读工具面。
 6. skill 文件首版（与 MCP tools schema 同源 zod 生成）
 7. 跑通 E2E 场景 = P1 主干验收
 

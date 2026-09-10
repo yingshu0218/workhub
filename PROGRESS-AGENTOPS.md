@@ -97,3 +97,58 @@
 - 手工 UI 记账/记日志：事件发出次数、时机与载荷**不变**（原先发的仍发一次，只是发出方从 UI 挪到 repositories）；
 - 编辑流水：由「误发」变为「不发」——**这是修复，不是回归**；
 - 项目跟进：由「不发」变为「发一次」——**这是修复，不是回归**（`customer:contacted` 为孤儿事件，无消费者，无副作用）。
+
+---
+
+# agentOps 门面 P1 第 5 步 — 读写工具集补全（交付说明）
+
+> Issue: #33 · 方案: docs/agent-bridge-skill-v0.4.md §9.6.1 / §9.7 第 5 步 / §2.2
+> 分支: auto/agentops-relay-step4（基于 PR #124 分支 14634e7）· 作者: npc/CodeBuddy(deepseek-v4.1-flash)
+
+## 一句话
+
+补齐 agentOps 的**读写工具面**：打卡逻辑从 3 处内联收口为领域命令 `checkinHabit`/`uncheckHabit`，
+新增 `habit_checkin` 写工具与 6 个读工具（投影白名单 + 条数上限），让桥的工具清单可支撑 §9.8 E2E 场景。
+
+## 一、打卡收口（§9.6.1，原 3 处内联重复）
+
+| # | 原位置 | 收口后 |
+|---|---|---|
+| 1 | `modules/habits/HabitsPage.tsx` 手工 toggle | `checkinHabit` / `uncheckHabit` |
+| 2 | `modules/dashboard/cards.tsx` HabitLoopCard | 同上；软删由「按 `existing.id` 删」统一为确定性 `habitLogId` 派生 id |
+| 3 | `shared/effects.ts` 专注→习惯联动 | `checkinHabit(..., { evidence })`（内建幂等，等价原「存在即 return」） |
+
+收口口径：`checkinHabit` 返回 `{ created }`，**仅实际新建（含软删复活）才 emit** `habit:checked`，
+事件在**事务 commit 之后**；`uncheckHabit` 软删确定性 id、**不 emit**。
+
+## 二、读工具集（`src/agent/reads.ts`，§2.2）
+
+| 读工具 | 投影（白名单） | 上限 |
+|---|---|---|
+| searchEntities(q, types?) | 复用 `searchAll` 6 实体投影；notes 走字段裁剪（id/title/tags，不含 markdown） | 20 |
+| getCustomer(id) | 基本档案 + `intimacy` 摘要 + `relationCount`（**不含** relations 全量与附件） | 1 |
+| listTransactions(filter) | id/ledgerId/type/amount/summary/status/occurredAt/customerId/projectId/todoId（不含附件） | 50 |
+| listTodos(filter) | id/title/priority/status/dueAt/customerId/projectId | 50 |
+| listLedgers() | id/name/currency/closingCycle/isDefault | 50 |
+| listHabits() | id/name/category/schedule | 50 |
+
+三条纪律：① 只走活记录（同 `useCollection` 过滤 `deleted`）；② 投影白名单；③ 超限**截断并返回 `truncated: true`**，绝不静默全量返回。读工具不产事件，不进 `TOOL_EVENTS`。
+
+## 三、写工具 `habit_checkin`
+
+- 走收口函数，**目标态 + 幂等**：重复调用返回 `{ created: false }`、不重复入队（外部 Agent 重试安全）；
+- `undo: true` 走 `uncheckHabit`（软删、不 emit）；
+- 习惯不存在 → 可操作错误，不静默落库；
+- 白名单域 `habit`；`habit:checked` 已随收口下沉（`SUNK_EVENTS` 现 3 条）。
+
+## 四、自测
+
+- `npx tsc -b` ✅ / `npm run lint` ✅ / `npm test` **65/65** ✅ / `npm run build` ✅
+- 新增 `src/agent/__tests__/step5.tools.test.ts`（16 条）；
+  同步更新 `eventSink.test.ts` 中「已下沉事件数」断言（2 → 3）。
+
+## 五、影响面
+
+- 打卡行为对 UI **语义等价**（幂等 id、事件次数与时机不变），仅把重复实现收敛为一份；
+- 读工具为**新增能力**，不改任何既有 UI 路径；
+- 未触碰 schema / 同步引擎 / `createRepository` 工厂。

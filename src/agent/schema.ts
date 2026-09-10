@@ -19,6 +19,7 @@ export type RiskLevel = 'low' | 'medium'
 export type AgentEventDeclaration =
   | { event: 'transaction:created'; payload: { transactionId: string; customerId?: string } }
   | { event: 'customer:contacted'; payload: { customerId: string } }
+  | { event: 'habit:checked'; payload: { habitId: string; date: string } }
 
 const MAX_AMOUNT = 9_999_999_999
 const CHANNELS = ['微信', '支付宝', '银行卡', '现金', '对公转账'] as const
@@ -146,6 +147,15 @@ export const addRelationSchema = z.object({
   category: z.enum(['project', 'event', 'finance', 'person', 'other']).optional(),
 })
 
+/** habit_checkin —— 落库 checkinHabit（§9.6.1 收口，幂等：仅实际新建才 emit） */
+export const checkinHabitSchema = z.object({
+  habitId: z.string().min(1, 'habitId 必须由 resolveEntity 消解产出'),
+  /** YYYY-MM-DD；缺省=今天（与 UI「今天」口径同源） */
+  date: z.string().date('打卡日期格式须为 YYYY-MM-DD').optional(),
+  /** 取消打卡（软删，不 emit）；缺省 false = 打卡 */
+  undo: z.boolean().default(false),
+})
+
 /** 各写工具的风险分级（§四.4：低=执行+undo；中=先 preview 拿 confirmToken 再 execute） */
 export const TOOL_RISK: Record<string, RiskLevel> = {
   'fin_recordTransaction': 'medium',
@@ -155,8 +165,15 @@ export const TOOL_RISK: Record<string, RiskLevel> = {
   'crm_addRelation': 'medium',
   'todo_createTodo': 'low',
   'todo_completeTodo': 'low',
+  'habit_checkin': 'low',
   /** 读工具：无副作用，风险恒为 low（不进 TOOL_EVENTS，读操作不产领域事件） */
   'resolveEntity': 'low',
+  'searchEntities': 'low',
+  'getCustomer': 'low',
+  'listTransactions': 'low',
+  'listTodos': 'low',
+  'listLedgers': 'low',
+  'listHabits': 'low',
 }
 
 /**
@@ -171,6 +188,9 @@ export const TOOL_RISK: Record<string, RiskLevel> = {
 export const TOOL_EVENTS: Record<string, AgentEventDeclaration['event'][]> = {
   'fin_recordTransaction': ['transaction:created'],
   'crm_addInteraction': ['customer:contacted'],
+  // habit_checkin：`habit:checked` 已随 checkinHabit 收口在 repositories（事务 commit 后 emit），
+  // 声明表仍声明「必有此事件」，发出方由 SUNK_EVENTS 标记为 repositories 层
+  'habit_checkin': ['habit:checked'],
   // crm_createCustomer / fin_createLedger / todo_* / crm_addRelation：无既有事件，不加新的
 }
 
@@ -178,6 +198,8 @@ export const TOOL_EVENTS: Record<string, AgentEventDeclaration['event'][]> = {
 export const SUNK_EVENTS: ReadonlySet<AgentEventDeclaration['event']> = new Set([
   'transaction:created',
   'customer:contacted',
+  // 第 5 步随 checkinHabit 收口：`habit:checked` 由 repositories 层在事务 commit 后 emit
+  'habit:checked',
 ])
 
 /** 某工具在 agentOps 层**仍需自己 emit**的事件 = 声明表中未下沉的部分（下游可用于断言/防漂移） */
@@ -203,7 +225,14 @@ export const TOOL_DOMAIN: Record<string, AiDomain> = {
   crm_addRelation: 'crm',
   todo_createTodo: 'todo',
   todo_completeTodo: 'todo',
+  habit_checkin: 'habit',
   resolveEntity: 'read',
+  searchEntities: 'read',
+  getCustomer: 'read',
+  listTransactions: 'read',
+  listTodos: 'read',
+  listLedgers: 'read',
+  listHabits: 'read',
 }
 
 /** 域默认开关（settings.ai.domains 缺省时的兜底；写域默认全开、读域默认开） */
