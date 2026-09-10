@@ -320,84 +320,9 @@ export function useCustomerTodos(customerId: string | undefined): Todo[] {
   return (list ?? []).sort((a, b) => (a.dueAt ?? Infinity) - (b.dueAt ?? Infinity))
 }
 
-/** 新建客户的第 4 步「跨模块关联初始化」选项 */
-export interface CustomerInitOptions {
-  /** 创建一条 opening 沟通日志（类型=拜访） */
-  openingLog?: boolean
-  /** 关联已有交易：把该交易的 customerId 指向新客户 */
-  linkTransactionId?: string
-}
-
-/**
- * 客户建档 + 跨模块关联初始化：单 Dexie 事务覆盖
- * customers / todos / interactions / transactions / syncQueue 五表，任一步失败整体回滚。
- * 各子项均为可选；记录统一盖章 updatedAt/rev/deleted 并入同步队列（与 repository.put 语义一致）。
- */
-export async function createCustomerWithInit(
-  customer: Customer,
-  opts: CustomerInitOptions = {},
-): Promise<void> {
-  const now = Date.now()
-  await db.transaction(
-    'rw',
-    [db.customers, db.todos, db.interactions, db.transactions, db.syncQueue],
-    async () => {
-      const prev = await db.customers.get(customer.id)
-      await db.customers.put({
-        ...customer,
-        updatedAt: now,
-        rev: (prev?.rev ?? 0) + 1,
-        deleted: 0 as const,
-      } as Customer)
-      await db.syncQueue.add({
-        table: 'customers',
-        recordId: customer.id,
-        op: 'upsert',
-        createdAt: now,
-      })
-
-      if (opts.openingLog) {
-        const itx = {
-          id: newId('itx'),
-          customerId: customer.id,
-          type: '拜访' as const,
-          content: '客户建档 · 首次建立联系（opening）',
-          at: now,
-        }
-        await db.interactions.put({
-          ...itx,
-          updatedAt: now,
-          rev: 1,
-          deleted: 0 as const,
-        } as Interaction)
-        await db.syncQueue.add({
-          table: 'interactions',
-          recordId: itx.id,
-          op: 'upsert',
-          createdAt: now,
-        })
-      }
-
-      if (opts.linkTransactionId) {
-        const txn = await db.transactions.get(opts.linkTransactionId)
-        if (txn && !txn.deleted) {
-          await db.transactions.update(txn.id, {
-            customerId: customer.id,
-            updatedAt: now,
-            rev: txn.rev + 1,
-          })
-          await db.syncQueue.add({
-            table: 'transactions',
-            recordId: txn.id,
-            op: 'upsert',
-            createdAt: now,
-          })
-        }
-      }
-    },
-  )
-  syncEngine.requestSync()
-}
+// 客户建档 + 跨模块关联初始化已下沉到 @/agent/createCustomerWithInit（§9.6 不变式：
+// AI 层只依赖 repositories + shared）。此处 re-export 保持 UI 侧引用路径不变，消双份实现。
+export { createCustomerWithInit, type CustomerInitOptions } from '@/agent/createCustomerWithInit'
 
 // ─────────────────────────── 自定义客户分组（Issue #63 收敛稿） ───────────────────────────
 

@@ -58,6 +58,10 @@ repositories（纯存储）→ 同步引擎 / eventBus → 奖杯、仪表盘联
 
 ### 2.1 事件声明表（v0.3 终稿，原样保留）
 
+> **「期」列口径注（v0.7 审计补注）**：下表「P1」指**整个 P1 期**（§9.7 第 1~7 步的全部交付面），非「第 1 步」。
+> §9.7 是推进顺序、本表是交付面定义，两者不可混读——第 1 步只做「agentOps 门面 + 事件对齐测试」，
+> `crm_saveTxnAndInteractionAndTouch`（强原子链）与 `habit_checkin`（打卡收口）排在第 5/7 步。
+
 | 写工具 | 落库函数 | 必发事件 | 期 |
 |---|---|---|---|
 | fin_recordTransaction | saveTransactionWithAttachments | `transaction:created`（仅 create 新 id） | P1 |
@@ -68,6 +72,11 @@ repositories（纯存储）→ 同步引擎 / eventBus → 奖杯、仪表盘联
 | note_convertQuickNote / note_createQuickNote | quickNoteRepo.put | `quicknote:convert` | **P2 占位** |
 
 事件纪律硬规则（原样保留）：repositories 复合函数下沉 emit；`createRepository` 工厂保持纯写；事件永在事务 commit 后发；每个动作一条「agentOps emit vs UI emit」对照测试。
+
+> **「下沉」落点唯一化（v0.7 审计补注，第 2 步开工前必读）**：「repositories 复合函数下沉 emit」指的是
+> **emit 收口到 repositories 层的函数（仍在事务体之外）**，**不是**把 emit 塞进 Dexie 事务体内。
+> 两条口径不冲突：落点是 repositories 层，时机是「事务 commit 之后」。若实现成「复合函数内部事务体里 emit」，
+> 直接违背「事件永在事务 commit 后发」——第 2 步事件下沉时以本注为准。
 
 ### 2.2 读工具（新增设计，外部形态硬要求）
 
