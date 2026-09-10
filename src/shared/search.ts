@@ -131,3 +131,69 @@ export function searchAll(
     items: matched.filter((it) => it.type === type),
   })).filter((g) => g.items.length > 0)
 }
+
+/* ------------------------------------------------------------------------- *
+ * 模糊匹配基建（Issue #33 agentOps P1 第 1 步：从 design-system/MatchCombobox 提升）
+ *
+ * 提升理由：agentOps 消解器（shared 层）需与 UI 候选链路共用同一套匹配/排序/沉底语义，
+ * 而 design-system 不能作为 shared 的依赖源（会形成 shared ↔ design-system 反向依赖）。
+ * MatchCombobox 保留 re-export，5 个内部使用方零改动。
+ * ------------------------------------------------------------------------- */
+
+/** 模糊匹配：全部子序列命中即算匹配（如「深科」命中「深蓝科技」），优先级：前缀 > 子串 > 子序列 */
+export function fuzzyMatch(text: string, query: string): boolean {
+  const t = text.toLowerCase()
+  const q = query.toLowerCase().trim()
+  if (!q) return true
+  const idx = t.indexOf(q)
+  if (idx >= 0) return true
+  // 子序列回退
+  let i = 0
+  for (const ch of t) {
+    if (ch === q[i]) i++
+    if (i >= q.length) return true
+  }
+  return false
+}
+
+/** 按匹配质量排序：子串命中在前，同质量按原顺序（**不做去重**——唯一性判定由调用方按 id 判，见 §9.7 第 3 步） */
+export function fuzzySort<T>(items: T[], labelOf: (item: T) => string, query: string): T[] {
+  const q = query.toLowerCase().trim()
+  if (!q) return items
+  return [...items]
+    .map((item, i) => ({ item, i, score: labelOf(item).toLowerCase().indexOf(q) }))
+    .sort((a, b) => {
+      if (a.score !== b.score) {
+        if (a.score < 0) return 1
+        if (b.score < 0) return -1
+        return a.score - b.score
+      }
+      return a.i - b.i
+    })
+    .map((x) => x.item)
+}
+
+/** 候选项按归档状态沉底（归档项排最后，同状态保持原顺序），供「已归档」类候选统一使用 */
+export function archivedLast<T extends { archived?: boolean }>(items: T[]): T[] {
+  return [...items.filter((i) => !i.archived), ...items.filter((i) => i.archived)]
+}
+
+/**
+ * 归档态映射收口（§9.7 第 1 步注 / 第 3 步 archived 映射注）。
+ *
+ * `archivedLast` 只认 `archived?: boolean`，而 `Project` 用业务字段 `status:'archived'` 表达归档。
+ * 此前全仓 4 处调用方各自内联 `archived: p.status === 'archived'`，属重复约定。
+ * 收口到本函数后，UI 候选链路与 agentOps 消解器共用同一判据，杜绝两侧漂移。
+ *
+ * 断言范围（§9.7 第 1 步注）：与 UI 4 处手工映射结果一致——
+ * `NoteEditorPage.tsx` ×2、`TransactionFormDrawer.tsx`、`TodoPage.tsx`。
+ * `ProjectsPage.tsx` 用 `select` 展示归档项目（同判据但不在候选链路上），不参与对照断言。
+ */
+export function isProjectArchived(project: Pick<Project, 'status'>): boolean {
+  return project.status === 'archived'
+}
+
+/** 归档态映射（对象形态，便于直接展开进候选项）：`{ archived: boolean }` */
+export function toArchivedFlag(project: Pick<Project, 'status'>): { archived: boolean } {
+  return { archived: isProjectArchived(project) }
+}
