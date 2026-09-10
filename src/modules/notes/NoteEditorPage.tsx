@@ -1110,7 +1110,6 @@ function MentionEntitySummary({
       <>
         <CardRow label="公司" value={c.company || '—'} />
         <CardRow label="职位" value={c.title || '—'} />
-        <CardRow label="阶段" value={c.stage || '—'} />
         <CardRow label="健康度" value={`${c.healthScore}`} />
       </>
     )

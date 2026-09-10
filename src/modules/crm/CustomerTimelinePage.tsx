@@ -25,7 +25,7 @@ import { IDENTITY_VIEW, usePanZoom } from './usePanZoom'
 /**
  * 客户时间线鱼骨视图（Issue #11 需求 2，对齐原型「鱼骨图」隐喻）
  *
- * 结构：鱼头（右）= 客户当前状态卡（tier 徽章 + stage + HealthRing），
+ * 结构：鱼头（右）= 客户当前状态卡（tier 徽章 + HealthRing），
  *       主轴 = 建档至今的水平时间轴，骨刺向上下分叉：
  *       上骨刺 = 收入流水 / 完成待办（正向），下骨刺 = 支出流水 / 逾期待办、新增待办、沟通（负向）
  * 数据源单源消费 useCustomerTimeline（与详情页共用同一投影，保证口径一致）。
@@ -350,9 +350,6 @@ export default function CustomerTimelinePage() {
                     fill="#0b1c30"
                   >
                     {customer.name.slice(0, 6)}
-                  </text>
-                  <text x={58} y={HEAD_H / 2 - 23} style={{ fontSize: 10 }} fill="#434655">
-                    {customer.stage}
                   </text>
                   {/* tier 徽章 */}
                   <g transform={`translate(20,${HEAD_H / 2 - 10})`}>

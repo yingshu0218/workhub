@@ -196,8 +196,6 @@ export function useCustomerTodos(customerId: string | undefined): Todo[] {
 
 /** 新建客户的第 4 步「跨模块关联初始化」选项 */
 export interface CustomerInitOptions {
-  /** 创建首联待办（标题=首联跟进：{客户名}，P2，当天） */
-  firstContactTodo?: boolean
   /** 创建一条 opening 沟通日志（类型=拜访） */
   openingLog?: boolean
   /** 关联已有交易：把该交易的 customerId 指向新客户 */
@@ -231,28 +229,6 @@ export async function createCustomerWithInit(
         op: 'upsert',
         createdAt: now,
       })
-
-      if (opts.firstContactTodo) {
-        const endOfDay = new Date()
-        endOfDay.setHours(23, 59, 59, 999)
-        const todo = {
-          id: newId('td'),
-          title: `首联跟进：${customer.name}`,
-          desc: '',
-          priority: 'P2' as const,
-          status: 'todo' as const,
-          dueAt: endOfDay.getTime(),
-          customerId: customer.id,
-          createdAt: now,
-        }
-        await db.todos.put({ ...todo, updatedAt: now, rev: 1, deleted: 0 as const } as Todo)
-        await db.syncQueue.add({
-          table: 'todos',
-          recordId: todo.id,
-          op: 'upsert',
-          createdAt: now,
-        })
-      }
 
       if (opts.openingLog) {
         const itx = {
