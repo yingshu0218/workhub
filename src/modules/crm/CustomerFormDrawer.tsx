@@ -36,7 +36,8 @@ export default function CustomerFormDrawer({
   const [wechat, setWechat] = useState('')
   const [email, setEmail] = useState('')
   const [address, setAddress] = useState('')
-  // 关联客户维护区（仅编辑模式）：只能从已有客户中选，杜绝自由造目标 id 产生画布悬挂边
+  // 关联客户维护区（新建/编辑均可用）：只能从已有客户中选，杜绝自由造目标 id 产生画布悬挂边。
+  // 新建时新客户尚未入库，候选天然不含自身；编辑时下方以 id 显式排除自己。
   const [relations, setRelations] = useState<CustomerRelation[]>([])
   const [relTarget, setRelTarget] = useState('')
   const [relLabel, setRelLabel] = useState('')
@@ -124,6 +125,8 @@ export default function CustomerFormDrawer({
         address: address.trim(),
         lastContactAt: Date.now(),
         createdAt: Date.now(),
+        // 新建即关联：与编辑同一份 relations 状态，随记录一并落库（Issue #132）
+        ...(relations.length > 0 ? { relations } : {}),
       }
       // 新建走「建档 + 关联初始化」同事务数据层函数，杜绝多步写半成品
       await createCustomerWithInit(record as Customer, {
@@ -252,8 +255,8 @@ export default function CustomerFormDrawer({
             placeholder="如：上海浦东·张江科创园"
           />
         </Field>
-        {/* 关联客户维护区（仅编辑模式）：目标只能从已有客户选择，防止悬挂边 */}
-        {customer && (
+        {/* 关联客户维护区（新建/编辑共用）：目标只能从已有客户选择，防止悬挂边 */}
+        {(
           <div className="mt-4 rounded-xl bg-surface-container-low/60 p-3">
             <StepHeader n={4} title="关联客户" />
             <div className="mb-2 flex flex-wrap gap-1.5">
@@ -356,10 +359,10 @@ export default function CustomerFormDrawer({
             </Button>
           </div>
         )}
-        {/* 第 4 步：跨模块关联初始化（仅新建模式，审计 Phase 3 P2-8） */}
+        {/* 第 5 步：跨模块关联初始化（仅新建模式，审计 Phase 3 P2-8） */}
         {!customer && (
           <div className="mt-4 rounded-xl bg-surface-container-low/60 p-3">
-            <StepHeader n={4} title="跨模块关联初始化" />
+            <StepHeader n={5} title="跨模块关联初始化" />
             <label className="flex cursor-pointer items-center gap-2 py-1.5 text-[0.9286rem]">
               <input
                 type="checkbox"
