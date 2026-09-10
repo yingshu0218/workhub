@@ -1,7 +1,7 @@
 # 寻鸽工作台 · 开发进度文档
 
 > **本仓库的唯一进度事实来源。** 所有人（含 AI 开发代理）推进或变更任何开发工作，必须在**同一个 commit** 里同步更新本文件对应状态。README 底部的 Changelog 记录"发生了什么"，本文档记录"现在处于什么状态"——前者追加式流水，后者始终反映最新全貌。
-**最后更新**：2026-09-10（Issue #86 功能配置页：业务模块规则配置从系统设置「数据管理」Tab 独立成 `/module-config` 页，注册表两级 `{ module, items }` 派生左栏模块 → 子菜单常显导航 + 右侧面板（子项路由可书签直达），系统设置改留指路牌并移除该 Tab；DataManagementTab 原样迁移为 CrmIntimacyConfig 业务逻辑零改写、moduleConfigs 同步表全不动；系统设置删「数据管理」Tab 8→7，导出/导入留在「数据与安全」零重叠；Issue #74 待办模块完整度修复：补齐 12 个缺失图标 + 图标完整性 CI 校验（npm run check:icons，接入 build 前置）、删除二次确认改应用风格 ConfirmDialog、打勾失败可见提示、列表行补归属副标题、接通逾期提醒开关、拖拽排序索引修正、doing 三态可达化、级联解绑含软删待办、移除死代码 assignTodoToList；Issue #74 待办打勾完成修复：完成态收口领域函数 `toggleTodoDone`（status + completedAt 成对写入，三处入口统一）+ 完成态同步合并本地优先（服务端缺字段回拉不再回滚完成状态）+ collections.json todos 补 sortOrder；Issue #54 主题风格体系：风格(skin)与配色解耦为独立持久化字段、先风格后配色；新增 glass/kid 风格包；皮肤层补齐导航 chrome（侧栏/页头/CRM 分组项语义化 .app-sidebar/.app-header/.app-nav-link）与裸 Tailwind 面板穿透；pixel 3px 描边贯穿、glass 深色弹窗对比度兜底、半径档全量走 var(--radius-*)；Issue #50 笔记 @提及浮层交互重构：顶部新增可见模糊匹配输入框（@ 唤起后自动聚焦，筛选词从正文迁入框内，正文 @ 后不再承载筛选词）+ 客户/待办/账本/项目四类横向 tab 统一「点选即插入」交互，移除重复 projectTab 锚点，所属项目选择收敛到右侧栏唯一入口；Issue #34 客户亲密度体系落地：Customer.intimacy 手动 7 档 + 算法兜底 + moduleConfigs 同步表 v9 + 设置页「数据管理」Tab + 图谱圈层/黑名单过滤；Issue #50 笔记关联体验升级：@提及浮层模糊匹配+键盘导航、编辑态关联主体/反向链接悬浮卡片；Issue #70 侧栏快速便签：左下角折叠单行捕获 → saveQuickCapture 落正式 Note，tag「速记」+ 默认目录，设置页「笔记偏好」选目录；Issue #101 服务端 Schema 补齐与部署实录：collections.json 为 noteFolders 补 tombstonePushed 字段与索引、补齐 customers.intimacy 字段定义；pb_hooks SYNC_COLLECTIONS 补 moduleConfigs/customerGroups；部署指南新增「服务端升级实录」7 步操作手册） · 维护人：yingshu0218 / cnb.cMPXRmKswEA / npc/CodeBuddy
+**最后更新**：2026-09-10（Issue #86 功能配置页：业务模块规则配置从系统设置「数据管理」Tab 独立成 `/module-config` 页，注册表两级 `{ module, items }` 派生左栏模块 → 子菜单常显导航 + 右侧面板（子项路由可书签直达），系统设置改留指路牌并移除该 Tab；DataManagementTab 原样迁移为 CrmIntimacyConfig 业务逻辑零改写、moduleConfigs 同步表全不动；系统设置删「数据管理」Tab 8→7，导出/导入留在「数据与安全」零重叠；Issue #74 待办模块完整度修复：补齐 12 个缺失图标 + 图标完整性 CI 校验（npm run check:icons，接入 build 前置）、删除二次确认改应用风格 ConfirmDialog、打勾失败可见提示、列表行补归属副标题、接通逾期提醒开关、拖拽排序索引修正、doing 三态可达化、级联解绑含软删待办、移除死代码 assignTodoToList；Issue #74 待办打勾完成修复：完成态收口领域函数 `toggleTodoDone`（status + completedAt 成对写入，三处入口统一）+ 完成态同步合并本地优先（服务端缺字段回拉不再回滚完成状态）+ collections.json todos 补 sortOrder；Issue #54 主题风格体系：风格(skin)与配色解耦为独立持久化字段、先风格后配色；新增 glass/kid 风格包；皮肤层补齐导航 chrome（侧栏/页头/CRM 分组项语义化 .app-sidebar/.app-header/.app-nav-link）与裸 Tailwind 面板穿透；pixel 3px 描边贯穿、glass 深色弹窗对比度兜底、半径档全量走 var(--radius-*)；Issue #50 笔记 @提及浮层交互重构：顶部新增可见模糊匹配输入框（@ 唤起后自动聚焦，筛选词从正文迁入框内，正文 @ 后不再承载筛选词）+ 客户/待办/账本/项目四类横向 tab 统一「点选即插入」交互，移除重复 projectTab 锚点，所属项目选择收敛到右侧栏唯一入口；Issue #34 客户亲密度体系落地：Customer.intimacy 手动 7 档 + 算法兜底 + moduleConfigs 同步表 v9 + 设置页「数据管理」Tab + 图谱圈层/黑名单过滤；Issue #50 笔记关联体验升级：@提及浮层模糊匹配+键盘导航、编辑态关联主体/反向链接悬浮卡片；Issue #70 侧栏快速便签：左下角折叠单行捕获 → saveQuickCapture 落正式 Note，tag「速记」+ 默认目录，设置页「笔记偏好」选目录；Issue #101 服务端 Schema 补齐与部署实录：collections.json 为 noteFolders 补 tombstonePushed 字段与索引、补齐 customers.intimacy 字段定义；pb_hooks SYNC_COLLECTIONS 补 moduleConfigs/customerGroups；部署指南新增「服务端升级实录」7 步操作手册；Issue #107 新建表单改居中弹窗：新增 `design-system/ui.tsx` 的 `Modal`（size/elevated/响应式/Esc+遮罩，皮肤穿透 surface-card-dialog），确认与输入弹窗抬至 z-[60] 一处改动覆盖 9 个调用点，8 处表单抽屉迁移 Modal（凭证详情内编辑流水 elevated=z-[55]，形成 Detail z-50 → Form z-55 → Confirm z-60 三层），MatchCombobox 候选浮层改 portal 到 body（z-[70]）修复弹窗内裁切，新增 useAutoFocus 替代裸 autoFocus 修复打开表单页面跳滚，Drawer 保留给「参看」侧零改动） · 维护人：yingshu0218 / cnb.cMPXRmKswEA / npc/CodeBuddy
 
 ---
 
@@ -14,7 +14,7 @@
 | 里程碑 | M1-M6 全部验收 ✅ |
 | 审计问题 | P0×2 / P1×19 / P2×60 **全部清零** |
 | 同步机制完善 | P0-1 墓碑清理竞态修复 + P0-2 推送侧 LWW ✅（PR #6 评审中）；P1-3 服务端墓碑 cron ✅；P1-4 HTTPS（待用户操作） |
-| Changelog | 第 53 条（README 底部） |
+| Changelog | 第 58 条（README 底部） |
 
 ## 二、阶段进度（Phase 0-7）
 
@@ -156,6 +156,18 @@
 | glass 深色弹窗对比度 | ✅ token 级覆写 `:root.dark[data-skin='glass']` 的 `--skin-card-bg/--skin-input-bg` 至 80% 不透明度，一处覆写同时作用于语义类卡片、裸面板兜底段与输入框 |
 | 导航 chrome 接入（PR #77） | ✅ `AppLayout` 侧栏/页头语义化（`.app-sidebar`/`.app-header`/`.app-nav-link`+`.is-active`，未复用 `.nav-item` 避免误伤页头搜索与设置页 Tab）；四套皮肤补导航项形态（pixel 直角硬描边硬投影 / cyber 霓虹光标等宽 / cartoon 胶囊粗描边 / glass 大圆角半透明胶囊）；CRM 左侧分组项挂 `app-nav-link` 复用；CRM 页 px 字号转 rem，全局 `text-[*px]` 清零 |
 | 收尾修复（本次） | ✅ 删除 skins.css 与 index.css 重复的 `.surface-card-xl/.low` 通用档死代码；修 pixel 页头描边落空（`.app-header` 用 `border-b`，改设 `border-bottom-color`，与 sidebar 的 `border-right-color` 拆开）；补齐 PROGRESS/Changelog 留痕 |
+
+### 新建表单改居中弹窗（Issue #107，方案经 glm-5.3-flash 审计 4 点并入）
+
+| 项 | 状态 |
+|---|---|
+| 基础组件 | ✅ `design-system/ui.tsx` 新增 `Modal`：`size` md(`max-w-2xl`)/lg(`max-w-4xl`)/xl(预留) + `elevated` 分层 + 容器 `p-0 sm:p-6`、卡片 `h-full sm:h-auto rounded-none sm:rounded-2xl max-h-[100vh] sm:max-h-[90vh]`（窄屏全屏无圆角、桌面居中留边）+ Esc/遮罩关闭；复用 `surface-card-dialog` 皮肤穿透 |
+| 层级收敛 | ✅ `ConfirmDialog`/`PromptDialog` z-50 → **z-[60]**（一处改动 9 个调用点全生效，确认框恒在 Modal 之上）；页面级 Modal 默认 z-50、弹窗内再开弹窗传 `elevated` → z-[55]；实例：凭证详情（z-50）→ 编辑流水（z-[55]）→ 删除确认（z-[60]）三层正确叠放 |
+| 表单迁移 | ✅ 8 处：CustomerFormDrawer / LedgerFormDrawer / TransactionFormDrawer（elevated）/ HabitFormDrawer(md) / ProjectFormDrawer / TodoFormDrawer / CrmPage GroupEditorDrawer(md)；`Drawer` 保留不动（「参看」侧：TransactionDetailDrawer、笔记查看等） |
+| Combobox 防裁切 | ✅ `MatchCombobox` 候选浮层改 `createPortal` 到 `document.body`，`z-[70]`；锚点按 `getBoundingClientRect` 定位并随 scroll(capture)/resize 重算；浮层内 mouse/pointer 事件 `stopPropagation`，防误触 Modal 遮罩关闭 |
+| 焦点跳滚 | ✅ 新增 `useAutoFocus`（`focus({ preventScroll: true })`）替代裸 `autoFocus`，7 处表单首个输入框接入 |
+| 零影响面 | ✅ 纯展示层：数据/同步/仓储零改动；8 个表单「渲染期重置」模式与容器无耦合，仅换外壳 |
+| 未做（YAGNI） | ⏸ 全屏切换按钮、客户表单双列布局加分项（另立 commit/后续增量） |
 
 ### 未来项（已定但不急）
 
