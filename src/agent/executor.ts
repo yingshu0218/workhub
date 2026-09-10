@@ -3,13 +3,27 @@ import { z } from 'zod'
 import { db } from '@/db/db'
 import { newId } from '@/repositories'
 import { eventBus } from '@/shared/eventBus'
-import { saveTransactionWithAttachments, saveInteractionAndTouchCustomer, todoRepo, ledgerRepo } from '@/repositories'
-import { toggleTodoDone } from '@/modules/todo/toggle'
-import type { PutInput } from '@/repositories/repository'
-import type { Ledger, Todo, Transaction, Customer } from '@/db/types'
-import { createCustomerWithInit } from './createCustomerWithInit'
-import { resolveEntity, type ResolveResult } from './resolver'
 import {
+  saveInteractionAndTouchCustomer,
+  createCustomerWithInit,
+  checkinHabit,
+  uncheckHabit,
+  deleteHabitCascade,
+  addCustomerRelation,
+  todoRepo,
+} from '@/repositories'
+import { toggleTodoDone } from '@/modules/todo/toggle'
+import type { Customer, Habit, Note, NoteFolder, Project, Todo } from '@/db/types'
+
+/** 行类型别名（mustExist 泛型绑定用；与 db/types 定义同源，不做二次建模） */
+type ProjectRow = Project
+type NoteRow = Note
+type FolderRow = NoteFolder
+type HabitRow = Habit
+import { resolveEntity, type ResolveResult } from './resolver'
+import { createLedger, recordTransaction } from '@/domain'
+import {
+  checkinHabitSchema,
   recordTransactionSchema,
   resolveEntitySchema,
   TOOL_DOMAIN,
@@ -20,10 +34,42 @@ import {
   completeTodoSchema,
   createLedgerSchema,
   addRelationSchema,
+  updateTodoSchema,
+  deleteTodoSchema,
+  updateCustomerSchema,
+  createProjectSchema,
+  updateProjectSchema,
+  createNoteSchema,
+  updateNoteSchema,
+  createFolderSchema,
+  deleteHabitSchema,
   TOOL_RISK,
   TOOL_EVENTS,
+  type RiskLevel,
+  SUNK_EVENTS,
   type AgentEventDeclaration,
 } from './schema'
+import {
+  listTransactions,
+  getCustomer,
+  listTodos,
+  listLedgers,
+  listHabits,
+  listProjects,
+  listNotes,
+  listNoteFolders,
+  searchEntities,
+  listTransactionsSchema,
+  getCustomerSchema,
+  listTodosSchema,
+  listLedgersSchema,
+  listHabitsSchema,
+  listProjectsSchema,
+  listNotesSchema,
+  listNoteFoldersSchema,
+  searchEntitiesSchema,
+  type ReadResult,
+} from './reads'
 
 /**
  * agentOps 执行器 —— P1 第 1 步（方案 §9.7 第 1 步 / §2.1 事件声明表）
@@ -55,15 +101,23 @@ function parseOrError<S extends z.ZodTypeAny>(schema: S, input: unknown):
 }
 
 /**
- * 事务外统一事件出口（硬规则：永不在事务体内 emit）。
+ * agentOps 层事务外统一事件出口（硬规则：永不在事务体内 emit）。
  *
  * 事件名**从 TOOL_EVENTS 声明表推导**，payload 由调用方构造：
  * 声明表是唯一事实源，若某工具在 TOOL_EVENTS 里没声明事件，这里一个都不会发；
  * 声明了但调用方没给对应 payload，则抛错（防「声明表与实际 emit 两条独立路径」的漂移）。
+ *
+ * **第 2 步下沉后**：已下沉 repositories 的事件（`SUNK_EVENTS`）不在本层发出——
+ * 若调用方仍试图在此 emit，直接抛错（防双发漂移）。当前 P1 全部两个领域事件
+ * （`transaction:created` / `customer:contacted`）均已下沉，故本函数在写工具路径上应零调用；
+ * 保留它是为「未来新增的、未下沉的 agent 层事件」留出口，并持续做声明表校验。
  */
-function emitDeclared(tool: string, payloads: Record<string, AgentEventDeclaration['payload']>): void {
+export function emitDeclared(tool: string, payloads: Record<string, AgentEventDeclaration['payload']>): void {
   const declared = TOOL_EVENTS[tool] ?? []
   for (const event of declared) {
+    if (SUNK_EVENTS.has(event)) {
+      throw new Error(`emitDeclared: 事件 ${event} 已下沉 repositories 层，agentOps 不得重复 emit`)
+    }
     const payload = payloads[event]
     if (payload === undefined) {
       throw new Error(`emitDeclared: 工具 ${tool} 声明了事件 ${event} 但未提供 payload`)
@@ -78,41 +132,41 @@ function emitDeclared(tool: string, payloads: Record<string, AgentEventDeclarati
   }
 }
 
-/** fin_recordTransaction：记一笔（§9.4 口径：status 默认待对账，channel 可缺省） */
+/**
+ * fin_recordTransaction：记一笔（§9.4 口径：status 默认待对账，channel 可缺省）。
+ *
+ * 落库经**领域命令层** `@/domain` 的 `recordTransaction`——与 UI `TransactionFormDrawer.save()`
+ * 共用同一份「记账时间口径（落当天 00:00）/ 缺省账本策略 / 字段归一」，杜绝 UI 与 AI 两份内联漂移。
+ * 事件 `transaction:created` 仍由 `saveTransactionWithAttachments` 在事务 commit 后、仅新建时发出。
+ * agentOps 首版不含 Blob 附件通道（外部 Agent 无法构造 Blob），附件走 UI 路径。
+ */
 export async function fin_recordTransaction(input: unknown): Promise<AgentOpResult> {
   const parsed = parseOrError(recordTransactionSchema, input)
   if (!parsed.ok) return parsed
   const d = parsed.data
 
-  // 账本必须真实存在（§9.3 D7：无账本/账本不存在 → 可操作错误，不静默落库）
-  const ledger = await db.ledgers.get(d.ledgerId)
-  if (!ledger || ledger.deleted) {
-    return err('请先创建账本')
-  }
-
-  const id = newId('txn')
-  const record: PutInput<Transaction> = {
-    id,
-    ledgerId: d.ledgerId,
-    type: d.type,
-    amount: d.amount,
+  const r = await recordTransaction({
     summary: d.summary,
-    channel: d.channel ?? '',
-    // 仅日期录入：统一落当天 00:00，与 UI 完全一致
-    occurredAt: dayjs(d.occurredAt ?? dayjs().format('YYYY-MM-DD')).startOf('day').valueOf(),
+    amount: d.amount,
+    type: d.type,
+    ledgerId: d.ledgerId,
+    occurredAt: d.occurredAt,
+    channel: d.channel,
+    status: d.status,
     tags: d.tags,
     note: d.note,
     customerId: d.customerId,
     todoId: d.todoId,
     projectId: d.projectId,
-    status: d.status,
-  }
-  // agentOps 首版不含 Blob 附件通道（外部 Agent 无法构造 Blob），附件走 UI 路径
-  await saveTransactionWithAttachments(record, [])
-  emitDeclared('fin_recordTransaction', {
-    'transaction:created': { transactionId: id, customerId: d.customerId },
   })
-  return ok({ transactionId: id, status: d.status })
+  if (!r.ok) return err(r.error)
+  return ok({
+    transactionId: r.transactionId,
+    status: d.status,
+    ledgerId: r.ledgerId,
+    occurredAt: r.occurredAt,
+    eventEmitted: r.created,
+  })
 }
 
 /** crm_createCustomer：建客户（含首联初始化，走下沉后的复合函数） */
@@ -185,9 +239,7 @@ export async function crm_addInteraction(input: unknown): Promise<AgentOpResult>
     d.customerId,
     touchAt,
   )
-  emitDeclared('crm_addInteraction', {
-    'customer:contacted': { customerId: d.customerId },
-  })
+  // `customer:contacted` 已下沉 saveInteractionAndTouchCustomer（事务外），此处不再 emit。
   return ok({ interactionId: id, at, lastContactAt: touchAt })
 }
 
@@ -198,39 +250,23 @@ export async function crm_addRelation(input: unknown): Promise<AgentOpResult> {
   const d = parsed.data
   if (d.customerId === d.targetId) return err('不能与自身建立关系')
 
-  const [a, b] = await Promise.all([
-    db.customers.get(d.customerId),
-    db.customers.get(d.targetId),
-  ])
-  if (!a || a.deleted) return err(`客户不存在：${d.customerId}`)
-  if (!b || b.deleted) return err(`目标客户不存在：${d.targetId}`)
-
-  const now = Date.now()
-  const relId = newId('rel')
-  // 同 目标+语义 判重（UI 同款纪律，Issue #39）
-  const aRels = a.relations ?? []
-  if (aRels.some((r) => r.targetId === d.targetId && r.label === d.label)) {
-    return ok({ relationId: aRels.find((r) => r.targetId === d.targetId && r.label === d.label)!.id, deduped: true })
+  // 收口到 repositories 领域函数（单一来源）——此前本函数手写 update + syncQueue.add，
+  // 与 UI 的 customerRepo.put 形成两套盖章/入队实现，且**漏了 syncEngine.requestSync()**，
+  // 只能等 30s 心跳才推送。现在 UI 与 agentOps 走同一实现。
+  try {
+    const { relationId, deduped } = await addCustomerRelation(
+      d.customerId,
+      d.targetId,
+      d.label,
+      d.category,
+    )
+    return ok({ relationId, deduped })
+  } catch (e) {
+    const msg = (e as Error).message
+    if (msg.includes('不能与自身')) return err('不能与自身建立关系')
+    if (msg.includes('not found')) return err('客户不存在：请先用 resolveEntity 确认双方客户')
+    throw e
   }
-
-  const bRels = b.relations ?? []
-  await db.transaction('rw', [db.customers, db.syncQueue], async () => {
-    // A 侧：正向语义（张三是李四的转介绍人 → A 的 relations 写「李四 / 转介绍人」）
-    await db.customers.update(a.id, {
-      relations: [...aRels, { id: relId, targetId: d.targetId, label: d.label, ...(d.category ? { category: d.category } : {}) }],
-      updatedAt: now,
-      rev: a.rev + 1,
-    })
-    await db.syncQueue.add({ table: 'customers', recordId: a.id, op: 'upsert', createdAt: now })
-    // B 侧：双向落两侧，B 侧也可见该关系
-    await db.customers.update(b.id, {
-      relations: [...bRels, { id: newId('rel'), targetId: a.id, label: d.label, ...(d.category ? { category: d.category } : {}) }],
-      updatedAt: now,
-      rev: b.rev + 1,
-    })
-    await db.syncQueue.add({ table: 'customers', recordId: b.id, op: 'upsert', createdAt: now })
-  })
-  return ok({ relationId: relId })
 }
 
 /** todo_createTodo：建待办 */
@@ -298,26 +334,356 @@ export async function fin_createLedger(input: unknown): Promise<AgentOpResult> {
   if (!parsed.ok) return parsed
   const d = parsed.data
 
-  const id = newId('ldg')
-  if (d.isDefault) {
-    const others = (await db.ledgers.toArray()).filter((l) => !l.deleted && l.isDefault)
-    for (const l of others) {
-      const { isDefault: _drop, ...rest } = l
-      await ledgerRepo.put({ ...rest })
-    }
-  }
-  const record: PutInput<Ledger> = {
-    id,
+  // 建账本经领域命令层：与 UI LedgerFormDrawer 共用「默认账本全局唯一 + 排序位」口径
+  const id = await createLedger({
     name: d.name,
     currency: d.currency,
     openingBalance: d.openingBalance,
     closingCycle: d.closingCycle,
-    sortOrder: (await db.ledgers.toArray()).filter((l) => !l.deleted).length,
-    createdAt: Date.now(),
-    ...(d.isDefault ? { isDefault: true } : {}),
-  }
-  await ledgerRepo.put(record)
+    isDefault: d.isDefault,
+  })
   return ok({ ledgerId: id })
+}
+
+/**
+ * habit_checkin：习惯打卡 / 取消（§9.6.1 收口后的领域命令）。
+ *
+ * 幂等口径：`checkinHabit` 只在**实际新建**时才 emit `habit:checked`（已下沉 repositories，事务 commit 后）；
+ * 重复调用返回 `{ created: false }`，外部 Agent 重试安全。`undo: true` 走 `uncheckHabit`（软删、不 emit）。
+ */
+export async function habit_checkin(input: unknown): Promise<AgentOpResult> {
+  const parsed = parseOrError(checkinHabitSchema, input)
+  if (!parsed.ok) return parsed
+  const d = parsed.data
+
+  const habit = await db.habits.get(d.habitId)
+  if (!habit || habit.deleted) {
+    return err(`习惯不存在：${d.habitId}，请先 resolveEntity 消解`)
+  }
+  const date = d.date ?? dayjs().format('YYYY-MM-DD')
+  if (d.undo) {
+    await uncheckHabit(d.habitId, date)
+    return ok({ habitId: d.habitId, date, checked: false })
+  }
+  const { created } = await checkinHabit(d.habitId, date)
+  return ok({ habitId: d.habitId, date, checked: true, created })
+}
+
+/* ─────────────── P2 动作扩面：编辑 / 删除 / 项目 / 笔记 ─────────────── *
+ * 纪律（与 P1 写工具同源）：
+ * - 落库一律走已有 repository / 级联函数，不新增删除逻辑；
+ * - 不新增领域事件（UI 同入口也不发）；
+ * - 目标记录不存在 / 已删 → 可操作错误，不静默成功；
+ * - delete 类为 `high` 风险：返回 `sideEffects` 清单（受影响记录数），供 Agent 转述用户。
+ * ----------------------------------------------------------------------- */
+
+/** 目标记录存在性兜底：不存在/已删一律可操作错误（禁止对幽灵记录"成功"） */
+async function mustExist<T extends { id: string; deleted?: 0 | 1 }>(
+  table: { get(id: string): Promise<T | undefined> },
+  id: string,
+  what: string,
+): Promise<{ ok: true; record: NonNullable<Awaited<ReturnType<typeof table.get>>> } | { ok: false; error: string }> {
+  const record = await table.get(id)
+  if (!record || record.deleted) return { ok: false, error: `${what}不存在：${id}，请先 resolveEntity 消解` }
+  return { ok: true, record: record as NonNullable<Awaited<ReturnType<typeof table.get>>> }
+}
+
+/** 把 nullable 入参折算成「未传 / 传 null（清空） / 传值（设置）」三态 */
+function triState<T>(v: T | null | undefined): { touched: boolean; value: T | undefined } {
+  if (v === undefined) return { touched: false, value: undefined }
+  return { touched: true, value: v === null ? undefined : v }
+}
+
+/** todo_updateTodo：编辑待办（不含完成态，完成态唯一入口仍是 todo_completeTodo） */
+export async function todo_updateTodo(input: unknown): Promise<AgentOpResult> {
+  const parsed = parseOrError(updateTodoSchema, input)
+  if (!parsed.ok) return parsed
+  const d = parsed.data
+  const found = await mustExist<Todo>(db.todos, d.todoId, '待办')
+  if (!found.ok) return err(found.error)
+  const prev = found.record
+
+  const patch: Partial<Todo> = {}
+  if (d.title !== undefined) patch.title = d.title
+  if (d.desc !== undefined) patch.desc = d.desc
+  if (d.priority !== undefined) patch.priority = d.priority
+  const dueAt = triState(d.dueAt)
+  if (dueAt.touched) patch.dueAt = dueAt.value
+  const customerId = triState(d.customerId)
+  if (customerId.touched) patch.customerId = customerId.value
+  const projectId = triState(d.projectId)
+  if (projectId.touched) patch.projectId = projectId.value
+  const listId = triState(d.listId)
+  if (listId.touched) patch.listId = listId.value
+
+  // 弱引用校验：关联对象必须存在（拒绝挂到已删客户/项目上，避免图里出现悬挂边）
+  if (patch.customerId) {
+    const c = await mustExist<Customer>(db.customers, patch.customerId, '客户')
+    if (!c.ok) return err(c.error)
+  }
+  if (patch.projectId) {
+    const p = await mustExist<ProjectRow>(db.projects, patch.projectId, '项目')
+    if (!p.ok) return err(p.error)
+  }
+
+  await todoRepo.put({ ...prev, ...patch })
+  return ok({ todoId: d.todoId, updated: Object.keys(patch) })
+}
+
+/** todo_deleteTodo：删除待办（软删；对齐 UI 删除入口的软删 + 入队语义） */
+export async function todo_deleteTodo(input: unknown): Promise<AgentOpResult> {
+  const parsed = parseOrError(deleteTodoSchema, input)
+  if (!parsed.ok) return parsed
+  const found = await mustExist<Todo>(db.todos, parsed.data.todoId, '待办')
+  if (!found.ok) return err(found.error)
+  await todoRepo.softDelete(parsed.data.todoId)
+  return ok({
+    todoId: parsed.data.todoId,
+    deleted: true,
+    // 待办是叶子记录：删除不级联（对齐 UI），副作用清单为空
+    sideEffects: { cascaded: 0, unlinked: 0 },
+  })
+}
+
+/** crm_updateCustomer：编辑客户档案（含关系档位；relations 仍走 crm_addRelation） */
+export async function crm_updateCustomer(input: unknown): Promise<AgentOpResult> {
+  const parsed = parseOrError(updateCustomerSchema, input)
+  if (!parsed.ok) return parsed
+  const d = parsed.data
+  const found = await mustExist<Customer>(db.customers, d.customerId, '客户')
+  if (!found.ok) return err(found.error)
+  const prev = found.record
+
+  const patch: Partial<Customer> = {}
+  for (const k of ['name', 'company', 'title', 'decisionLevel', 'tier', 'tags', 'phone', 'wechat', 'email', 'address'] as const) {
+    if (d[k] !== undefined) (patch as Record<string, unknown>)[k] = d[k]
+  }
+  // 关系档位：显式 null = 清除手动档位（交算法兜底，Issue #108 单一来源口径）
+  if (d.intimacyLevel !== undefined) {
+    patch.intimacy =
+      d.intimacyLevel === null
+        ? undefined
+        : { level: d.intimacyLevel, updatedAt: Date.now() }
+  }
+
+  const { customerRepo } = await import('@/repositories')
+  const { intimacy: _dropIntimacy, ...rest } = prev
+  await customerRepo.put({
+    ...rest,
+    ...patch,
+    ...(patch.intimacy ? { intimacy: patch.intimacy } : {}),
+  } as Customer)
+  return ok({ customerId: d.customerId, updated: Object.keys(patch) })
+}
+
+/** project_createProject：建项目（默认 active） */
+export async function project_createProject(input: unknown): Promise<AgentOpResult> {
+  const parsed = parseOrError(createProjectSchema, input)
+  if (!parsed.ok) return parsed
+  const d = parsed.data
+  if (d.customerId) {
+    const c = await mustExist<Customer>(db.customers, d.customerId, '客户')
+    if (!c.ok) return err(c.error)
+  }
+  const { projectRepo, newId } = await import('@/repositories')
+  const id = newId('prj')
+  await projectRepo.put({
+    id,
+    name: d.name,
+    color: d.color ?? '#004AC6',
+    status: d.status,
+    customerId: d.customerId,
+    budget: d.budget,
+    note: d.note,
+    createdAt: Date.now(),
+  })
+  return ok({ projectId: id, status: d.status })
+}
+
+/** project_updateProject：编辑项目（归档 / 搁置 / 改名 / 换挂靠客户） */
+export async function project_updateProject(input: unknown): Promise<AgentOpResult> {
+  const parsed = parseOrError(updateProjectSchema, input)
+  if (!parsed.ok) return parsed
+  const d = parsed.data
+  const found = await mustExist<ProjectRow>(db.projects, d.projectId, '项目')
+  if (!found.ok) return err(found.error)
+  const prev = found.record
+
+  const patch: Record<string, unknown> = {}
+  for (const k of ['name', 'status', 'color', 'note'] as const) {
+    if (d[k] !== undefined) patch[k] = d[k]
+  }
+  const customerId = triState(d.customerId)
+  if (customerId.touched) {
+    if (customerId.value) {
+      const c = await mustExist<Customer>(db.customers, customerId.value, '客户')
+      if (!c.ok) return err(c.error)
+    }
+    patch.customerId = customerId.value
+  }
+  const budget = triState(d.budget)
+  if (budget.touched) patch.budget = budget.value
+
+  const { projectRepo } = await import('@/repositories')
+  await projectRepo.put({ ...prev, ...patch })
+  return ok({ projectId: d.projectId, updated: Object.keys(patch) })
+}
+
+/** note_createNote：建笔记 */
+export async function note_createNote(input: unknown): Promise<AgentOpResult> {
+  const parsed = parseOrError(createNoteSchema, input)
+  if (!parsed.ok) return parsed
+  const d = parsed.data
+  if (d.folderId) {
+    const f = await mustExist<FolderRow>(db.noteFolders, d.folderId, '笔记文件夹')
+    if (!f.ok) return err(f.error)
+  }
+  if (d.projectId) {
+    const p = await mustExist<ProjectRow>(db.projects, d.projectId, '项目')
+    if (!p.ok) return err(p.error)
+  }
+  const { noteRepo, newId } = await import('@/repositories')
+  const id = newId('note')
+  await noteRepo.put({
+    id,
+    title: d.title,
+    markdown: d.markdown,
+    tags: d.tags,
+    // @提及 / 反向链接由编辑器解析：工具层不臆造（外部 Agent 无解析上下文），保持空数组
+    backlinks: [],
+    mentions: [],
+    folderId: d.folderId,
+    projectId: d.projectId,
+    createdAt: Date.now(),
+  })
+  return ok({ noteId: id })
+}
+
+/** note_updateNote：编辑笔记（改标题 / 正文 / 标签 / 归属） */
+export async function note_updateNote(input: unknown): Promise<AgentOpResult> {
+  const parsed = parseOrError(updateNoteSchema, input)
+  if (!parsed.ok) return parsed
+  const d = parsed.data
+  const found = await mustExist<NoteRow>(db.notes, d.noteId, '笔记')
+  if (!found.ok) return err(found.error)
+  const prev = found.record
+
+  const patch: Record<string, unknown> = {}
+  for (const k of ['title', 'markdown', 'tags'] as const) {
+    if (d[k] !== undefined) patch[k] = d[k]
+  }
+  const folderId = triState(d.folderId)
+  if (folderId.touched) {
+    if (folderId.value) {
+      const f = await mustExist<FolderRow>(db.noteFolders, folderId.value, '笔记文件夹')
+      if (!f.ok) return err(f.error)
+    }
+    patch.folderId = folderId.value
+  }
+  const projectId = triState(d.projectId)
+  if (projectId.touched) {
+    if (projectId.value) {
+      const p = await mustExist<ProjectRow>(db.projects, projectId.value, '项目')
+      if (!p.ok) return err(p.error)
+    }
+    patch.projectId = projectId.value
+  }
+
+  const { noteRepo } = await import('@/repositories')
+  await noteRepo.put({ ...prev, ...patch })
+  return ok({ noteId: d.noteId, updated: Object.keys(patch) })
+}
+
+/** note_createFolder：建笔记文件夹（单层平铺） */
+export async function note_createFolder(input: unknown): Promise<AgentOpResult> {
+  const parsed = parseOrError(createFolderSchema, input)
+  if (!parsed.ok) return parsed
+  const { noteFolderRepo, newId } = await import('@/repositories')
+  const id = newId('nf')
+  await noteFolderRepo.put({ id, name: parsed.data.name, createdAt: Date.now() })
+  return ok({ folderId: id })
+}
+
+/** habit_deleteHabit：删除习惯（走 deleteHabitCascade，级联清日志） */
+export async function habit_deleteHabit(input: unknown): Promise<AgentOpResult> {
+  const parsed = parseOrError(deleteHabitSchema, input)
+  if (!parsed.ok) return parsed
+  const habitId = parsed.data.habitId
+  const found = await mustExist<HabitRow>(db.habits, habitId, '习惯')
+  if (!found.ok) return err(found.error)
+  const logs = (await db.habitLogs.where('habitId').equals(habitId).toArray()).filter(
+    (l) => !l.deleted,
+  )
+  await deleteHabitCascade(habitId)
+  return ok({
+    habitId,
+    deleted: true,
+    // high 风险：副作用清单（级联影响的打卡记录数）供 Agent 转述用户
+    sideEffects: { cascadedHabitLogs: logs.length },
+  })
+}
+
+/* ------------------------------- 读工具出口 ------------------------------- *
+ * 读工具**不产领域事件**（§2.2），故不进 TOOL_EVENTS / emitDeclared；
+ * 参数经 schema 校验（parseOrError 统一可操作错误），异常统一转 `ok/err` 信封。
+ * 投影白名单与条数上限在 `reads.ts` 落实，本层只做校验 + 信封包装。
+ * ------------------------------------------------------------------------- */
+
+/** 包装读工具：schema 校验 → 返回 items/count/truncated 信封 */
+async function wrapRead<S extends z.ZodTypeAny>(
+  schema: S,
+  fn: (input: z.output<S>) => Promise<ReadResult>,
+  input: unknown,
+): Promise<AgentOpResult> {
+  const parsed = parseOrError(schema, input ?? {})
+  if (!parsed.ok) return parsed
+  const r = await fn(parsed.data)
+  return ok({ items: r.items, count: r.count, truncated: r.truncated })
+}
+
+/** searchEntities：跨实体检索（6 实体投影，notes 走字段裁剪） */
+export function agent_searchEntities(input: unknown): Promise<AgentOpResult> {
+  return wrapRead(searchEntitiesSchema, searchEntities, input)
+}
+
+/** getCustomer：单客户档案（不含 relations 全量与附件） */
+export function agent_getCustomer(input: unknown): Promise<AgentOpResult> {
+  return wrapRead(getCustomerSchema, getCustomer, input)
+}
+
+/** listTransactions：账目查询（投影白名单 + 上限 50） */
+export function agent_listTransactions(input: unknown): Promise<AgentOpResult> {
+  return wrapRead(listTransactionsSchema, listTransactions, input)
+}
+
+/** listTodos：待办查询 */
+export function agent_listTodos(input: unknown): Promise<AgentOpResult> {
+  return wrapRead(listTodosSchema, listTodos, input)
+}
+
+/** listLedgers：账本清单 */
+export function agent_listLedgers(input: unknown): Promise<AgentOpResult> {
+  return wrapRead(listLedgersSchema, listLedgers, input)
+}
+
+/** listHabits：习惯清单 */
+export function agent_listHabits(input: unknown): Promise<AgentOpResult> {
+  return wrapRead(z.object({}).strict(), listHabits, input)
+}
+
+/** listProjects：项目清单（P2 动作扩面） */
+export function agent_listProjects(input: unknown): Promise<AgentOpResult> {
+  return wrapRead(listProjectsSchema, listProjects, input)
+}
+
+/** listNotes：笔记清单（不含 markdown 正文） */
+export function agent_listNotes(input: unknown): Promise<AgentOpResult> {
+  return wrapRead(listNotesSchema, listNotes, input)
+}
+
+/** listNoteFolders：笔记文件夹清单 */
+export function agent_listNoteFolders(input: unknown): Promise<AgentOpResult> {
+  return wrapRead(listNoteFoldersSchema, listNoteFolders, input)
 }
 
 /** resolveEntity：读工具入口（薄包装，实现在 resolver.ts 保持可独立测试） */
@@ -339,11 +705,16 @@ export async function dispatchAgentTool(
   input: unknown,
   domains?: Partial<Record<string, boolean>>,
 ): Promise<AgentOpResult> {
+  const tool = AGENT_TOOLS[name as keyof typeof AGENT_TOOLS]
+  // 顺序有意为之：先判「是否注册」再判「是否在白名单内」。
+  // 若先判白名单，未注册工具会得到「不在白名单内（域：未知）」这种**误导性**错误，
+  // 外部 Agent 会以为是自己权限不够而反复重试，而真实原因是工具名不存在（多为模型幻觉）。
+  if (!tool) {
+    return err(`未知工具：${name}。当前可用工具：${visibleToolNames(domains).join(', ')}`)
+  }
   if (!isToolAllowed(name, domains)) {
     return err(`工具 ${name} 不在能力白名单内（域：${TOOL_DOMAIN[name] ?? '未知'}），已被拒绝`)
   }
-  const tool = AGENT_TOOLS[name as keyof typeof AGENT_TOOLS]
-  if (!tool) return err(`未知工具：${name}`)
   return tool.run(input)
 }
 
@@ -355,8 +726,28 @@ export const AGENT_TOOLS = {
   'crm_addRelation': { risk: TOOL_RISK['crm_addRelation'], schema: addRelationSchema, run: crm_addRelation },
   'todo_createTodo': { risk: TOOL_RISK['todo_createTodo'], schema: createTodoSchema, run: todo_createTodo },
   'todo_completeTodo': { risk: TOOL_RISK['todo_completeTodo'], schema: completeTodoSchema, run: todo_completeTodo },
+  'habit_checkin': { risk: TOOL_RISK['habit_checkin'], schema: checkinHabitSchema, run: habit_checkin },
   'fin_createLedger': { risk: TOOL_RISK['fin_createLedger'], schema: createLedgerSchema, run: fin_createLedger },
+  // ── P2 动作扩面：编辑 / 删除 / 项目 / 笔记 ──
+  'todo_updateTodo': { risk: TOOL_RISK['todo_updateTodo'], schema: updateTodoSchema, run: todo_updateTodo },
+  'todo_deleteTodo': { risk: TOOL_RISK['todo_deleteTodo'], schema: deleteTodoSchema, run: todo_deleteTodo },
+  'crm_updateCustomer': { risk: TOOL_RISK['crm_updateCustomer'], schema: updateCustomerSchema, run: crm_updateCustomer },
+  'project_createProject': { risk: TOOL_RISK['project_createProject'], schema: createProjectSchema, run: project_createProject },
+  'project_updateProject': { risk: TOOL_RISK['project_updateProject'], schema: updateProjectSchema, run: project_updateProject },
+  'note_createNote': { risk: TOOL_RISK['note_createNote'], schema: createNoteSchema, run: note_createNote },
+  'note_updateNote': { risk: TOOL_RISK['note_updateNote'], schema: updateNoteSchema, run: note_updateNote },
+  'note_createFolder': { risk: TOOL_RISK['note_createFolder'], schema: createFolderSchema, run: note_createFolder },
+  'habit_deleteHabit': { risk: TOOL_RISK['habit_deleteHabit'], schema: deleteHabitSchema, run: habit_deleteHabit },
   'resolveEntity': { risk: TOOL_RISK['resolveEntity'], schema: resolveEntitySchema, run: agent_resolveEntity },
+  'searchEntities': { risk: TOOL_RISK['searchEntities'], schema: searchEntitiesSchema, run: agent_searchEntities },
+  'getCustomer': { risk: TOOL_RISK['getCustomer'], schema: getCustomerSchema, run: agent_getCustomer },
+  'listTransactions': { risk: TOOL_RISK['listTransactions'], schema: listTransactionsSchema, run: agent_listTransactions },
+  'listTodos': { risk: TOOL_RISK['listTodos'], schema: listTodosSchema, run: agent_listTodos },
+  'listLedgers': { risk: TOOL_RISK['listLedgers'], schema: listLedgersSchema, run: agent_listLedgers },
+  'listHabits': { risk: TOOL_RISK['listHabits'], schema: listHabitsSchema, run: agent_listHabits },
+  'listProjects': { risk: TOOL_RISK['listProjects'], schema: listProjectsSchema, run: agent_listProjects },
+  'listNotes': { risk: TOOL_RISK['listNotes'], schema: listNotesSchema, run: agent_listNotes },
+  'listNoteFolders': { risk: TOOL_RISK['listNoteFolders'], schema: listNoteFoldersSchema, run: agent_listNoteFolders },
 } as const
 
 /**
@@ -386,10 +777,12 @@ export function isToolAllowed(name: string, domains?: Partial<Record<string, boo
   return visibleToolNames(domains).includes(name)
 }
 
-// 防再犯断言（P1 复审 ①）：注册表每项 risk 必须是 low/medium 字面量。
-// 若哪次改动又把整张 TOOL_RISK map 当 risk 赋值，这里会立刻在类型/运行时炸出来。
+// 防再犯断言（P1 复审 ①，P2 扩面后扩展为三档）：
+// 注册表每项 risk 必须是 low/medium/high 字面量。若哪次改动又把整张 TOOL_RISK map
+// 当 risk 赋值，这里会立刻在类型/运行时炸出来。
+const VALID_RISK = new Set<RiskLevel>(['low', 'medium', 'high'])
 for (const [name, tool] of Object.entries(AGENT_TOOLS)) {
-  if (tool.risk !== 'low' && tool.risk !== 'medium') {
-    throw new Error(`AGENT_TOOLS['${name}'].risk 非法：${String(tool.risk)}（必须是 low/medium 字面量，检查是否误把 TOOL_RISK 整表当 risk）`)
+  if (!VALID_RISK.has(tool.risk)) {
+    throw new Error(`AGENT_TOOLS['${name}'].risk 非法：${String(tool.risk)}（必须是 low/medium/high 字面量，检查是否误把 TOOL_RISK 整表当 risk）`)
   }
 }

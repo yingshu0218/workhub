@@ -21,7 +21,7 @@ import { toArchivedFlag } from '@/shared/search'
 import dayjs from 'dayjs'
 import { useFocusStore } from '@/stores/focus'
 import { toggleTodoDone, voidTodo, restoreTodo } from './toggle'
-import { isTodoOpen, isTodoDone, isTodoVoided, isDueToday } from './domain'
+import { isTodoOpen, isTodoDone, isTodoVoided, isDueToday, resolveFocusViewKind } from './domain'
 import {
   useTodoLists,
   useTodoListCounts,
@@ -98,8 +98,13 @@ export default function TodoPage() {
   const rowRefs = useRef<Map<string, HTMLDivElement>>(new Map())
   useEffect(() => {
     if (!focusId) return
+    // 深链定位：穿透入口（客户时间线鱼骨 / CRM 活动流）最常指向**终态**待办
+    //（已完成 / 已作废），而「全部待办」视图只装未完成条目（Issue #128 三态口径），
+    // 目标会被挡在视图外 —— 表现为「点进去跳了、但目标行不见」。
+    // 修复：**按目标自身状态切到对应视图**（已完成 → done、已作废 → voided、未完成 → all），
+    // 目标自然落在范围内；不给终态条目开并集口子，避免与「全部待办=只看未完成」口径打架。
     setSelListId(null)
-    setSelKind('all')
+    setSelKind(resolveFocusViewKind(todos, focusId))
     setChipP1(false)
     // 等过滤切换生效、列表重渲染后再滚动定位
     const t = window.setTimeout(() => {
@@ -112,7 +117,7 @@ export default function TodoPage() {
       setSearchParams({}, { replace: true })
     }, 0)
     return () => window.clearTimeout(t)
-  }, [focusId, setSearchParams])
+  }, [focusId, setSearchParams, todos])
 
   const todayStr = dayjs().format('YYYY-MM-DD')
 

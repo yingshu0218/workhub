@@ -2,7 +2,7 @@
 
 > 版本：v0.4（终稿候选）
 > 前序：v0.1（四层骨架）→ v0.2（三方裁决收敛）→ v0.3（事件声明表终稿 + 下沉三边界）→ **v0.4（意图层外包外部 Agent，执行载体定案）**
-> 状态：v0.6 架构已定稿；v0.7 增补 §十「通用性与可扩展性」（2026-09-10 小蓝确认）；**v0.8 第二轮审计补强（§9.12，跨小节一致性收口，不动架构）**。动工前仍待小蓝对 §9.7 第 1 步下令。
+> 状态：v0.6 架构已定稿；v0.7 增补 §十「通用性与可扩展性」（2026-09-10 小蓝确认）；**v0.8 第二轮审计补强（§9.12，跨小节一致性收口，不动架构）**。实施进度：§9.7 第 1 步（agentOps 门面）、第 2 步（事件下沉，见步骤内交付记录）、第 3 步（消解器）已交付；第 4~6 步待续。
 > Ref: #33
 
 ---
@@ -299,8 +299,57 @@ repositories（createRepository 工厂保持纯写）→ 同步引擎 / eventBus
 > `dispatchAgentTool`），关闭的域在 tools 清单中直接不出现。
 > 第 3 步（消解器 + `resolveEntity`）已同步交付：`src/agent/resolver.ts` 落实
 > 「只取活记录 / 按 id 去重后数唯一 / 去重唯一才静默消解 / 命中超阈值反问 / 空输入前置拦截 / 归档沉底」六条纪律。
-> **尚未开工**：第 2 步（事件下沉 repositories 三边界）、第 4 步（Relay + CSP + confirmToken）、
-> 第 5 步（读写工具集补全）、第 6 步（skill 文件首版）；白名单**配置页壳**（UI）与 relay 侧过滤仍未拆出交付。
+> 第 5 步（读写工具集补全 + `checkinHabit` 三处收口）已同步交付。
+> **第 4 步（本地 Relay + CSP + confirmToken）已交付**：`relay/`（Node 进程，**零新增依赖**）——
+> `ws-server.mjs` 最小 RFC6455 服务端、`mcp-relay.mjs` 标准 MCP 路由（`initialize`/`tools/list`/`tools/call`）
+> + 接入 token 校验 + 一次性 `confirmToken` 台账（TTL 5 分钟、核销即删）、`index.mjs` 双入口（stdio `--stdio` + WS）同进程；
+> 浏览器侧 `src/agent/bridge.ts` 主动连出（Outbound WS）、`tools/list` 经白名单过滤、`tools/call` 只走 `dispatchAgentTool`、
+> 中风险无 confirmToken 只回预览；CSP 由 `vite.config.ts` 的 `cspRelayPlugin`（`apply:'serve'`）**仅 dev 注入** `ws://127.0.0.1:8787`，
+> 生产构建 CSP 不含 `ws:`；白名单**配置页壳**已随本步交付（设置页「AI Agent 桥」标签：启用 / relay 地址 / token / 按域开关）。
+> **第 6 步（skill 文件首版）已交付**：`docs/skills/` 由 `scripts/gen-skills.mjs` 从 `src/agent/skillSource.ts`
+> （agentOps zod schema）**同源生成** 15 个工具文档 + `README.md` + `mcp-tools.json`，与 MCP `tools/list` 的
+> `inputSchema` 一份定义（`skill.parity.test.ts` 断言三方一致）。
+> **第 7 步（E2E 主干验收）已交付**，P1 七步全部落地。
+>
+> **P1 收尾补强 + P2 动作扩面（同日交付）**：① relay 新增内置 MCP 工具 **`confirm_preview`**——
+> 此前中风险 `preview` 能拦下操作，但票据只能由 relay 签发而 Agent 无从取票，
+> **非 `--dev` 下「预览 → 用户确认 → 执行」物理上走不通**（确认闸门退化成「永远执行不了」）。
+> 现由 relay 缓存 `(tool,args)` 预览记录、校验后才签发一次性票据，**票据绑定参数**；
+> ② `RiskLevel` 扩为 `low/medium/high` 三档，删除类为 `high`（预览标 `irreversible`、执行回 `sideEffects`）；
+> ③ 新增**领域命令层 `src/domain/`**，把「记账时间口径 / 缺省账本策略 / 建账本」从 UI 与 AI
+> 两份内联实现收口为唯一实现体；④ 默认账本唯一性收口 `repositories.clearOtherDefaultLedgers`；
+> ⑤ **P2 动作扩面**：工具面 15 → 27（编辑 / 删除 / 项目 / 笔记），详见 §9.13。
+>
+> **E2E 形态**（`src/agent/__tests__/e2e.acceptance.test.ts` + `e2e.harness.ts`）：
+> MCP 客户端（真 WS）→ **真实 relay 子进程**（真 RFC6455 + 真 MCP 路由）→ 页面内 `AgentBridge`（**原样复用未改**）
+> → agentOps → repositories → Dexie（`fake-indexeddb`）。唯一替换项是 Node 没有原生 `WebSocket`，
+> 由 harness 注入语义一致的最小实现（含 Client→Server 掩码、分片、ping/pong、close）。
+> 「应用」以无头形式起在同一进程内，因此**渲染层不在本套件覆盖范围**（渲染另有 `npm run build` 产物 + `csp.test.ts`）；
+> 这不影响 §9.8 的验收目标 —— 要验的载荷一致性 / 幂等 / 白名单 / 读限幅全部在「桥以下」。
+>
+> **§9.8 场景已跑通**：resolveEntity 零候选 → 建客户「王五/深蓝科技」（中风险预览→确认）→
+> listLedgers 空 → `fin_createLedger` 建默认账本 → 记 2000 支出（`status=待对账`）→
+> 按 customerId 读回账目 → 记沟通日志并读回档案 → 建待办「周五回访王五」→ 查待办确认存在。
+>
+> **四条补强断言全部通过**：① 经 relay 记一笔/记沟通 vs 手工调 repository，`transaction:created` /
+> `customer:contacted` 载荷键集逐字段一致；② 编辑既有流水**不再**触发 `transaction:created` 且不新增记录；
+> ③ 读工具投影与条数不超白名单（不含 attachments/relations 全量）；④ 无 token/错 token 被拒，
+> 白名单关闭的域在 `tools/list` 里直接不出现（且点名调用被闸门拒绝）。
+>
+> **E2E 暴露并修复了 relay 的三处缺陷**（均已补 `relay.harness.test.ts` 真机回归，逐条验证「改回即挂」）：
+> 1. **连接分流缺失**：Agent 端点（无 `role`）落进了 browser 分支，把 `browserConn` 覆盖成 Agent 连接 ——
+>    此后 relay 把唤醒请求发回 Agent 自己，Agent 不认 relay 内部协议，表现为**调用永久无响应**。
+>    已改为显式二分支（`role === 'browser'` 走页面桥；`role === null` 走标准 MCP 路由）。
+> 2. **回包信封丢失 `ok`**：`onBrowserMessage` 只 `resolve(data)`，把桥的 `ok` 丢掉，
+>    下游 `res.ok !== true` 恒真 → **工具明明执行成功却一律回「执行失败」**。
+>    已改为 `resolve({ ok, data })` / `resolve({ ok:false, error })`。
+> 3. **`listTools` 信封错位**：同源问题，清单实际在 `data.tools`，取 `r.tools` 会**静默丢光全部工具**（空清单）。
+>
+> 配套新增 `--dev` 启动参数：**仅本地联调/自动化**下，预览响应自动附带一枚一次性 `confirmToken`，
+> 供脚本跑通「预览→确认→执行」全链路；非 dev 一律不签发，避免把风险确认闸门架空。
+> 另加 `WORKHUB_RELAY_DEBUG=1` 打印浏览器往返回包，供排查「有回包但客户端收不到」类问题。
+>
+> **P1 交付完成**（第 1~7 步）；编辑/删除/高风险变更按 §9.7 仍押 P1 后半或 P2。
 
 1. **agentOps 门面 + 事件对齐测试**（断点 `transaction:created`，含 §9.5 两个 bug 修复）
 
@@ -308,13 +357,53 @@ repositories（createRepository 工厂保持纯写）→ 同步引擎 / eventBus
    > - **归档映射全仓一致性测试**：本步已含 Project 归档态处理，而 §9.7 第 3 步的 `toArchivedFlag` 收口属另一轮改动。两轮之间需补一条对照断言——经 agentOps 消解出的归档客户/项目，与 UI 4 处手工映射（`NoteEditorPage.tsx:434/437`、`TransactionFormDrawer.tsx:351`、`TodoPage.tsx:856`）在同数据下结果一致（`ProjectsPage.tsx:28/59` 用 `select` 展示归档项目，不在 `MatchCombobox` 候选链路上，标注为**不参与该断言**）；
    > - **能力白名单提前为 P0 前置的落点**：§四.3 裁「白名单配置页提前为 P0 前置」，但 §9.7 推进顺序只在第 4 步提「白名单」而未拆出「配置页」独立步骤。第 1 步动工时须明确：配置页壳与开关存储（settings `ai` 段）与第 4 步 relay 侧过滤分两次交付，不可因「第 4 步再说」而让白名单在第 1 步缺位。
 2. 事件下沉 repositories（三边界：create 门控 / interaction 统一 emit / 事务外硬规则）
+
+   > **交付记录（v0.8 补注）**：第 2 步已完成。`transaction:created`（create 门控，修 §9.5 bug1）与
+   > `customer:contacted`（统一 emit，修 §9.5 bug2 项目跟进漏发）已于 `saveTransactionWithAttachments` /
+   > `saveInteractionAndTouchCustomer` 事务 commit 之后单点 emit；UI（`TransactionFormDrawer` /
+   > `CustomerDetailPage`）与 agentOps 的内联 emit 均已移除，杜绝双发；`emitDeclared` 对已下沉事件直接抛错
+   > （`SUNK_EVENTS` 标记）。`createCustomerWithInit` 由 `@/agent/` 移入 `repositories/index.ts`，行为逐行等价、不新增事件。
+   > 交付说明见 `PROGRESS-AGENTOPS.md`「P1 第 2 步」，对照测试 `src/agent/__tests__/eventSink.test.ts`（15 条）。
 3. 消解器 + `resolveEntity`（id 去重 / 阈值反问 / 空输入拦截 / Project 归档沉底，含 archived 字段映射）
 
    > **archived 映射注（v0.7 审计修正）**：`archivedLast`（`MatchCombobox.tsx:40`）只认 `archived?: boolean`，而 `Project` 归档态用的是 `status:'archived'`（`types.ts:151`）。现行 **4 处调用方均手工映射** `archived: p.status === 'archived'`（`NoteEditorPage.tsx:436`、`NoteEditorPage.tsx:879`、`TransactionFormDrawer.tsx:352`、`TodoPage.tsx:857`）后才传入，属全仓重复的内联约定而非孤例——P1 实现该映射时应收口成 `toArchivedFlag(p)` 工具函数。消解器若直接对 repo 原始 Project 调 `archivedLast` 将**完全不生效**——候选池组装时必须先做该字段映射，再执行沉底。
 4. **本地 Relay**（Node 进程 + token + 白名单 + confirmToken）+ **CSP 补 `ws://127.0.0.1`（仅 dev/本地自用构建注入，生产构建 CSP 不含 `ws:`；注入机制：vite `transformIndexHtml` 按 mode 改写 meta，现仓 `vite.config.ts` 无任何 CSP 构建处理，需一并新增）**
+
+   > **交付记录（已实现）**：`relay/ws-server.mjs`（最小 RFC6455，零新增依赖）+ `relay/mcp-relay.mjs`（标准 MCP 路由 + token 校验 + `ConfirmTokenStore` 一次性令牌）+ `relay/index.mjs`（WS `127.0.0.1:8787` + `--stdio` 同进程双入口）；
+   > 浏览器侧 `src/agent/bridge.ts`（Outbound 连出 / 白名单过滤 / `dispatchAgentTool` 唯一入口 / 中风险预览拦截）与 `src/agent/install.ts`（按 settings `ai` 段连断）；
+   > CSP 注入由 `vite.config.ts` 的 `cspRelayPlugin`（`apply:'serve'`）实现，**dev 才注入** `ws://127.0.0.1:8787`；白名单**配置页壳**为设置页「AI Agent 桥」标签（`src/modules/settings/AiBridgeSection.tsx`）。
+   > 测试：`relay.bridge.test.ts` 17 + `bridge.test.ts` 9 + `csp.test.ts` 4 + `aiSettings.test.ts` 4。
 5. 读写工具集（按 §9.3/§9.4 修正版；含 `toggleTodoDone`；`checkinHabit`/`uncheckHabit` 按 §9.6.1 **一次收口 3 处调用点**）
+
+   > **交付记录（v0.8 补注）**：第 5 步已交付。
+   > - **打卡收口（§9.6.1）**：`checkinHabit(habitId, date, { evidence })` 返回 `{ created }`，**仅实际新建**
+   >   （含软删后复活）才 emit `habit:checked`，事件在事务 commit 后发出；`uncheckHabit` 软删确定性
+   >   `habitLogId` 派生 id、**不 emit**。原 3 处内联重复（`HabitsPage` / `dashboard/cards` / `shared/effects`
+   >   专注联动）全部迁入，`dashboard` 软删入口由「按 `existing.id` 删」统一为确定性 id，消除两套删除语义；
+   >   `grep -rn "habitLogId" src/modules src/shared` 现仅剩注释引用（`db/seed.ts` 造数除外）。
+   > - **读工具集（§2.2）**：`src/agent/reads.ts` 新增 `searchEntities`（≤20，复用 `searchAll` 6 实体投影，
+   >   notes 字段裁剪不含 markdown）/ `getCustomer`（投影不含 relations 全量与附件，仅 `relationCount`）/
+   >   `listTransactions`（≤50，金额/日期/状态/customerId/ledgerId，不含附件 Blob）/ `listTodos` /
+   >   `listLedgers` / `listHabits`（各 ≤50）。三条纪律：只走活记录、投影白名单、超限**截断并返回
+   >   `truncated: true`**（绝不静默全量返回）。读工具不产事件，不进 `TOOL_EVENTS`。
+   > - **写工具 `habit_checkin`**：走收口函数，**目标态 + 幂等**语义（重试返回 `{ created: false }`、不重复入队），
+   >   `undo: true` 走 `uncheckHabit`；白名单域 `habit`。`habit:checked` 随 `checkinHabit` 一并下沉
+   >   （`SUNK_EVENTS` 现有 3 条），`emitDeclared` 对已下沉事件仍抛错防双发。
+   > - 对照测试 `src/agent/__tests__/step5.tools.test.ts`（16 条）：打卡收口幂等 / 事务外 emit / evidence 透传、
+   >   `habit_checkin` 工具与白名单闸门、读工具投影白名单与条数截断、软删过滤。
+   > - 说明：`todo_*` 已于第 1 步落地（`todoCompleteTodo` 走 `toggleTodoDone`），本步补齐 `habit_*` 与读工具面。
 6. skill 文件首版（与 MCP tools schema 同源 zod 生成）
+
+   > **交付记录（已实现）**：`src/agent/skillSource.ts` 为唯一生成源，`scripts/gen-skills.mjs` 产出 `docs/skills/`
+   > （15 份工具 md + `README.md` + `mcp-tools.json`）；`skill.parity.test.ts` 断言「executor 注册表 ↔ skill 源 ↔ 生成产物」一致。
 7. 跑通 E2E 场景 = P1 主干验收
+
+   > **交付记录（已实现）**：`src/agent/__tests__/e2e.acceptance.test.ts`（8 例，含 §9.8 主干 + 四条补强断言）
+   > 与 `relay.harness.test.ts`（7 例，relay 真机回归）。执行形态：MCP 客户端 → **真实 relay 子进程** →
+   > 页面内 `AgentBridge`（原样复用）→ agentOps → repositories → `fake-indexeddb`；
+   > harness 注入 Node 侧最小 `WebSocket`（Node 无原生实现），其余全为真实链路。
+   > 本步修掉 relay 三处缺陷（连接分流 / 回包信封丢 `ok` / `tools/list` 信封错位），
+   > 并新增 `--dev`（预览自动附 confirmToken，仅本地联调）与 `WORKHUB_RELAY_DEBUG`（打印浏览器往返回包）。
 
 ### 9.8 E2E 验收场景（沿用 v0.5，补强断言）
 
@@ -327,6 +416,114 @@ repositories（createRepository 工厂保持纯写）→ 同步引擎 / eventBus
 **Relay 与 Agent 之间的协议形态**：~~stdio 优先还是 WebSocket 优先？建议 stdio 优先 + WS 同进程并存，第 4 步动工前由小蓝指定一个先行实测的 Agent。~~
 
 **2026-09-10 裁定（见 §10.1）**：桥只暴露**标准 MCP 协议**（`tools/list` + `tools/call`），**stdio 与 WS 双入口同进程并存**，共用同一 MCP 路由。取消「指定先行 Agent」——协议锁死后，任一 MCP Agent 接入即验证。此项不再待拍板。
+
+### 9.13 P2 动作扩面与领域命令层（2026-09-10）
+
+> 承接 §六「P2：多模块全量动作」。本节记录本轮实际交付范围与**取舍理由**，不改架构。
+
+**A. 为什么先做「编辑 / 删除」而不是继续铺新模块**
+
+P1 面上 AI 能建、不能改、更不能删——建错一条客户 / 待办只能靠人工到界面里收拾，
+等于「AI 可写但不可修」。而 UI 早有编辑 / 删除入口且已有级联语义。
+先把动作面与 UI **对齐**，才谈得上 Issue #33 原始诉求的「AI 能完整使用本项目的所有功能」；
+继续铺新模块只会让「能建不能改」的面积更大。
+
+**B. 新增工具（15 → 27）**
+
+| 工具 | 域 | 风险 | 落库路径 |
+|---|---|---|---|
+| `todo_updateTodo` | todo | low | `todoRepo.put`（nullable 三态：未传=不动 / null=清空 / 值=设置） |
+| `todo_deleteTodo` | todo | **high** | `todoRepo.softDelete` |
+| `crm_updateCustomer` | crm | medium | `customerRepo.put`（`intimacyLevel: null` = 清除手动档位、交算法兜底） |
+| `project_createProject` | project | low | `projectRepo.put` |
+| `project_updateProject` | project | medium | `projectRepo.put`（含归档 / 搁置） |
+| `note_createNote` | note | low | `noteRepo.put` |
+| `note_updateNote` | note | medium | `noteRepo.put` |
+| `note_createFolder` | note | low | `noteFolderRepo.put` |
+| `habit_deleteHabit` | habit | **high** | `deleteHabitCascade`（级联清日志，返回条数） |
+| `listProjects` / `listNotes` / `listNoteFolders` | read | low | 只读，投影白名单 + 上限 50 |
+
+**C. 新增白名单域 `project`**
+
+项目是跨模块主题容器（交易 / 待办 / 笔记 / 沟通都挂它），与「笔记读写」是两件事：
+关掉项目域不应连带关掉笔记域。故 `AiDomain` 增 `project`，设置页「能力白名单」同步多一行。
+
+**D. 消解器扩展**
+
+`ResolvableType` 增 `note` / `noteFolder`。否则「把这条笔记挪到 Q3 复盘目录」这类指令
+只能靠猜 id，违背 §2.3「写工具只接受消解后的 id」。`labelOfType` 同步补中文别名供反问文案用。
+
+**E. 读限幅：`listNotes` 不下发正文**
+
+`listNotes` 投影**不含 markdown 正文**，只给 `markdownLength`。依据 §10.3 token 开销口径：
+外部 Agent 若能把全库笔记正文一次性拉走，限幅就形同虚设。需要正文的正确路径是
+用户主动把内容贴给 Agent，而不是让 Agent 全量拉取。
+
+**F. 四条纪律（测试逐条固定）**
+
+1. **不新增领域事件**——这些动作在 UI 同入口也不发事件，`TOOL_EVENTS` 保持为空；
+2. **删除走既有级联函数**——不新写删除逻辑，`sideEffects` 回受影响记录数供 Agent 转述；
+3. **幽灵记录一律可操作错误**——对不存在 / 已删记录返回「成功」是最危险的假阳性；
+4. **关联校验前置**——挂靠不存在的客户 / 项目 / 文件夹一律拒绝，不产生悬挂引用
+   （否则画布会出现「边指向已删节点」，与 Issue #22 同源）。
+
+**G. 领域命令层 `src/domain/`（P1 收尾补强）**
+
+§2.1 硬规则是「一个业务动作只应有一处实现」。第 2 步收口了**事件**，
+但**动作编排**仍是两份：`TransactionFormDrawer` 与 `fin_recordTransaction` 各写一遍
+`startOf('day')` 与缺省账本取值。而 §7.1 验收要求「AI 记的账 vs 手工记的账逐字段一致」——
+两份实现下只能靠巧合成立。
+
+`src/domain/index.ts`：`normalizeOccurredAt` / `resolveDefaultLedgerId` / `recordTransaction` /
+`createLedger`，UI 与 AI 共同依赖。**领域层不产事件**——事件仍由 repositories 复合函数在
+事务 commit 后发出，保持 §2.1 两条不变式。
+
+配套：`fin_recordTransaction` 的 `ledgerId` 由必填改为**可缺省**，缺省走
+`isDefault → 唯一账本 → 反问`。依据即 §9.4 对齐原则——UI 表单在「全部账本」视图下
+本就自动选默认账本，工具层强制必填反而使两条路径行为不一致。
+
+**H. P1 收尾补强：确认流程闭环（补 §四.4 的流程断点）**
+
+`preview` 此前能正确拦下中风险操作，但**票据只能由 relay 签发而 Agent 无从取票**——
+非 `--dev` 下「预览 → 用户确认 → 执行」物理上走不通，确认闸门退化成「永远执行不了」。
+新增 relay 内置 MCP 工具 **`confirm_preview`**：
+
+1. 浏览器回预览材料时 relay 记下 `(tool,args)`（TTL 5 分钟）；
+2. Agent 把预览转述用户、取得确认后调 `confirm_preview(tool, args)`；
+3. relay 校验「该组参数确实被预览过」才签发一次性 confirmToken（核销即删、防重放）。
+
+**票据绑定参数**，堵死「拿确认票执行另一组参数」的越权路径。这与 §10.1
+「relay 只是通道，不是安全边界」并不矛盾——relay 不冒充用户确认，
+只保证「同一组参数被确认过一次」这一事实不被伪造。
+
+**H-2. 审计整改：`confirmToken` 参数绑定（P0，安全）**
+
+上一条 H 声称「票据绑定参数，堵死越权路径」——**审计逐行核验后发现这个绑定当时并不存在**：
+`ConfirmTokenStore.issue` 只记录签发过，`redeem` 不校验参数；浏览器桥也只判「有没有票」。
+推演出的真实越权路径：**预览「记 100 元」→ 取票 → 不重新预览，直接以「记 10000 元」执行**。
+既有测试恰好只覆盖「正向走通」与「同票重放」，缺这条负向用例。已修复：
+
+1. 新增 `argsFingerprint(tool, args)`——对规范化后的 `{tool, args}` 取 **sha256 全量摘要**
+   （对象键递归排序、数组保序，消除「同语义不同键序」的指纹抖动）；
+2. `issue()` 写入指纹；`redeem(token, fingerprint)` 校验一致，**先删后校**（无论校验结果
+   票据都只消费一次，防拿无效指纹反复试探）；
+3. `tools/call` 核销时传入「当次执行参数」的指纹；`confirm_preview` 与 `--dev` 自动签发
+   均把 `args` 交给签发方；
+4. 预览缓存键由原 **32 位字符滚动弱哈希**改为复用同一 `argsFingerprint`（弱哈希碰撞面不合格，
+   且两处独立实现易漂移）。
+
+配套回归 `confirm.binding.test.ts`（4 条，非 `--dev` 真实 relay 子进程）：越权被拒且**不落库**、
+正常路径不误伤、键序不同视为同组、无票只回预览。**变异验证**：把 `redeem` 改回单参调用，
+对应用例立刻失败——证明这条闸不是摆设。
+
+**I. 遗留（未做，理由写明）**
+
+- relay 启动方式仍是本地独立进程（`npm run relay` / `npm run relay:stdio`），
+  **未接 CNB 流水线**——涉及「谁来跑、跑在哪」，需用户拍板，不擅自决定；
+- P3 项（Node 侧车形态、离线规则模板兜底、多步编排与跨会话）未动；
+- `--dev`（预览自动附票）保留为本地自动化便利，**真实用法走 `confirm_preview` 取票**，
+  两者协议一致、不冲突。
+
 
 ### 9.10 交付载体与 PR 治理（v0.6 修正）
 

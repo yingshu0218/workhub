@@ -1,0 +1,202 @@
+import { useState, useEffect } from 'react'
+import { Card, Button } from '@/design-system/ui'
+import { Icon } from '@/design-system/Icon'
+import type { Settings, AiDomain } from '@/db/types'
+import { agentBridge, type BridgeStatus } from '@/agent/bridge'
+
+/**
+ * AI Agent 桥配置区（能力白名单 + 接入凭据） —— 方案 §四.2 / §四.3（P1 第 4 步配套）
+ *
+ * 为什么必须在这里：外部 Agent 形态下，「能力白名单」与「接入 token」是硬边界而非可选项——
+ * 没有它们，relay 与桥无法安全启用（无 token 谁都能连、无白名单等于全量暴露 18 张表）。
+ *
+ * 边界：本区只读写 settings `ai` 段（本地 singleton，**不进同步队列**）；
+ * 不 import 任何 repositories 写函数，不直接操作数据。
+ */
+
+const DOMAIN_LABELS: Record<AiDomain, { label: string; desc: string }> = {
+  fin: { label: '财务', desc: '记账、建账本' },
+  crm: { label: 'CRM', desc: '建客户、沟通日志、客户关系' },
+  todo: { label: '待办', desc: '建 / 改 / 删待办、完成待办' },
+  project: { label: '项目', desc: '建项目、改项目（含归档 / 搁置）' },
+  habit: { label: '习惯', desc: '打卡 / 取消打卡' },
+  note: { label: '笔记', desc: '建 / 改笔记、建文件夹' },
+  read: { label: '读取', desc: '实体消解、搜索、列表查询' },
+}
+
+const DOMAIN_ORDER: AiDomain[] = ['fin', 'crm', 'todo', 'project', 'habit', 'note', 'read']
+
+function genToken(): string {
+  const bytes = new Uint8Array(24)
+  crypto.getRandomValues(bytes)
+  return btoa(String.fromCharCode(...bytes))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '')
+}
+
+export function AiBridgeSection({
+  settings,
+  save,
+}: {
+  settings: Settings
+  save: (patch: Partial<Omit<Settings, 'key'>>) => void
+}) {
+  const ai = settings.ai
+  const domains: Partial<Record<AiDomain, boolean>> = ai.domains ?? {}
+  const [status, setStatus] = useState<BridgeStatus>(() => agentBridge.getStatus())
+  const [copied, setCopied] = useState(false)
+
+  useEffect(() => agentBridge.onStatus(setStatus), [])
+
+  const setDomain = (d: AiDomain, on: boolean) => save({ ai: { ...ai, domains: { ...domains, [d]: on } } })
+
+  const toggleBridge = (on: boolean) => {
+    // 启用即保证有 token（无 token 桥连不上 relay，配了也没用）
+    const token = ai.bridgeToken || (on ? genToken() : ai.bridgeToken)
+    save({ ai: { ...ai, bridgeEnabled: on, bridgeToken: token } })
+    if (on && token) {
+      agentBridge.connect({ url: ai.bridgeUrl || 'ws://127.0.0.1:8787', token })
+    } else {
+      agentBridge.disconnect()
+    }
+  }
+
+  const resetToken = () => {
+    const token = genToken()
+    save({ ai: { ...ai, bridgeToken: token } })
+    if (ai.bridgeEnabled) agentBridge.connect({ url: ai.bridgeUrl || 'ws://127.0.0.1:8787', token })
+  }
+
+  const copyToken = async () => {
+    try {
+      await navigator.clipboard.writeText(ai.bridgeToken ?? '')
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      /* 剪贴板不可用时静默 */
+    }
+  }
+
+  const stateText: Record<BridgeStatus['state'], string> = {
+    disabled: '未启用',
+    connecting: '连接中…',
+    connected: '已连接 relay',
+    error: '连接失败',
+  }
+  const stateColor: Record<BridgeStatus['state'], string> = {
+    disabled: 'text-outline',
+    connecting: 'text-warning',
+    connected: 'text-success',
+    error: 'text-error',
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card className="p-6">
+        <div className="mb-4 flex items-center gap-2.5">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-fixed text-primary">
+            <Icon name="smart_toy" size={18} />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-[1.0357rem] font-semibold">AI Agent 桥</h3>
+            <p className="mt-0.5 text-[0.8214rem] text-on-surface-variant">
+              让外部 Agent（Claude Desktop / Cursor / CLI 等）经本地 relay 用标准 MCP 调用本应用的记账、CRM 等能力
+            </p>
+          </div>
+          <span className={`text-[0.8571rem] font-medium ${stateColor[status.state]}`}>{stateText[status.state]}</span>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-outline-variant/60 px-4 py-3">
+          <div className="min-w-0">
+            <div className="text-[0.9286rem] font-medium">启用 AI 桥</div>
+            <div className="mt-0.5 text-[0.8214rem] text-on-surface-variant">
+              关闭时桥不启动，Agent 无法连接；开启后本页会主动连出本地 relay（不开放入站端口）
+            </div>
+          </div>
+          <button
+            role="switch"
+            aria-checked={ai.bridgeEnabled}
+            className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${ai.bridgeEnabled ? 'bg-primary' : 'bg-outline-variant'}`}
+            onClick={() => toggleBridge(!ai.bridgeEnabled)}
+          >
+            <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${ai.bridgeEnabled ? 'left-[22px]' : 'left-0.5'}`} />
+          </button>
+        </div>
+
+        {ai.bridgeEnabled && (
+          <div className="mt-3 space-y-3">
+            <div>
+              <div className="mb-1 text-[0.8214rem] font-medium text-on-surface-variant">relay 地址</div>
+              <input
+                className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 font-mono text-[0.8571rem]"
+                value={ai.bridgeUrl ?? 'ws://127.0.0.1:8787'}
+                onChange={(e) => save({ ai: { ...ai, bridgeUrl: e.target.value } })}
+                placeholder="ws://127.0.0.1:8787"
+              />
+            </div>
+            <div>
+              <div className="mb-1 text-[0.8214rem] font-medium text-on-surface-variant">
+                接入 token（仅存本地，不进同步）
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  readOnly
+                  className="min-w-0 flex-1 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 font-mono text-[0.8571rem]"
+                  value={ai.bridgeToken ?? ''}
+                  placeholder="启用后自动生成"
+                />
+                <Button size="sm" variant="ghost" icon="content_copy" onClick={copyToken}>
+                  {copied ? '已复制' : '复制'}
+                </Button>
+                <Button size="sm" variant="ghost" icon="autorenew" onClick={resetToken}>
+                  重置
+                </Button>
+              </div>
+              <p className="mt-1 text-[0.7857rem] text-outline">
+                启动 relay 时把同一 token 传给 Agent（`node relay/index.mjs`，token 会打印在终端）
+              </p>
+            </div>
+            {status.error && <p className="text-[0.8214rem] text-error">{status.error}</p>}
+          </div>
+        )}
+      </Card>
+
+      <Card className="p-6">
+        <div className="mb-4 flex items-center gap-2.5">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-fixed text-primary">
+            <Icon name="verified_user" size={18} />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-[1.0357rem] font-semibold">能力白名单</h3>
+            <p className="mt-0.5 text-[0.8214rem] text-on-surface-variant">
+              关闭的域，Agent 的工具清单里**直接不出现**（不是调用时才拒绝）——任何 Agent 一视同仁
+            </p>
+          </div>
+        </div>
+
+        <div className="grid gap-2 sm:grid-cols-2">
+          {DOMAIN_ORDER.map((d) => {
+            const on = domains[d] ?? true
+            const meta = DOMAIN_LABELS[d]
+            return (
+              <label
+                key={d}
+                className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-outline-variant/60 px-4 py-2.5"
+              >
+                <div className="min-w-0">
+                  <div className="text-[0.9286rem] font-medium">{meta.label}</div>
+                  <div className="mt-0.5 truncate text-[0.7857rem] text-on-surface-variant">{meta.desc}</div>
+                </div>
+                <input type="checkbox" className="h-4 w-4 shrink-0 accent-primary" checked={on} onChange={(e) => setDomain(d, e.target.checked)} />
+              </label>
+            )
+          })}
+        </div>
+        <p className="mt-3 text-[0.7857rem] text-outline">
+          说明：中风险操作（记账、建客户、沟通日志等）即便在白名单内，Agent 也须先向你转述参数并取得确认，才能携带一次性 confirmToken 执行。
+        </p>
+      </Card>
+    </div>
+  )
+}

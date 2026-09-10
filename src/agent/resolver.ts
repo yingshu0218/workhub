@@ -20,8 +20,19 @@ import { archivedLast, fuzzyMatch, fuzzySort, isProjectArchived } from '@/shared
  * `archivedLast` 只认 `archived?: boolean`，直接对 repo 原始 Project 调它**完全不生效**（§9.7 第 3 步注）。
  */
 
-/** 可消解实体类型（与名称/标题字段一一对应） */
-export type ResolvableType = 'customer' | 'project' | 'todo' | 'ledger' | 'habit'
+/**
+ * 可消解实体类型（与名称/标题字段一一对应）。
+ * `note` / `noteFolder`（P2 动作扩面新增）：笔记与文件夹也要能自然语言关联，
+ * 否则「把这条笔记挪到 Q3 复盘目录」这类指令只能靠猜 id。
+ */
+export type ResolvableType =
+  | 'customer'
+  | 'project'
+  | 'todo'
+  | 'ledger'
+  | 'habit'
+  | 'note'
+  | 'noteFolder'
 
 /** 消解候选（投影白名单：不含实体全字段，不含 relations/附件，见 §2.2） */
 export interface ResolveCandidate {
@@ -116,6 +127,19 @@ async function buildPool(type: ResolvableType): Promise<ResolveCandidate[]> {
       const rows = alive(await db.habits.limit(MAX_SCAN).toArray())
       return rows.map((h) => ({ id: h.id, type, label: h.name, sub: h.category || undefined }))
     }
+    case 'note': {
+      const rows = alive(await db.notes.limit(MAX_SCAN).toArray())
+      return rows.map((n) => ({
+        id: n.id,
+        type,
+        label: n.title,
+        sub: n.tags.length ? n.tags.map((t) => `#${t}`).join(' ') : undefined,
+      }))
+    }
+    case 'noteFolder': {
+      const rows = alive(await db.noteFolders.limit(MAX_SCAN).toArray())
+      return rows.map((f) => ({ id: f.id, type, label: f.name }))
+    }
   }
 }
 
@@ -179,7 +203,15 @@ export async function resolveEntity(query: string, type: ResolvableType): Promis
 }
 
 function labelOfType(type: ResolvableType): string {
-  return { customer: '客户', project: '项目', todo: '待办', ledger: '账本', habit: '习惯' }[type]
+  return {
+    customer: '客户',
+    project: '项目',
+    todo: '待办',
+    ledger: '账本',
+    habit: '习惯',
+    note: '笔记',
+    noteFolder: '笔记文件夹',
+  }[type]
 }
 
 /** 批量消解（多工具链用；任一歧义即整体 ambiguous，由调用方逐条反问） */

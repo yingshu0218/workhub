@@ -4,7 +4,6 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useCollection, useRecord } from '@/queries/hooks'
 import type { Customer, Interaction, Note, Project } from '@/db/types'
 import { deleteCustomerCascade, newId, saveInteractionAndTouchCustomer } from '@/repositories'
-import { eventBus } from '@/shared/eventBus'
 import {
   Avatar,
   Button,
@@ -784,11 +783,12 @@ function QuickLog({ customerId }: { customerId: string }) {
     try {
       // 原子双写：日志落库 + 客户 lastContactAt 刷新在同一事务完成
       const at = Date.now()
+      // 事件（customer:contacted）已下沉 saveInteractionAndTouchCustomer（事务 commit 后统一 emit），
+      // UI 侧不再内联 emit，避免双发。
       await saveInteractionAndTouchCustomer(
         { id: newId('itx'), customerId, type, content: content.trim(), at },
         customerId,
       )
-      eventBus.emit('customer:contacted', { customerId })
       setContent('')
     } catch (err) {
       console.error('[QuickLog] 保存沟通日志失败', err)

@@ -48,6 +48,26 @@ export function todoStatusLabel(t: Pick<Todo, 'status'>): string {
 }
 
 /**
+ * 深链定位的视图选择：`/todo?focus=<id>` 跳进来时，**按目标自身状态**决定左栏视图。
+ *
+ * 为什么必须按状态切视图（Issue #128 三态口径的连带缺口）：
+ * 「全部待办 / 收集箱 / 今天 / 最近七天」只装**未完成**条目，已完成/已作废是独立终态视图。
+ * 而穿透入口（客户时间线鱼骨 / CRM 活动流）最常指向**终态**待办——
+ * 若一律切到「全部待办」，目标会被挡在视图外，表现为「点进去跳了、但目标行不见」。
+ *
+ * @returns 'done' | 'voided' | 'all'（未找到目标时回 'all'，由调用方兜底滚动失败）
+ */
+export function resolveFocusViewKind(
+  todos: readonly Pick<Todo, 'id' | 'status'>[],
+  focusId: string | undefined,
+): 'all' | 'done' | 'voided' {
+  if (!focusId) return 'all'
+  const target = todos.find((t) => t.id === focusId)
+  if (!target) return 'all'
+  return isTodoDone(target) ? 'done' : isTodoVoided(target) ? 'voided' : 'all'
+}
+
+/**
  * 「今天」口径（待办软件通行做法）：今日截止 ∪ 逾期未完成。
  * 待办中心筛选/计数、工作台今日日程卡、待办达成分母统一引用本函数。
  * 作废条目（Issue #128）不进本口径：事项已终止，不再催办、不计逾期。
