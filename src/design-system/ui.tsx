@@ -198,3 +198,57 @@ export function PageHeader({
     </div>
   )
 }
+
+/** 应用风格确认弹窗（替代浏览器原生 confirm） */
+export function ConfirmDialog({
+  open,
+  title,
+  message,
+  confirmText = '确认',
+  cancelText = '取消',
+  danger,
+  onConfirm,
+  onCancel,
+}: {
+  open: boolean
+  title: string
+  message?: ReactNode
+  confirmText?: string
+  cancelText?: string
+  danger?: boolean
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCancel()
+      if (e.key === 'Enter') onConfirm()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open, onConfirm, onCancel])
+
+  if (!open) return null
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/25" onClick={onCancel} />
+      <div className="relative w-full max-w-sm rounded-xl border border-outline-variant/40 bg-surface-container-lowest p-6 shadow-[0_8px_32px_rgba(0,0,0,0.16)]">
+        <h3 className="text-[1.0714rem] font-semibold">{title}</h3>
+        {message && (
+          <div className="mt-2 text-[0.9286rem] leading-relaxed text-on-surface-variant">
+            {message}
+          </div>
+        )}
+        <div className="mt-5 flex justify-end gap-2">
+          <Button variant="ghost" onClick={onCancel}>
+            {cancelText}
+          </Button>
+          <Button variant={danger ? 'danger' : 'primary'} onClick={onConfirm}>
+            {confirmText}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
