@@ -1,8 +1,7 @@
 # 寻鸽工作台 · 开发进度文档
 
 > **本仓库的唯一进度事实来源。** 所有人（含 AI 开发代理）推进或变更任何开发工作，必须在**同一个 commit** 里同步更新本文件对应状态。README 底部的 Changelog 记录"发生了什么"，本文档记录"现在处于什么状态"——前者追加式流水，后者始终反映最新全貌。
-
-**最后更新**：2026-09-10（Issue #86 功能配置独立页：新增一级路由 /module-config（侧栏 NAV_ITEMS 末尾入口 icon tune + ⌘K 快捷指令），MODULE_CONFIGS 注册表驱动（module-config/registry.ts）、单模块起步不渲染模块导航；DataManagementTab 原样迁移为 CrmIntimacyConfig 业务逻辑零改写、moduleConfigs 同步表全不动；系统设置删「数据管理」Tab 8→7，导出/导入留在「数据与安全」零重叠；Issue #74 待办打勾完成修复：完成态收口领域函数 `toggleTodoDone`（status + completedAt 成对写入，三处入口统一）+ 完成态同步合并本地优先（服务端缺字段回拉不再回滚完成状态）+ collections.json todos 补 sortOrder；Issue #54 主题风格体系：风格(skin)与配色解耦为独立持久化字段、先风格后配色；新增 glass/kid 风格包；皮肤层补齐导航 chrome（侧栏/页头/CRM 分组项语义化 .app-sidebar/.app-header/.app-nav-link）与裸 Tailwind 面板穿透；pixel 3px 描边贯穿、glass 深色弹窗对比度兜底、半径档全量走 var(--radius-*)；Issue #50 笔记 @提及浮层交互重构：顶部新增可见模糊匹配输入框（@ 唤起后自动聚焦，筛选词从正文迁入框内，正文 @ 后不再承载筛选词）+ 客户/待办/账本/项目四类横向 tab 统一「点选即插入」交互，移除重复 projectTab 锚点，所属项目选择收敛到右侧栏唯一入口；Issue #34 客户亲密度体系落地：Customer.intimacy 手动 7 档 + 算法兜底 + moduleConfigs 同步表 v9 + 设置页「数据管理」Tab + 图谱圈层/黑名单过滤；Issue #50 笔记关联体验升级：@提及浮层模糊匹配+键盘导航、编辑态关联主体/反向链接悬浮卡片；Issue #70 侧栏快速便签：左下角折叠单行捕获 → saveQuickCapture 落正式 Note，tag「速记」+ 默认目录，设置页「笔记偏好」选目录） · 维护人：yingshu0218 / cnb.cMPXRmKswEA / npc/CodeBuddy
+**最后更新**：2026-09-10（Issue #86 功能配置独立页：新增一级路由 /module-config 侧栏 NAV_ITEMS 末尾入口（icon tune）+ ⌘K 快捷指令；MODULE_CONFIGS 注册表驱动、单模块起步不渲染模块导航；DataManagementTab 原样迁移为 CrmIntimacyConfig 业务逻辑零改写、moduleConfigs 同步表全不动；系统设置删「数据管理」Tab 8→7，导出/导入留在「数据与安全」零重叠；Issue #74 待办模块完整度修复：补齐 12 个缺失图标 + 图标完整性 CI 校验（npm run check:icons，接入 build 前置）、删除二次确认改应用风格 ConfirmDialog、打勾失败可见提示、列表行补归属副标题、接通逾期提醒开关、拖拽排序索引修正、doing 三态可达化、级联解绑含软删待办、移除死代码 assignTodoToList；Issue #74 待办打勾完成修复：完成态收口领域函数 `toggleTodoDone`（status + completedAt 成对写入，三处入口统一）+ 完成态同步合并本地优先（服务端缺字段回拉不再回滚完成状态）+ collections.json todos 补 sortOrder；Issue #54 主题风格体系：风格(skin)与配色解耦为独立持久化字段、先风格后配色；新增 glass/kid 风格包；皮肤层补齐导航 chrome（侧栏/页头/CRM 分组项语义化 .app-sidebar/.app-header/.app-nav-link）与裸 Tailwind 面板穿透；pixel 3px 描边贯穿、glass 深色弹窗对比度兜底、半径档全量走 var(--radius-*)；Issue #50 笔记 @提及浮层交互重构：顶部新增可见模糊匹配输入框（@ 唤起后自动聚焦，筛选词从正文迁入框内，正文 @ 后不再承载筛选词）+ 客户/待办/账本/项目四类横向 tab 统一「点选即插入」交互，移除重复 projectTab 锚点，所属项目选择收敛到右侧栏唯一入口；Issue #34 客户亲密度体系落地：Customer.intimacy 手动 7 档 + 算法兜底 + moduleConfigs 同步表 v9 + 设置页「数据管理」Tab + 图谱圈层/黑名单过滤；Issue #50 笔记关联体验升级：@提及浮层模糊匹配+键盘导航、编辑态关联主体/反向链接悬浮卡片；Issue #70 侧栏快速便签：左下角折叠单行捕获 → saveQuickCapture 落正式 Note，tag「速记」+ 默认目录，设置页「笔记偏好」选目录） · 维护人：yingshu0218 / cnb.cMPXRmKswEA / npc/CodeBuddy）
 
 ---
 
@@ -15,7 +14,7 @@
 | 里程碑 | M1-M6 全部验收 ✅ |
 | 审计问题 | P0×2 / P1×19 / P2×60 **全部清零** |
 | 同步机制完善 | P0-1 墓碑清理竞态修复 + P0-2 推送侧 LWW ✅（PR #6 评审中）；P1-3 服务端墓碑 cron ✅；P1-4 HTTPS（待用户操作） |
-| Changelog | 第 49 条（README 底部） |
+| Changelog | 第 52 条（README 底部） |
 
 ## 二、阶段进度（Phase 0-7）
 
