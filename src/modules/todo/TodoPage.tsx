@@ -39,6 +39,8 @@ export default function TodoPage() {
   const [selListId, setSelListId] = useState<string | null>(null)
   const [editing, setEditing] = useState<Todo | null>(null)
   const [creating, setCreating] = useState(false)
+  // 列表排序方向：按创建时间升序 / 降序
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const focus = useFocusStore()
 
   // 清单管理交互态
@@ -83,10 +85,14 @@ export default function TodoPage() {
 
   const todayStr = dayjs().format('YYYY-MM-DD')
 
-  // 列表统一按添加时间（createdAt）排序，筛选视图沿用同一顺序
+  // 列表统一按添加时间（createdAt）排序，可通过按钮切换升序/降序，筛选视图沿用同一顺序
   const sortedTodos = useMemo(
-    () => [...todos].sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0)),
-    [todos],
+    () =>
+      [...todos].sort((a, b) => {
+        const d = (a.createdAt ?? 0) - (b.createdAt ?? 0)
+        return sortDir === 'asc' ? d : -d
+      }),
+    [todos, sortDir],
   )
   const openTodos = sortedTodos.filter((t) => t.status !== 'done')
 
@@ -363,9 +369,34 @@ export default function TodoPage() {
                 已完成{chipDone && ' ✕'}
               </button>
             </div>
-            <span className="text-[0.7857rem] text-outline">
-              {chipDone ? `${filtered.length} 条` : `${filtered.length} 条未完成`}
-            </span>
+            <div className="flex items-center gap-2">
+              {/* 排序按钮：按创建时间升序 / 降序 */}
+              <button
+                onClick={() => setSortDir('asc')}
+                title="按创建时间升序"
+                className={`rounded-lg p-1.5 transition-colors ${
+                  sortDir === 'asc'
+                    ? 'bg-primary-fixed text-primary'
+                    : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
+                }`}
+              >
+                <Icon name="arrow_upward" size={18} />
+              </button>
+              <button
+                onClick={() => setSortDir('desc')}
+                title="按创建时间降序"
+                className={`rounded-lg p-1.5 transition-colors ${
+                  sortDir === 'desc'
+                    ? 'bg-primary-fixed text-primary'
+                    : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
+                }`}
+              >
+                <Icon name="arrow_downward" size={18} />
+              </button>
+              <span className="text-[0.7857rem] text-outline">
+                {chipDone ? `${filtered.length} 条` : `${filtered.length} 条未完成`}
+              </span>
+            </div>
           </Card>
           {filtered.length === 0 ? (
             <Card className="p-6">
@@ -451,6 +482,14 @@ export default function TodoPage() {
                       </Button>
                     )}
                     <button
+                      title="编辑待办"
+                      className="text-outline opacity-0 transition-opacity hover:text-primary group-hover:opacity-100"
+                      onClick={() => setEditing(t)}
+                    >
+                      <Icon name="edit" size={18} />
+                    </button>
+                    <button
+                      title="删除待办"
                       className="text-outline opacity-0 transition-opacity hover:text-danger group-hover:opacity-100"
                       onClick={() => todoRepo.softDelete(t.id)}
                     >
