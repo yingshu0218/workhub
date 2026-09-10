@@ -115,7 +115,8 @@ export interface Todo extends SyncMeta {
   desc: string
   priority: 'P1' | 'P2' | 'P3'
   dueAt?: number
-  status: 'todo' | 'doing' | 'done'
+  /** 两态（Issue #74 口径统一）：原 'doing' 为死枚举已移除，「专注中」是 focus store 运行时状态不落库 */
+  status: 'todo' | 'done'
   customerId?: string
   ledgerId?: string
   habitId?: string

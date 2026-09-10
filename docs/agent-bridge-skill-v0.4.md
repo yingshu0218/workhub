@@ -156,18 +156,20 @@ repositories（纯存储）→ 同步引擎 / eventBus → 奖杯、仪表盘联
 
 ---
 
-## 八、遗留待拍板（仅 2 项，均不阻塞 P0/P1 启动）
+## 八、遗留待拍板（v0.4 口径，已被 §九 取代，仅存档）
+
+> ⚠️ 本节 2 项拍板均已被 §9.9 取代，保留仅为追溯 v0.4 原始口径，勿据此动工。
 
 1. **MCP 协议细节**：桥对 Agent 暴露的协议形态按「MCP over WebSocket（stdio 不适用于浏览器运行时）」理解是否准确，或有指定 Agent（workbuddy/hermes）的私有协议需优先兼容——建议 P1 第 4 步动工前由小蓝指定一个先行接入的 Agent 实测。
 2. **桥会话生命期**：桥级单例会话态（多轮澄清暂存）的过期策略（按连接断开即清 vs 空闲 N 分钟过期）——P1 实现时默认「连接断开即清」，无异议即按此定。
 
 ---
 
-## 十、v0.6 定稿（2026-09-10，三方终审：hy4-preview / deepseek-v4-flash / glm-5.3-flash）
+## 九、v0.6 定稿（承接原 v0.5 修订，2026-09-10 三方终审：hy4-preview / deepseek-v4-flash / glm-5.3-flash）
 
 > 触发：小蓝要求三方「讨论出最终方案，并验证是否符合预想」。本节为**唯一有效口径**，与前文冲突处一律以本节为准。
 
-### 10.1 ⛔ P0 硬错纠正：v0.4/v0.5 的「应用内 WebSocket 桥」在纯浏览器运行时不成立
+### 9.1 ⛔ P0 硬错纠正：v0.4/v0.5 的「应用内 WebSocket 桥」在纯浏览器运行时不成立
 
 **事实基准（hy4-preview 对码核验）**：
 
@@ -198,7 +200,7 @@ repositories（纯存储）→ 同步引擎 / eventBus → 奖杯、仪表盘联
 - **CORS/CSP 前置**：`index.html` 的 CSP 为 `connect-src 'self' blob: https: http:`——`ws://127.0.0.1` 不在白名单内，需在桥落地时补 `ws:`（同 commit）。这是 v0.4/v0.5 完全没核到的硬阻塞点。
 - **HTTPS 部署场景**：生产跑在 `https://` 时浏览器**禁止**连 `ws://`（混合内容），relay 必须走 `wss://` 或仅限 dev 模式。v0.6 定：**relay 首版仅服务 dev/本地自用，不做生产暴露**。
 
-### 10.2 前提链纠正：skill/MCP 不是「第一件事」，是「最后一件」
+### 9.2 前提链纠正：skill/MCP 不是「第一件事」，是「最后一件」
 
 小蓝原话「这样子的前提就是要把 skill 和 mcp 配置了」。**方向对，但顺序反了**。正确依赖链（不可跳步）：
 
@@ -215,7 +217,7 @@ skill 文件 + MCP tools schema（同一套 zod schema 生成，杜绝双份漂�
 
 **只配 skill/MCP 而没有 agentOps = 把 17 张表裸暴露给外部 Agent。** 这是本轮对用户预想的**唯一实质性修正**。
 
-### 10.3 对 main 最新代码的第二轮漂移核验（hy4-preview 对码，v0.5 之后又有 3 处新增漂移）
+### 9.3 对 main 最新代码的第二轮漂移核验（hy4-preview 对码，v0.5 之后又有 4 处新增漂移）
 
 | # | v0.5 口径 | main 现状（对码） | v0.6 修正 |
 |---|---|---|---|
@@ -226,7 +228,7 @@ skill 文件 + MCP tools schema（同一套 zod schema 生成，杜绝双份漂�
 
 另复核确认（无误，维持 v0.5）：D1 首联待办已删（`CustomerInitOptions` 仅剩 `openingLog` / `linkTransactionId`）、D2 `Customer.stage/industry` 已删、D3 `Ledger.isDefault` 已实装（缺省策略 `isDefault → 唯一账本 → 反问`）。
 
-### 10.4 必填/可缺省字段纪律（v0.5 缺失，P1 写工具会直接踩）
+### 9.4 必填/可缺省字段纪律（v0.5 缺失，P1 写工具会直接踩）
 
 | 工具 | 必填 | 可缺省（带兜底） |
 |---|---|---|
@@ -235,12 +237,12 @@ skill 文件 + MCP tools schema（同一套 zod schema 生成，杜绝双份漂�
 | `todo_createTodo` | `title` | `priority`(默认 P2)、`status`(默认 todo)、`dueAt`/`customerId`/`listId`/`projectId` |
 | `crm_addInteraction` | `customerId`(须 resolveEntity 产出)、`content` | `type`(默认 电话)、`at`(默认 now)、`projectId` |
 
-### 10.5 两个被 v0.4/v0.5 忽略的既有 bug（顺带修，成本极低）
+### 9.5 两个被 v0.4/v0.5 忽略的既有 bug（顺带修，成本极低）
 
 1. **edit 误发 `transaction:created`**：`TransactionFormDrawer.tsx:207` 在编辑模式也 emit，会重复触发奖杯评估。事件下沉时按 v0.3 边界①「仅新 id 才 emit」一并修掉。
 2. **项目跟进不发 `customer:contacted`**：`ProjectDetailPage.tsx:602` 调 `saveInteractionAndTouchCustomer` 但不 emit。按 v0.3 裁决②「项目跟进也算客户联系，统一 emit 并文档化」补齐。
 
-### 10.6 最终架构（v0.6 唯一口径）
+### 9.6 最终架构（v0.6 唯一口径）
 
 ```
 外部 Agent（自带 LLM 意图理解）
@@ -254,7 +256,7 @@ repositories（createRepository 工厂保持纯写）→ 同步引擎 / eventBus
 
 **不变式（一条不砍）**：事件永在事务 commit 之后；`transaction:created` 仅新建 id 才发；消解按 id 去重、去重后唯一才静默消解、重名/超阈值必反问；写工具拒绝未经 `resolveEntity` 的字符串关联；`createCustomerWithInit` 下沉 repositories；`fuzzyMatch/fuzzySort` 从 MatchCombobox 提升到 shared；打卡抽 `checkinHabit`（打卡与取消分离）。
 
-### 10.7 P1 推进顺序（v0.6 修订）
+### 9.7 P1 推进顺序（v0.6 修订）
 
 1. **agentOps 门面 + 事件对齐测试**（断点 `transaction:created`，含 §10.5 两个 bug 修复）
 2. 事件下沉 repositories（三边界：create 门控 / interaction 统一 emit / 事务外硬规则）
@@ -264,12 +266,12 @@ repositories（createRepository 工厂保持纯写）→ 同步引擎 / eventBus
 6. skill 文件首版（与 MCP tools schema 同源 zod 生成）
 7. 跑通 E2E 场景 = P1 主干验收
 
-### 10.8 E2E 验收场景（沿用 v0.5，补强断言）
+### 9.8 E2E 验收场景（沿用 v0.5，补强断言）
 
 > 加客户「深蓝科技·王五」→ 给王五记一笔 2000 支出（账本走 isDefault 缺省，status=待对账）→ 读回该客户账目与沟通记录 → 建待办「周五回访王五」→ 查待办列表确认存在。
 
 补强断言：① 经 relay 记一笔 vs 手工记账，`transaction:created` 载荷逐字段一致且奖杯/EXP 无差异；② 编辑该笔流水**不得**再触发 `transaction:created`；③ 读工具返回条数/字段不超白名单；④ 无 token 连接被拒；白名单关闭的域不出现在 tools 清单。
 
-### 10.9 待拍板（1 项，不阻塞前 3 步）
+### 9.9 待拍板（1 项，不阻塞前 3 步）
 
 **Relay 与 Agent 之间的协议形态**：stdio（CNB CodeBuddy 等本地 CLI Agent 主流）优先，还是 WebSocket（远程/多客户端）优先？建议 **stdio 优先 + WS 同进程并存**，第 4 步动工前由小蓝指定一个先行实测的 Agent（workbuddy / hermes / codebuddy 任一）即可定。

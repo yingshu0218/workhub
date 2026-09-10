@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Icon } from '@/design-system/Icon'
-import { Card, PageHeader, Button, inputCls } from '@/design-system/ui'
+import { Card, PageHeader, Button, ConfirmDialog, inputCls } from '@/design-system/ui'
+import { useToast } from '@/design-system/Toast'
 import type { Settings, SettingsSync } from '@/db/types'
 import { settingsRepo, resetAndSeedLocalData, restoreFromJson } from '@/repositories'
 import {
@@ -22,6 +23,7 @@ import {
   projectRepo,
   projectMilestoneRepo,
 } from '@/repositories'
+import { useNavigate } from 'react-router-dom'
 import { listShortcuts } from '@/shared/shortcuts'
 import {
   ACCENT_PRESETS,
@@ -37,13 +39,14 @@ import {
 import { pbPing, isSyncConfigured, enqueueAllForPush } from '@/sync/pocketbaseAdapter'
 import { syncEngine } from '@/sync/engine'
 import { useSyncStore } from '@/sync/store'
-import DataManagementTab from './DataManagementTab'
 import { useNoteFolders } from '@/modules/notes/hooks'
 import { moduleConfigRepo } from '@/repositories'
 
 /**
- * 系统设置（对齐原型 13~15/17/18/20 · 6 标签）
+ * 系统设置（对齐原型 13~15/17/18/20 · 7 标签）
  * 所有改动经 settingsRepo.save 即时落库并广播 settings:changed，各消费端实时应用（无「保存更改」按钮）
+ * 边界（Issue #86）：本页只管「应用长什么样 / 怎么跑」的本地偏好（settings singleton，不进同步）；
+ * 业务模块的规则配置（亲密度权重等，写 moduleConfigs 同步表）已迁至 /module-config，本页仅留指路牌。
  */
 
 const TABS = [
@@ -52,7 +55,6 @@ const TABS = [
   { id: 'typography', label: '字体与排版', icon: 'text_fields' },
   { id: 'shortcuts', label: '通用与快捷键', icon: 'keyboard' },
   { id: 'notifications', label: '提醒与协同', icon: 'notifications_active' },
-  { id: 'data', label: '数据管理', icon: 'tune' },
   { id: 'sync', label: '云端同步', icon: 'cloud_sync' },
   { id: 'security', label: '数据与安全', icon: 'security' },
 ] as const
@@ -237,6 +239,7 @@ function Segmented<T extends string | number>({
 }
 
 export default function SettingsPage() {
+  const navigate = useNavigate()
   const [tab, setTab] = useState<TabId>('appearance')
   const [settings, setSettings] = useState<Settings | null>(null)
   const [persisted, setPersisted] = useState<boolean | null>(null)
@@ -252,6 +255,23 @@ export default function SettingsPage() {
   const [pingMsg, setPingMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [pushingAll, setPushingAll] = useState(false)
   const syncStatus = useSyncStore()
+  const toast = useToast()
+  // 应用风格确认弹窗（替代 window.confirm）：pendingConfirm 持有待执行动作
+  const [pendingConfirm, setPendingConfirm] = useState<{
+    title: string
+    message: string
+    danger?: boolean
+    confirmText?: string
+    run: () => void
+  } | null>(null)
+  /** 统一确认入口：弹出应用风格弹窗，确认后执行 run */
+  const askConfirm = (opts: {
+    title: string
+    message: string
+    danger?: boolean
+    confirmText?: string
+    run: () => void
+  }) => setPendingConfirm(opts)
   // 笔记默认目录数据源（侧栏快速便签落点；设置「笔记偏好」用）
   const noteFolders = useNoteFolders()
 
@@ -432,38 +452,51 @@ export default function SettingsPage() {
     setImporting(true)
     try {
       const parsed: unknown = JSON.parse(await file.text())
-      if (
-        !window.confirm(
+      askConfirm({
+        title: '恢复 JSON 存档',
+        message:
           '存档解析成功。将逐表写回本地数据库，与现有记录同 id 的会被存档内容覆盖，确定恢复？',
-        )
-      )
-        return
-      const count = await restoreFromJson(parsed)
-      window.alert(`已恢复 ${count} 条记录，界面即将刷新`)
-      window.location.reload()
+        confirmText: '确定恢复',
+        run: () => {
+          void (async () => {
+            try {
+              const count = await restoreFromJson(parsed)
+              toast.success(`已恢复 ${count} 条记录，界面即将刷新`)
+              window.setTimeout(() => window.location.reload(), 600)
+            } catch (err) {
+              console.error('[settings] JSON 恢复失败', err)
+              toast.error(`恢复失败：${err instanceof Error ? err.message : '文件解析错误'}`)
+            } finally {
+              setImporting(false)
+            }
+          })()
+        },
+      })
     } catch (err) {
       console.error('[settings] JSON 恢复失败', err)
-      window.alert(`恢复失败：${err instanceof Error ? err.message : '文件解析错误'}`)
-    } finally {
+      toast.error(`恢复失败：${err instanceof Error ? err.message : '文件解析错误'}`)
       setImporting(false)
     }
   }
 
   // ── 危险区：清空本地数据并重新种子 ──
   const resetAll = () => {
-    if (
-      !window.confirm(
+    askConfirm({
+      title: '清空本地数据',
+      message:
         '将清空本地全部数据（IndexedDB）并重新写入演示种子，云端副本不受影响。该操作不可撤销，确定继续？',
-      )
-    )
-      return
-    setResetting(true)
-    void resetAndSeedLocalData()
-      .then(() => window.location.reload())
-      .catch((err) => {
-        console.error('[settings] 清空失败', err)
-        setResetting(false)
-      })
+      danger: true,
+      confirmText: '清空并重置',
+      run: () => {
+        setResetting(true)
+        void resetAndSeedLocalData()
+          .then(() => window.location.reload())
+          .catch((err) => {
+            console.error('[settings] 清空失败', err)
+            setResetting(false)
+          })
+      },
+    })
   }
 
   // ── 云端同步：保存配置 → 连接测试 → 立即同步一次 ──
@@ -500,23 +533,25 @@ export default function SettingsPage() {
 
   // ── 云端同步：全量推送（首次接入服务器 / 更换服务器时使用） ──
   const pushAllToServer = () => {
-    if (
-      !window.confirm(
+    askConfirm({
+      title: '全量推送至服务器',
+      message:
         '将把本地全部业务记录（含软删除墓碑）写入同步队列并推送至服务器，随后拉取远端增量做 LWW 合并。首次接入服务器请执行此操作，确定继续？',
-      )
-    )
-      return
-    setPushingAll(true)
-    void enqueueAllForPush()
-      .then((count) => {
-        syncEngine.requestSync()
-        setPingMsg({ ok: true, text: `已将 ${count} 条记录加入同步队列，正在推送…` })
-      })
-      .catch((err) => {
-        console.error('[settings] 全量推送入队失败', err)
-        setPingMsg({ ok: false, text: '全量推送入队失败，请稍后重试' })
-      })
-      .finally(() => setPushingAll(false))
+      confirmText: '开始推送',
+      run: () => {
+        setPushingAll(true)
+        void enqueueAllForPush()
+          .then((count) => {
+            syncEngine.requestSync()
+            setPingMsg({ ok: true, text: `已将 ${count} 条记录加入同步队列，正在推送…` })
+          })
+          .catch((err) => {
+            console.error('[settings] 全量推送入队失败', err)
+            setPingMsg({ ok: false, text: '全量推送入队失败，请稍后重试' })
+          })
+          .finally(() => setPushingAll(false))
+      },
+    })
   }
 
   // 每次切标签重算：注册表随挂载页面动态变化，实时读取当前已注册快捷键
@@ -526,8 +561,22 @@ export default function SettingsPage() {
     <div className="mx-auto max-w-[1200px]">
       <PageHeader
         title="系统设置"
-        subtitle="定制您的专属工作台界面风格、工作流偏好与数据安全策略 · 配置即时生效并本地持久化"
+        subtitle="界面风格、排版、快捷键、通知、同步与数据安全等应用级偏好 · 业务模块规则（亲密度权重等）见侧栏「功能配置」"
       />
+
+      {/* 功能配置入口（Issue #86）：业务规则配置已独立成页，这里只留指路牌，避免两类配置混用 */}
+      <div className="mb-4 flex items-center gap-3 rounded-xl border border-primary/30 bg-primary-fixed/30 px-4 py-3">
+        <Icon name="tune" className="text-[1.4286rem] text-primary" />
+        <div className="flex-1">
+          <div className="text-[0.9286rem] font-semibold">业务模块的规则配置已移到「功能配置」</div>
+          <div className="mt-0.5 text-[0.8214rem] text-on-surface-variant">
+            亲密度权重、黑名单屏蔽等影响数据算出来结果的配置请到功能页设置；本页只管应用自身的界面与运行偏好
+          </div>
+        </div>
+        <Button size="sm" variant="ghost" icon="tune" onClick={() => navigate('/module-config')}>
+          前往功能配置
+        </Button>
+      </div>
 
       {/* 标签栏 */}
       <div className="mb-5 flex flex-wrap gap-1.5 surface-card-xl p-1.5">
@@ -546,9 +595,6 @@ export default function SettingsPage() {
           </button>
         ))}
       </div>
-
-      {/* ── 数据管理（Issue #34：亲密度/黑名单/算法权重等模块自定义配置） ── */}
-      {tab === 'data' && <DataManagementTab />}
 
       {/* ── 外观与主题 ── */}
       {tab === 'appearance' && (
@@ -1427,6 +1473,21 @@ export default function SettingsPage() {
           </Section>
         </div>
       )}
+
+      {/* 应用风格确认弹窗（替代 window.confirm） */}
+      <ConfirmDialog
+        open={pendingConfirm !== null}
+        title={pendingConfirm?.title ?? ''}
+        message={pendingConfirm?.message}
+        danger={pendingConfirm?.danger}
+        confirmText={pendingConfirm?.confirmText}
+        onCancel={() => setPendingConfirm(null)}
+        onConfirm={() => {
+          const run = pendingConfirm?.run
+          setPendingConfirm(null)
+          run?.()
+        }}
+      />
     </div>
   )
 }

@@ -5,8 +5,18 @@ import { useCollection, useRecord } from '@/queries/hooks'
 import type { Customer, Interaction, Project } from '@/db/types'
 import { deleteCustomerCascade, newId, saveInteractionAndTouchCustomer } from '@/repositories'
 import { eventBus } from '@/shared/eventBus'
-import { Avatar, Button, Card, Chip, EmptyState, inputCls, PageHeader } from '@/design-system/ui'
+import {
+  Avatar,
+  Button,
+  Card,
+  Chip,
+  ConfirmDialog,
+  EmptyState,
+  inputCls,
+  PageHeader,
+} from '@/design-system/ui'
 import dayjs from 'dayjs'
+import { isTodoOpen } from '@/modules/todo/domain'
 import CustomerFormDrawer from './CustomerFormDrawer'
 import { useCustomerTodos, useCustomerTransactions } from './hooks'
 import { fmtRelative, healthColor, tierChipTone } from './shared'
@@ -51,7 +61,7 @@ export default function CustomerDetailPage() {
   const timeline = useCustomerTimeline(id)
   const [timelineFilter, setTimelineFilter] = useState<TimelineFilter>('all')
   // 关联待办口径：计数与列表统一只统计未完成项
-  const openTodos = todos.filter((t) => t.status !== 'done')
+  const openTodos = todos.filter(isTodoOpen)
   const visibleTimeline = filterTimeline(timeline, timelineFilter)
   const counts = {
     interaction: timeline.filter((e) => e.kind === 'interaction').length,
@@ -59,6 +69,8 @@ export default function CustomerDetailPage() {
     todo: timeline.filter((e) => e.kind === 'todo').length,
   }
   const [editing, setEditing] = useState(false)
+  // 删除客户确认（应用风格弹窗，替代 window.confirm）
+  const [confirmDelete, setConfirmDelete] = useState<{ name: string; id: string } | null>(null)
 
   if (!customer) {
     return (
@@ -85,13 +97,7 @@ export default function CustomerDetailPage() {
   const hc = healthColor(customer.healthScore)
 
   function handleDelete(name: string, id: string) {
-    const ok = confirm(
-      `确定删除客户「${name}」？\n\n` +
-        `将同时删除其名下 ${counts.interaction} 条沟通日志，` +
-        `并解绑 ${transactions.length} 笔交易流水与 ${todos.length} 项待办。`,
-    )
-    if (!ok) return
-    void deleteCustomerCascade(id).then(() => navigate('/crm'))
+    setConfirmDelete({ name, id })
   }
 
   return (
@@ -380,6 +386,26 @@ export default function CustomerDetailPage() {
       </div>
 
       <CustomerFormDrawer open={editing} customer={customer} onClose={() => setEditing(false)} />
+
+      {/* 删除客户确认（应用风格弹窗，替代 window.confirm） */}
+      <ConfirmDialog
+        open={confirmDelete !== null}
+        title={`删除客户「${confirmDelete?.name ?? ''}」？`}
+        danger
+        confirmText="删除"
+        message={
+          <>
+            将同时删除其名下 {counts.interaction} 条沟通日志，并解绑 {transactions.length}{' '}
+            笔交易流水与 {todos.length} 项待办。
+          </>
+        }
+        onCancel={() => setConfirmDelete(null)}
+        onConfirm={() => {
+          const target = confirmDelete
+          setConfirmDelete(null)
+          if (target) void deleteCustomerCascade(target.id).then(() => navigate('/crm'))
+        }}
+      />
     </div>
   )
 }

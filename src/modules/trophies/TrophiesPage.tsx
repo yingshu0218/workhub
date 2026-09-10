@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { Trophy, TrophyTier, TrophyConditionType } from '@/db/types'
 import { Icon } from '@/design-system/Icon'
 import { Card, EmptyState, PageHeader } from '@/design-system/ui'
+import { useToast } from '@/design-system/Toast'
 import {
   useTrophyStats,
   useTrophyList,
@@ -60,6 +61,7 @@ export default function TrophiesPage() {
   const level = deriveProfileSummary(stats, trophies).level
   // 分享海报生成中状态（按奖杯 id 记录，按钮防重入）
   const [posterId, setPosterId] = useState<string | null>(null)
+  const toast = useToast()
 
   const sharePoster = async (t: Trophy) => {
     if (posterId) return
@@ -68,7 +70,7 @@ export default function TrophiesPage() {
       await downloadTrophyPoster(t, level)
     } catch (err) {
       console.error('[TrophiesPage] 海报生成失败', err)
-      window.alert(`海报生成失败：${err instanceof Error ? err.message : '请稍后重试'}`)
+      toast.error(`海报生成失败：${err instanceof Error ? err.message : '请稍后重试'}`)
     } finally {
       setPosterId(null)
     }

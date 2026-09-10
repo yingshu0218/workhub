@@ -3,6 +3,7 @@ import { newId } from '@/repositories'
 import { useCollection, useQuery } from '@/queries/hooks'
 import { syncEngine } from '@/sync/engine'
 import type { Project, ProjectMilestone, Todo, Transaction, Note, Interaction } from '@/db/types'
+import { isTodoOpen } from '@/modules/todo/domain'
 
 /**
  * 项目模块数据层（组件禁止直连 Dexie）
@@ -134,7 +135,7 @@ export function useProjectProgress(projectId: string | undefined): {
     return { percent: totalW > 0 ? Math.round((doneW / totalW) * 100) : 0, source: 'milestone' }
   }
   if (todos.length > 0) {
-    const done = todos.filter((t) => t.status === 'done').length
+    const done = todos.filter((t) => !isTodoOpen(t)).length
     return { percent: Math.round((done / todos.length) * 100), source: 'todo' }
   }
   return { percent: 0, source: 'none' }

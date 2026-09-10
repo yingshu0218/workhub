@@ -13,7 +13,9 @@ import type { Todo } from '@/db/types'
  *   （completedAt 是「今日已完成」统计与 CRM 时间轴的唯一依据，必须成对写入）
  * - 完成 → 未完成：status='todo' 且显式清空 completedAt
  *   （put 为整体覆盖，字段残留会让记录带着旧完成时间被重新统计）
- * - 'doing' 视为未完成（专注联动状态），勾选后同样归零为 done
+ *
+ * 口径统一（Issue #74）：status 已收窄为两态 'todo' | 'done'，'doing' 死枚举已移除；
+ * 「专注中」是 focus store 的运行时 UI 状态，不落库。
  */
 export async function toggleTodoDone(todo: Todo): Promise<Todo> {
   const done = todo.status === 'done'

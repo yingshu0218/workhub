@@ -8,6 +8,7 @@ import type { Customer, Ledger, Project, Todo, Transaction } from '@/db/types'
 import { Button, Chip, Drawer, Field, inputCls } from '@/design-system/ui'
 import { MatchCombobox, type MatchOption } from '@/design-system/MatchCombobox'
 import dayjs from 'dayjs'
+import { isTodoOpen } from '@/modules/todo/domain'
 
 const CHANNELS = ['微信', '支付宝', '银行卡', '现金', '对公转账'] as const
 const MAX_ATTACHMENT_SIZE = 5 * 1024 * 1024
@@ -32,7 +33,7 @@ export default function TransactionFormDrawer({
   const customers = useCollection<Customer>('customers')
   const projects = useCollection<Project>('projects')
   const todos = useCollection<Todo>('todos')
-  const openTodos = todos.filter((t) => t.status !== 'done')
+  const openTodos = todos.filter(isTodoOpen)
   const [type, setType] = useState<Transaction['type']>('income')
   const [ledgerId, setLedgerId] = useState('')
   const [channel, setChannel] = useState('')

@@ -6,8 +6,18 @@ import { db } from '@/db/db'
 import { interactionRepo, newId, saveInteractionAndTouchCustomer } from '@/repositories'
 import type { PutInput } from '@/repositories/repository'
 import type { Customer, Interaction, Project, ProjectMilestone } from '@/db/types'
-import { Avatar, Button, Card, Chip, EmptyState, PageHeader, inputCls } from '@/design-system/ui'
+import {
+  Avatar,
+  Button,
+  Card,
+  Chip,
+  ConfirmDialog,
+  EmptyState,
+  PageHeader,
+  inputCls,
+} from '@/design-system/ui'
 import dayjs from 'dayjs'
+import { isTodoOpen } from '@/modules/todo/domain'
 import ProjectFormDrawer from './ProjectFormDrawer'
 import {
   deleteMilestone,
@@ -46,6 +56,8 @@ export default function ProjectDetailPage() {
   const progress = useProjectProgress(id)
   const customers = useCollection<Customer>('customers')
   const [editing, setEditing] = useState(false)
+  // 删除项目确认（应用风格弹窗，替代 window.confirm）
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   if (!project) {
     return (
@@ -71,20 +83,14 @@ export default function ProjectDetailPage() {
 
   const income = transactions.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0)
   const expense = transactions.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
-  const openTodos = todos.filter((t) => t.status !== 'done')
+  const openTodos = todos.filter(isTodoOpen)
   const customer = project.customerId
     ? customers.find((c) => c.id === project.customerId)
     : undefined
   const meta = projectStatusMeta(project.status)
 
   function handleDelete() {
-    const ok = confirm(
-      `确定删除项目「${project!.name}」？\n\n` +
-        `将同时删除 ${milestones.length} 个里程碑，` +
-        `并解绑 ${transactions.length} 笔流水、${todos.length} 项待办、${notes.length} 篇笔记与 ${interactions.length} 条跟进记录（记录本身保留）`,
-    )
-    if (!ok) return
-    void deleteProjectCascade(project!.id).then(() => navigate('/projects'))
+    setConfirmDelete(true)
   }
 
   return (
@@ -244,7 +250,7 @@ export default function ProjectDetailPage() {
             <div className="mb-3 flex items-center justify-between">
               <div className="flex items-center gap-1.5 text-[0.8571rem] font-medium uppercase tracking-wide text-on-surface-variant">
                 <Icon name="check_circle" className="text-[1.1429rem] text-primary" />
-                项目待办（{openTodos.length} 进行中）
+                项目待办（{openTodos.length} 待处理）
               </div>
               <button
                 className="text-[0.8571rem] font-semibold text-primary hover:underline"
@@ -373,6 +379,26 @@ export default function ProjectDetailPage() {
       </div>
 
       <ProjectFormDrawer open={editing} project={project} onClose={() => setEditing(false)} />
+
+      {/* 删除项目确认（应用风格弹窗，替代 window.confirm） */}
+      <ConfirmDialog
+        open={confirmDelete}
+        title={`确定删除项目「${project.name}」？`}
+        danger
+        confirmText="删除"
+        message={
+          <>
+            将同时删除 {milestones.length} 个里程碑，并解绑 {transactions.length} 笔流水、
+            {todos.length} 项待办、{notes.length} 篇笔记与 {interactions.length}{' '}
+            条跟进记录（记录本身保留）。
+          </>
+        }
+        onCancel={() => setConfirmDelete(false)}
+        onConfirm={() => {
+          setConfirmDelete(false)
+          void deleteProjectCascade(project.id).then(() => navigate('/projects'))
+        }}
+      />
     </div>
   )
 }

@@ -6,6 +6,7 @@ import { useSyncStore } from '@/sync/store'
 import { registerShortcut } from '@/shared/shortcuts'
 import CommandPalette from './CommandPalette'
 import TrophyUnlockToast from './TrophyUnlockToast'
+import { ToastProvider } from '@/design-system/Toast'
 import QuickCapture from '@/modules/notes/QuickCapturePanel'
 
 const NAV_ITEMS = [
@@ -34,6 +35,7 @@ const TITLES: Record<string, string> = {
   '/profile': '个人主页',
   '/inspiration': '灵感闪现',
   '/settings': '系统设置',
+  '/module-config': '功能配置',
 }
 
 /** 工作区条目（原型 19-dashboard-account）：切换仅改 UI 选中态，数据隔离 Phase 7 后考虑 */
@@ -63,12 +65,13 @@ function SyncBadge() {
   )
 }
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
+function AppLayoutInner({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation()
   const navigate = useNavigate()
-  // /crm/:id/timeline 为动态段路由，TITLES 精确匹配不到，先按后缀识别
+  // /crm/:id/timeline 与 /module-config/... 为动态段路由，TITLES 精确匹配不到，先按前缀识别
   const title =
     (pathname.match(/^\/crm\/[^/]+\/timeline$/) ? TITLES['/crm/:id/timeline'] : undefined) ??
+    (pathname.startsWith('/module-config') ? TITLES['/module-config'] : undefined) ??
     TITLES[pathname] ??
     NAV_ITEMS.find((n) => pathname.startsWith(n.to))?.label ??
     '寻鸽工作台'
@@ -122,7 +125,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   : 'inspire' // 灵感闪现：置底特设「闪念」入口
                 : undefined
             const isFirst = item.to === '/'
-            const isLast = item.to === '/inspiration'
             return (
               <NavLink
                 key={item.to}
@@ -143,7 +145,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                         : isActive
                           ? 'bg-primary-fixed font-semibold text-primary'
                           : 'text-on-surface-variant hover:bg-surface-container',
-                    isLast ? 'mt-1.5' : '',
                   ].filter(Boolean).join(' ')
                 }
               >
@@ -161,12 +162,26 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
         <div className="border-t border-outline-variant/40 p-3">
           <NavLink
+            to="/module-config"
+            className={({ isActive }) =>
+              `app-nav-link mb-1 flex items-center gap-3 rounded-lg px-3 py-2 text-[0.9643rem] ${
+                isActive ? 'is-active bg-primary-fixed font-semibold text-primary' : 'text-on-surface-variant hover:bg-surface-container'
+              }`
+            }
+            title="各业务模块的规则配置（与系统设置的界面偏好分开）"
+          >
+            <Icon name="tune" />
+            功能配置
+          </NavLink>
+
+          <NavLink
             to="/settings"
             className={({ isActive }) =>
               `app-nav-link mb-2 flex items-center gap-3 rounded-lg px-3 py-2 text-[0.9643rem] ${
                 isActive ? 'is-active bg-primary-fixed font-semibold text-primary' : 'text-on-surface-variant hover:bg-surface-container'
               }`
             }
+            title="外观、排版、通知、同步、数据导出等应用级偏好"
           >
             <Icon name="settings" />
             系统设置
@@ -268,5 +283,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
       <TrophyUnlockToast />
     </div>
+  )
+}
+
+/** 布局入口：挂载全局 Toast Provider，供各模块 useToast() 使用（替代原生 alert） */
+export default function AppLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <ToastProvider>
+      <AppLayoutInner>{children}</AppLayoutInner>
+    </ToastProvider>
   )
 }

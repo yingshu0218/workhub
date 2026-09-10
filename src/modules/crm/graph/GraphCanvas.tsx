@@ -207,17 +207,46 @@ export default function GraphCanvas({
     simRef.current?.alpha(0.6).restart()
   }
 
-  // 聚焦模式自动 fit：布局稳定后一次 fit 到当前子图（requestAnimationFrame 等首帧坐标）
-  const fittedRef = useRef('')
+  // ── 自动视图校准（fit / 焦点锚定）统一调度（Issue #87）──
+  // 布局收敛前 fit（首帧 + 二次校准）与收敛后焦点锚定存在时序竞争：
+  // 迟到的 fitView 会在锚定之后执行，把视口重新 fit 到整个子图包围盒（含被斥力推远的
+  // 邻居节点），焦点客户被挤离视口中心（截图表现：200% 缩放下焦点节点跑到左上角）。
+  // 统一规则：fit 任务可取消、执行时读当帧最新坐标；焦点锚定一旦生效即取消 pending fit
+  // 并阻断后续所有自动 fit，保证锚定是最后一次视图操作。
   const fitKey = `${focusId ?? 'all'}-${nodes.length}-${mode}`
+  // 焦点锚定已生效标记：此后不再自动 fit（焦点客户已在视口中心，fit 反而挤走它）。
+  // 记录生效时的 fitKey：仅锁同一视图状态；fitKey 变化（切模式/数据重算）自动解锁，
+  // 否则 customer-only 切全景后自动 fit 被永久抑制，视图停留在旧中心（Issue #94 隐患）
+  const anchorLockedKeyRef = useRef<string | null>(null)
+  // pending fit 的 rAF 句柄：锚定/重调度/卸载时可取消
+  const fitRafRef = useRef<number | null>(null)
+  // fitView 是每次渲染重建的闭包，rAF 回调经 ref 转发，保证执行时拿到最新版本（最新坐标）
+  const fitViewRef = useRef(fitView)
+  fitViewRef.current = fitView
+
+  const runFit = () => {
+    fitRafRef.current = null
+    if (anchorLockedKeyRef.current === fitKey) return
+    fitViewRef.current()
+  }
+  const scheduleFit = () => {
+    if (fitRafRef.current != null) cancelAnimationFrame(fitRafRef.current)
+    fitRafRef.current = requestAnimationFrame(runFit)
+  }
+  // 卸载清理 pending fit
+  useEffect(() => () => {
+    if (fitRafRef.current != null) cancelAnimationFrame(fitRafRef.current)
+  }, [])
+
+  // 首帧自动 fit：节点有坐标后一次 fit 到当前子图（渲染期不能调 setView，推迟到下一帧）
+  const fittedRef = useRef('')
   if (fittedRef.current !== fitKey && nodes.length > 0 && nodes.some((n) => n.x != null)) {
     fittedRef.current = fitKey
-    // 渲染期不能调 setView（会与 panZoom 内部状态竞争），推迟到下一帧
-    requestAnimationFrame(fitView)
+    scheduleFit()
   }
 
-  // 首屏「快速锁定焦点」二次校准（Issue #34）：首帧 fit 用的是初始坐标，仿真收敛时节点坐标
-  // 已漂移出首帧视口（视觉上「丢失焦点」）。仿真自然收敛后若节点整体越界/大幅位移，再 fit 一次
+  // 仿真收敛「二次校准」（Issue #34）：首帧 fit 用的是初始坐标，仿真收敛时节点坐标
+  // 已漂移出首帧视口（视觉上「丢失焦点」）。收敛后若节点整体越界/大幅位移，再 fit 一次
   const settledKeyRef = useRef<string | null>(null)
   if (
     fitKey !== settledKeyRef.current &&
@@ -237,12 +266,13 @@ export default function GraphCanvas({
     const inside = minX >= vx0 - pad && maxX <= vx1 + pad && minY >= vy0 - pad && maxY <= vy1 + pad
     if (!inside) {
       settledKeyRef.current = fitKey
-      requestAnimationFrame(fitView)
+      scheduleFit()
     }
   }
 
   // 焦点锚定（Issue #34）：布局收敛后把视图中心平移到锚点节点（不改缩放），
-  // 保证「一进入视图就锁定焦点主体」——聚焦页由 CustomerGraphPage 在 onGraphReady 后传入焦点 id
+  // 保证「一进入视图就锁定焦点主体」——聚焦页由 CustomerGraphPage 在 onGraphReady 后传入焦点 id。
+  // 锚定前先取消 pending fit 并上锁，杜绝迟到 fit 在锚定后把焦点客户挤离中心（Issue #87）
   const anchoredKeyRef = useRef<string | null>(null)
   const anchorKey = fitAnchorId ?? ''
   useEffect(() => {
@@ -250,6 +280,11 @@ export default function GraphCanvas({
     const n = nodes.find((x) => x.id === anchorKey)
     if (!n || n.x == null || n.y == null || size.w === 0) return
     anchoredKeyRef.current = anchorKey
+    anchorLockedKeyRef.current = fitKey
+    if (fitRafRef.current != null) {
+      cancelAnimationFrame(fitRafRef.current)
+      fitRafRef.current = null
+    }
     const scale = view.scale
     panZoom.setView({
       scale,
@@ -496,7 +531,7 @@ export default function GraphCanvas({
                         />
                         {n.kind === 'customer' ? (
                           <>
-                            {n.id === focusId && (
+                            {(n.id === focusId || n.id === fitAnchorId) && (
                               <circle
                                 r={n.radius + 7}
                                 fill="none"

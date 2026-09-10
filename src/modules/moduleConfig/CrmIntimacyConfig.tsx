@@ -1,77 +1,25 @@
 import { useState } from 'react'
-import { Icon } from '@/design-system/Icon'
-import { Button, Card, inputCls } from '@/design-system/ui'
+import { Button, inputCls } from '@/design-system/ui'
 import { DEFAULT_INTIMACY_CONFIG, INTIMACY_LEVELS, type IntimacyLevel } from '@/db/types'
 import { saveIntimacyConfig, useIntimacyConfig } from '@/modules/crm/intimacy'
 import { isIntimacyTrustLevel } from '@/db/types'
+import { Section, Toggle } from './parts'
 
 /**
- * 「数据管理」设置页（Issue #34 收敛稿）：集中管理各功能模块的自定义配置。
- * 本期承载 CRM·客户 的三个配置区：
+ * 客户管理模块 · 亲密度配置（Issue #34 收敛稿，Issue #86 迁入「功能配置」页）。
+ * 承载 CRM·客户 的三个配置区（配置本体自设置页「数据管理」Tab 原样迁入，业务逻辑零改写；
+ * Section / Toggle 容器抽到 parts.tsx，供后续模块配置面板复用）：
  * ① 亲密度等级维护（7 档 key 固定不可增删，name/desc 可编辑，改名零迁移）
  * ② 黑名单全局屏蔽（开关矩阵，默认只开图谱隐藏，副作用渐进开放）
  * ③ 算法兜底与权重（总开关 + 4 因子滑杆 + 切档阈值，保存时归一化与单调性校验）
- * 配置写 moduleConfigs（同步表），改动即时落库广播 moduleConfig:changed。
+ * 配置写 moduleConfigs（同步表 crm.intimacy），改动即时落库广播 moduleConfig:changed。
  */
 
-function Section({
-  icon,
-  title,
-  desc,
-  children,
-}: {
-  icon: string
-  title: string
-  desc: string
-  children: React.ReactNode
-}) {
-  return (
-    <Card className="p-6">
-      <div className="mb-4 flex items-center gap-2.5">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-fixed text-primary">
-          <Icon name={icon} size={18} />
-        </div>
-        <div className="flex-1">
-          <h3 className="text-[1.0357rem] font-semibold">{title}</h3>
-          <p className="mt-0.5 text-[0.8214rem] text-on-surface-variant">{desc}</p>
-        </div>
-      </div>
-      {children}
-    </Card>
-  )
-}
-
-function Toggle({
-  checked,
-  onChange,
-  disabled,
-}: {
-  checked: boolean
-  onChange: (v: boolean) => void
-  disabled?: boolean
-}) {
-  return (
-    <button
-      role="switch"
-      aria-checked={checked}
-      disabled={disabled}
-      className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-40 ${
-        checked ? 'bg-primary' : 'bg-outline-variant'
-      }`}
-      onClick={() => onChange(!checked)}
-    >
-      <span
-        className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${
-          checked ? 'left-[22px]' : 'left-0.5'
-        }`}
-      />
-    </button>
-  )
-}
-
-export default function DataManagementTab() {
+export default function CrmIntimacyConfig() {
   const cfg = useIntimacyConfig()
-  const [editingLevels, setEditingLevels] = useState<Record<IntimacyLevel, { name: string; desc: string }>>(
+  const [editingLevels, setEditingLevels] = useState<
+    Record<IntimacyLevel, { name: string; desc: string }>
+  >(
     () =>
       Object.fromEntries(cfg.levels.map((l) => [l.key, { name: l.name, desc: l.desc }])) as Record<
         IntimacyLevel,
@@ -90,7 +38,9 @@ export default function DataManagementTab() {
   }
 
   async function saveLevels() {
-    await saveIntimacyConfig({ levels: INTIMACY_LEVELS.map((k) => ({ key: k, ...editingLevels[k]! })) })
+    await saveIntimacyConfig({
+      levels: INTIMACY_LEVELS.map((k) => ({ key: k, ...editingLevels[k]! })),
+    })
     flash('亲密度等级名称已保存')
   }
 
@@ -141,7 +91,8 @@ export default function DataManagementTab() {
       todo: norm(next.todo),
       project: norm(next.project),
     }
-    const diff = 100 - (normalized.contact + normalized.finance + normalized.todo + normalized.project)
+    const diff =
+      100 - (normalized.contact + normalized.finance + normalized.todo + normalized.project)
     if (diff !== 0) normalized.contact += diff // 余数补偿，保证和恒为 100
     setWeights(normalized)
     void saveAlgorithm({ weights: normalized })
@@ -184,7 +135,7 @@ export default function DataManagementTab() {
       {/* ① 亲密度等级维护 */}
       <Section
         icon="favorite"
-        title="亲密度等级维护 · CRM 客户"
+        title="亲密度等级维护"
         desc="7 档固定槽位（T1~T5 信任轴 + I6/I7 隔离态）不可增删，仅名称与判据描述可编辑；改名零数据迁移"
       >
         <div className="space-y-2">
@@ -195,7 +146,9 @@ export default function DataManagementTab() {
               <div key={k} className="flex items-center gap-2">
                 <span
                   className={`w-9 shrink-0 rounded px-1.5 py-1 text-center text-[0.7857rem] font-bold ${
-                    isolation ? 'bg-danger-container/60 text-danger' : 'bg-primary-fixed/60 text-primary'
+                    isolation
+                      ? 'bg-danger-container/60 text-danger'
+                      : 'bg-primary-fixed/60 text-primary'
                   }`}
                   title={k}
                 >
@@ -235,16 +188,28 @@ export default function DataManagementTab() {
       {/* ② 黑名单全局屏蔽 */}
       <Section
         icon="block"
-        title="黑名单全局屏蔽 · CRM 客户"
+        title="黑名单全局屏蔽"
         desc="黑名单（I7）在各功能面的屏蔽范围。默认只开图谱隐藏（图谱是经营视图）；档案页/关联区始终保留，不丢数据"
       >
         <div className="space-y-3">
           {(
             [
-              { key: 'hideInGraph', label: '关系图谱隐藏', desc: '黑名单客户不再出现在客户关系画布' },
+              {
+                key: 'hideInGraph',
+                label: '关系图谱隐藏',
+                desc: '黑名单客户不再出现在客户关系画布',
+              },
               { key: 'hideInSearch', label: '全局搜索屏蔽', desc: '⌘K 搜索与全局搜索结果中隐藏' },
-              { key: 'excludeFromPicker', label: '单据选择器排除', desc: '新建流水/待办/沟通时客户选择器不可选' },
-              { key: 'hideInTimeline', label: '时间线隐藏', desc: '客户列表与时间线中隐藏（仅档案直接访问可见）' },
+              {
+                key: 'excludeFromPicker',
+                label: '单据选择器排除',
+                desc: '新建流水/待办/沟通时客户选择器不可选',
+              },
+              {
+                key: 'hideInTimeline',
+                label: '时间线隐藏',
+                desc: '客户列表与时间线中隐藏（仅档案直接访问可见）',
+              },
             ] as const
           ).map((row) => (
             <div key={row.key} className="flex items-center justify-between gap-4">
@@ -264,7 +229,7 @@ export default function DataManagementTab() {
       {/* ③ 算法兜底与权重 */}
       <Section
         icon="tune"
-        title="算法兜底与权重 · CRM 客户"
+        title="算法兜底与权重"
         desc="未手动设置亲密度的客户由算法兜底分档；手动设置始终最优先。硬约束：算法最多推到 T2，永不给出 T1/I6/I7"
       >
         <div className="mb-4 flex items-center justify-between">
@@ -321,7 +286,9 @@ export default function DataManagementTab() {
                   max={100}
                   className={`${inputCls} w-16`}
                   value={thresholds[row.key]}
-                  onChange={(e) => setThresholds({ ...thresholds, [row.key]: Number(e.target.value) })}
+                  onChange={(e) =>
+                    setThresholds({ ...thresholds, [row.key]: Number(e.target.value) })
+                  }
                   onBlur={() => applyThresholds(thresholds)}
                 />
               </label>

@@ -8,12 +8,14 @@ import {
   Button,
   Card,
   Chip,
+  ConfirmDialog,
   Drawer,
   EmptyState,
   PageHeader,
   inputCls,
 } from '@/design-system/ui'
 import dayjs from 'dayjs'
+import { todoStatusLabel } from '@/modules/todo/domain'
 import LedgerFormDrawer from './LedgerFormDrawer'
 import TransactionFormDrawer from './TransactionFormDrawer'
 import {
@@ -56,6 +58,8 @@ export default function FinancePage() {
   const [detailId, setDetailId] = useState<string | null>(null)
   const [page, setPage] = useState(0)
   const [dragLedgerId, setDragLedgerId] = useState<string | null>(null)
+  // 删除账本确认（应用风格弹窗，替代 window.confirm）
+  const [confirmLedger, setConfirmLedger] = useState<Ledger | null>(null)
 
   // 筛选口径变化时回到第一页
   useEffect(() => {
@@ -107,7 +111,11 @@ export default function FinancePage() {
       setLedgerError(`账本「${l.name}」下仍有 ${txnCount} 笔流水，无法删除`)
       return
     }
-    if (!window.confirm(`确认删除账本「${l.name}」？删除后可在同步层恢复前撤销。`)) return
+    setConfirmLedger(l)
+  }
+
+  /** 确认后软删账本并回到「全部」范围 */
+  async function doDeleteLedger(l: Ledger) {
     await ledgerRepo.softDelete(l.id)
     setScope('all')
   }
@@ -381,6 +389,21 @@ export default function FinancePage() {
         }}
       />
       <TransactionDetailDrawer transactionId={detailId} onClose={() => setDetailId(null)} />
+
+      {/* 删除账本确认（应用风格弹窗，替代 window.confirm） */}
+      <ConfirmDialog
+        open={confirmLedger !== null}
+        title={`确认删除账本「${confirmLedger?.name ?? ''}」？`}
+        danger
+        confirmText="删除"
+        message="删除后可在同步层恢复前撤销。"
+        onCancel={() => setConfirmLedger(null)}
+        onConfirm={() => {
+          const target = confirmLedger
+          setConfirmLedger(null)
+          if (target) void doDeleteLedger(target)
+        }}
+      />
     </div>
   )
 }
@@ -605,6 +628,8 @@ function TransactionDetailDrawer({
   const attachments = useTransactionAttachments(transactionId ?? undefined)
   const navigate = useNavigate()
   const [editing, setEditing] = useState(false)
+  // 删除流水确认（应用风格弹窗，替代 window.confirm）
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   const ledger = ledgers.find((l) => l.id === txn?.ledgerId)
   const customer = customers.find((c) => c.id === txn?.customerId)
@@ -618,9 +643,14 @@ function TransactionDetailDrawer({
   }
 
   /** 删除此笔流水：级联软删其全部附件存根，成功后关闭抽屉 */
-  async function handleDelete() {
+  function handleDelete() {
     if (!txn) return
-    if (!window.confirm(`确认删除流水「${txn.summary}」？其全部附件将一并删除。`)) return
+    setConfirmDelete(true)
+  }
+
+  /** 确认后级联软删流水及其附件存根，并关闭抽屉 */
+  async function doDelete() {
+    if (!txn) return
     await deleteTransactionCascade(txn.id)
     setEditing(false)
     onClose()
@@ -799,7 +829,7 @@ function TransactionDetailDrawer({
                       <div className="min-w-0">
                         <div className="truncate text-[0.9286rem] font-medium">{todo.title}</div>
                         <div className="truncate text-[0.8571rem] text-on-surface-variant">
-                          {todo.priority} · {todo.status === 'done' ? '已完成' : '进行中'}
+                          {todo.priority} · {todoStatusLabel(todo)}
                         </div>
                       </div>
                     </div>
@@ -820,6 +850,20 @@ function TransactionDetailDrawer({
         defaultLedgerId={txn?.ledgerId ?? 'all'}
         editTxn={txn}
         onClose={() => setEditing(false)}
+      />
+
+      {/* 删除流水确认（应用风格弹窗，替代 window.confirm） */}
+      <ConfirmDialog
+        open={confirmDelete}
+        title={`确认删除流水「${txn?.summary ?? ''}」？`}
+        danger
+        confirmText="删除"
+        message="其全部附件将一并删除。"
+        onCancel={() => setConfirmDelete(false)}
+        onConfirm={() => {
+          setConfirmDelete(false)
+          void doDelete()
+        }}
       />
     </Drawer>
   )
