@@ -56,7 +56,6 @@ export const createCustomerSchema = z.object({
   /** 默认值与 CustomerFormDrawer 初值一致（§9.4：决策人 / A / 60） */
   decisionLevel: z.enum(['决策人', '影响者', '使用者', '把关人']).default('决策人'),
   tier: z.enum(['S', 'A', 'B', '潜在']).default('A'),
-  healthScore: z.number().min(0).max(100).default(60),
   tags: z.array(z.string()).default([]),
   phone: z.string().optional(),
   wechat: z.string().optional(),

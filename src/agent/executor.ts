@@ -110,7 +110,6 @@ export async function crm_createCustomer(input: unknown): Promise<AgentOpResult>
     wechat: d.wechat ?? '',
     email: d.email ?? '',
     address: d.address ?? '',
-    healthScore: d.healthScore,
     lastContactAt: Date.now(),
     createdAt: Date.now(),
     updatedAt: 0,
@@ -267,11 +266,19 @@ export async function fin_createLedger(input: unknown): Promise<AgentOpResult> {
 
 /** 工具注册表：桥与测试统一从这里取（域前缀命名，§2.3） */
 export const AGENT_TOOLS = {
-  'fin_recordTransaction': { risk: TOOL_RISK, schema: recordTransactionSchema, run: fin_recordTransaction },
-  'crm_createCustomer': { risk: TOOL_RISK, schema: createCustomerSchema, run: crm_createCustomer },
-  'crm_addInteraction': { risk: TOOL_RISK, schema: addInteractionSchema, run: crm_addInteraction },
-  'crm_addRelation': { risk: TOOL_RISK, schema: addRelationSchema, run: crm_addRelation },
-  'todo_createTodo': { risk: TOOL_RISK, schema: createTodoSchema, run: todo_createTodo },
-  'todo_completeTodo': { risk: TOOL_RISK, schema: completeTodoSchema, run: todo_completeTodo },
-  'fin_createLedger': { risk: TOOL_RISK, schema: createLedgerSchema, run: fin_createLedger },
+  'fin_recordTransaction': { risk: TOOL_RISK['fin_recordTransaction'], schema: recordTransactionSchema, run: fin_recordTransaction },
+  'crm_createCustomer': { risk: TOOL_RISK['crm_createCustomer'], schema: createCustomerSchema, run: crm_createCustomer },
+  'crm_addInteraction': { risk: TOOL_RISK['crm_addInteraction'], schema: addInteractionSchema, run: crm_addInteraction },
+  'crm_addRelation': { risk: TOOL_RISK['crm_addRelation'], schema: addRelationSchema, run: crm_addRelation },
+  'todo_createTodo': { risk: TOOL_RISK['todo_createTodo'], schema: createTodoSchema, run: todo_createTodo },
+  'todo_completeTodo': { risk: TOOL_RISK['todo_completeTodo'], schema: completeTodoSchema, run: todo_completeTodo },
+  'fin_createLedger': { risk: TOOL_RISK['fin_createLedger'], schema: createLedgerSchema, run: fin_createLedger },
 } as const
+
+// 防再犯断言（P1 复审 ①）：注册表每项 risk 必须是 low/medium 字面量。
+// 若哪次改动又把整张 TOOL_RISK map 当 risk 赋值，这里会立刻在类型/运行时炸出来。
+for (const [name, tool] of Object.entries(AGENT_TOOLS)) {
+  if (tool.risk !== 'low' && tool.risk !== 'medium') {
+    throw new Error(`AGENT_TOOLS['${name}'].risk 非法：${String(tool.risk)}（必须是 low/medium 字面量，检查是否误把 TOOL_RISK 整表当 risk）`)
+  }
+}

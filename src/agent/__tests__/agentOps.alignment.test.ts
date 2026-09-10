@@ -98,7 +98,7 @@ describe('消解纪律：写工具拒绝未经 resolveEntity 的字符串关联'
 
 describe('§9.5 bug2 对齐：agentOps 记沟通日志统一 emit customer:contacted', () => {
   it('含项目跟进场景（projectId）也 emit（UI 侧由事件下沉步骤统一）', async () => {
-    await db.customers.put({ id: 'c1', name: '王五', company: '', title: '', decisionLevel: '决策人', tier: 'A', tags: [], phone: '', wechat: '', email: '', address: '', healthScore: 60, lastContactAt: 0, createdAt: 1, updatedAt: 0, deleted: 0, rev: 0 })
+    await db.customers.put({ id: 'c1', name: '王五', company: '', title: '', decisionLevel: '决策人', tier: 'A', tags: [], phone: '', wechat: '', email: '', address: '', lastContactAt: 0, createdAt: 1, updatedAt: 0, deleted: 0, rev: 0 })
     const events: unknown[] = []
     const orig = eventBus.emit.bind(eventBus)
     eventBus.emit = (event, payload) => { if (event === 'customer:contacted') events.push(payload); orig(event, payload) }
@@ -109,13 +109,12 @@ describe('§9.5 bug2 对齐：agentOps 记沟通日志统一 emit customer:conta
 })
 
 describe('CRM / Todo 工具面', () => {
-  it('建客户默认口径与 UI 一致（tier=A / 决策人 / 60），openingLog 建首联日志', async () => {
+  it('建客户默认口径与 UI 一致（tier=A / 决策人），openingLog 建首联日志', async () => {
     const r = await crm_createCustomer({ name: '王五' })
     expect(r.ok).toBe(true)
     const c = await db.customers.get((r.data as { customerId: string }).customerId)
     expect(c?.tier).toBe('A')
     expect(c?.decisionLevel).toBe('决策人')
-    expect(c?.healthScore).toBe(60)
   })
 
   it('relations 双向落两侧', async () => {
@@ -150,5 +149,21 @@ describe('schema 口径（§9.4）', () => {
   it('channel 可缺省，显式传入时枚举校验', () => {
     expect(recordTransactionSchema.safeParse({ ledgerId: 'l', summary: 'x', amount: 1 }).success).toBe(true)
     expect(recordTransactionSchema.safeParse({ ledgerId: 'l', summary: 'x', amount: 1, channel: '刷卡' }).success).toBe(false)
+  })
+})
+
+describe('风险分级接线（P1 复审 ① 防再犯）', () => {
+  it('AGENT_TOOLS 每个工具的 risk 必须是 low/medium 字面量，且与 TOOL_RISK 声明一致', async () => {
+    const { AGENT_TOOLS } = await import('../executor')
+    const { TOOL_RISK } = await import('../schema')
+
+    // 注册表键与分级表键完全对齐，不允许漏注册
+    expect(Object.keys(AGENT_TOOLS).sort()).toEqual(Object.keys(TOOL_RISK).sort())
+
+    for (const [name, tool] of Object.entries(AGENT_TOOLS)) {
+      // 若误把整张 TOOL_RISK map 赋给 risk，此断言立即失败（map 是 object 不是字面量）
+      expect(['low', 'medium']).toContain(tool.risk)
+      expect(tool.risk).toBe(TOOL_RISK[name])
+    }
   })
 })
