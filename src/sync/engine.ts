@@ -2,12 +2,14 @@ import { db } from '@/db/db'
 import type { SyncAdapter } from './adapter'
 import { pocketBaseAdapter, cleanupTombstones, isSyncConfigured } from './pocketbaseAdapter'
 import { useSyncStore } from './store'
+import { withExclusiveSync } from './engineLock'
 
 /**
  * 同步引擎 —— 触发：启动 / online 事件 / 30s 心跳 / 写入后防抖 2s（repository 层调用 requestSync）
  * 协议：LWW —— 只认 updatedAt，新者胜（开发计划 2.3）
  * 适配器：PocketBase（未配置 serverUrl 时适配器内部退化为本地模式空实现）
  * 拉取游标：持久化 db.meta（pb_cursor:<table>，由适配器维护；全局 cursor 仅为展示/兼容保留）
+ * 多标签页：同一浏览器多开时用 IndexedDB 排他锁串行化（engineLock），拿不到锁的标签页跳过本轮
  */
 const CURSOR_KEY = 'sync_cursor'
 const TOMBSTONE_CLEANUP_KEY = 'tombstone_cleanup_at'
@@ -18,6 +20,7 @@ class SyncEngine {
   private timer: ReturnType<typeof setInterval> | null = null
   private debounce: ReturnType<typeof setTimeout> | null = null
   private cursor = 0
+  /** 单页内互斥：防止 30s 心跳与写入防抖在同一标签页内重入 */
   private running = false
 
   setAdapter(adapter: SyncAdapter) {
@@ -28,6 +31,8 @@ class SyncEngine {
     if (this.timer) return
     window.addEventListener('online', this.onOnline)
     window.addEventListener('offline', this.onOffline)
+    // 后台标签页回到前台立即对齐一次：降低被浏览器节流打断后的数据滞后（Issue #130）
+    document.addEventListener('visibilitychange', this.onVisible)
     this.timer = setInterval(() => void this.syncNow('heartbeat'), 30_000)
     void db.meta
       .get(CURSOR_KEY)
@@ -40,6 +45,7 @@ class SyncEngine {
   stop() {
     window.removeEventListener('online', this.onOnline)
     window.removeEventListener('offline', this.onOffline)
+    document.removeEventListener('visibilitychange', this.onVisible)
     if (this.timer) clearInterval(this.timer)
     this.timer = null
   }
@@ -52,14 +58,26 @@ class SyncEngine {
 
   private onOnline = () => void this.syncNow('online')
   private onOffline = () => useSyncStore.getState().setStatus('offline')
+  private onVisible = () => {
+    if (document.visibilityState === 'visible') void this.syncNow('visible')
+  }
 
   async syncNow(_reason: string) {
     const store = useSyncStore.getState()
+    // 同一标签页内已有同步在跑：直接跳过（不排队，本轮变更由下一轮心跳/防抖覆盖）
     if (this.running) return
     if (!navigator.onLine) {
       store.setStatus('offline')
       return
     }
+    // 跨标签页排他：同一浏览器多开时只有一个标签页真正同步，其余让路（拿不到锁不打状态，
+    // 避免把「另一标签页正在同步」误显示为同步失败）；Web Locks 不可用时自动降级为放行
+    await withExclusiveSync(() => this.runSync())
+  }
+
+  /** 单轮同步实体（调用方负责并发/跨标签页互斥） */
+  private async runSync() {
+    const store = useSyncStore.getState()
     this.running = true
     store.setStatus('syncing')
     try {

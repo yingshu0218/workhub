@@ -99,9 +99,8 @@ export default function CustomerTimelinePage() {
   /** 世界布局：时间升序排到主轴（左 → 右），上下交替错开骨刺避免重叠（纯函数在 timelineLayout） */
   const layout = useMemo(() => {
     if (!customer || visible.length === 0) return null
-    const { bones, maxX } = layoutSingleBones(visible)
-    const world = { minX: 0, maxX, minY: -190, maxY: 190 }
-    return { bones, world }
+    const { bones, maxX, worldBounds } = layoutSingleBones(visible)
+    return { bones, world: worldBounds, maxX }
   }, [customer, visible])
 
   function fitView() {
@@ -122,20 +121,28 @@ export default function CustomerTimelinePage() {
     })
   }
 
-  // 首屏自动适应画布（Issue #130）：鱼骨沿时间轴等距铺开，时间跨度大时世界坐标远超视口，
+  // 自动「适应画布」（Issue #130）：鱼骨沿时间轴等距铺开，时间跨度大时世界坐标远超视口，
   // 固定 scale=1 只能看到主轴左端一小段（视觉表现为「点进去一片空白」）。
-  // 布局与容器尺寸就绪后自动 fit 一次，事件或尺寸变化时不打扰用户手动缩放状态。
-  const autoFitKeyRef = useRef('')
+  //
+  // 触发时机（三轮反馈收敛）：
+  // - 每换一个客户 / 每换一次筛选都重新 fit —— 骨刺数量变化会让画面框变，沿用上一次视图会再次「看不全」
+  // - 容器尺寸变化（窗口缩放）也重新 fit —— 否则窗口拉大后仍停留在旧缩放，看着还是一小片
+  // - 刻意不跟随「数据变化」重新 fit：同步拉回或后台补写触发重渲染时不能打断用户当前缩放/平移
+  //
+  // 用状态而非 ref 记录「上次 fit 的键」：ref 赋值不触发重渲染，同一帧内出现两次 layout 变化时
+  // 后一次的 cleanup 会覆盖前一次的标记，导致漏 fit。
+  const [fittedKey, setFittedKey] = useState('')
   const customerId = customer?.id ?? ''
   useEffect(() => {
     if (!layout || size.w === 0 || size.h === 0) return
-    const key = `${customerId}:${layout.bones.length}:${size.w}x${size.h}`
-    if (autoFitKeyRef.current === key) return
-    autoFitKeyRef.current = key
+    // 键只含「客户 + 筛选 + 容器尺寸」：同一视图下的数据变化不重新 fit，不打扰用户手动缩放
+    const key = `${customerId}|${filter}|${size.w}x${size.h}`
+    if (fittedKey === key) return
+    setFittedKey(key)
     fitView()
-    // fitView 依赖 layout/size（useEffect 已收敛这两个依赖），无需列入依赖数组
+    // fitView 依赖 layout/size/view（useEffect 已收敛这三个依赖），无需列入依赖数组
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [layout, size.w, size.h, customerId])
+  }, [layout, size.w, size.h, customerId, filter, fittedKey])
 
   if (!customer) {
     return (
@@ -209,7 +216,7 @@ export default function CustomerTimelinePage() {
           </button>
         ))}
         <span className="ml-2 text-[0.7857rem] text-outline">
-          滚轮缩放 · 空白处拖拽平移 · 点击骨刺穿透对应记录
+          滚轮缩放 · 空白处拖拽平移 · 悬停高亮 · 点击骨刺穿透对应记录
         </span>
       </div>
 
@@ -277,12 +284,6 @@ export default function CustomerTimelinePage() {
                         draggedRef.current = false
                         pointerStartRef.current = { x: e.clientX, y: e.clientY }
                       }}
-                      onPointerMove={(e) => {
-                        const start = pointerStartRef.current
-                        if (start && Math.hypot(e.clientX - start.x, e.clientY - start.y) > 4) {
-                          draggedRef.current = true
-                        }
-                      }}
                       onPointerUp={() => {
                         pointerStartRef.current = null
                       }}
@@ -296,9 +297,24 @@ export default function CustomerTimelinePage() {
                         }
                         if (target) navigate(target)
                       }}
-                      onMouseEnter={() => setHover(b)}
-                      onMouseLeave={() => setHover((h) => (h === b ? null : h))}
                     >
+                      {/*
+                        悬停热区：骨刺本身是一条细线，pointer 进出极易抖动 —— 一旦光标掉进
+                        线之间的空隙，hover 态立刻丢失、高亮闪烁，表现为「鼠标一动、高亮乱跳」。
+                        改为在主轴与端点标签之间铺一块透明矩形承接指针，高亮与点击都稳定
+                        （矩形 pointerEvents=stroke，只留边界可点，不遮挡相邻骨刺的点击）。
+                      */}
+                      <rect
+                        x={b.x - 8}
+                        y={Math.min(SPINE_Y, b.tipY) - 6}
+                        width={64}
+                        height={Math.abs(b.tipY - SPINE_Y) + 12}
+                        fill="transparent"
+                        stroke="transparent"
+                        pointerEvents="stroke"
+                        onMouseEnter={() => setHover(b)}
+                        onMouseLeave={() => setHover((h) => (h === b ? null : h))}
+                      />
                       <line
                         x1={b.x}
                         y1={SPINE_Y}
