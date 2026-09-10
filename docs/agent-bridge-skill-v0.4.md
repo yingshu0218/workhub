@@ -27,7 +27,7 @@
 - 语义引用消解：候选池走活记录、按 id 去重、**去重后 id 唯一才自动消解**，重名/命中超阈值必反问，空/过短输入前置拦截；Project 归档沉底、Customer 不沉底（无归档字段）
 - 强原子链 `saveTxnAndInteractionAndTouch`（记账+关联+补拜访），先 `transaction:created` 后 `customer:contacted`，均在事务外；其余多步意图默认弱关联 + 逐条勾选
 - 验收断点挂 `transaction:created`（`customer:contacted` 是孤儿事件仅保留契约，不挂钩奖杯/EXP 断言）
-- `fuzzyMatch/fuzzySort` 从 MatchCombobox 提升到 shared（P1 显式任务）；`createCustomerWithInit` 下沉 repositories；打卡抽共享 `checkinHabit`（打卡幂等与 toggle 取消分离）
+- `fuzzyMatch/fuzzySort` 从 MatchCombobox 提升到 shared（P1 显式任务）；`createCustomerWithInit` 下沉 repositories；打卡抽共享 `checkinHabit`（打卡幂等与 toggle 取消分离，**收口 3 处调用点**）
 
 ---
 
@@ -63,7 +63,7 @@ repositories（纯存储）→ 同步引擎 / eventBus → 奖杯、仪表盘联
 | fin_recordTransaction | saveTransactionWithAttachments | `transaction:created`（仅 create 新 id） | P1 |
 | crm_addInteraction | saveInteractionAndTouchCustomer | `customer:contacted`（统一 emit，含项目跟进） | P1 |
 | crm_saveTxnAndInteractionAndTouch | 组合原子函数（新增，单事务） | 事务外先 `transaction:created` 后 `customer:contacted` | P1 |
-| habit_checkin | checkinHabit（新抽共享函数，幂等） | `habit:checked`（仅实际新建打卡时） | P1 |
+| habit_checkin | checkinHabit（新抽共享函数，幂等，**收口 3 处调用点**，见 §9.6.1） | `habit:checked`（仅实际新建打卡时） | P1 |
 | crm_createCustomer / updateCustomer / addCustomerRelation（双向落两侧）/ fin_createLedger / todo_* | customerRepo.put 等 | 无既有事件，不加新的 | P1 |
 | note_convertQuickNote / note_createQuickNote | quickNoteRepo.put | `quicknote:convert` | **P2 占位** |
 
@@ -230,12 +230,18 @@ skill 文件 + MCP tools schema（同一套 zod schema 生成，杜绝双份漂�
 
 ### 9.4 必填/可缺省字段纪律（v0.5 缺失，P1 写工具会直接踩）
 
+> **对齐原则（v0.6 修订）**：工具层的必填口径一律**对齐 UI 实际落库行为**，而非对齐表单标签上的 `*`。UI 未校验的字段，工具层也不得强制必填，否则 AI 与手工两条路径行为不一致（同一份数据两种约束），后续无法用同一套断言做 E2E 验收。
+
 | 工具 | 必填 | 可缺省（带兜底） |
 |---|---|---|
-| `fin_recordTransaction` | `summary`、`amount`(>0，≤9,999,999,999，两位小数)、`channel`(微信/支付宝/银行卡/现金/对公转账 五选一)、`ledgerId` | `type`(默认 expense)、`occurredAt`(默认今天 00:00)、`status`(默认 **待对账**)、`tags`/`note`/`customerId`/`todoId`/`projectId` |
-| `crm_createCustomer` | `name` | `tier`(默认 A)、`decisionLevel`(默认 决策人)、`healthScore`(默认 60，钳 0-100)、`tags`(走 `normalizeTags`)、`openingLog`/`linkTransactionId` |
+| `fin_recordTransaction` | `summary`、`amount`(>0，≤9,999,999,999，两位小数)、`ledgerId`(为空返回可操作错误「请先创建账本」，见 §9.3 D7) | `type`(默认 expense)、`occurredAt`(默认今天 00:00)、`status`(默认 **待对账**)、`channel`(**可缺省**，UI `save()` 未校验非空，见下注)、`tags`/`note`/`customerId`/`todoId`/`projectId` |
+| `crm_createCustomer` | `name` | `tier`(默认 **A**，与 `CustomerFormDrawer.tsx:33` 初值一致)、`decisionLevel`(默认 **决策人**，同 `:32`)、`healthScore`(默认 **60**，同 `:39`，钳 0-100)、`tags`(走 `normalizeTags`)、`openingLog`/`linkTransactionId` |
 | `todo_createTodo` | `title` | `priority`(默认 P2)、`status`(默认 todo)、`dueAt`/`customerId`/`listId`/`projectId` |
 | `crm_addInteraction` | `customerId`(须 resolveEntity 产出)、`content` | `type`(默认 电话)、`at`(默认 now)、`projectId` |
+
+**`channel` 口径注（v0.6 修正）**：`CHANNELS`（`TransactionFormDrawer.tsx:13`）确为五选一 `['微信','支付宝','银行卡','现金','对公转账']`，但 `save()`（`:140-160`）**只校验 `amount` / `ledgerId` / 附件大小，不校验 `channel` 非空**——即手工路径允许空渠道落库。故工具层 `channel` **可缺省**（缺省为空，或按 UI 现状不填），仅当显式传入时才做五选一枚举校验。**不得**把 `channel` 声明为必填。
+
+**`tier` / `decisionLevel` / `healthScore` 口径注（v0.6 复核）**：三者默认值已逐条对码 `CustomerFormDrawer.tsx`（`:32` 决策人 / `:33` A / `:39` 60），文档取值与 UI 初值一致，**维持不变**（此项为审计要求复核确认，非臆造）。
 
 ### 9.5 两个被 v0.4/v0.5 忽略的既有 bug（顺带修，成本极低）
 
@@ -254,7 +260,19 @@ skill 文件 + MCP tools schema（同一套 zod schema 生成，杜绝双份漂�
 repositories（createRepository 工厂保持纯写）→ 同步引擎 / eventBus → 奖杯 / 仪表盘
 ```
 
-**不变式（一条不砍）**：事件永在事务 commit 之后；`transaction:created` 仅新建 id 才发；消解按 id 去重、去重后唯一才静默消解、重名/超阈值必反问；写工具拒绝未经 `resolveEntity` 的字符串关联；`createCustomerWithInit` 下沉 repositories；`fuzzyMatch/fuzzySort` 从 MatchCombobox 提升到 shared；打卡抽 `checkinHabit`（打卡与取消分离）。
+**不变式（一条不砍）**：事件永在事务 commit 之后；`transaction:created` 仅新建 id 才发；消解按 id 去重、去重后唯一才静默消解、重名/超阈值必反问；写工具拒绝未经 `resolveEntity` 的字符串关联；`createCustomerWithInit` 下沉 repositories；`fuzzyMatch/fuzzySort` 从 MatchCombobox 提升到 shared；打卡抽 `checkinHabit`，**收口全部 3 处调用点**（见 §9.6.1，打卡幂等与 toggle 取消分离）。
+
+#### 9.6.1 打卡逻辑收口范围（v0.6 修正：3 处，非 2 处）
+
+`habitLogId` 只是纯 id 生成器（`repositories/index.ts:154`）；真正的「打卡/取消」逻辑（`put`/`softDelete` + `emit('habit:checked')`）当前**内联重复在 3 处**，抽 `checkinHabit` 时必须三处一并收口，否则漂移仍在：
+
+| # | 位置 | 形态 |
+|---|---|---|
+| 1 | `src/modules/habits/HabitsPage.tsx:65-77` | 手工 toggle：`doneToday ? softDelete : put + emit` |
+| 2 | `src/modules/dashboard/cards.tsx:200-213` | 工作台 HabitLoopCard：同款 `put + emit`，但**软删走 `existing.id`** 而非 `habitLogId` |
+| 3 | `src/shared/effects.ts:126-140` | **专注→习惯联动**：`focus:completed` 驱动，`put` 带 `evidence` 字段，且**已存在即 return**（不 emit） |
+
+**收口口径**：`checkinHabit(habitId, date, opts?)` 返回 `{ created: boolean }` 并只在**实际新建**时 emit `habit:checked`；`opts.evidence` 供 #3 传入；取消打卡独立为 `uncheckHabit(habitId, date)`（软删 + 不 emit）。#2 的软删入口统一改走 `habitLogId` 派生 id，消除「按 existing.id 删」与「按确定性 id 删」两套语义。**三处迁移完成后，`grep -rn "habitLogId" src/modules src/shared` 应只剩 `checkinHabit`/`uncheckHabit` 内部引用**（`db/seed.ts` 造数除外）。
 
 ### 9.7 P1 推进顺序（v0.6 修订）
 
@@ -262,7 +280,7 @@ repositories（createRepository 工厂保持纯写）→ 同步引擎 / eventBus
 2. 事件下沉 repositories（三边界：create 门控 / interaction 统一 emit / 事务外硬规则）
 3. 消解器 + `resolveEntity`（id 去重 / 阈值反问 / 空输入拦截 / Project 归档沉底）
 4. **本地 Relay**（Node 进程 + token + 白名单 + confirmToken）+ **CSP 补 `ws:`**
-5. 读写工具集（按 §9.3/§9.4 修正版；含 `toggleTodoDone`）
+5. 读写工具集（按 §9.3/§9.4 修正版；含 `toggleTodoDone`；`checkinHabit`/`uncheckHabit` 按 §9.6.1 **一次收口 3 处调用点**）
 6. skill 文件首版（与 MCP tools schema 同源 zod 生成）
 7. 跑通 E2E 场景 = P1 主干验收
 
@@ -275,3 +293,13 @@ repositories（createRepository 工厂保持纯写）→ 同步引擎 / eventBus
 ### 9.9 待拍板（1 项，不阻塞前 3 步）
 
 **Relay 与 Agent 之间的协议形态**：stdio（CNB CodeBuddy 等本地 CLI Agent 主流）优先，还是 WebSocket（远程/多客户端）优先？建议 **stdio 优先 + WS 同进程并存**，第 4 步动工前由小蓝指定一个先行实测的 Agent（workbuddy / hermes / codebuddy 任一）即可定。
+
+### 9.10 交付载体与 PR 治理（v0.6 修正）
+
+**问题**：审计发现承载本文档的 PR 曾出现「分支基点停在旧 main」的情况——`git diff main..分支` 会混入大量非文档变更（如删除 `src/modules/moduleConfig/`、`scripts/check-icons.mjs`、`src/design-system/Toast.tsx`、`src/modules/todo/domain.ts`，并还原 `SettingsPage`/`AppLayout`/`TodoPage`），一旦合并等于顺手回滚主干功能。
+
+**v0.6 处置（已完成）**：
+
+- 已将该文档分支与最新 `main` 合并对齐（merge commit `0f9a69b` + 交叉引用修正 `6a77b52`）。当前 `git diff --numstat origin/main <分支>` 输出**仅 1 个文件** `docs/agent-bridge-skill-v0.4.md`，与「纯文档变更」的声明一致；
+- 冲突 PR **#104**（glm 的 D4/D5 文档修订）已 `closed` 且未合并，其内容已被本文档 §9.3 D4/D5 完全覆盖，无需再合（避免与 #105 重复）。
+- **PR 自查铁律（写进流程）**：本文档类 PR 合并前必须确认 `git diff --numstat origin/main <分支>` **只含 `docs/agent-bridge-skill-v0.4.md` 一行**；出现任何 `src/`、`scripts/`、`package.json` 变更即视为分支基点过期，必须 `git fetch origin main && git merge origin/main` 后再合。
