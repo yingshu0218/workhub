@@ -243,9 +243,19 @@ function DropdownPortal({
   children: React.ReactNode
 }) {
   const [rect, setRect] = useState<DOMRect | null>(null)
+  // 视口下方空间不足时向上翻转弹出（审计：触发框贴近视口底部时固定向下会溢出）
+  const [flipUp, setFlipUp] = useState(false)
 
   useLayoutEffect(() => {
-    const update = () => setRect(anchorRef.current?.getBoundingClientRect() ?? null)
+    const update = () => {
+      const r = anchorRef.current?.getBoundingClientRect() ?? null
+      setRect(r)
+      if (r) {
+        const spaceBelow = window.innerHeight - r.bottom
+        const dropHeight = Math.min(224, Math.max(36, spaceBelow)) // max-h-56 ≈ 224px
+        setFlipUp(spaceBelow < dropHeight && r.top > spaceBelow)
+      }
+    }
     update()
     window.addEventListener('scroll', update, true)
     window.addEventListener('resize', update)
@@ -259,7 +269,11 @@ function DropdownPortal({
   return createPortal(
     <div
       className="fixed z-[70] max-h-56 overflow-y-auto surface-card py-1 shadow-lg"
-      style={{ left: rect.left, top: rect.bottom + 4, width: rect.width }}
+      style={
+        flipUp
+          ? { left: rect.left, bottom: window.innerHeight - rect.top + 4, width: rect.width }
+          : { left: rect.left, top: rect.bottom + 4, width: rect.width }
+      }
       onMouseDown={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}

@@ -402,7 +402,7 @@ function GroupEditorDrawer({
   const [includeRaw, setIncludeRaw] = useState('')
   const [excludeRaw, setExcludeRaw] = useState('')
   const [error, setError] = useState('')
-  const nameRef = useAutoFocus<HTMLInputElement>()
+  const nameRef = useAutoFocus<HTMLInputElement>(open)
 
   const openKey = `${open}-${group?.id ?? 'new'}`
   const [lastKey, setLastKey] = useState('')

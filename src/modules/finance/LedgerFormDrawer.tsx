@@ -33,7 +33,7 @@ export default function LedgerFormDrawer({
   const [isDefault, setIsDefault] = useState(false)
   const [error, setError] = useState('')
   const [seedKey, setSeedKey] = useState(0)
-  const nameRef = useAutoFocus<HTMLInputElement>()
+  const nameRef = useAutoFocus<HTMLInputElement>(open)
 
   // 打开时重置（渲染期重置模式，同 TodoFormDrawer）；编辑模式回填旧值
   const openKey = `${open}-${editLedger?.id ?? ''}`

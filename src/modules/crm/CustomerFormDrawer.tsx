@@ -47,7 +47,7 @@ export default function CustomerFormDrawer({
   const [error, setError] = useState('')
   const [seedKey, setSeedKey] = useState(0)
   // 打开时聚焦姓名且不滚动页面
-  const nameRef = useAutoFocus<HTMLInputElement>()
+  const nameRef = useAutoFocus<HTMLInputElement>(open)
 
   // 打开时重置（渲染期重置模式，同 TodoFormDrawer / TransactionFormDrawer）
   const openKey = `${open}-${customer?.id ?? 'new'}`

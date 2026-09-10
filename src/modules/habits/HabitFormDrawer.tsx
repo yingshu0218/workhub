@@ -55,7 +55,7 @@ export function HabitFormDrawer({
   const [category, setCategory] = useState('成长')
   const [crossModuleSync, setCrossModuleSync] = useState(false)
   const [error, setError] = useState('')
-  const nameRef = useAutoFocus<HTMLInputElement>()
+  const nameRef = useAutoFocus<HTMLInputElement>(open)
 
   // 打开时以旧记录为基底重置表单
   const openKey = `${open}-${habit?.id ?? 'new'}`

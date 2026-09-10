@@ -719,7 +719,7 @@ export function TodoFormDrawer({
   const listOptions = useTodoListOptions()
   const [error, setError] = useState('')
   const [seedKey, setSeedKey] = useState(0)
-  const titleRef = useAutoFocus<HTMLInputElement>()
+  const titleRef = useAutoFocus<HTMLInputElement>(open)
 
   // 打开时重置
   const openKey = `${open}-${todo?.id ?? 'new'}`
