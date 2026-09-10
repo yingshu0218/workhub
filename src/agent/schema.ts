@@ -156,9 +156,28 @@ export const TOOL_RISK: Record<string, RiskLevel> = {
   'todo_completeTodo': 'low',
 }
 
-/** 事件声明：写工具 → 领域事件（agentOps 执行成功后、事务外统一 emit） */
+/**
+ * 事件声明表（唯一事实源）：写工具 → 该工具**必然发出**的领域事件。
+ *
+ * **下沉标记（P1 第 2 步 / §2.1「repositories 复合函数下沉 emit」）**：
+ * `SUNK_EVENTS` 列出已下沉到 repositories 复合函数（事务 commit 之后）在函数出口 emit 的事件。
+ * 下沉后 agentOps 执行器**不得**再对同一事件二次 emit（否则单次操作发两次事件），
+ * 由 `SUNK_EVENTS` + `TOOL_EVENTS` 共同约束：声明表仍声明该工具「必有此事件」，
+ * 但发出方由本表标注为 repositories 层。
+ */
 export const TOOL_EVENTS: Record<string, AgentEventDeclaration['event'][]> = {
   'fin_recordTransaction': ['transaction:created'],
   'crm_addInteraction': ['customer:contacted'],
   // crm_createCustomer / fin_createLedger / todo_* / crm_addRelation：无既有事件，不加新的
+}
+
+/** 已下沉 repositories 层 emit 的事件（agentOps 不得重复发；见 TOOL_EVENTS 注释与 §2.1 边界） */
+export const SUNK_EVENTS: ReadonlySet<AgentEventDeclaration['event']> = new Set([
+  'transaction:created',
+  'customer:contacted',
+])
+
+/** 某工具在 agentOps 层**仍需自己 emit**的事件 = 声明表中未下沉的部分（下游可用于断言/防漂移） */
+export function agentLayerEvents(tool: string): AgentEventDeclaration['event'][] {
+  return (TOOL_EVENTS[tool] ?? []).filter((e) => !SUNK_EVENTS.has(e))
 }

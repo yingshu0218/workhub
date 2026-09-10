@@ -1,7 +1,6 @@
 import { useRef, useState } from 'react'
 import { useCollection } from '@/queries/hooks'
 import { newId, saveTransactionWithAttachments } from '@/repositories'
-import { eventBus } from '@/shared/eventBus'
 import type { PutInput } from '@/repositories/repository'
 import type { Attachment } from '@/db/db'
 import type { Customer, Ledger, Project, Todo, Transaction } from '@/db/types'
@@ -208,12 +207,9 @@ export default function TransactionFormDrawer({
       createdAt: Date.now(),
     }))
     try {
+      // 事件（transaction:created）已下沉 saveTransactionWithAttachments：事务 commit 后、
+      // 仅新建时发出（编辑不再误发，修 §9.5 bug1）。UI 侧不再内联 emit，避免双发。
       await saveTransactionWithAttachments(record, attachments)
-      // 广播交易创建事件，供跨模块联动（如规则引擎、战成就）消费
-      eventBus.emit('transaction:created', {
-        transactionId: txnId,
-        customerId: customerId || undefined,
-      })
       onClose()
     } catch (e) {
       setError(e instanceof Error ? `保存失败：${e.message}` : '保存失败，请重试')

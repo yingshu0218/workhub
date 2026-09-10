@@ -320,9 +320,9 @@ export function useCustomerTodos(customerId: string | undefined): Todo[] {
   return (list ?? []).sort((a, b) => (a.dueAt ?? Infinity) - (b.dueAt ?? Infinity))
 }
 
-// 客户建档 + 跨模块关联初始化已下沉到 @/agent/createCustomerWithInit（§9.6 不变式：
-// AI 层只依赖 repositories + shared）。此处 re-export 保持 UI 侧引用路径不变，消双份实现。
-export { createCustomerWithInit, type CustomerInitOptions } from '@/agent/createCustomerWithInit'
+// 客户建档 + 跨模块关联初始化已下沉到 repositories（§9.6 不变式 / P1 第 2 步）。
+// 此处 re-export 保持 UI 侧引用路径不变，消双份实现。
+export { createCustomerWithInit, type CustomerInitOptions } from '@/repositories'
 
 // ─────────────────────────── 自定义客户分组（Issue #63 收敛稿） ───────────────────────────
 

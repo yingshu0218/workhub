@@ -3,11 +3,16 @@ import { z } from 'zod'
 import { db } from '@/db/db'
 import { newId } from '@/repositories'
 import { eventBus } from '@/shared/eventBus'
-import { saveTransactionWithAttachments, saveInteractionAndTouchCustomer, todoRepo, ledgerRepo } from '@/repositories'
+import {
+  saveTransactionWithAttachments,
+  saveInteractionAndTouchCustomer,
+  createCustomerWithInit,
+  todoRepo,
+  ledgerRepo,
+} from '@/repositories'
 import { toggleTodoDone } from '@/modules/todo/toggle'
 import type { PutInput } from '@/repositories/repository'
 import type { Ledger, Todo, Transaction, Customer } from '@/db/types'
-import { createCustomerWithInit } from './createCustomerWithInit'
 import {
   recordTransactionSchema,
   createCustomerSchema,
@@ -18,6 +23,7 @@ import {
   addRelationSchema,
   TOOL_RISK,
   TOOL_EVENTS,
+  SUNK_EVENTS,
   type AgentEventDeclaration,
 } from './schema'
 
@@ -51,15 +57,23 @@ function parseOrError<S extends z.ZodTypeAny>(schema: S, input: unknown):
 }
 
 /**
- * 事务外统一事件出口（硬规则：永不在事务体内 emit）。
+ * agentOps 层事务外统一事件出口（硬规则：永不在事务体内 emit）。
  *
  * 事件名**从 TOOL_EVENTS 声明表推导**，payload 由调用方构造：
  * 声明表是唯一事实源，若某工具在 TOOL_EVENTS 里没声明事件，这里一个都不会发；
  * 声明了但调用方没给对应 payload，则抛错（防「声明表与实际 emit 两条独立路径」的漂移）。
+ *
+ * **第 2 步下沉后**：已下沉 repositories 的事件（`SUNK_EVENTS`）不在本层发出——
+ * 若调用方仍试图在此 emit，直接抛错（防双发漂移）。当前 P1 全部两个领域事件
+ * （`transaction:created` / `customer:contacted`）均已下沉，故本函数在写工具路径上应零调用；
+ * 保留它是为「未来新增的、未下沉的 agent 层事件」留出口，并持续做声明表校验。
  */
-function emitDeclared(tool: string, payloads: Record<string, AgentEventDeclaration['payload']>): void {
+export function emitDeclared(tool: string, payloads: Record<string, AgentEventDeclaration['payload']>): void {
   const declared = TOOL_EVENTS[tool] ?? []
   for (const event of declared) {
+    if (SUNK_EVENTS.has(event)) {
+      throw new Error(`emitDeclared: 事件 ${event} 已下沉 repositories 层，agentOps 不得重复 emit`)
+    }
     const payload = payloads[event]
     if (payload === undefined) {
       throw new Error(`emitDeclared: 工具 ${tool} 声明了事件 ${event} 但未提供 payload`)
@@ -103,12 +117,10 @@ export async function fin_recordTransaction(input: unknown): Promise<AgentOpResu
     projectId: d.projectId,
     status: d.status,
   }
-  // agentOps 首版不含 Blob 附件通道（外部 Agent 无法构造 Blob），附件走 UI 路径
-  await saveTransactionWithAttachments(record, [])
-  emitDeclared('fin_recordTransaction', {
-    'transaction:created': { transactionId: id, customerId: d.customerId },
-  })
-  return ok({ transactionId: id, status: d.status })
+  // agentOps 首版不含 Blob 附件通道（外部 Agent 无法构造 Blob），附件走 UI 路径。
+  // `transaction:created` 已下沉 saveTransactionWithAttachments（事务外、create 门控），此处不再 emit。
+  const { created } = await saveTransactionWithAttachments(record, [])
+  return ok({ transactionId: id, status: d.status, eventEmitted: created })
 }
 
 /** crm_createCustomer：建客户（含首联初始化，走下沉后的复合函数） */
@@ -181,9 +193,7 @@ export async function crm_addInteraction(input: unknown): Promise<AgentOpResult>
     d.customerId,
     touchAt,
   )
-  emitDeclared('crm_addInteraction', {
-    'customer:contacted': { customerId: d.customerId },
-  })
+  // `customer:contacted` 已下沉 saveInteractionAndTouchCustomer（事务外），此处不再 emit。
   return ok({ interactionId: id, at, lastContactAt: touchAt })
 }
 

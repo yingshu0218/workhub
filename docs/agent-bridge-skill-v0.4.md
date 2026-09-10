@@ -2,7 +2,7 @@
 
 > 版本：v0.4（终稿候选）
 > 前序：v0.1（四层骨架）→ v0.2（三方裁决收敛）→ v0.3（事件声明表终稿 + 下沉三边界）→ **v0.4（意图层外包外部 Agent，执行载体定案）**
-> 状态：v0.6 架构已定稿；v0.7 增补 §十「通用性与可扩展性」（2026-09-10 小蓝确认）；**v0.8 第二轮审计补强（§9.12，跨小节一致性收口，不动架构）**。动工前仍待小蓝对 §9.7 第 1 步下令。
+> 状态：v0.6 架构已定稿；v0.7 增补 §十「通用性与可扩展性」（2026-09-10 小蓝确认）；**v0.8 第二轮审计补强（§9.12，跨小节一致性收口，不动架构）**。实施进度：§9.7 第 1 步（agentOps 门面）、第 2 步（事件下沉，见步骤内交付记录）、第 3 步（消解器）已交付；第 4~6 步待续。
 > Ref: #33
 
 ---
@@ -296,6 +296,13 @@ repositories（createRepository 工厂保持纯写）→ 同步引擎 / eventBus
    > - **归档映射全仓一致性测试**：本步已含 Project 归档态处理，而 §9.7 第 3 步的 `toArchivedFlag` 收口属另一轮改动。两轮之间需补一条对照断言——经 agentOps 消解出的归档客户/项目，与 UI 4 处手工映射（`NoteEditorPage.tsx:434/437`、`TransactionFormDrawer.tsx:351`、`TodoPage.tsx:856`）在同数据下结果一致（`ProjectsPage.tsx:28/59` 用 `select` 展示归档项目，不在 `MatchCombobox` 候选链路上，标注为**不参与该断言**）；
    > - **能力白名单提前为 P0 前置的落点**：§四.3 裁「白名单配置页提前为 P0 前置」，但 §9.7 推进顺序只在第 4 步提「白名单」而未拆出「配置页」独立步骤。第 1 步动工时须明确：配置页壳与开关存储（settings `ai` 段）与第 4 步 relay 侧过滤分两次交付，不可因「第 4 步再说」而让白名单在第 1 步缺位。
 2. 事件下沉 repositories（三边界：create 门控 / interaction 统一 emit / 事务外硬规则）
+
+   > **交付记录（v0.8 补注）**：第 2 步已完成。`transaction:created`（create 门控，修 §9.5 bug1）与
+   > `customer:contacted`（统一 emit，修 §9.5 bug2 项目跟进漏发）已于 `saveTransactionWithAttachments` /
+   > `saveInteractionAndTouchCustomer` 事务 commit 之后单点 emit；UI（`TransactionFormDrawer` /
+   > `CustomerDetailPage`）与 agentOps 的内联 emit 均已移除，杜绝双发；`emitDeclared` 对已下沉事件直接抛错
+   > （`SUNK_EVENTS` 标记）。`createCustomerWithInit` 由 `@/agent/` 移入 `repositories/index.ts`，行为逐行等价、不新增事件。
+   > 交付说明见 `PROGRESS-AGENTOPS.md`「P1 第 2 步」，对照测试 `src/agent/__tests__/eventSink.test.ts`（15 条）。
 3. 消解器 + `resolveEntity`（id 去重 / 阈值反问 / 空输入拦截 / Project 归档沉底，含 archived 字段映射）
 
    > **archived 映射注（v0.7 审计修正）**：`archivedLast`（`MatchCombobox.tsx:40`）只认 `archived?: boolean`，而 `Project` 归档态用的是 `status:'archived'`（`types.ts:151`）。现行 **4 处调用方均手工映射** `archived: p.status === 'archived'`（`NoteEditorPage.tsx:436`、`NoteEditorPage.tsx:879`、`TransactionFormDrawer.tsx:352`、`TodoPage.tsx:857`）后才传入，属全仓重复的内联约定而非孤例——P1 实现该映射时应收口成 `toArchivedFlag(p)` 工具函数。消解器若直接对 repo 原始 Project 调 `archivedLast` 将**完全不生效**——候选池组装时必须先做该字段映射，再执行沉底。

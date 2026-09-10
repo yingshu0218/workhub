@@ -310,12 +310,21 @@ export async function deleteHabitCascade(habitId: string): Promise<void> {
  * 交易 + 附件存根原子落库：单 Dexie 事务覆盖 transactions / attachments / syncQueue 三表，
  * 任一步失败整体回滚（避免"交易已落库而附件写入失败"的半成品数据）。
  * 每条记录统一盖章 updatedAt/rev/deleted 并入同步队列，语义与 repository.put 一致。
+ *
+ * **事件下沉（P1 第 2 步 / §2.1 事件纪律）**：`transaction:created` 在此统一发出，替代原先
+ * UI（TransactionFormDrawer）内联 emit。落点是 repositories 层，时机是**事务 commit 之后**
+ * （事务体之外的同一函数出口），永不进事务体。
+ *
+ * **create 门控（§2.1 边界① / §9.5 bug1）**：仅**新 id**（事务开始前该记录不存在）才 emit，
+ * 编辑既有流水不再误发（旧实现编辑模式也会 emit，重复触发奖杯评估）。
+ * 判断依据为事务内 `prev` 是否存在；返回值 `created` 供调用方与对照测试观察。
  */
 export async function saveTransactionWithAttachments(
   txn: PutInput<Transaction>,
   attachments: PutInput<Attachment>[] = [],
-): Promise<string> {
+): Promise<{ id: string; created: boolean }> {
   const now = Date.now()
+  let created = false
   await db.transaction('rw', [db.transactions, db.attachments, db.syncQueue], async () => {
     const putStamped = async <T extends { id: string }>(
       tableName: 'transactions' | 'attachments',
@@ -339,13 +348,23 @@ export async function saveTransactionWithAttachments(
         createdAt: now,
       })
     }
+    // create 门控判据：事务开始前交易记录是否已存在（edited 既有记录 → prev 有值 → 不发事件）
+    const prevTxn = await db.transactions.get(txn.id)
+    created = !prevTxn || !!prevTxn.deleted
     await putStamped('transactions', txn as Transaction & Partial<SyncMeta>)
     for (const att of attachments) {
       await putStamped('attachments', att as Attachment & Partial<SyncMeta>)
     }
   })
+  // 事务 commit 之后：仅在新建时发送事件（载荷与旧 UI 内联 emit 逐字段一致，无多余字段）
+  if (created) {
+    eventBus.emit('transaction:created', {
+      transactionId: txn.id,
+      customerId: txn.customerId,
+    })
+  }
   syncEngine.requestSync()
-  return txn.id
+  return { id: txn.id, created }
 }
 
 /**
@@ -357,6 +376,12 @@ export async function saveTransactionWithAttachments(
  * 传入它允许调用方把「日志真实时间」与「客户最近联系时间」解耦 —— agentOps 补录历史沟通时
  * 用 `max(prev, at)` 避免把 lastContactAt 拉回过去（否则客户久未跟进提醒永久静默）。
  * 缺省行为与历史完全一致（= interaction.at），UI 两个入口不受影响。
+ *
+ * **事件下沉（P1 第 2 步 / §2.1 边界②）**：`customer:contacted` 在此统一发出，替代原先
+ * 仅 CustomerDetailPage 内联 emit 的孤例。项目跟进（ProjectDetailPage）经本函数落库时
+ * 同样获得事件（v0.3 裁决：项目跟进也算客户联系），消除「同一函数两条调用路径只一侧发事件」的漂移。
+ * 时机为**事务 commit 之后**（函数出口），永不进事务体。`customer:contacted` 是孤儿事件（无消费者），
+ * 对照测试降级为「emit 调用发生」级断言（§七.1）。
  */
 export async function saveInteractionAndTouchCustomer(
   interaction: PutInput<Interaction>,
@@ -400,6 +425,8 @@ export async function saveInteractionAndTouchCustomer(
       createdAt: now,
     })
   })
+  // 事务 commit 之后：统一 emit（UI 两个入口 + agentOps 都经此，单点收口）
+  eventBus.emit('customer:contacted', { customerId })
   syncEngine.requestSync()
   return interaction.id
 }
@@ -521,6 +548,87 @@ export async function deleteCustomerCascade(customerId: string): Promise<void> {
           op: 'upsert',
           createdAt: now,
         })
+      }
+    },
+  )
+  syncEngine.requestSync()
+}
+
+/**
+ * 客户建档 + 跨模块关联初始化（原 modules/crm/hooks.ts → 暂存 @/agent → 第 2 步下沉于此，§9.6 不变式）。
+ *
+ * 单事务五表（customers / todos / interactions / transactions / syncQueue），任一步失败整体回滚。
+ * 事件口径（P1 第 2 步）：本函数**不新增任何事件**——`openingLog` 是建档初始化的一部分，
+ * 建档本身在 TOOL_EVENTS 声明表里无既有事件（§2.1「crm_createCustomer 无既有事件，不加新的」），
+ * 故保持原行为（不 emit），与本步骤「不改既有语义、只收口漂移」的边界一致。
+ */
+export interface CustomerInitOptions {
+  /** 创建一条 opening 沟通日志（类型=拜访） */
+  openingLog?: boolean
+  /** 关联已有交易：把该交易的 customerId 指向新客户 */
+  linkTransactionId?: string
+}
+
+export async function createCustomerWithInit(
+  customer: Customer,
+  opts: CustomerInitOptions = {},
+): Promise<void> {
+  const now = Date.now()
+  await db.transaction(
+    'rw',
+    [db.customers, db.todos, db.interactions, db.transactions, db.syncQueue],
+    async () => {
+      const prev = await db.customers.get(customer.id)
+      await db.customers.put({
+        ...customer,
+        updatedAt: now,
+        rev: (prev?.rev ?? 0) + 1,
+        deleted: 0 as const,
+      } as Customer)
+      await db.syncQueue.add({
+        table: 'customers',
+        recordId: customer.id,
+        op: 'upsert',
+        createdAt: now,
+      })
+
+      if (opts.openingLog) {
+        const itx = {
+          id: newId('itx'),
+          customerId: customer.id,
+          type: '拜访' as const,
+          content: '客户建档 · 首次建立联系（opening）',
+          at: now,
+        }
+        await db.interactions.put({
+          ...itx,
+          updatedAt: now,
+          rev: 1,
+          deleted: 0 as const,
+        } as Interaction)
+        await db.syncQueue.add({
+          table: 'interactions',
+          recordId: itx.id,
+          op: 'upsert',
+          createdAt: now,
+        })
+      }
+
+      if (opts.linkTransactionId) {
+        const txn = await db.transactions.get(opts.linkTransactionId)
+        if (txn && !txn.deleted) {
+          await db.transactions.update(txn.id, {
+            customerId: customer.id,
+            updatedAt: now,
+            rev: txn.rev + 1,
+          })
+          await db.syncQueue.add({
+            table: 'transactions',
+            recordId: txn.id,
+            op: 'upsert',
+            createdAt: now,
+          })
+        }
       }
     },
   )

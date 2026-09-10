@@ -54,3 +54,46 @@
 
 > 待拍板项（第三节 lastContactAt 走 a/b、第六节「点已 done 待办」期望行为）仍待小蓝确认；
 > 本轮按 **a（工具层对齐 UI）+ 幂等（目标态语义）** 保守落地，均不改 UI 语义，若拍板走 b 再调。
+
+---
+
+# agentOps 门面 P1 第 2 步 — 事件下沉 repositories（交付说明）
+
+> Issue: #33 · 方案: docs/agent-bridge-skill-v0.4.md §2.1 事件纪律 + §9.7 第 2 步 + §9.5 两个既有 bug
+> 分支: auto/agentops-event-sink-* · 作者: npc/CodeBuddy(deepseek-v4.1-flash)
+
+## 一句话
+
+把 `transaction:created` 与 `customer:contacted` 的 emit，从「UI 内联 + agentOps 内联」两条独立路径，**收口到 repositories 复合函数（事务 commit 之后）这一条路径**；顺带修掉 §9.5 记录的两个既有 bug。
+
+## 三边界落地
+
+| 边界 | 实现 |
+|---|---|
+| ① create 门控 | `saveTransactionWithAttachments` 在事务内读 `prev` 判定新建/编辑，**仅新 id**（含墓碑重建）才 emit `transaction:created`；返回 `{ id, created }`。修 §9.5 bug1（旧 UI 编辑模式也 emit，重复触发奖杯评估） |
+| ② interaction 统一 emit | `saveInteractionAndTouchCustomer` 在函数出口统一 emit `customer:contacted`；UI 两入口 + agentOps 三路径同源。修 §9.5 bug2（ProjectDetailPage 项目跟进漏发） |
+| ③ 事务外硬规则 | 两个 emit 均在 `db.transaction(...)` resolve 之后、`syncEngine.requestSync()` 前后，**永不进事务体**（测试断言「emit 时记录已可读」） |
+
+## 同源收口
+
+- UI 侧移除内联 emit：`TransactionFormDrawer`（删 `transaction:created` 与 `eventBus` import）、`CustomerDetailPage`（删 `customer:contacted` 与 import）；
+- agentOps 侧移除内联 emit：`executor.fin_recordTransaction` / `crm_addInteraction` 不再 emit（避免与 repositories 双发）；
+- `createCustomerWithInit` 由 `@/agent/` 移入 `repositories/index.ts`（§9.6 不变式），`modules/crm/hooks.ts` 改为从 `@/repositories` re-export，UI 引用路径不变；**行为逐行等价、不新增事件**。
+
+## 唯一事实源 + 防漂移
+
+- `TOOL_EVENTS` 声明表保留两条（不因下沉删条目），新增 `SUNK_EVENTS` 标记已下沉事件；
+- `agentLayerEvents(tool)` 推导「agent 层仍需 emit」的事件（P1 当前为空）；
+- `emitDeclared` 对已下沉事件**直接抛错**（防双发漂移）；保留出口服务未来未下沉的 agent 层事件。
+
+## 自测
+
+- `npm run lint` ✅ / `npx tsc -b` ✅ / `npm test` **36/36** ✅ / `npm run build` ✅
+- 新增 `src/agent/__tests__/eventSink.test.ts`（15 条）：create 门控三态、编辑不发、项目跟进发事件、客户不存在回滚不发、commit 先于 emit ×2、SUNK 防漂移 ×3、createCustomerWithInit 不新增事件 ×2。
+
+## 影响面（回归口径）
+
+- 事件**载荷逐字段不变**（断点对照测试仍绿）；
+- 手工 UI 记账/记日志：事件发出次数、时机与载荷**不变**（原先发的仍发一次，只是发出方从 UI 挪到 repositories）；
+- 编辑流水：由「误发」变为「不发」——**这是修复，不是回归**；
+- 项目跟进：由「不发」变为「发一次」——**这是修复，不是回归**（`customer:contacted` 为孤儿事件，无消费者，无副作用）。
