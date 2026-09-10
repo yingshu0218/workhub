@@ -16,6 +16,7 @@ import HabitsPage from '@/modules/habits/HabitsPage'
 import TrophiesPage from '@/modules/trophies/TrophiesPage'
 import ProfilePage from '@/modules/trophies/ProfilePage'
 import SettingsPage from '@/modules/settings/SettingsPage'
+import ModuleConfigPage from '@/modules/featureConfig/ModuleConfigPage'
 import ProjectsPage from '@/modules/projects/ProjectsPage'
 import ProjectDetailPage from '@/modules/projects/ProjectDetailPage'
 import InspirationPage from '@/modules/inspiration/InspirationPage'
@@ -55,6 +56,9 @@ const router = createBrowserRouter([
       { path: '/profile', element: <ProfilePage /> },
       { path: '/inspiration', element: <InspirationPage /> },
       { path: '/settings', element: <SettingsPage /> },
+      { path: '/feature-config', element: <ModuleConfigPage /> },
+      { path: '/feature-config/:moduleId', element: <ModuleConfigPage /> },
+      { path: '/feature-config/:moduleId/:itemId', element: <ModuleConfigPage /> },
     ],
   },
 ])
