@@ -239,9 +239,12 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
               >
                 <div className="flex items-center justify-between">
                   <Icon name={a.icon} className="text-[1.2857rem] text-primary" />
-                  <kbd className="rounded-md border border-outline-variant/50 bg-surface-container-high px-1.5 py-px font-mono text-[0.7143rem] text-outline">
-                    {a.kbd}
-                  </kbd>
+                  {/* 无绑定快捷键的指令（如功能配置）不渲染空徽标，避免出现空边框方块 */}
+                  {a.kbd ? (
+                    <kbd className="rounded-md border border-outline-variant/50 bg-surface-container-high px-1.5 py-px font-mono text-[0.7143rem] text-outline">
+                      {a.kbd}
+                    </kbd>
+                  ) : null}
                 </div>
                 <div className="mt-1.5 text-[0.8929rem] font-semibold">{a.label}</div>
                 <div className="truncate text-[0.75rem] text-outline">{a.desc}</div>

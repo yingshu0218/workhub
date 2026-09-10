@@ -103,3 +103,4 @@
 | 52 | 2026-09-10 | Issue #86 功能配置独立页：新增一级路由 /module-config（侧栏 NAV_ITEMS 末尾入口 icon tune + ⌘K 快捷指令 + 页头标题映射）；MODULE_CONFIGS 注册表驱动（module-config/registry.ts），单模块起步不渲染模块导航（YAGNI，≥2 模块时再升左侧列表）；DataManagementTab 原样迁移为 CrmIntimacyConfig（业务逻辑零改写，moduleConfigs 同步表/hooks/订阅全不动）；系统设置删「数据管理」Tab（8→7，导出/导入本就在「数据与安全」Tab 零重叠零功能丢失） | npc/CodeBuddy(glm-5.3-flash) |
 | 53 | 2026-09-10 | Issue #86 功能配置页收敛：路径统一取 `/module-config`（已随 #90/#91 合入主干，页面标题仍为「功能配置」），目录 `module-config/` → `moduleConfig/`；注册表由单层 `crm.intimacy` 升级为两级 `{ module, items }`（`/module-config/:moduleId/:itemId` 可书签直达），左栏模块→子菜单常显不随模块数退化；系统设置移除「数据管理」Tab 并留指路牌；⌘K 去重为单条「功能配置」入口 | npc/CodeBuddy(hy4-preview) |
 | 54 | 2026-09-10 | Issue #86 功能配置页收尾：配置片段 `Section`/`Toggle` 抽到 `moduleConfig/parts.tsx` 供后续模块配置面板复用（配置逻辑零改写，仅容器外迁） | npc/CodeBuddy(hy4-preview) |
+| 55 | 2026-09-10 | Issue #86 收尾：⌘K 快捷指令区不再为无绑定快捷键的指令渲染空 `kbd` 徽标（「功能配置」原先显示一个空边框方块），改为 `a.kbd` 非空才渲染，一处渲染层改动覆盖全部 quickActions | npc/CodeBuddy(hy4-preview) |
