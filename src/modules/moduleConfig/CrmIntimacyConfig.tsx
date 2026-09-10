@@ -1,73 +1,19 @@
 import { useState } from 'react'
-import { Icon } from '@/design-system/Icon'
-import { Button, Card, inputCls } from '@/design-system/ui'
+import { Button, inputCls } from '@/design-system/ui'
 import { DEFAULT_INTIMACY_CONFIG, INTIMACY_LEVELS, type IntimacyLevel } from '@/db/types'
 import { saveIntimacyConfig, useIntimacyConfig } from '@/modules/crm/intimacy'
 import { isIntimacyTrustLevel } from '@/db/types'
+import { Section, Toggle } from './parts'
 
 /**
  * 客户管理模块 · 亲密度配置（Issue #34 收敛稿，Issue #86 迁入「功能配置」页）。
- * 承载 CRM·客户 的三个配置区（配置本体自设置页「数据管理」Tab 原样迁入，业务逻辑零改写）：
+ * 承载 CRM·客户 的三个配置区（配置本体自设置页「数据管理」Tab 原样迁入，业务逻辑零改写；
+ * Section / Toggle 容器抽到 parts.tsx，供后续模块配置面板复用）：
  * ① 亲密度等级维护（7 档 key 固定不可增删，name/desc 可编辑，改名零迁移）
  * ② 黑名单全局屏蔽（开关矩阵，默认只开图谱隐藏，副作用渐进开放）
  * ③ 算法兜底与权重（总开关 + 4 因子滑杆 + 切档阈值，保存时归一化与单调性校验）
  * 配置写 moduleConfigs（同步表 crm.intimacy），改动即时落库广播 moduleConfig:changed。
  */
-
-function Section({
-  icon,
-  title,
-  desc,
-  children,
-}: {
-  icon: string
-  title: string
-  desc: string
-  children: React.ReactNode
-}) {
-  return (
-    <Card className="p-6">
-      <div className="mb-4 flex items-center gap-2.5">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-fixed text-primary">
-          <Icon name={icon} size={18} />
-        </div>
-        <div className="flex-1">
-          <h3 className="text-[1.0357rem] font-semibold">{title}</h3>
-          <p className="mt-0.5 text-[0.8214rem] text-on-surface-variant">{desc}</p>
-        </div>
-      </div>
-      {children}
-    </Card>
-  )
-}
-
-function Toggle({
-  checked,
-  onChange,
-  disabled,
-}: {
-  checked: boolean
-  onChange: (v: boolean) => void
-  disabled?: boolean
-}) {
-  return (
-    <button
-      role="switch"
-      aria-checked={checked}
-      disabled={disabled}
-      className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-40 ${
-        checked ? 'bg-primary' : 'bg-outline-variant'
-      }`}
-      onClick={() => onChange(!checked)}
-    >
-      <span
-        className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${
-          checked ? 'left-[22px]' : 'left-0.5'
-        }`}
-      />
-    </button>
-  )
-}
 
 export default function CrmIntimacyConfig() {
   const cfg = useIntimacyConfig()

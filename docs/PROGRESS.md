@@ -89,6 +89,7 @@
 | 页面结构 | ✅ 左栏模块分组 + 配置子菜单（二级）**常显**（不随模块数退化，复用 CRM/财务/笔记「max-w-[1200px] + 左列表 + 右内容」骨架）；注册表两级 `{ module, items }`，同模块新增配置域只加 items 不出重复条目 |
 | 边界 | ✅ 功能配置 = 影响数据算出来结果的业务规则（写 moduleConfigs 同步表，多端一致）；系统设置 = 界面/通知/同步/导出等应用级偏好（写 settings singleton，不进同步） |
 | 迁移 | ✅ `settings/DataManagementTab.tsx` → `moduleConfig/CrmIntimacyConfig.tsx`（git mv，逻辑零改写）；早期 `module-config/` 单层注册表版同期删除，以两级 `moduleConfig/registry.ts` 为准 |
+| 复用 | ✅ 配置片段 `Section`/`Toggle` 抽到 `moduleConfig/parts.tsx`，供后续模块配置面板复用；配置逻辑零改写，仅容器外迁 |
 
 ### CRM 客户时间线（Issue #11，已收尾）
 
