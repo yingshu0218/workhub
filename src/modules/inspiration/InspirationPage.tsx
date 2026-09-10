@@ -3,7 +3,7 @@ import { Icon } from '@/design-system/Icon'
 import { useNavigate } from 'react-router-dom'
 import { useCollection } from '@/queries/hooks'
 import type { Customer, Todo, Transaction, Note } from '@/db/types'
-import { todoRepo } from '@/repositories'
+import { toggleTodoDone } from '@/modules/todo/toggle'
 import { registerShortcut } from '@/shared/shortcuts'
 import { useFocusStore } from '@/stores/focus'
 import buildCandidates from './engine'
@@ -180,8 +180,8 @@ export default function InspirationPage() {
     if (!current?.todoId) return
     const todo = todos.find((t) => t.id === current.todoId)
     if (!todo) return
-    // 以旧记录展开为基底流转状态
-    await todoRepo.put({ ...todo, status: 'done', completedAt: Date.now() })
+    // 完成态统一走领域函数（status 与 completedAt 成对写入，Issue #74）
+    await toggleTodoDone(todo)
     next()
   }
 

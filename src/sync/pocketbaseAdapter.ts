@@ -457,6 +457,15 @@ async function mergeRemote(
   // LWW：只认 updatedAt，新者胜；相等视为本端已推送的回环副本，跳过
   if (remoteUpdatedAt <= localUpdatedAt) return 'skipped'
 
+  // 待办完成态本地优先（Issue #74）：服务端 collections 未含 completedAt 字段时，
+  // 本地「打勾完成」推送后被服务端静默丢弃该字段，随后远端记录以更新的 updatedAt 拉回，
+  // 整体覆盖会把 status 回滚成未完成（表现为「勾了又弹回去」）。
+  // 完成态以本地为准：本地已完成而远端非完成时，保留本地 status/completedAt，
+  // 仅合并远端其余字段（标题/描述等编辑仍能同步）。
+  const remoteDone = remote.status === 'done'
+  const localDone = local?.status === 'done'
+  const keepLocalDone = table === 'todos' && localDone && !remoteDone
+
   // 剥离 pb 系统字段（collectionId/collectionName/created/updated/server_received_at）与映射字段 localId
   const {
     collectionId: _c,
@@ -475,6 +484,10 @@ async function mergeRemote(
     typeof local?.rev === 'number' ? local.rev : 0,
     typeof remote.rev === 'number' ? remote.rev : 0,
   )
+  if (keepLocalDone) {
+    record.status = local!.status
+    record.completedAt = local!.completedAt
+  }
 
   if (table === 'attachments') {
     const blob = await downloadAttachmentFile(cfg, remote)

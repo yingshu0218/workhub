@@ -2,7 +2,7 @@
 
 > **本仓库的唯一进度事实来源。** 所有人（含 AI 开发代理）推进或变更任何开发工作，必须在**同一个 commit** 里同步更新本文件对应状态。README 底部的 Changelog 记录"发生了什么"，本文档记录"现在处于什么状态"——前者追加式流水，后者始终反映最新全貌。
 
-**最后更新**：2026-09-10（Issue #54 主题风格体系：风格(skin)与配色解耦为独立持久化字段、先风格后配色；新增 glass/kid 风格包；皮肤层补齐导航 chrome（侧栏/页头/CRM 分组项语义化 .app-sidebar/.app-header/.app-nav-link）与裸 Tailwind 面板穿透；pixel 3px 描边贯穿、glass 深色弹窗对比度兜底、半径档全量走 var(--radius-*)；Issue #50 笔记 @提及浮层交互重构：顶部新增可见模糊匹配输入框（@ 唤起后自动聚焦，筛选词从正文迁入框内，正文 @ 后不再承载筛选词）+ 客户/待办/账本/项目四类横向 tab 统一「点选即插入」交互，移除重复 projectTab 锚点，所属项目选择收敛到右侧栏唯一入口；Issue #34 客户亲密度体系落地：Customer.intimacy 手动 7 档 + 算法兜底 + moduleConfigs 同步表 v9 + 设置页「数据管理」Tab + 图谱圈层/黑名单过滤；Issue #50 笔记关联体验升级：@提及浮层模糊匹配+键盘导航、编辑态关联主体/反向链接悬浮卡片；Issue #70 侧栏快速便签：左下角折叠单行捕获 → saveQuickCapture 落正式 Note，tag「速记」+ 默认目录，设置页「笔记偏好」选目录） · 维护人：yingshu0218 / cnb.cMPXRmKswEA / npc/CodeBuddy
+**最后更新**：2026-09-10（Issue #74 待办打勾完成修复：完成态收口领域函数 `toggleTodoDone`（status + completedAt 成对写入，三处入口统一）+ 完成态同步合并本地优先（服务端缺字段回拉不再回滚完成状态）+ collections.json todos 补 sortOrder；Issue #54 主题风格体系：风格(skin)与配色解耦为独立持久化字段、先风格后配色；新增 glass/kid 风格包；皮肤层补齐导航 chrome（侧栏/页头/CRM 分组项语义化 .app-sidebar/.app-header/.app-nav-link）与裸 Tailwind 面板穿透；pixel 3px 描边贯穿、glass 深色弹窗对比度兜底、半径档全量走 var(--radius-*)；Issue #50 笔记 @提及浮层交互重构：顶部新增可见模糊匹配输入框（@ 唤起后自动聚焦，筛选词从正文迁入框内，正文 @ 后不再承载筛选词）+ 客户/待办/账本/项目四类横向 tab 统一「点选即插入」交互，移除重复 projectTab 锚点，所属项目选择收敛到右侧栏唯一入口；Issue #34 客户亲密度体系落地：Customer.intimacy 手动 7 档 + 算法兜底 + moduleConfigs 同步表 v9 + 设置页「数据管理」Tab + 图谱圈层/黑名单过滤；Issue #50 笔记关联体验升级：@提及浮层模糊匹配+键盘导航、编辑态关联主体/反向链接悬浮卡片；Issue #70 侧栏快速便签：左下角折叠单行捕获 → saveQuickCapture 落正式 Note，tag「速记」+ 默认目录，设置页「笔记偏好」选目录） · 维护人：yingshu0218 / cnb.cMPXRmKswEA / npc/CodeBuddy
 
 ---
 
@@ -58,7 +58,17 @@
 |---|---|
 | 绑定域名 + HTTPS | 激活 PWA 离线缓存/可安装、消除明文警告；绑好跑一次 certbot |
 | 双端真机日常使用 | 手机+电脑配同步各一次，用几天验证 LWW/断网补传实际体验 |
-| 服务端重导入 collections.json | 笔记文件夹上线需导入新表 noteFolders + notes.folderId 字段（Dexie v6）；Issue #34 亲密度配置新增 module_configs 集合 + customers.intimacy json 字段（Dexie v9，本地自动升版），见部署指南「Schema 升级流程」；完成后执行一次「全量推送」 |
+| 服务端重导入 collections.json | 笔记文件夹上线需导入新表 noteFolders + notes.folderId 字段（Dexie v6）；Issue #34 亲密度配置新增 module_configs 集合 + customers.intimacy json 字段（Dexie v9，本地自动升版）；Issue #74 补 todos.sortOrder 字段（待办自定义顺序同步），见部署指南「Schema 升级流程」；完成后执行一次「全量推送」 |
+
+### 待办事项打勾完成修复（Issue #74，已提 PR）
+
+| 项 | 状态 |
+|---|---|
+| 根因 | 完成态由 `status` + `completedAt` 两字段表达，三个入口各自散写易漏字段；更关键的是**服务端 collections 缺字段时 PocketBase 静默丢弃**，本地「打勾完成」推送后服务端无 completedAt，随后远端记录以更新的 `updatedAt` 拉回整体覆盖本地，把 status 回滚成未完成（表现为「勾了又弹回去」） |
+| 修复一：写入收口 | ✅ 新增领域函数 `src/modules/todo/toggle.ts` 的 `toggleTodoDone`：完成时 `status='done' + completedAt=now`，取消完成时 `status='todo' + completedAt 显式清空`；TodoPage / 工作台今日日程卡 / 灵感转待办三处入口统一调用 |
+| 修复二：合并兜底 | ✅ `sync/pocketbaseAdapter.ts` mergeRemote 增加「待办完成态本地优先」：本地已完成而远端非完成时，保留本地 status/completedAt，仅合并远端其余字段（标题/描述编辑仍能同步），杜绝旧值回拉回滚完成态 |
+| 修复三：Schema 补齐 | ✅ `pb_setup/collections.json` todos 补 `sortOrder` 字段（待办自定义顺序需跨设备同步） |
+| 待人工 | ⚠️ 服务端需按「Schema 升级流程」重导入 collections.json 并执行一次「全量推送」（与既有 module_configs 待办合并为同一次操作） |
 
 ### 客户亲密度体系（Issue #34，已提 PR）
 
