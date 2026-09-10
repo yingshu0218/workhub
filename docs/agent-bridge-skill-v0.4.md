@@ -309,7 +309,38 @@ repositories（createRepository 工厂保持纯写）→ 同步引擎 / eventBus
 > **第 6 步（skill 文件首版）已交付**：`docs/skills/` 由 `scripts/gen-skills.mjs` 从 `src/agent/skillSource.ts`
 > （agentOps zod schema）**同源生成** 15 个工具文档 + `README.md` + `mcp-tools.json`，与 MCP `tools/list` 的
 > `inputSchema` 一份定义（`skill.parity.test.ts` 断言三方一致）。
-> **P1 仅剩第 7 步 E2E 实机联调。**
+> **第 7 步（E2E 主干验收）已交付**，P1 七步全部落地。
+>
+> **E2E 形态**（`src/agent/__tests__/e2e.acceptance.test.ts` + `e2e.harness.ts`）：
+> MCP 客户端（真 WS）→ **真实 relay 子进程**（真 RFC6455 + 真 MCP 路由）→ 页面内 `AgentBridge`（**原样复用未改**）
+> → agentOps → repositories → Dexie（`fake-indexeddb`）。唯一替换项是 Node 没有原生 `WebSocket`，
+> 由 harness 注入语义一致的最小实现（含 Client→Server 掩码、分片、ping/pong、close）。
+> 「应用」以无头形式起在同一进程内，因此**渲染层不在本套件覆盖范围**（渲染另有 `npm run build` 产物 + `csp.test.ts`）；
+> 这不影响 §9.8 的验收目标 —— 要验的载荷一致性 / 幂等 / 白名单 / 读限幅全部在「桥以下」。
+>
+> **§9.8 场景已跑通**：resolveEntity 零候选 → 建客户「王五/深蓝科技」（中风险预览→确认）→
+> listLedgers 空 → `fin_createLedger` 建默认账本 → 记 2000 支出（`status=待对账`）→
+> 按 customerId 读回账目 → 记沟通日志并读回档案 → 建待办「周五回访王五」→ 查待办确认存在。
+>
+> **四条补强断言全部通过**：① 经 relay 记一笔/记沟通 vs 手工调 repository，`transaction:created` /
+> `customer:contacted` 载荷键集逐字段一致；② 编辑既有流水**不再**触发 `transaction:created` 且不新增记录；
+> ③ 读工具投影与条数不超白名单（不含 attachments/relations 全量）；④ 无 token/错 token 被拒，
+> 白名单关闭的域在 `tools/list` 里直接不出现（且点名调用被闸门拒绝）。
+>
+> **E2E 暴露并修复了 relay 的三处缺陷**（均已补 `relay.harness.test.ts` 真机回归，逐条验证「改回即挂」）：
+> 1. **连接分流缺失**：Agent 端点（无 `role`）落进了 browser 分支，把 `browserConn` 覆盖成 Agent 连接 ——
+>    此后 relay 把唤醒请求发回 Agent 自己，Agent 不认 relay 内部协议，表现为**调用永久无响应**。
+>    已改为显式二分支（`role === 'browser'` 走页面桥；`role === null` 走标准 MCP 路由）。
+> 2. **回包信封丢失 `ok`**：`onBrowserMessage` 只 `resolve(data)`，把桥的 `ok` 丢掉，
+>    下游 `res.ok !== true` 恒真 → **工具明明执行成功却一律回「执行失败」**。
+>    已改为 `resolve({ ok, data })` / `resolve({ ok:false, error })`。
+> 3. **`listTools` 信封错位**：同源问题，清单实际在 `data.tools`，取 `r.tools` 会**静默丢光全部工具**（空清单）。
+>
+> 配套新增 `--dev` 启动参数：**仅本地联调/自动化**下，预览响应自动附带一枚一次性 `confirmToken`，
+> 供脚本跑通「预览→确认→执行」全链路；非 dev 一律不签发，避免把风险确认闸门架空。
+> 另加 `WORKHUB_RELAY_DEBUG=1` 打印浏览器往返回包，供排查「有回包但客户端收不到」类问题。
+>
+> **P1 交付完成**（第 1~7 步）；编辑/删除/高风险变更按 §9.7 仍押 P1 后半或 P2。
 
 1. **agentOps 门面 + 事件对齐测试**（断点 `transaction:created`，含 §9.5 两个 bug 修复）
 
@@ -357,6 +388,13 @@ repositories（createRepository 工厂保持纯写）→ 同步引擎 / eventBus
    > **交付记录（已实现）**：`src/agent/skillSource.ts` 为唯一生成源，`scripts/gen-skills.mjs` 产出 `docs/skills/`
    > （15 份工具 md + `README.md` + `mcp-tools.json`）；`skill.parity.test.ts` 断言「executor 注册表 ↔ skill 源 ↔ 生成产物」一致。
 7. 跑通 E2E 场景 = P1 主干验收
+
+   > **交付记录（已实现）**：`src/agent/__tests__/e2e.acceptance.test.ts`（8 例，含 §9.8 主干 + 四条补强断言）
+   > 与 `relay.harness.test.ts`（7 例，relay 真机回归）。执行形态：MCP 客户端 → **真实 relay 子进程** →
+   > 页面内 `AgentBridge`（原样复用）→ agentOps → repositories → `fake-indexeddb`；
+   > harness 注入 Node 侧最小 `WebSocket`（Node 无原生实现），其余全为真实链路。
+   > 本步修掉 relay 三处缺陷（连接分流 / 回包信封丢 `ok` / `tools/list` 信封错位），
+   > 并新增 `--dev`（预览自动附 confirmToken，仅本地联调）与 `WORKHUB_RELAY_DEBUG`（打印浏览器往返回包）。
 
 ### 9.8 E2E 验收场景（沿用 v0.5，补强断言）
 

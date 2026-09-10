@@ -9,8 +9,10 @@
  * 用法：
  *   node relay/index.mjs                      # 启动 WS（127.0.0.1:8787），浏览器连出
  *   node relay/index.mjs --stdio              # 额外开启 stdio MCP 入口（供本地 CLI Agent）
+ *   node relay/index.mjs --dev                # 预览响应自动附 confirmToken（仅本地联调/自动化，勿用于生产）
  *   WORKHUB_RELAY_PORT=9000 node relay/index.mjs
  *   WORKHUB_RELAY_TOKEN=xxx node relay/index.mjs   # 固定 token（缺省随机生成并打印）
+ *   WORKHUB_RELAY_DEBUG=1 node relay/index.mjs      # 打印浏览器往返回包（排查「有回包但客户端收不到」）
  */
 import { createWsServer } from './ws-server.mjs'
 import { createMcpRouter, generateToken, MCP_PROTOCOL_VERSION } from './mcp-relay.mjs'
@@ -20,6 +22,7 @@ const HOST = '127.0.0.1' // §四.1：只绑本机，不暴露局域网
 
 const args = process.argv.slice(2)
 const wantStdio = args.includes('--stdio')
+const wantDev = args.includes('--dev')
 const port = Number(process.env.WORKHUB_RELAY_PORT || DEFAULT_PORT)
 const token = process.env.WORKHUB_RELAY_TOKEN || generateToken()
 const log = (m) => process.stderr.write(`${m}\n`)
@@ -51,8 +54,12 @@ function requestFromBrowser(payload) {
 
 const router = createMcpRouter({
   token,
+  // --dev：预览响应自动签发一次性 confirmToken，供本地联调/自动化跑通「预览→确认→执行」
+  autoIssueConfirm: wantDev,
   // tools/list 由浏览器回传（白名单关闭的域不出现；relay 不认识具体工具）
-  listTools: () => requestFromBrowser({ kind: 'tools/list' }).then((r) => r.tools ?? []),
+  // 注意信封：requestFromBrowser 已统一 resolve {ok, data}，工具清单在 data.tools 上。
+  listTools: () =>
+    requestFromBrowser({ kind: 'tools/list' }).then((r) => r.data?.tools ?? []),
   callTool: (name, toolArgs, meta) =>
     requestFromBrowser({ kind: 'tools/call', name, args: toolArgs, meta: { confirmToken: meta?.confirmToken } }),
   log,
@@ -67,12 +74,16 @@ function onBrowserMessage(raw) {
     return
   }
   if (msg?.type === 'agentops:result' && msg.requestId) {
+    if (process.env.WORKHUB_RELAY_DEBUG) log(`[relay] 浏览器回包：${raw.slice(0, 200)}`)
     const p = pending.get(msg.requestId)
     if (!p) return
     pending.delete(msg.requestId)
     clearTimeout(p.timer)
-    if (msg.ok) p.resolve(msg.data ?? {})
-    else p.reject(new Error(msg.error ?? '浏览器执行失败'))
+    if (process.env.WORKHUB_RELAY_DEBUG) log(`[relay] 匹配到 pending，准备回给 MCP 客户端：${msg.requestId}`)
+    // 必须把桥的 ok/error 一起带回 —— 只 resolve(data) 会把 ok 丢掉，
+    // 下游 `res.ok !== true` 恒真（data 只有业务字段，没有 ok），表现为「工具明明执行成功却回执行失败」。
+    if (msg.ok) p.resolve({ ok: true, data: msg.data ?? {} })
+    else p.resolve({ ok: false, error: msg.error ?? '浏览器执行失败' })
   }
 }
 
@@ -83,29 +94,53 @@ async function startWs() {
   log(`[relay] 浏览器侧：启用「AI 桥」并填入上述地址与 token`)
 
   ws.server.on('ws-connection', (conn, req) => {
-    // 仅接受浏览器角色的连出（带 query ?role=browser&token=...）
     const url = new URL(req.url ?? '/', `http://${HOST}`)
     const role = url.searchParams.get('role')
     const provided = url.searchParams.get('token')
-    if (role !== 'browser') {
-      log('[relay] 拒绝非浏览器角色的 WS 连接（Agent 请走 MCP stdio / WS 端点）')
-      conn.close()
-      return
-    }
-    if (!router.token || provided !== token) {
-      log('[relay] 浏览器 WS 连接 token 无效，已拒绝')
-      conn.close()
-      return
-    }
-    browserConn = conn
-    log('[relay] 浏览器已连出，桥就绪')
-    conn.on('message', onBrowserMessage)
-    conn.on('close', () => {
-      if (browserConn === conn) {
-        browserConn = null
-        log('[relay] 浏览器已断开，桥离线')
+
+    // 端点二选一（§10.1 双入口同进程）：?role=browser 是页面侧桥（连出），
+    // 不带 role 的是 MCP Agent 端点（标准 tools/list + tools/call）。
+    // **必须显式分支**：两者共用同一 upgrade 通道，若 Agent 连接落进 browser 分支，
+    // 会把 browserConn 覆盖成 Agent 连接 —— 此后 relay 向「浏览器」下发的请求会打回 Agent 自己，
+    // 而 Agent 只认 JSON-RPC 响应、不认 relay 内部协议，表现为「调用永久无响应」。
+    if (role === 'browser') {
+      if (!router.token || provided !== token) {
+        log('[relay] 浏览器 WS 连接 token 无效，已拒绝')
+        conn.close()
+        return
       }
-    })
+      browserConn = conn
+      log('[relay] 浏览器已连出，桥就绪')
+      conn.on('message', onBrowserMessage)
+      conn.on('close', () => {
+        if (browserConn === conn) {
+          browserConn = null
+          log('[relay] 浏览器已断开，桥离线')
+        }
+      })
+      return
+    }
+
+    if (role === null) {
+      // MCP Agent 端点：走标准 MCP 路由；鉴权在 initialize（accessToken）
+      const ctx = { authed: false }
+      conn.on('message', async (raw) => {
+        let msg
+        try {
+          msg = JSON.parse(raw)
+        } catch {
+          conn.send(JSON.stringify({ jsonrpc: '2.0', id: null, error: { code: -32700, message: 'Parse error' } }))
+          return
+        }
+        const out = await router.handle(msg, ctx)
+        if (out) conn.send(JSON.stringify(out))
+      })
+      log('[relay] MCP Agent 已连入（标准 MCP 端点），等待 initialize')
+      return
+    }
+
+    log(`[relay] 拒绝未知 role 的 WS 连接（role=${role}）`)
+    conn.close()
   })
 
   return ws
@@ -141,6 +176,7 @@ async function main() {
   await startWs()
   if (wantStdio) startStdio()
   log(`[relay] MCP 协议版本：${MCP_PROTOCOL_VERSION}（标准 tools/list + tools/call）`)
+  if (wantDev) log('[relay] dev 模式：预览响应会自动附带 confirmToken（仅本地联调用，勿用于生产）')
 }
 
 main().catch((e) => {

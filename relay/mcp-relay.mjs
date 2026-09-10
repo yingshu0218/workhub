@@ -86,7 +86,19 @@ export class ConfirmTokenStore {
  * @param {ConfirmTokenStore} [opts.confirmStore]
  * @param {(msg:string)=>void} [opts.log]
  */
-export function createMcpRouter({ token, listTools, callTool, confirmStore = new ConfirmTokenStore(), log = () => {} }) {
+export function createMcpRouter({
+  token,
+  listTools,
+  callTool,
+  confirmStore = new ConfirmTokenStore(),
+  log = () => {},
+  /**
+   * dev 模式：预览类响应（浏览器回 `{preview:true, tool}`）自动附一枚一次性 confirmToken。
+   * 用途仅为本地联调/自动化跑通「预览 → 确认 → 执行」三步；**生产用法是 Agent 在用户确认后
+   * 自行向 relay 取票**（ConfirmTokenStore.issue），relay 不代用户确认。
+   */
+  autoIssueConfirm = false,
+} = {}) {
   /** 每个会话的鉴权态：initialize 时校验 token */
   function handleInitialize(params) {
     const provided = params?.accessToken ?? params?.token
@@ -149,6 +161,12 @@ export function createMcpRouter({ token, listTools, callTool, confirmStore = new
           return rpcResult(id, { content: [{ type: 'text', text: 'tools/call 缺少 name' }], isError: true })
         }
         // 一次性 confirmToken 核销：若 Agent 携带，则校验并消费
+        //
+        // confirmToken 由本层（relay）签发 —— 页面侧桥只负责「无 token 时回预览材料」，
+        // 不自己签发（桥没有「用户真的确认了」这个事实）。因此签发点有二：
+        //   ① Agent 侧（如本地 CLI/IDE 插件）在用户确认后自取票据 → issueConfirm()；
+        //   ② relay --dev：把「预览」与「签发」并成一步，供本地联调/自动化跑通
+        //      preview → confirm → execute 全链路（非 dev 一律不签发，防被静默绕过确认）。
         const meta = { confirmToken: params?.confirmToken }
         if (meta.confirmToken) {
           const redeemed = confirmStore.redeem(meta.confirmToken)
@@ -163,6 +181,12 @@ export function createMcpRouter({ token, listTools, callTool, confirmStore = new
         let res
         try {
           res = await callTool(name, args, meta)
+          // dev 模式：给预览响应补一张一次性票据，让自动化能继续走 execute。
+          // 非 dev 下不补 —— 否则「预览」等同于「自动确认」，把风险确认闸门架空。
+          if (autoIssueConfirm && res?.ok === true && res.data && res.data.preview === true) {
+            const issued = confirmStore.issue({ tool: name, dev: true })
+            res = { ...res, data: { ...res.data, ...issued } }
+          }
         } catch (e) {
           log(`[relay] callTool(${name}) 抛错：${e?.message ?? e}`)
           return rpcResult(id, {

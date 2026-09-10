@@ -50,5 +50,7 @@ declare module '@relay/mcp-relay.mjs' {
     callTool: (name: string, args: Record<string, unknown>, meta: Record<string, unknown>) => Promise<{ ok: boolean; data?: unknown; error?: string }>
     confirmStore?: ConfirmTokenStore
     log?: (msg: string) => void
+    /** dev 模式：预览响应自动附一次性 confirmToken（仅本地联调/自动化） */
+    autoIssueConfirm?: boolean
   }): McpRouterHandle
 }
