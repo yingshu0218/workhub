@@ -42,6 +42,8 @@ export interface GraphCanvasProps {
   fitAnchorId?: string
   /** 亲密度配置注入（Issue #34）：缺省内部读 moduleConfigs；customer-only 模式启用圈层与黑名单过滤 */
   intimacyCfg?: ModuleConfigIntimacy
+  /** 「我」节点（Issue #116）：锚点客户节点直显「我」字角标，用户一眼认出画布上的自己 */
+  selfNodeId?: string
 }
 
 export default function GraphCanvas({
@@ -53,6 +55,7 @@ export default function GraphCanvas({
   mode = 'mixed',
   onGraphReady,
   fitAnchorId,
+  selfNodeId,
   intimacyCfg: intimacyCfgProp,
 }: GraphCanvasProps) {
   const navigate = useNavigate()
@@ -539,6 +542,22 @@ export default function GraphCanvas({
                                 strokeWidth={1.6}
                                 strokeDasharray="4 3"
                               />
+                            )}
+                            {n.id === selfNodeId && (
+                              <g
+                                transform={`translate(${n.radius - 2},${-n.radius + 2})`}
+                                style={{ pointerEvents: 'none' }}
+                              >
+                                <circle r={8} fill={GRAPH_COLORS.customer.stroke} />
+                                <text
+                                  textAnchor="middle"
+                                  dy="3.5"
+                                  style={{ fontSize: 10, fontWeight: 700 }}
+                                  fill="#ffffff"
+                                >
+                                  我
+                                </text>
+                              </g>
                             )}
                             <text
                               textAnchor="middle"
