@@ -6,12 +6,17 @@ import { saveIntimacyConfig, useIntimacyConfig } from '@/modules/crm/intimacy'
 import { isIntimacyTrustLevel } from '@/db/types'
 
 /**
+<<<<<<<< HEAD:src/modules/featureConfig/CrmIntimacyConfig.tsx
  * 客户管理模块 · 亲密度配置（Issue #34 收敛稿，Issue #86 迁入「功能配置」页）。
  * 承载 CRM·客户 的三个配置区：
+========
+ * CRM · 客户 模块配置面板（功能配置页 · Issue #86，配置本体自 Issue #34 收敛稿原样迁入）。
+ * 业务逻辑零改写，仅容器由 SettingsPage「数据管理」Tab 改为独立页的三块纵向 Section：
+>>>>>>>> origin/main:src/modules/settings/CrmIntimacyConfig.tsx
  * ① 亲密度等级维护（7 档 key 固定不可增删，name/desc 可编辑，改名零迁移）
  * ② 黑名单全局屏蔽（开关矩阵，默认只开图谱隐藏，副作用渐进开放）
  * ③ 算法兜底与权重（总开关 + 4 因子滑杆 + 切档阈值，保存时归一化与单调性校验）
- * 配置写 moduleConfigs（同步表），改动即时落库广播 moduleConfig:changed。
+ * 配置写 moduleConfigs（同步表 crm.intimacy），改动即时落库广播 moduleConfig:changed。
  */
 
 function Section({
@@ -69,7 +74,7 @@ function Toggle({
   )
 }
 
-export default function DataManagementTab() {
+export default function CrmIntimacyConfig() {
   const cfg = useIntimacyConfig()
   const [editingLevels, setEditingLevels] = useState<Record<IntimacyLevel, { name: string; desc: string }>>(
     () =>

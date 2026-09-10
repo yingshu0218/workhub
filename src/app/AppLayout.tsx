@@ -6,6 +6,7 @@ import { useSyncStore } from '@/sync/store'
 import { registerShortcut } from '@/shared/shortcuts'
 import CommandPalette from './CommandPalette'
 import TrophyUnlockToast from './TrophyUnlockToast'
+import { ToastProvider } from '@/design-system/Toast'
 import QuickCapture from '@/modules/notes/QuickCapturePanel'
 
 const NAV_ITEMS = [
@@ -64,7 +65,7 @@ function SyncBadge() {
   )
 }
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
+function AppLayoutInner({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation()
   const navigate = useNavigate()
   // /crm/:id/timeline 与 /feature-config/... 为动态段路由，TITLES 精确匹配不到，先按前缀识别
@@ -284,5 +285,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
       <TrophyUnlockToast />
     </div>
+  )
+}
+
+/** 布局入口：挂载全局 Toast Provider，供各模块 useToast() 使用（替代原生 alert） */
+export default function AppLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <ToastProvider>
+      <AppLayoutInner>{children}</AppLayoutInner>
+    </ToastProvider>
   )
 }

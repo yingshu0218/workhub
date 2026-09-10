@@ -6,6 +6,7 @@ import { Button, Card, Chip } from '@/design-system/ui'
 import { MatchCombobox } from '@/design-system/MatchCombobox'
 import { eventBus } from '@/shared/eventBus'
 import { todoRepo, habitLogRepo, habitLogId, newId } from '@/repositories'
+import { toggleTodoDone } from '@/modules/todo/toggle'
 import { useState } from 'react'
 import type { Todo, Customer, Ledger } from '@/db/types'
 import dayjs from 'dayjs'
@@ -287,12 +288,9 @@ export function TodayTodosCard() {
       dayjs(t.completedAt).format('YYYY-MM-DD') === todayStr,
   )
 
+  // 打勾完成/取消完成统一走领域函数（与待办中心同一口径，Issue #74）
   async function toggle(t: Todo) {
-    if (t.status === 'done') {
-      await todoRepo.put({ ...t, status: 'todo', completedAt: undefined })
-    } else {
-      await todoRepo.put({ ...t, status: 'done', completedAt: Date.now() })
-    }
+    await toggleTodoDone(t)
   }
 
   return (

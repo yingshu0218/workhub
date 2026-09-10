@@ -14,7 +14,6 @@ const relKey = (r: { id?: string; targetId: string; label: string }) =>
 
 const DECISION_LEVELS: Customer['decisionLevel'][] = ['决策人', '影响者', '使用者', '把关人']
 const TIERS: Customer['tier'][] = ['S', 'A', 'B', '潜在']
-const STAGES = ['潜在接触', '需求确认', '方案沟通中', '合同谈判', '已成交 · 维护期', '久未跟进']
 
 /** 新建/编辑客户抽屉（复用；编辑以旧记录展开为基底，仅覆盖表单字段 —— 审计戒点 P0-2） */
 export default function CustomerFormDrawer({
@@ -29,11 +28,9 @@ export default function CustomerFormDrawer({
 }) {
   const [name, setName] = useState('')
   const [company, setCompany] = useState('')
-  const [industry, setIndustry] = useState('')
   const [title, setTitle] = useState('')
   const [decisionLevel, setDecisionLevel] = useState<Customer['decisionLevel']>('决策人')
   const [tier, setTier] = useState<Customer['tier']>('A')
-  const [stage, setStage] = useState(STAGES[0])
   const [tagsRaw, setTagsRaw] = useState('')
   const [phone, setPhone] = useState('')
   const [wechat, setWechat] = useState('')
@@ -46,7 +43,6 @@ export default function CustomerFormDrawer({
   const [relLabel, setRelLabel] = useState('')
   const [relCategory, setRelCategory] = useState<RelationCategory | ''>('')
   // 第 4 步「跨模块关联初始化」状态（仅新建模式展示）
-  const [initTodo, setInitTodo] = useState(true)
   const [initLog, setInitLog] = useState(false)
   const [initTxnId, setInitTxnId] = useState('')
   const [error, setError] = useState('')
@@ -60,11 +56,9 @@ export default function CustomerFormDrawer({
     if (open) {
       setName(customer?.name ?? '')
       setCompany(customer?.company ?? '')
-      setIndustry(customer?.industry ?? '')
       setTitle(customer?.title ?? '')
       setDecisionLevel(customer?.decisionLevel ?? '决策人')
       setTier(customer?.tier ?? 'A')
-      setStage(customer?.stage ?? STAGES[0])
       setTagsRaw(customer?.tags.join(', ') ?? '')
       setPhone(customer?.phone ?? '')
       setWechat(customer?.wechat ?? '')
@@ -74,7 +68,6 @@ export default function CustomerFormDrawer({
       setRelations(customer?.relations ?? [])
       setRelTarget('')
       setRelLabel('')
-      setInitTodo(true)
       setInitLog(false)
       setInitTxnId('')
       setError('')
@@ -106,11 +99,9 @@ export default function CustomerFormDrawer({
         ...customer,
         name: name.trim(),
         company: company.trim(),
-        industry: industry.trim(),
         title: title.trim(),
         decisionLevel,
         tier,
-        stage,
         tags,
         phone: phone.trim(),
         wechat: wechat.trim(),
@@ -125,11 +116,9 @@ export default function CustomerFormDrawer({
         id: newId('cus'),
         name: name.trim(),
         company: company.trim(),
-        industry: industry.trim(),
         title: title.trim(),
         decisionLevel,
         tier,
-        stage,
         tags,
         phone: phone.trim(),
         wechat: wechat.trim(),
@@ -141,7 +130,6 @@ export default function CustomerFormDrawer({
       }
       // 新建走「建档 + 关联初始化」同事务数据层函数，杜绝多步写半成品
       await createCustomerWithInit(record as Customer, {
-        firstContactTodo: initTodo,
         openingLog: initLog,
         linkTransactionId: initTxnId || undefined,
       })
@@ -167,24 +155,14 @@ export default function CustomerFormDrawer({
             autoFocus
           />
         </Field>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="公司 / 组织">
-            <input
-              className={inputCls}
-              value={company}
-              onChange={(e) => setCompany(e.target.value)}
-              placeholder="如：云峰智能科技有限公司"
-            />
-          </Field>
-          <Field label="所属行业">
-            <input
-              className={inputCls}
-              value={industry}
-              onChange={(e) => setIndustry(e.target.value)}
-              placeholder="企业软件 / SaaS / 工业软件"
-            />
-          </Field>
-        </div>
+        <Field label="公司 / 组织">
+          <input
+            className={inputCls}
+            value={company}
+            onChange={(e) => setCompany(e.target.value)}
+            placeholder="如：云峰智能科技有限公司"
+          />
+        </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="职位 / 头衔">
             <input
@@ -225,20 +203,6 @@ export default function CustomerFormDrawer({
               </button>
             ))}
           </div>
-        </Field>
-        <Field label="跟进阶段">
-          <input
-            className={inputCls}
-            value={stage}
-            onChange={(e) => setStage(e.target.value)}
-            placeholder="如：方案沟通中"
-            list="crm-stage-options"
-          />
-          <datalist id="crm-stage-options">
-            {STAGES.map((s) => (
-              <option key={s} value={s} />
-            ))}
-          </datalist>
         </Field>
         <Field label="标签（逗号分隔）">
           <input
@@ -423,15 +387,6 @@ export default function CustomerFormDrawer({
         {!customer && (
           <div className="mt-4 rounded-xl bg-surface-container-low/60 p-3">
             <StepHeader n={4} title="跨模块关联初始化" />
-            <label className="flex cursor-pointer items-center gap-2 py-1.5 text-[0.9286rem]">
-              <input
-                type="checkbox"
-                className="accent-primary"
-                checked={initTodo}
-                onChange={(e) => setInitTodo(e.target.checked)}
-              />
-              创建首联待办「首联跟进：{name.trim() || '该客户'}」（P2 · 今天）
-            </label>
             <label className="flex cursor-pointer items-center gap-2 py-1.5 text-[0.9286rem]">
               <input
                 type="checkbox"
