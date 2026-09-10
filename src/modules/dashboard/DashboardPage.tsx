@@ -82,13 +82,20 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      <div className="mt-5 grid grid-cols-[1fr_360px] items-stretch gap-4">
-        <div className="grid grid-rows-[auto_1fr] gap-4">
+      {/*
+        主网格（Issue #134 对齐原型 01）：12 列制 = 左 7 列主战场（现在专注 + 今日待办日程）
+        + 右 5 列协同列（每日习惯闭环 + 随手速记暂存便签）。
+        分区依据是「谁与我此刻直接相关」：推进中的事项（专注/待办）在左，习惯与外置捕获在右；
+        速记是**收集箱入口**，需要常驻可见与足够书写面积，故独占右列下方整块。
+        小屏（<lg）退化为单列纵向堆叠，卡内滚动区各自收敛，避免长页互相挤压。
+      */}
+      <div className="mt-5 grid grid-cols-1 items-stretch gap-4 lg:grid-cols-12">
+        <div className="flex flex-col gap-4 lg:col-span-7">
           <FocusCard />
-          <HabitLoopCard />
-        </div>
-        <div className="grid grid-rows-[auto_1fr] gap-4">
           <TodayTodosCard />
+        </div>
+        <div className="flex flex-col gap-4 lg:col-span-5">
+          <HabitLoopCard />
           <QuickNoteCard />
         </div>
       </div>
