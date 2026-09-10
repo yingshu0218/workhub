@@ -1134,7 +1134,7 @@ function MentionEntitySummary({
       <>
         <CardRow label="公司" value={c.company || '—'} />
         <CardRow label="职位" value={c.title || '—'} />
-        <CardRow label="健康度" value={`${c.healthScore}`} />
+        <CardRow label="健康分" value={c.intimacy?.level ?? '未设置'} />
       </>
     )
   }

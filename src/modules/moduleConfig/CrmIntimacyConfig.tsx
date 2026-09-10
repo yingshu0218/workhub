@@ -6,10 +6,10 @@ import { isIntimacyTrustLevel } from '@/db/types'
 import { Section, Toggle } from './parts'
 
 /**
- * 客户管理模块 · 亲密度配置（Issue #34 收敛稿，Issue #86 迁入「功能配置」页）。
+ * 客户管理模块 · 健康分配置（原「亲密度」改名，Issue #108；Issue #86 迁入「功能配置」页）。
  * 承载 CRM·客户 的三个配置区（配置本体自设置页「数据管理」Tab 原样迁入，业务逻辑零改写；
  * Section / Toggle 容器抽到 parts.tsx，供后续模块配置面板复用）：
- * ① 亲密度等级维护（7 档 key 固定不可增删，name/desc 可编辑，改名零迁移）
+ * ① 健康分等级维护（7 档 key 固定不可增删，name/desc 可编辑，改名零迁移）
  * ② 黑名单全局屏蔽（开关矩阵，默认只开图谱隐藏，副作用渐进开放）
  * ③ 算法兜底与权重（总开关 + 4 因子滑杆 + 切档阈值，保存时归一化与单调性校验）
  * 配置写 moduleConfigs（同步表 crm.intimacy），改动即时落库广播 moduleConfig:changed。
@@ -41,7 +41,7 @@ export default function CrmIntimacyConfig() {
     await saveIntimacyConfig({
       levels: INTIMACY_LEVELS.map((k) => ({ key: k, ...editingLevels[k]! })),
     })
-    flash('亲密度等级名称已保存')
+    flash('健康分等级名称已保存')
   }
 
   async function resetLevels() {
@@ -132,10 +132,10 @@ export default function CrmIntimacyConfig() {
         </div>
       )}
 
-      {/* ① 亲密度等级维护 */}
+      {/* ① 健康分等级维护 */}
       <Section
         icon="favorite"
-        title="亲密度等级维护"
+        title="健康分等级维护"
         desc="7 档固定槽位（T1~T5 信任轴 + I6/I7 隔离态）不可增删，仅名称与判据描述可编辑；改名零数据迁移"
       >
         <div className="space-y-2">
@@ -230,7 +230,7 @@ export default function CrmIntimacyConfig() {
       <Section
         icon="tune"
         title="算法兜底与权重"
-        desc="未手动设置亲密度的客户由算法兜底分档；手动设置始终最优先。硬约束：算法最多推到 T2，永不给出 T1/I6/I7"
+        desc="未手动设置健康分的客户由算法兜底分档；手动设置始终最优先。硬约束：算法最多推到 T2，永不给出 T1/I6/I7"
       >
         <div className="mb-4 flex items-center justify-between">
           <div>

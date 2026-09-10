@@ -7,7 +7,7 @@ import { INTIMACY_LEVELS, isIntimacyTrustLevel } from '@/db/types'
 import { useIntimacyConfig, intimacyLevelName } from './config'
 
 /**
- * 亲密度档位选择器（Issue #34 收敛稿）：客户详情头卡内嵌。
+ * 健康分档位选择器（Issue #108：原「亲密度」统一改名「健康分」，体系/算法/7 档结构不变）：详情头卡内嵌。
  * 7 档横向 chip（T1~I5 信任轴 / I6、I7 隔离态分色），选中即锁定（算法分不参与）；
  * 降级到隔离态（I6/I7）强制填写 note 后才能确认（留痕：三个月后自己知道为什么拉黑）；
  * 「清除手动设置」回到算法兜底档。写入走 customerRepo.put（盖章+入队+同步）。
@@ -56,7 +56,7 @@ export default function IntimacyPicker({ customer }: { customer: Customer }) {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5 text-[0.8571rem] font-medium uppercase tracking-wide text-on-surface-variant">
           <Icon name="favorite" className="text-[1.1429rem] text-primary" />
-          亲密度
+          健康分
         </div>
         {current && (
           <button
@@ -94,7 +94,7 @@ export default function IntimacyPicker({ customer }: { customer: Customer }) {
       <div className="mt-1.5 text-[0.7857rem] text-outline">
         {current
           ? `手动设置${current.note ? ` · ${current.note}` : ''} · 算法分不参与`
-          : '未手动设置 · 由算法按联系频率/金钱往来/事项/项目兜底'}
+          : '未手动设置 · 由算法按联系频率/金钱往来/事项/项目推断健康分档位'}
       </div>
 
       {pending && (

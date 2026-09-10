@@ -152,7 +152,7 @@ function buildCandidates(input: EngineInput): InspirationCandidate[] {
       {
         icon: 'badge',
         label: '客户分层',
-        value: `${c.tier} 层 · 健康指数 ${c.healthScore}`,
+        value: `${c.tier} 层客户`
       },
     ]
     const note = input.notes.find((n) =>

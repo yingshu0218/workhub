@@ -17,7 +17,8 @@ import {
   inputCls,
 } from '@/design-system/ui'
 import CustomerFormDrawer from './CustomerFormDrawer'
-import { fmtRelative, healthColor, normalizeTags, tierChipTone } from './shared'
+import { fmtRelative, normalizeTags, tierChipTone } from './shared'
+import { useIntimacyConfig, intimacyLevelName } from './intimacy'
 import {
   useCustomerGroups,
   useCustomerGroupCounts,
@@ -39,6 +40,7 @@ export default function CrmPage() {
   const [editorGroup, setEditorGroup] = useState<CustomerGroup | 'new' | null>(null)
 
   const customGroups = useCustomerGroups()
+  const intimacyCfg = useIntimacyConfig()
   const groupCounts = useCustomerGroupCounts(customers, customGroups)
   const selectedGroup = customGroups.find((g) => g.id === selectedGroupId) ?? null
 
@@ -259,7 +261,7 @@ export default function CrmPage() {
           ) : (
             <Card className="divide-y divide-outline-variant/30 px-5">
               {list.map((c) => (
-                <CustomerRow key={c.id} customer={c} onOpen={() => navigate(`/crm/${c.id}`)} />
+                <CustomerRow key={c.id} customer={c} intimacyCfg={intimacyCfg} onOpen={() => navigate(`/crm/${c.id}`)} />
               ))}
             </Card>
           )}
@@ -309,7 +311,23 @@ function StatCard({
   )
 }
 
-function CustomerRow({ customer: c, onOpen }: { customer: Customer; onOpen: () => void }) {
+function CustomerRow({
+  customer: c,
+  intimacyCfg,
+  onOpen,
+}: {
+  customer: Customer
+  intimacyCfg: ReturnType<typeof useIntimacyConfig>
+  onOpen: () => void
+}) {
+  // 健康分档位（原亲密度）：手动优先 → 算法兜底（算法入参需完整投影，列表页缺投影时仅用手动档）
+  const manual = c.intimacy?.level
+  // 未手动设置时列表页不做算法兜底计算（缺全量投影），仅显示「未设置」提示
+  const healthLevel = {
+    label: manual ? intimacyLevelName(intimacyCfg, manual) : '未设置',
+    color: manual === 'I7' ? '#ba1a1a' : manual ? '#004ac6' : '#8a94a6',
+    source: manual ? ('manual' as const) : ('default' as const),
+  }
   return (
     <div
       onClick={onOpen}
@@ -335,16 +353,18 @@ function CustomerRow({ customer: c, onOpen }: { customer: Customer; onOpen: () =
       </div>
       <div className="hidden w-32 shrink-0 md:block">
         <div className="flex items-center justify-between text-[0.7857rem]">
-          <span className="text-on-surface-variant">健康指数</span>
-          <span className="font-bold" style={{ color: healthColor(c.healthScore) }}>
-            {c.healthScore}
+          <span className="text-on-surface-variant">健康分</span>
+          <span
+            className="font-bold"
+            style={{
+              color: healthLevel.color,
+            }}
+          >
+            {healthLevel.label}
           </span>
         </div>
-        <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-surface-container-high">
-          <div
-            className="h-full rounded-full transition-all"
-            style={{ width: `${c.healthScore}%`, background: healthColor(c.healthScore) }}
-          />
+        <div className="mt-1 text-right text-[0.7857rem] text-outline">
+          {healthLevel.source === 'manual' ? '手动设置' : '未手动设置'}
         </div>
       </div>
       <div className="hidden w-28 shrink-0 text-right lg:block">

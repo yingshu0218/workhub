@@ -1,12 +1,12 @@
 import { Avatar, Button, Chip } from '@/design-system/ui'
-import { healthColor, fmtRelative, tierChipTone } from '../shared'
+import { fmtRelative, tierChipTone } from '../shared'
 import { useIntimacyConfig, intimacyLevelName } from '../intimacy'
 import type { Customer } from '@/db/types'
 
 /**
  * 客户缩略信息卡（Issue #34）：点击图谱客户节点弹出，替代「单击即跳转」。
  * 数据走 useRecord 二次订阅的客户全量记录（审计口径：画布裁剪投影不含 lastContactAt/decisionLevel）,
- * 视觉范式对齐 CustomerDetailPage 头卡（Avatar + tierChipTone + healthColor），
+ * 视觉范式对齐 CustomerDetailPage 头卡（Avatar + tierChipTone），
  * 「进入档案」按钮保留原 navigate(/crm/:id) 跳转能力。
  */
 export default function CustomerInfoCard({
@@ -21,7 +21,6 @@ export default function CustomerInfoCard({
   onEnter: () => void
   onClose: () => void
 }) {
-  const hc = healthColor(customer.healthScore)
   // 亲密度手动档徽章（Issue #34）：未设置显示「未设置 · 算法兜底」口径，不误导为手动值
   const cfg = useIntimacyConfig()
   const intimacy = customer.intimacy?.level
@@ -70,26 +69,20 @@ export default function CustomerInfoCard({
         </button>
       </div>
 
-      {/* 健康指数 + 最近联系 */}
+      {/* 健康分档位（原健康指数移除，Issue #108）+ 最近联系 */}
       <div className="mt-3 space-y-1.5">
         <div className="flex items-center justify-between text-[0.8571rem]">
-          <span className="text-on-surface-variant">健康指数</span>
-          <span className="font-bold" style={{ color: hc }}>
-            {Math.round(customer.healthScore)}
+          <span className="text-on-surface-variant">健康分</span>
+          <span className="font-bold" style={{ color: intimacy ? '#004ac6' : '#8a94a6' }}>
+            {intimacy ? intimacy.name : '未设置'}
           </span>
-        </div>
-        <div className="h-1.5 overflow-hidden rounded-full bg-surface-container-high">
-          <div
-            className="h-full rounded-full"
-            style={{ width: `${customer.healthScore}%`, background: hc }}
-          />
         </div>
         <div className="text-[0.7857rem] text-outline">
           最近联系 {fmtRelative(customer.lastContactAt)}
         </div>
         {intimacy?.note && (
           <div className="truncate text-[0.7857rem] text-outline" title={intimacy.note}>
-            亲密度备注：{intimacy.note}
+            健康分备注：{intimacy.note}
           </div>
         )}
       </div>
