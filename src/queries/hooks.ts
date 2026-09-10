@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '@/db/db'
 import dayjs from 'dayjs'
+import type { Settings } from '@/db/types'
 
 /**
  * 统一查询 Hook —— 存储可插拔的另一半（开发计划 2.0）
@@ -92,4 +93,12 @@ export function useBestHabitStreak(): number {
       return best
     }, []) ?? 0
   )
+}
+
+/**
+ * 订阅全局设置（singleton）。
+ * 写后由 settingsRepo 广播 settings:changed，Dexie liveQuery 自动重取，各消费端实时生效。
+ */
+export function useSettings(): Settings | undefined {
+  return useLiveQuery(() => db.settings.get('singleton'), [], undefined)
 }
