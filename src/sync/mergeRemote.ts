@@ -15,6 +15,15 @@ export interface PbRecord {
   [key: string]: unknown
 }
 
+/**
+ * 附件 Blob 还原回调（由网络层 pocketbaseAdapter 注入）。
+ *
+ * 为何用注入而不是在这里直接 fetch：mergeRemote 是纯数据合并模块（单测在 node 环境跑，
+ * 不能依赖网络/鉴权）；附件的下载地址、token 头由适配器负责。
+ * 返回 undefined 表示不下载（无 file 字段 / 超限 / 下载失败）——不阻塞本条元数据落库。
+ */
+export type AttachmentBlobLoader = (remote: PbRecord) => Promise<Blob | undefined>
+
 function bizTable(table: string) {
   return db[table as keyof typeof db] as unknown as {
     get(id: string): Promise<Record<string, unknown> | undefined>
@@ -73,6 +82,7 @@ function unionRelations(localVal: unknown, remoteVal: unknown): unknown {
 export async function mergeRemoteRecord(
   table: string,
   remote: PbRecord,
+  loadAttachmentBlob?: AttachmentBlobLoader,
 ): Promise<'write' | 'skip'> {
   const table0 = bizTable(table)
   // 由远端 localId 字段还原本地 id（服务端主键是哈希 pbId，不可直接当本地 id 用）
@@ -113,6 +123,7 @@ export async function mergeRemoteRecord(
         typeof remote.rev === 'number' ? remote.rev : 0,
       ),
     }
+    await attachBlobIfNeeded(table, remote, merged, loadAttachmentBlob)
     await table0.put(merged)
     return 'write'
   }
@@ -164,7 +175,29 @@ export async function mergeRemoteRecord(
     }
   }
 
+  await attachBlobIfNeeded(table, remote, record, loadAttachmentBlob)
   await table0.put(record)
   return 'write'
+}
+
+/**
+ * 附件 Blob 还原（回归修复）：合并逻辑从 pocketbaseAdapter 抽出时，
+ * 「pull 下载 pb file 字段还原本地 Blob」这一步没跟着搬过来，
+ * 导致其他设备上传的附件拉回本地后 blob 为空（列表可见、点开打不开）。
+ * 这里在落库前补回，仅对 attachments 表生效；下载失败不阻塞元数据落库。
+ */
+async function attachBlobIfNeeded(
+  table: string,
+  remote: PbRecord,
+  target: Record<string, unknown>,
+  loader?: AttachmentBlobLoader,
+): Promise<void> {
+  if (table !== 'attachments' || !loader) return
+  try {
+    const blob = await loader(remote)
+    if (blob) target.blob = blob
+  } catch (err) {
+    console.warn(`[sync] 附件 Blob 下载失败 ${remote.id}`, err)
+  }
 }
 

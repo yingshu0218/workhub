@@ -3,6 +3,7 @@ import type { Settings } from '@/db/types'
 import { SETTINGS_KEY } from '@/db/types'
 import type { SyncAdapter } from './adapter'
 import { mergeRemoteRecord } from './mergeRemote'
+import type { AttachmentBlobLoader, PbRecord as MergePbRecord } from './mergeRemote'
 
 /**
  * PocketBase 同步适配器（Phase 7）—— 原生 fetch 实现，不引入 SDK 依赖
@@ -50,6 +51,9 @@ export const SYNC_TABLES = [
 export type SyncTable = (typeof SYNC_TABLES)[number]
 
 const SYNC_TABLE_SET: ReadonlySet<string> = new Set(SYNC_TABLES)
+
+/** 附件文件上限：与 collections.json attachments.file.maxSize 保持一致 */
+const ATTACHMENT_FILE_MAX_SIZE = 20 * 1024 * 1024
 
 interface PbRecord {
   id: string
@@ -390,6 +394,22 @@ async function pbListAll(
   return out
 }
 
+/** pull 附件：下载 pb file 字段还原本地 Blob（失败不阻塞该记录元数据落库） */
+async function downloadAttachmentFile(
+  cfg: SyncSettingsView,
+  rec: PbRecord,
+): Promise<Blob | undefined> {
+  const filename = rec.file
+  if (typeof filename !== 'string' || !filename) return undefined
+  const size = typeof rec.size === 'number' ? rec.size : 0
+  if (size > ATTACHMENT_FILE_MAX_SIZE) return undefined
+  // 安全：token 走 Authorization 头而非 URL query（避免进入历史/日志泄露凭据）
+  const url = `${baseUrl(cfg)}/api/files/attachments/${encodeURIComponent(rec.id)}/${encodeURIComponent(filename)}`
+  const res = await pbFetch(cfg, url.slice(baseUrl(cfg).length), { method: 'GET' })
+  if (!res.ok) return undefined
+  return res.blob()
+}
+
 // ─────────────────────────── 游标（每表独立，避免跨表同毫秒批量写入丢增量） ───────────────────────────
 
 function cursorKey(table: string): string {
@@ -482,7 +502,9 @@ async function pullImpl(cursor: number): Promise<{ cursor: number; changes: unkn
         maxRemoteId = rid
       }
       try {
-        changes.push(await mergeRemoteRecord(table, remote))
+        const loadAttachmentBlob: AttachmentBlobLoader = (r) =>
+          downloadAttachmentFile(cfg, r as unknown as MergePbRecord)
+        changes.push(await mergeRemoteRecord(table, remote, loadAttachmentBlob))
       } catch (err) {
         // 单条失败不阻塞整表增量（队列断点续传同款纪律）
         console.warn(`[sync] 合并失败 ${table}/${remote.id}`, err)

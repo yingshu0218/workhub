@@ -137,3 +137,71 @@ describe('远端合并：本地未推送编辑保护（Issue #130）', () => {
     expect(after.relations.map((r) => r.id)).toEqual(['rel-local'])
   })
 })
+
+describe('远端合并：附件 Blob 还原（抽模块回归防护）', () => {
+  it('attachments 表合并时调用注入的下载回调并把 Blob 写回本地', async () => {
+    await db.attachments.put({
+      id: 'a1',
+      refType: 'customer',
+      refId: 'c1',
+      name: '合同.pdf',
+      mime: 'application/pdf',
+      size: 12,
+      createdAt: 1,
+      updatedAt: 100,
+      deleted: 0 as const,
+      rev: 1,
+    } as never)
+
+    const blob = new Blob(['hello'], { type: 'application/pdf' })
+    let calledWith = ''
+    const res = await mergeRemote(
+      'attachments',
+      {
+        id: 'pbh_a1',
+        localId: 'a1',
+        refType: 'customer',
+        refId: 'c1',
+        name: '合同.pdf',
+        mime: 'application/pdf',
+        size: 12,
+        file: 'abc123.pdf',
+        createdAt: 1,
+        updatedAt: 300,
+        deleted: 0,
+        rev: 2,
+      } as never,
+      async (r) => {
+        calledWith = String(r.file)
+        return blob
+      },
+    )
+
+    expect(res).toBe('write')
+    expect(calledWith).toBe('abc123.pdf')
+    const after = (await db.attachments.get('a1')) as unknown as { blob?: Blob }
+    expect(after.blob).toBeInstanceOf(Blob)
+    expect(await after.blob!.text()).toBe('hello')
+  })
+
+  it('非 attachments 表不触发下载回调', async () => {
+    await db.customers.put(customer({ updatedAt: 100 }) as never)
+    let called = false
+    await mergeRemote(
+      'customers',
+      {
+        id: 'pbh1',
+        localId: 'c1',
+        name: '严伟强',
+        updatedAt: 300,
+        deleted: 0,
+        rev: 2,
+      } as never,
+      async () => {
+        called = true
+        return undefined
+      },
+    )
+    expect(called).toBe(false)
+  })
+})
