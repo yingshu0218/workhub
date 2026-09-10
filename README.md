@@ -105,3 +105,4 @@
 | 54 | 2026-09-10 | Issue #86 功能配置页收尾：配置片段 `Section`/`Toggle` 抽到 `moduleConfig/parts.tsx` 供后续模块配置面板复用（配置逻辑零改写，仅容器外迁） | npc/CodeBuddy(hy4-preview) |
 | 55 | 2026-09-10 | Issue #86 收尾：⌘K 快捷指令区不再为无绑定快捷键的指令渲染空 `kbd` 徽标（「功能配置」原先显示一个空边框方块），改为 `a.kbd` 非空才渲染，一处渲染层改动覆盖全部 quickActions | npc/CodeBuddy(hy4-preview) |
 | 56 | 2026-09-10 | 修复 scripts/check-icons.mjs 在中文路径下 ENOENT：改用 fileURLToPath 解码路径（new URL().pathname 会把中文转 %E5 形式导致构建前置校验失败） | cnb.cMPXRmKswEA |
+| 57 | 2026-09-10 | Issue #101 服务端 Schema 补齐与部署实录：`pb_setup/collections.json` 为 `noteFolders` 补 `tombstonePushed` 字段与 updatedAt/tombstonePushed 索引，并补齐 `customers.intimacy` 字段定义（此前仅存在于 TS 类型，导入后服务端仍无该字段）；`pb_setup/pb_hooks/main.pb.js` 的 SYNC_COLLECTIONS 补 `moduleConfigs` / `customerGroups`（墓碑盖戳与每日清理此前未覆盖）；`docs/部署指南.md` 新增「服务端升级实录」——登录服务器后的 7 步完整操作（备份 → 拉物料 → 导入 collections → 重启 → 全量推送 → 验证），含 API 导入备选命令 | npc/CodeBuddy(deepseek-v4-flash) |

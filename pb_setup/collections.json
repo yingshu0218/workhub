@@ -683,10 +683,18 @@
         "type": "autodate",
         "onCreate": true,
         "onUpdate": true
+      },
+      {
+        "name": "tombstonePushed",
+        "type": "number",
+        "required": false,
+        "presentable": false
       }
     ],
     "indexes": [
-      "CREATE UNIQUE INDEX idx_noteFolders_localId ON noteFolders (localId)"
+      "CREATE UNIQUE INDEX idx_noteFolders_localId ON noteFolders (localId)",
+      "CREATE INDEX idx_noteFolders_updatedAt ON noteFolders (updatedAt)",
+      "CREATE INDEX idx_noteFolders_tombstonePushed ON noteFolders (tombstonePushed)"
     ]
   },
   {

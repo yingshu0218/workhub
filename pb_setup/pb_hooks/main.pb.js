@@ -24,6 +24,8 @@ const SYNC_COLLECTIONS = [
   'todos', 'todoLists', 'notes', 'quickNotes', 'habits', 'habitLogs', 'trophies', 'attachments',
   // 存量遗漏补齐：projects 系列与 noteFolders 在客户端 SYNC_TABLES 里，服务端 hooks 曾未覆盖
   'noteFolders', 'projects', 'projectMilestones',
+  // 亲密度/分组/模块配置：客户分组与 moduleConfigs 配置表也参与同步与墓碑清理
+  'moduleConfigs', 'customerGroups',
 ]
 
 onRecordCreateRequest((e) => {
