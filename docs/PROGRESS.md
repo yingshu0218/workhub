@@ -15,7 +15,7 @@
 | 里程碑 | M1-M6 全部验收 ✅ |
 | 审计问题 | P0×2 / P1×19 / P2×60 **全部清零** |
 | 同步机制完善 | P0-1 墓碑清理竞态修复 + P0-2 推送侧 LWW ✅（PR #6 评审中）；P1-3 服务端墓碑 cron ✅；P1-4 HTTPS（待用户操作） |
-| Changelog | 第 49 条（README 底部） |
+| Changelog | 第 51 条（README 底部） |
 
 ## 二、阶段进度（Phase 0-7）
 
@@ -76,7 +76,7 @@
 |---|---|
 | 数据模型 | ✅ Customer.intimacy?: { level: T1~T5/I6/I7, note?, updatedAt }（内嵌可选字段零迁移，tier 与 intimacy 语义正交互不读写）；算法最多推 T2、永不给出 T1/I6/I7 |
 | 配置中心 | ✅ moduleConfigs 同步表（Dexie v9 + pb module_configs 集合，key 寻址 crm.intimacy）：等级名称/判据可编辑（key 固定）、黑名单屏蔽开关矩阵（默认只开图谱隐藏）、算法权重 30/30/20/20 + 切档阈值 85/70/50（归一化 + 单调校验） |
-| 配置页 | ✅ Issue #86 独立成「功能配置」页 `/feature-config`（左栏模块 → 子菜单，CRM·亲密度三配置区迁入 `src/modules/featureConfig/CrmIntimacyConfig.tsx`）；系统设置移除「数据管理」Tab、改留指路牌；改动即时落库广播 moduleConfig:changed |
+| 配置页 | ✅ Issue #86 独立成「功能配置」页 `/feature-config`（同日先以单页 `/module-config` 落地，后按两级子菜单方案收敛为 `/feature-config/:moduleId/:itemId`，`/module-config` 已废弃移除）；左栏模块 → 子菜单，CRM·亲密度三配置区迁入 `src/modules/featureConfig/CrmIntimacyConfig.tsx`；系统设置移除「数据管理」Tab、改留指路牌；改动即时落库广播 moduleConfig:changed |
 | 消费链 | ✅ 客户详情亲密度选择器（隔离态降级留痕 note）、缩略卡亲密度徽章/备注、customer-only 图谱节点大小按档位（远近即大小）+ 亲密度图例、黑名单默认图谱隐藏；导出/恢复存档含 moduleConfigs |
 | 待人工 | ⚠️ 服务端需重导入 collections.json（新增 module_configs 集合）+ 一次全量推送；⌘K/选择器/时间线黑名单屏蔽开关已留好口径，消费点接线为后续小增量 |
 
@@ -88,7 +88,7 @@
 | 路由 | ✅ `/feature-config/:moduleId/:itemId`（空路由/只给模块 → Navigate replace 补齐首个可用子项） |
 | 页面结构 | ✅ 左栏模块分组 + 配置子菜单（二级），右侧配置面板；子项经注册表 `src/modules/featureConfig/registry.ts` 派生，新增模块只加注册项 |
 | 边界 | ✅ 功能配置 = 影响数据算出来结果的业务规则（写 moduleConfigs 同步表，多端一致）；系统设置 = 界面/通知/同步/导出等应用级偏好（写 settings singleton，不进同步） |
-| 迁移 | ✅ `settings/DataManagementTab.tsx` → `featureConfig/CrmIntimacyConfig.tsx`（git mv，逻辑零改写，仅去掉标题里的「· CRM 客户」后缀，改由面包屑表达模块） |
+| 迁移 | ✅ `settings/DataManagementTab.tsx` → `featureConfig/CrmIntimacyConfig.tsx`（git mv，逻辑零改写，仅去掉标题里的「· CRM 客户」后缀，改由面包屑表达模块）；`module-config/` 目录同期删除，注册表 `featureConfig/registry.ts` 为准 |
 
 ### CRM 客户时间线（Issue #11，已收尾）
 

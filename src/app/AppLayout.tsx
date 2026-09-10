@@ -125,7 +125,6 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
                   : 'inspire' // 灵感闪现：置底特设「闪念」入口
                 : undefined
             const isFirst = item.to === '/'
-            const isLast = item.to === '/inspiration'
             return (
               <NavLink
                 key={item.to}
@@ -146,7 +145,6 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
                         : isActive
                           ? 'bg-primary-fixed font-semibold text-primary'
                           : 'text-on-surface-variant hover:bg-surface-container',
-                    isLast ? 'mt-1.5' : '',
                   ].filter(Boolean).join(' ')
                 }
               >
