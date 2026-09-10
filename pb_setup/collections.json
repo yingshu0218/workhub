@@ -156,6 +156,12 @@
         "type": "json"
       },
       {
+        "name": "intimacy",
+        "type": "json",
+        "maxSize": 2000000,
+        "required": false
+      },
+      {
         "name": "updatedAt",
         "type": "number",
         "required": true
