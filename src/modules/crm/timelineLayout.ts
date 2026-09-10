@@ -75,8 +75,17 @@ export function boneTarget(e: TimelineEvent): string | undefined {
   return undefined
 }
 
-/** 单客户等距铺开布局（原 CustomerTimelinePage 逻辑原样抽出） */
-export function layoutSingleBones(events: TimelineEvent[]): { bones: Bone[]; maxX: number } {
+/**
+ * 单客户等距铺开布局（原 CustomerTimelinePage 逻辑原样抽出）
+ * worldBounds 供「适应画布」用：只按真实骨刺范围取（tipY ± 标签高度、末端标签宽度），
+ * 不写死 minY/maxY —— 写死会在只有一个骨刺时把画面压到 0.5 下限，看着还是「缩小的一片」
+ * （Issue #130 用户反馈「时间线视图仍不行」）。
+ */
+export function layoutSingleBones(events: TimelineEvent[]): {
+  bones: Bone[]
+  maxX: number
+  worldBounds: { minX: number; maxX: number; minY: number; maxY: number }
+} {
   const ordered = [...events].sort((a, b) => a.at - b.at)
   const innerW = 920
   const step = innerW / (ordered.length + 1)
@@ -104,7 +113,19 @@ export function layoutSingleBones(events: TimelineEvent[]): { bones: Bone[]; max
       laneY: 0,
     })
   })
-  return { bones, maxX: 60 + step * ordered.length + 20 + HEAD_W }
+  const maxX = 60 + step * ordered.length + 20 + HEAD_W
+  const tipYs = bones.map((b) => b.tipY)
+  return {
+    bones,
+    maxX,
+    // 标签高度（骨刺标签在 tipY 上/下再占一行）+ 鱼头高度的一半 —— 不裁掉任何可见内容
+    worldBounds: {
+      minX: 0,
+      maxX,
+      minY: Math.min(0, ...tipYs.map((y) => y - 18)) - HEAD_H / 2,
+      maxY: Math.max(0, ...tipYs.map((y) => y + 18)) + HEAD_H / 2,
+    },
+  }
 }
 
 /** 全部视图布局：共享时间轴主轴 + 按客户分带（lane），客户多时骨刺不叠成刺猬 */

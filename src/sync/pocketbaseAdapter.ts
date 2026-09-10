@@ -2,6 +2,8 @@ import { db } from '@/db/db'
 import type { Settings } from '@/db/types'
 import { SETTINGS_KEY } from '@/db/types'
 import type { SyncAdapter } from './adapter'
+import { mergeRemoteRecord } from './mergeRemote'
+import type { AttachmentBlobLoader, PbRecord as MergePbRecord } from './mergeRemote'
 
 /**
  * PocketBase 同步适配器（Phase 7）—— 原生 fetch 实现，不引入 SDK 依赖
@@ -437,75 +439,6 @@ function parseCursor(cursor: string): { receivedAt: string; lastId: string } {
   return { receivedAt: cursor.slice(0, idx), lastId: cursor.slice(idx + 1) }
 }
 
-// ─────────────────────────── LWW 合并（远端 → 本地，盖 rev 不入队） ───────────────────────────
-
-async function mergeRemote(
-  cfg: SyncSettingsView,
-  table: string,
-  remote: PbRecord,
-): Promise<'written' | 'skipped'> {
-  const table0 = bizTable(table)
-  // 由远端 localId 字段还原本地 id（服务端主键是哈希 pbId，不可直接当本地 id 用）
-  const localId = typeof remote.localId === 'string' && remote.localId ? remote.localId : ''
-  if (!localId) {
-    console.warn(`[sync] 跳过缺失 localId 的远端记录 ${table}/${remote.id}`)
-    return 'skipped'
-  }
-  const local = await table0.get(localId)
-  const remoteUpdatedAt = typeof remote.updatedAt === 'number' ? remote.updatedAt : 0
-  const localUpdatedAt = typeof local?.updatedAt === 'number' ? local.updatedAt : 0
-  // LWW：只认 updatedAt，新者胜；相等视为本端已推送的回环副本，跳过
-  if (remoteUpdatedAt <= localUpdatedAt) return 'skipped'
-
-  // 待办完成态本地优先（Issue #74）：服务端 collections 未含 completedAt 字段时，
-  // 本地「打勾完成」推送后被服务端静默丢弃该字段，随后远端记录以更新的 updatedAt 拉回，
-  // 整体覆盖会把 status 回滚成未完成（表现为「勾了又弹回去」）。
-  // 完成态以本地为准：本地已完成而远端非完成时，保留本地 status/completedAt，
-  // 仅合并远端其余字段（标题/描述等编辑仍能同步）。
-  // Issue #128 补充：终态（完成/作废）同款本地优先——作废同理不应被远端旧值回滚。
-  // 只认「本地是终态、远端不是」的情形：远端也是终态时按 LWW 让远端赢（可能是另一端的更新操作）
-  const remoteDone = remote.status === 'done'
-  const localDone = local?.status === 'done'
-  const remoteVoided = remote.status === 'voided'
-  const localVoided = local?.status === 'voided'
-  const keepLocalDone =
-    table === 'todos' &&
-    ((localDone && !remoteDone) || (localVoided && !remoteVoided && !remoteDone))
-
-  // 剥离 pb 系统字段（collectionId/collectionName/created/updated/server_received_at）与映射字段 localId
-  const {
-    collectionId: _c,
-    collectionName: _n,
-    created: _cr,
-    updated: _u,
-    server_received_at: _s,
-    localId: _l,
-    ...mirrored
-  } = remote
-  const record: Record<string, unknown> = { ...mirrored }
-  record.id = localId
-  record.updatedAt = remoteUpdatedAt
-  record.deleted = remote.deleted ? 1 : 0
-  record.rev = Math.max(
-    typeof local?.rev === 'number' ? local.rev : 0,
-    typeof remote.rev === 'number' ? remote.rev : 0,
-  )
-  if (keepLocalDone) {
-    // 终态本地优先：status 与**对应**时间戳成对保留（Issue #74 完成态 / Issue #128 作废态），
-    // 单保 status 不保时间戳会让「今日已完成」统计/时间轴锚点丢依据
-    record.status = local!.status
-    record.completedAt = local!.completedAt
-    record.voidedAt = local!.voidedAt
-  }
-
-  if (table === 'attachments') {
-    const blob = await downloadAttachmentFile(cfg, remote)
-    if (blob) record.blob = blob
-  }
-  await table0.put(record)
-  return 'written'
-}
-
 // ─────────────────────────── SyncAdapter 实装 ───────────────────────────
 
 async function pushImpl(
@@ -569,7 +502,9 @@ async function pullImpl(cursor: number): Promise<{ cursor: number; changes: unkn
         maxRemoteId = rid
       }
       try {
-        changes.push(await mergeRemote(cfg, table, remote))
+        const loadAttachmentBlob: AttachmentBlobLoader = (r) =>
+          downloadAttachmentFile(cfg, r as unknown as MergePbRecord)
+        changes.push(await mergeRemoteRecord(table, remote, loadAttachmentBlob))
       } catch (err) {
         // 单条失败不阻塞整表增量（队列断点续传同款纪律）
         console.warn(`[sync] 合并失败 ${table}/${remote.id}`, err)
