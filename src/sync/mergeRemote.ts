@@ -45,6 +45,9 @@ async function hasPendingUpsert(table: string, recordId: string): Promise<boolea
   return pending > 0
 }
 
+/** 需要按数组归一化落库的 json 字段（服务端可能返回 JSON 字符串） */
+const JSON_ARRAY_FIELDS = ['tags', 'relations'] as const
+
 /** json 字段（customers.tags / customers.relations 等）归一化为数组，兼容服务端返回字符串或对象 */
 function toArrayField(v: unknown): unknown[] | null {
   if (Array.isArray(v)) return v
@@ -122,6 +125,33 @@ export async function mergeRemoteRecord(
         typeof local.rev === 'number' ? local.rev : 0,
         typeof remote.rev === 'number' ? remote.rev : 0,
       ),
+    }
+    // json 数组字段统一收口（回归修复）：本分支此前直接用 `...mirroredPending` 展开远端字段，
+    // 有两个真实缺陷：
+    // ① 服务端 json 字段可能返回 JSON 字符串（字段类型/版本差异），展开后本地数组被写成字符串，
+    //    前端 `relations.map` / `tags.map` 立刻抛错（已由端到端用例暴露）；
+    // ② 即使能解析成数组，整体覆盖也会把本地刚新增的条目冲掉（保护了「本地优先」却在字段内部又丢编辑）。
+    // 收口为与下方同一套语义：relations 取并集，其余数组字段本地有值时保留本地。
+    if (table === 'customers') {
+      for (const key of JSON_ARRAY_FIELDS as readonly string[]) {
+        const localVal = (local as Record<string, unknown>)[key]
+        if (key === 'relations') {
+          const remoteRels = remote[key]
+          if (remoteRels !== undefined) {
+            merged[key] = unionRelations(localVal, remoteRels)
+          } else if (localVal !== undefined) {
+            merged[key] = localVal
+          } else {
+            delete merged[key]
+          }
+          continue
+        }
+        // 其余数组字段：远端能解析成数组才并入，否则保留本地（本地未推送编辑优先）
+        const parsed = toArrayField(remote[key])
+        if (parsed) merged[key] = parsed
+        else if (localVal === undefined) delete merged[key]
+        else merged[key] = localVal
+      }
     }
     await attachBlobIfNeeded(table, remote, merged, loadAttachmentBlob)
     await table0.put(merged)
