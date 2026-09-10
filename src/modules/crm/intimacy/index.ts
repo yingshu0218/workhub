@@ -4,7 +4,7 @@ import type {
   ModuleConfigIntimacy,
   RelationCategory,
 } from '@/db/types'
-import { isTodoOpen } from '@/modules/todo/domain'
+import { isTodoOpen, isTodoDone } from '@/modules/todo/domain'
 import type { CanvasGraph } from '../hooks'
 
 /**
@@ -116,7 +116,8 @@ export function buildScoreInput(
       .reduce((sum, t) => sum + t.amount, 0),
     activeTodos: graph.todos.filter((t) => t.customerId === customerId && isTodoOpen(t))
       .length,
-    doneTodos: graph.todos.filter((t) => t.customerId === customerId && !isTodoOpen(t))
+    // 已完成口径（Issue #128）：作废条目不计入完成数（算法入参与 UI 同源，不漂移）
+    doneTodos: graph.todos.filter((t) => t.customerId === customerId && isTodoDone(t))
       .length,
     projects: graph.projects.filter((p) => p.customerId === customerId).length,
     activeProjects: graph.projects.filter(

@@ -101,8 +101,11 @@ async function buildPool(type: ResolvableType): Promise<ResolveCandidate[]> {
         id: t.id,
         type,
         label: t.title,
-        sub: t.status === 'done' ? '已完成' : t.priority,
-        archived: t.status === 'done',
+        // 终态标注（Issue #128 三态）：已完成/已作废都标出来，供 Agent 转述「这条已经结束了」；
+        // 未完成时副文案给优先级（与既有行为一致）
+        sub: t.status === 'done' ? '已完成' : t.status === 'voided' ? '已作废' : t.priority,
+        // 终态条目在候选中沉底：优先让 Agent 选到还在推进的待办
+        archived: t.status !== 'todo',
       }))
     }
     case 'ledger': {
@@ -134,10 +137,7 @@ function dedupeById(items: ResolveCandidate[]): ResolveCandidate[] {
  * 判定顺序：空/过短拦截 → 过滤（label 主匹配，sub 参与命中判定不参与排序）
  * → 按 id 去重 → 排序（匹配质量）→ 归档沉底 → 阈值反问。
  */
-export async function resolveEntity(
-  query: string,
-  type: ResolvableType,
-): Promise<ResolveResult> {
+export async function resolveEntity(query: string, type: ResolvableType): Promise<ResolveResult> {
   const q = normalizeQuery(query)
   if (q.length < MIN_QUERY_LENGTH) {
     return {
@@ -148,12 +148,18 @@ export async function resolveEntity(
   }
 
   const pool = await buildPool(type)
-  const matched = pool.filter((c) => fuzzyMatch(c.label, q) || (c.sub ? fuzzyMatch(c.sub, q) : false))
+  const matched = pool.filter(
+    (c) => fuzzyMatch(c.label, q) || (c.sub ? fuzzyMatch(c.sub, q) : false),
+  )
   // 去重后重数唯一 —— 同 label 不同 id 的重名实体不得被误判为「候选唯一」
   const unique = dedupeById(matched)
 
   if (unique.length === 0) {
-    return { status: 'ambiguous', candidates: [], reason: `没有找到匹配「${q}」的${labelOfType(type)}，请确认名称或先创建` }
+    return {
+      status: 'ambiguous',
+      candidates: [],
+      reason: `没有找到匹配「${q}」的${labelOfType(type)}，请确认名称或先创建`,
+    }
   }
 
   const sorted = archivedLast(fuzzySort(unique, (c) => c.label, q)).slice(0, MAX_CANDIDATES)
@@ -179,7 +185,10 @@ function labelOfType(type: ResolvableType): string {
 /** 批量消解（多工具链用；任一歧义即整体 ambiguous，由调用方逐条反问） */
 export async function resolveMany(
   queries: { query: string; type: ResolvableType; key: string }[],
-): Promise<{ resolved: Record<string, string>; ambiguous: { key: string; result: ResolveResult }[] }> {
+): Promise<{
+  resolved: Record<string, string>
+  ambiguous: { key: string; result: ResolveResult }[]
+}> {
   const resolved: Record<string, string> = {}
   const ambiguous: { key: string; result: ResolveResult }[] = []
   for (const item of queries) {
