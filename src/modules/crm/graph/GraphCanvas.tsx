@@ -42,8 +42,8 @@ export interface GraphCanvasProps {
   fitAnchorId?: string
   /** 亲密度配置注入（Issue #34）：缺省内部读 moduleConfigs；customer-only 模式启用圈层与黑名单过滤 */
   intimacyCfg?: ModuleConfigIntimacy
-  /** 「我」节点（Issue #116）：锚点客户节点直显「我」字角标，用户一眼认出画布上的自己 */
-  selfNodeId?: string
+  /** 「我」显示名（Issue #123）：customer-only 模式下画布中心 self 节点的文案（当前用户名，默认阿蓝） */
+  selfName?: string
 }
 
 export default function GraphCanvas({
@@ -55,7 +55,7 @@ export default function GraphCanvas({
   mode = 'mixed',
   onGraphReady,
   fitAnchorId,
-  selfNodeId,
+  selfName,
   intimacyCfg: intimacyCfgProp,
 }: GraphCanvasProps) {
   const navigate = useNavigate()
@@ -80,6 +80,7 @@ export default function GraphCanvas({
     mode,
     categories: mode === 'customer-only' ? activeCats : undefined,
     intimacyCfg: mode === 'customer-only' ? intimacyCfg : undefined,
+    selfName,
     onLayoutSettled: onGraphReady,
   })
 
@@ -237,9 +238,12 @@ export default function GraphCanvas({
     fitRafRef.current = requestAnimationFrame(runFit)
   }
   // 卸载清理 pending fit
-  useEffect(() => () => {
-    if (fitRafRef.current != null) cancelAnimationFrame(fitRafRef.current)
-  }, [])
+  useEffect(
+    () => () => {
+      if (fitRafRef.current != null) cancelAnimationFrame(fitRafRef.current)
+    },
+    [],
+  )
 
   // 首帧自动 fit：节点有坐标后一次 fit 到当前子图（渲染期不能调 setView，推迟到下一帧）
   const fittedRef = useRef('')
@@ -383,6 +387,28 @@ export default function GraphCanvas({
                     )
                   })}
               </g>
+              {/* 「我」辐条（Issue #123）：细实线 → 每个客户，形成以我为中心的星型；弱于客户↔客户关系边 */}
+              <g>
+                {links
+                  .filter((l) => l.kind === 'self')
+                  .map((l, i) => {
+                    const s = l.source as GraphNode
+                    const t = l.target as GraphNode
+                    if (s?.x == null || t?.x == null || s?.y == null || t?.y == null) return null
+                    return (
+                      <line
+                        key={`s${i}`}
+                        x1={s.x}
+                        y1={s.y}
+                        x2={t.x}
+                        y2={t.y}
+                        stroke={GRAPH_COLORS.selfLink.stroke}
+                        strokeWidth={1.2}
+                        opacity={0.5}
+                      />
+                    )
+                  })}
+              </g>
               {/* 关系边（客户↔客户）：二次贝塞尔曲线 + 虚线 + 语义标签（对齐原型 09 关系边隐喻） */}
               <g>
                 {links
@@ -493,7 +519,13 @@ export default function GraphCanvas({
                       <g
                         key={n.id}
                         transform={`translate(${n.x},${n.y})`}
-                        className={n.kind === 'customer' ? 'cursor-pointer' : 'cursor-grab'}
+                        className={
+                          n.kind === 'customer'
+                            ? 'cursor-pointer'
+                            : n.kind === 'self'
+                              ? 'cursor-default'
+                              : 'cursor-grab'
+                        }
                         onPointerDown={(e) => onNodePointerDown(e, n)}
                         onClick={(e) => {
                           // 阻止冒泡到画布背景（背景单击关卡），节点自身不触发背景关闭
@@ -532,7 +564,28 @@ export default function GraphCanvas({
                           stroke={n.color}
                           strokeWidth={n.kind === 'customer' ? 1.8 : 1.3}
                         />
-                        {n.kind === 'customer' ? (
+                        {n.kind === 'self' ? (
+                          /* 「我」自节点（Issue #123）：主色实心 + 白字用户名，用户一眼认出画布上的自己。
+                             与客户节点互斥（不再是「挑一个客户打标」），固定画布中心 */
+                          <>
+                            <circle
+                              r={n.radius + 7}
+                              fill="none"
+                              stroke={GRAPH_COLORS.self.stroke}
+                              strokeWidth={1.6}
+                              strokeDasharray="4 3"
+                              opacity={0.65}
+                            />
+                            <text
+                              textAnchor="middle"
+                              dy="4"
+                              style={{ fontSize: 12, fontWeight: 700 }}
+                              fill={GRAPH_COLORS.self.text}
+                            >
+                              {n.label}
+                            </text>
+                          </>
+                        ) : n.kind === 'customer' ? (
                           <>
                             {(n.id === focusId || n.id === fitAnchorId) && (
                               <circle
@@ -543,30 +596,8 @@ export default function GraphCanvas({
                                 strokeDasharray="4 3"
                               />
                             )}
-                            {n.id === selfNodeId && (
-                              <g
-                                transform={`translate(${n.radius - 2},${-n.radius + 2})`}
-                                style={{ pointerEvents: 'none' }}
-                              >
-                                <circle r={8} fill={GRAPH_COLORS.customer.stroke} />
-                                <text
-                                  textAnchor="middle"
-                                  dy="3.5"
-                                  style={{ fontSize: 10, fontWeight: 700 }}
-                                  fill="#ffffff"
-                                >
-                                  我
-                                </text>
-                              </g>
-                            )}
-                            <text
-                              textAnchor="middle"
-                              dy="4"
-                              style={{ fontSize: 11, fontWeight: 700 }}
-                              fill={GRAPH_COLORS.customer.text}
-                            >
-                              {n.label.slice(0, 4)}
-                            </text>
+                            {/* 客户节点名字只渲染一处（圈外完整名）：Issue #123 去掉圈内截断名，
+                                消除「同一名字画两遍」；名字本身即节点身份，无需圈内重复 */}
                             <text
                               textAnchor="middle"
                               y={n.radius + 14}
@@ -594,7 +625,7 @@ export default function GraphCanvas({
                                   : '!'}
                           </text>
                         )}
-                        {n.kind !== 'customer' && (
+                        {n.kind !== 'customer' && n.kind !== 'self' && (
                           <text
                             textAnchor="middle"
                             y={n.radius + 12}

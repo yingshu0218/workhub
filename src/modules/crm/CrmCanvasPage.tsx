@@ -1,10 +1,11 @@
-import { useMemo, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, Chip, PageHeader } from '@/design-system/ui'
 import { useCanvasGraph } from './hooks'
 import { useIntimacyConfig } from './intimacy'
 import GraphCanvas from './graph/GraphCanvas'
-import { pickCanvasAnchor, type GraphMode } from './graph/buildGraph'
+import { SELF_NODE_ID, type GraphMode } from './graph/buildGraph'
+import { useUserName } from '@/modules/identity'
 
 /**
  * 客户关系画布（对齐原型 09-crm-canvas）—— 全景模式
@@ -17,21 +18,17 @@ export default function CrmCanvasPage() {
   const intimacyCfg = useIntimacyConfig()
   // 视图切换（Issue #34）：customer-only=纯客户关系网（默认，需求主视角）；mixed=原全景（客户+业务实体）
   const [mode, setMode] = useState<GraphMode>('customer-only')
-  // 首屏「以我为重心」（Issue #94）：布局收敛后视图中心锚到核心客户（健康分档位最高→连接度→最近联系），
-  // 确定性选取保证同数据同锚点；两模式均生效，混合视图为同一「我」主体
+  // 「我」的显示名（Issue #123）：画布中心自节点的唯一文案，取自当前用户身份（默认阿蓝）
+  const userName = useUserName()
+  // 首屏「以我为重心」（Issue #94）：布局收敛后视图中心锚定到「我」自节点（固定画布中心，不漂移）。
+  // Issue #123 修正：锚点不再是「挑一个客户冒充我」——真自节点由 buildGraph 产出（kind='self'）
   const [fitAnchor, setFitAnchor] = useState<string | null>(null)
   const anchorDoneRef = useRef(false)
   const handleGraphReady = () => {
     if (anchorDoneRef.current) return
     anchorDoneRef.current = true
-    setFitAnchor(pickCanvasAnchor(graph, intimacyCfg))
+    setFitAnchor(SELF_NODE_ID)
   }
-  // 「我」节点标识（Issue #116）：锚点客户即「我」，节点角标直显「我」字，
-  // 虚线焦点环强化——上一轮修复只做了视口锚定，节点本身看不出是「我」
-  const selfAnchorId = useMemo(
-    () => pickCanvasAnchor(graph, intimacyCfg),
-    [graph, intimacyCfg],
-  )
 
   return (
     <div className="mx-auto max-w-[1200px]">
@@ -76,6 +73,9 @@ export default function CrmCanvasPage() {
       {/* 图例 + 节点统计 */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <Chip tone="blue" icon="person">{`客户 ${graph.customers.length}`}</Chip>
+        {mode === 'customer-only' && (
+          <Chip tone="green" icon="my_location">{`我：${userName}`}</Chip>
+        )}
         {mode === 'mixed' && (
           <>
             <Chip tone="green" icon="payments">{`交易 ${graph.transactions.length}`}</Chip>
@@ -116,6 +116,24 @@ export default function CrmCanvasPage() {
           </>
         ) : (
           <span className="ml-2 inline-flex flex-wrap items-center gap-2 text-[0.7857rem] text-outline">
+            <span className="inline-flex items-center gap-1">
+              <span className="h-2.5 w-2.5 rounded-full" style={{ background: '#004ac6' }} />
+              我（{userName}）
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <svg width="22" height="8" className="inline-block">
+                <line
+                  x1="0"
+                  y1="4"
+                  x2="22"
+                  y2="4"
+                  stroke="#7f8cae"
+                  strokeWidth="1.2"
+                  opacity="0.7"
+                />
+              </svg>
+              我与客户
+            </span>
             <span className="inline-flex items-center gap-1">
               <span className="h-2 w-2 rounded-full" style={{ background: '#6d43c4' }} />
               项目
@@ -161,7 +179,7 @@ export default function CrmCanvasPage() {
         showReheat
         onGraphReady={handleGraphReady}
         fitAnchorId={fitAnchor ?? undefined}
-        selfNodeId={selfAnchorId ?? undefined}
+        selfName={userName}
       />
     </div>
   )

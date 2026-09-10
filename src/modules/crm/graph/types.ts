@@ -8,7 +8,8 @@ import type { SimulationNodeDatum } from 'd3-force'
 
 export interface GraphNode extends SimulationNodeDatum {
   id: string
-  kind: 'customer' | 'project' | 'txn' | 'todo' | 'note'
+  /** self='我'（当前用户自节点，Issue #123）；其余为业务实体节点 */
+  kind: 'self' | 'customer' | 'project' | 'txn' | 'todo' | 'note'
   label: string
   color: string
   fill: string
@@ -17,7 +18,7 @@ export interface GraphNode extends SimulationNodeDatum {
   to?: string
 }
 
-export type GraphLinkKind = 'belongs' | 'relation' | 'bridge'
+export type GraphLinkKind = 'belongs' | 'relation' | 'bridge' | 'self'
 
 export interface GraphLink {
   source: string | GraphNode
@@ -32,6 +33,10 @@ export interface GraphLink {
 }
 
 export const GRAPH_COLORS = {
+  /** 「我」自节点（Issue #123）：品牌主色实心，与客户节点形态明显区分 */
+  self: { stroke: '#004ac6', fill: '#004ac6', text: '#ffffff' },
+  /** 「我」→ 客户的归属辐条：细实线，弱于客户↔客户关系边 */
+  selfLink: { stroke: '#7f8cae' },
   customer: { stroke: '#004ac6', fill: '#dbe1ff', text: '#004ac6' },
   project: { stroke: '#6d43c4', fill: '#e9ddff', text: '#6d43c4' },
   income: { stroke: '#006c49', fill: '#6cf8bb', text: '#006c49' },

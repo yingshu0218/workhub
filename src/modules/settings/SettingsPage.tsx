@@ -41,6 +41,7 @@ import { syncEngine } from '@/sync/engine'
 import { useSyncStore } from '@/sync/store'
 import { useNoteFolders } from '@/modules/notes/hooks'
 import { moduleConfigRepo } from '@/repositories'
+import { DEFAULT_IDENTITY, resetIdentity, setIdentity, useIdentity } from '@/modules/identity'
 
 /**
  * 系统设置（对齐原型 13~15/17/18/20 · 7 标签）
@@ -67,14 +68,20 @@ function SkinThumb({ id }: { id: SkinStyleId }) {
     case 'pixel':
       return (
         <div className="flex flex-col items-center gap-1">
-          <div className="h-6 w-12 border-2 border-on-surface bg-primary" style={{ borderRadius: 0, boxShadow: '3px 3px 0 0 var(--color-on-surface)' }} />
+          <div
+            className="h-6 w-12 border-2 border-on-surface bg-primary"
+            style={{ borderRadius: 0, boxShadow: '3px 3px 0 0 var(--color-on-surface)' }}
+          />
           <div className="h-1.5 w-8 bg-outline-variant" style={{ borderRadius: 0 }} />
         </div>
       )
     case 'cartoon':
       return (
         <div className="flex flex-col items-center gap-1.5">
-          <div className="h-6 w-12 rounded-lg border-2 border-outline bg-primary" style={{ boxShadow: '0 3px 6px rgba(0,0,0,0.15)' }} />
+          <div
+            className="h-6 w-12 rounded-lg border-2 border-outline bg-primary"
+            style={{ boxShadow: '0 3px 6px rgba(0,0,0,0.15)' }}
+          />
           <div className="h-1.5 w-8 rounded-full bg-outline-variant" />
         </div>
       )
@@ -83,11 +90,21 @@ function SkinThumb({ id }: { id: SkinStyleId }) {
         <div className="flex flex-col items-center gap-1.5">
           <div
             className="flex h-6 w-12 items-center justify-center border border-primary text-[0.6429rem] font-semibold tracking-widest text-primary"
-            style={{ clipPath: 'polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)', boxShadow: '0 0 8px 0 color-mix(in srgb, var(--color-primary) 40%, transparent)' }}
+            style={{
+              clipPath:
+                'polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)',
+              boxShadow: '0 0 8px 0 color-mix(in srgb, var(--color-primary) 40%, transparent)',
+            }}
           >
             HUD
           </div>
-          <div className="h-1.5 w-8" style={{ background: 'repeating-linear-gradient(90deg, var(--color-outline-variant) 0 2px, transparent 2px 5px)' }} />
+          <div
+            className="h-1.5 w-8"
+            style={{
+              background:
+                'repeating-linear-gradient(90deg, var(--color-outline-variant) 0 2px, transparent 2px 5px)',
+            }}
+          />
         </div>
       )
     case 'glass':
@@ -107,7 +124,10 @@ function SkinThumb({ id }: { id: SkinStyleId }) {
     default:
       return (
         <div className="flex flex-col items-center gap-1.5">
-          <div className="h-6 w-12 rounded-lg border border-outline-variant/60 bg-surface-container-lowest" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }} />
+          <div
+            className="h-6 w-12 rounded-lg border border-outline-variant/60 bg-surface-container-lowest"
+            style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}
+          />
           <div className="h-1.5 w-8 rounded-full bg-outline-variant" />
         </div>
       )
@@ -240,6 +260,8 @@ function Segmented<T extends string | number>({
 
 export default function SettingsPage() {
   const navigate = useNavigate()
+  // 当前用户身份（Issue #123）：显示名默认「阿蓝」，改动实时联动全局
+  const identity = useIdentity()
   const [tab, setTab] = useState<TabId>('appearance')
   const [settings, setSettings] = useState<Settings | null>(null)
   const [persisted, setPersisted] = useState<boolean | null>(null)
@@ -410,7 +432,15 @@ export default function SettingsPage() {
       downloadText(txnCsv, 'text/csv;charset=utf-8', `nexus-transactions-${stamp}.csv`)
       const custCsv = toCsv(
         ['姓名', '公司', '分层', '电话', '微信', '邮箱', '健康分'],
-        customers.map((c) => [c.name, c.company, c.tier, c.phone, c.wechat, c.email, c.intimacy?.level ?? '']),
+        customers.map((c) => [
+          c.name,
+          c.company,
+          c.tier,
+          c.phone,
+          c.wechat,
+          c.email,
+          c.intimacy?.level ?? '',
+        ]),
       )
       downloadText(custCsv, 'text/csv;charset=utf-8', `nexus-customers-${stamp}.csv`)
     } finally {
@@ -609,7 +639,8 @@ export default function SettingsPage() {
                         : 'border-outline-variant/50 hover:border-primary/50'
                     }`}
                     onClick={() => {
-                      const radius = ('radius' in sk ? sk.radius : undefined) ?? settings.appearance.radius
+                      const radius =
+                        ('radius' in sk ? sk.radius : undefined) ?? settings.appearance.radius
                       save({ appearance: { ...settings.appearance, style: sk.id, radius } })
                     }}
                   >
@@ -623,7 +654,9 @@ export default function SettingsPage() {
                         <Icon name="check_circle" fill className="text-[1.2857rem] text-primary" />
                       )}
                     </div>
-                    <p className="mt-1 text-[0.7857rem] leading-snug text-on-surface-variant">{sk.desc}</p>
+                    <p className="mt-1 text-[0.7857rem] leading-snug text-on-surface-variant">
+                      {sk.desc}
+                    </p>
                   </button>
                 )
               })}
@@ -822,7 +855,9 @@ export default function SettingsPage() {
                       <Icon name="check_circle" fill className="text-[1.0714rem] text-primary" />
                     )}
                   </div>
-                  <p className="mt-1 text-[0.7857rem] leading-snug text-on-surface-variant">{p.desc}</p>
+                  <p className="mt-1 text-[0.7857rem] leading-snug text-on-surface-variant">
+                    {p.desc}
+                  </p>
                 </button>
               ))}
             </div>
@@ -837,7 +872,9 @@ export default function SettingsPage() {
             >
               <div className="mb-5">
                 <div className="mb-2 flex items-center justify-between">
-                  <span className="text-[0.9286rem] font-medium">基准字体大小 (Base Font Size)</span>
+                  <span className="text-[0.9286rem] font-medium">
+                    基准字体大小 (Base Font Size)
+                  </span>
                   <span className="text-[0.8571rem] font-semibold text-primary">
                     {settings.typography.fontSize} px
                   </span>
@@ -906,6 +943,62 @@ export default function SettingsPage() {
       {/* ── 通用与快捷键 ── */}
       {tab === 'shortcuts' && (
         <div className="space-y-4">
+          {/* 用户身份（Issue #123）：画布「我」节点、侧栏、首页问候、个人主页统一读这里 */}
+          <Section
+            icon="badge"
+            title="用户身份"
+            desc="你是谁 —— 画布中心的「我」节点、侧栏账号、首页问候、个人主页都取这里的显示名"
+            badge="实时生效"
+          >
+            <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+              <label className="block">
+                <div className="mb-1.5 text-[0.8571rem] font-medium text-on-surface-variant">
+                  显示名（画布「我」节点标题）
+                </div>
+                <input
+                  className={inputCls}
+                  value={identity.name}
+                  placeholder={DEFAULT_IDENTITY.name}
+                  onChange={(e) => setIdentity({ name: e.target.value })}
+                  onBlur={(e) => {
+                    // 空值回落默认名，避免把节点文案改成空串
+                    if (!e.target.value.trim()) setIdentity({ name: DEFAULT_IDENTITY.name })
+                  }}
+                />
+              </label>
+              <label className="block">
+                <div className="mb-1.5 text-[0.8571rem] font-medium text-on-surface-variant">
+                  工作区名
+                </div>
+                <input
+                  className={inputCls}
+                  value={identity.workspace}
+                  placeholder={DEFAULT_IDENTITY.workspace}
+                  onChange={(e) => setIdentity({ workspace: e.target.value })}
+                  onBlur={(e) => {
+                    if (!e.target.value.trim())
+                      setIdentity({ workspace: DEFAULT_IDENTITY.workspace })
+                  }}
+                />
+              </label>
+            </div>
+            <div className="mt-3 flex items-center gap-3">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setIdentity({ name: DEFAULT_IDENTITY.name })}
+              >
+                恢复默认名（{DEFAULT_IDENTITY.name}）
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => resetIdentity()}>
+                全部重置
+              </Button>
+              <span className="text-[0.7857rem] text-outline">
+                默认身份：{DEFAULT_IDENTITY.name} · {DEFAULT_IDENTITY.workspace}
+              </span>
+            </div>
+          </Section>
+
           <Section
             icon="tune"
             title="通用偏好设定"

@@ -8,6 +8,7 @@ import CommandPalette from './CommandPalette'
 import TrophyUnlockToast from './TrophyUnlockToast'
 import { ToastProvider } from '@/design-system/Toast'
 import QuickCapture from '@/modules/notes/QuickCapturePanel'
+import { DEFAULT_WORKSPACE_SUB, useIdentity } from '@/modules/identity'
 
 const NAV_ITEMS = [
   { to: '/', icon: 'dashboard', label: '工作台' },
@@ -39,9 +40,10 @@ const TITLES: Record<string, string> = {
 }
 
 /** 工作区条目（原型 19-dashboard-account）：切换仅改 UI 选中态，数据隔离 Phase 7 后考虑 */
+/** 工作区条目（原型 19-dashboard-account）：只读常量，身份名/工作区名由 useIdentity 提供（Issue #123） */
 const WORKSPACES = [
-  { id: 'ws-main', name: '青枫工作室', role: 'Owner', sub: '团队协作者 · Owner' },
-  { id: 'ws-personal', name: '个人空间', role: 'Personal', sub: '个人空间 · Personal' },
+  { id: 'ws-main', role: 'Owner', sub: '团队协作者 · Owner' },
+  { id: 'ws-personal', role: 'Personal', sub: '个人空间 · Personal' },
 ]
 
 function SyncBadge() {
@@ -87,6 +89,8 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
     })
   }, [])
 
+  // 当前用户身份（Issue #123）：名字/工作区名唯一事实源，默认「阿蓝」
+  const identity = useIdentity()
   // 工作区切换面板（轻量：仅 UI 选中态）
   const [activeWs, setActiveWs] = useState(WORKSPACES[0].id)
   const [wsOpen, setWsOpen] = useState(false)
@@ -145,7 +149,9 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
                         : isActive
                           ? 'bg-primary-fixed font-semibold text-primary'
                           : 'text-on-surface-variant hover:bg-surface-container',
-                  ].filter(Boolean).join(' ')
+                  ]
+                    .filter(Boolean)
+                    .join(' ')
                 }
               >
                 <Icon name={item.icon} />
@@ -165,7 +171,9 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
             to="/module-config"
             className={({ isActive }) =>
               `app-nav-link mb-1 flex items-center gap-3 rounded-lg px-3 py-2 text-[0.9643rem] ${
-                isActive ? 'is-active bg-primary-fixed font-semibold text-primary' : 'text-on-surface-variant hover:bg-surface-container'
+                isActive
+                  ? 'is-active bg-primary-fixed font-semibold text-primary'
+                  : 'text-on-surface-variant hover:bg-surface-container'
               }`
             }
             title="各业务模块的规则配置（与系统设置的界面偏好分开）"
@@ -178,7 +186,9 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
             to="/settings"
             className={({ isActive }) =>
               `app-nav-link mb-2 flex items-center gap-3 rounded-lg px-3 py-2 text-[0.9643rem] ${
-                isActive ? 'is-active bg-primary-fixed font-semibold text-primary' : 'text-on-surface-variant hover:bg-surface-container'
+                isActive
+                  ? 'is-active bg-primary-fixed font-semibold text-primary'
+                  : 'text-on-surface-variant hover:bg-surface-container'
               }`
             }
             title="外观、排版、通知、同步、数据导出等应用级偏好"
@@ -195,11 +205,11 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
               }`}
               onClick={() => setWsOpen((o) => !o)}
             >
-              <Avatar name="陈致远" size={32} />
+              <Avatar name={identity.name} size={32} />
               <div className="flex-1 text-left">
-                <div className="text-[0.9286rem] font-medium leading-tight">陈致远</div>
+                <div className="text-[0.9286rem] font-medium leading-tight">{identity.name}</div>
                 <div className="text-[0.7857rem] text-outline">
-                  {WORKSPACES.find((w) => w.id === activeWs)?.sub ?? '青枫工作室 · Owner'}
+                  {WORKSPACES.find((w) => w.id === activeWs)?.sub ?? DEFAULT_WORKSPACE_SUB}
                 </div>
               </div>
               <Icon
@@ -230,7 +240,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
                     />
                     <span className="flex-1">
                       <span className="block text-[0.8929rem] font-medium leading-tight">
-                        {w.name}
+                        {w.id === 'ws-main' ? identity.workspace : '个人空间'}
                       </span>
                       <span className="block text-[0.75rem] text-outline">{w.sub}</span>
                     </span>
