@@ -25,7 +25,14 @@ export interface BuildGraphOptions {
   center: { x: number; y: number }
   /** 亲密度配置（Issue #34）：传入即启用黑名单过滤 + customer-only 模式下圈层布局 */
   intimacyCfg?: ModuleConfigIntimacy
+  /** 「我」自节点显示名（Issue #123）：默认取当前用户身份名（阿蓝），画布中心节点的唯一文案 */
+  selfName?: string
+  /** 「我」自节点 id（Issue #123）：缺省 SELF_NODE_ID */
+  selfId?: string
 }
+
+/** 「我」自节点固定 id（Issue #123）：与客户 id 天然不冲突（客户 id 形如 c1/自定义 nanoid） */
+export const SELF_NODE_ID = 'self:me'
 
 const fmtMoney = (n: number) => `¥${n.toLocaleString('zh-CN')}`
 const trunc = (s: string, n = 8) => (s.length > n ? `${s.slice(0, n)}…` : s)
@@ -230,7 +237,22 @@ export function buildGraph(
         levelOf.set(c.id, resolveIntimacyLevel(c, opts.intimacyCfg, input).level)
       }
     }
-    const ns: GraphNode[] = visible.map((c, i) => {
+    // 「我」自节点（Issue #123）：固定在画布中心（fx/fy 锁死，不参与力导向漂移），
+    // 文案取当前用户身份名（默认阿蓝）；不与任何客户共用节点，星型拓扑的真正中心
+    const selfId = opts.selfId ?? SELF_NODE_ID
+    const selfNode: GraphNode = {
+      id: selfId,
+      kind: 'self',
+      label: opts.selfName?.trim() || '我',
+      color: GRAPH_COLORS.self.stroke,
+      fill: GRAPH_COLORS.self.fill,
+      radius: 30,
+      x: opts.center.x,
+      y: opts.center.y,
+      fx: opts.center.x,
+      fy: opts.center.y,
+    }
+    const customerNodes: GraphNode[] = visible.map((c, i) => {
       const lv = levelOf.get(c.id) ?? null
       const visual = lv ? INTIMACY_VISUAL[lv] : null
       return {
@@ -244,6 +266,13 @@ export function buildGraph(
         y: opts.center.y + Math.sin(i * 2.4) * 90,
       }
     })
+    // 归属辐条：每个客户从「我」连一条 kind='self' 的细实线，形成以我为中心的星型
+    const selfLinks: GraphLink[] = customerNodes.map((c) => ({
+      source: selfId,
+      target: c.id,
+      kind: 'self' as const,
+    }))
+    const ns: GraphNode[] = [selfNode, ...customerNodes]
     const ids = new Set(ns.map((n) => n.id))
     const cats = opts.categories
     const ls = relationLinks.filter((l) => {
@@ -258,7 +287,7 @@ export function buildGraph(
         ids.has(String(typeof l.target === 'string' ? l.target : l.target.id))
       )
     })
-    return { nodes: ns, links: ls }
+    return { nodes: ns, links: [...ls, ...selfLinks] }
   }
 
   const { nodes, links } = assemble(graph)
@@ -316,12 +345,13 @@ export function buildGraph(
 }
 
 /**
- * 全局画布「我」锚点选取（Issue #94）：进入画布以核心客户为中心节点。
- * 纯函数、确定性排序（同数据同结果），口径：亲密度档位（T1 最优先，I7 黑名单剔除，
- * 未配置档位按 T5 基线）→ 连接度（relations + 桥接弱边数量）→ 最近联系时间新者优先。
- * 返回 null（无可渲染客户）由调用方自行兜底。
+ * 核心客户选取（Issue #94 原「我」锚点，Issue #123 语义收窄）：
+ * 仅供**聚焦视图的初始取景建议**使用，不再冒充「我」——真正的「我」是 customer-only 模式下
+ * 由 buildGraph 产出的 kind='self' 自节点（与客户节点互斥，固定画布中心）。
+ * 口径保持确定性：亲密度档位（T1 优先，I7 黑名单剔除，未配置按 T5 基线）
+ * → 连接度（relations 数量）→ 最近联系时间新者优先；无客户时返回 null。
  */
-export function pickCanvasAnchor(
+export function pickCoreCustomer(
   graph: CanvasGraph,
   intimacyCfg?: ModuleConfigIntimacy,
 ): string | null {

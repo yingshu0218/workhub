@@ -18,7 +18,8 @@ import type {
 } from './types'
 
 /**
- * 种子数据 —— 对齐 design/prototypes 演示数据（陈致远 / 深蓝科技 / 二期款 ¥185,000）
+ * 种子数据 —— 对齐 design/prototypes 演示数据（深蓝科技 / 二期款 ¥185,000）
+ * 当前用户身份（Issue #123）已收口到 src/modules/identity，默认显示名「阿蓝」
  * 标记 synced=1，不进同步队列（本地演示数据）
  */
 const now = Date.now()
@@ -51,7 +52,12 @@ export async function seedIfEmpty(): Promise<boolean> {
       address: '厦门市软件园二期',
       lastContactAt: now - 2 * 3600_000,
       createdAt: now - 90 * 86400_000,
-      relations: [{ targetId: 'c2', label: '上下游' }],
+      // 演示可见关系（Issue #123）：三人都与「我」连成星型，且互相之间有关系线，
+      // 画布上不会出现孤立点；每条关系带归类维度（项目/财务/人物）供着色与筛选演示
+      relations: [
+        { targetId: 'c2', label: '项目合作', category: 'project' },
+        { targetId: 'c3', label: '同行伙伴', category: 'person' },
+      ],
       ...meta(),
     },
     {
@@ -69,8 +75,8 @@ export async function seedIfEmpty(): Promise<boolean> {
       lastContactAt: now - 3 * 86400_000,
       createdAt: now - 45 * 86400_000,
       relations: [
-        { targetId: 'c1', label: '上下游' },
-        { targetId: 'c3', label: '转介绍人' },
+        { targetId: 'c1', label: '项目合作', category: 'project' },
+        { targetId: 'c3', label: '转介绍人', category: 'person' },
       ],
       ...meta(),
     },
@@ -88,6 +94,11 @@ export async function seedIfEmpty(): Promise<boolean> {
       address: '福州市鼓楼区',
       lastContactAt: now - 21 * 86400_000,
       createdAt: now - 120 * 86400_000,
+      // 双向补全（Issue #123）：与 c1/c2 互指，连线标签聚合后完整呈现
+      relations: [
+        { targetId: 'c1', label: '同行伙伴', category: 'person' },
+        { targetId: 'c2', label: '转介绍人', category: 'person' },
+      ],
       ...meta(),
     },
   ]

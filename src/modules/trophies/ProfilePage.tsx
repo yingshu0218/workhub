@@ -2,8 +2,11 @@ import { Avatar, Card, Chip, EmptyState, PageHeader } from '@/design-system/ui'
 import { Icon } from '@/design-system/Icon'
 import { useProfileSummary, useRecentUnlockedTrophies, useTrophyList, EXP_PER_LEVEL } from './hooks'
 import { TIER_THEME } from './TrophiesPage'
+import { useIdentity } from '@/modules/identity'
 
 export default function ProfilePage() {
+  // 身份信息（Issue #123）：改为可改的当前用户身份，默认「阿蓝」
+  const identity = useIdentity()
   const summary = useProfileSummary()
   const recent = useRecentUnlockedTrophies(5)
   const trophies = useTrophyList()
@@ -17,10 +20,12 @@ export default function ProfilePage() {
       {/* 用户卡片 + Lv 徽章 */}
       <Card className="mb-4 flex flex-wrap items-center justify-between gap-6 p-6">
         <div className="flex items-center gap-4">
-          <Avatar name="陈致远" size={64} />
+          <Avatar name={identity.name} size={64} />
           <div>
-            <div className="text-[1.2857rem] font-bold">陈致远</div>
-            <div className="text-[0.9286rem] text-on-surface-variant">青枫工作室 · Owner</div>
+            <div className="text-[1.2857rem] font-bold">{identity.name}</div>
+            <div className="text-[0.9286rem] text-on-surface-variant">
+              {identity.workspace} · {identity.role}
+            </div>
             <div className="mt-1.5 flex gap-2">
               <Chip tone="blue" icon="bolt">
                 累计 EXP {exp}
