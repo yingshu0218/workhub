@@ -282,8 +282,8 @@ repositories（createRepository 工厂保持纯写）→ 同步引擎 / eventBus
 2. 事件下沉 repositories（三边界：create 门控 / interaction 统一 emit / 事务外硬规则）
 3. 消解器 + `resolveEntity`（id 去重 / 阈值反问 / 空输入拦截 / Project 归档沉底，含 archived 字段映射）
 
-   > **archived 映射注（v0.7 审计修正）**：`archivedLast`（`MatchCombobox.tsx:40`）只认 `archived?: boolean`，而 `Project` 归档态用的是 `status:'archived'`（`types.ts:151`）。现有调用方 `NoteEditorPage.tsx:436` 是**手工映射** `archived: p.status === 'archived'` 后才传入。消解器若直接对 repo 原始 Project 调 `archivedLast` 将**完全不生效**——候选池组装时必须先做该字段映射，再执行沉底。
-4. **本地 Relay**（Node 进程 + token + 白名单 + confirmToken）+ **CSP 补 `ws://127.0.0.1`（仅 dev/本地自用构建注入，生产构建 CSP 不含 `ws:`）**
+   > **archived 映射注（v0.7 审计修正）**：`archivedLast`（`MatchCombobox.tsx:40`）只认 `archived?: boolean`，而 `Project` 归档态用的是 `status:'archived'`（`types.ts:151`）。现行 **4 处调用方均手工映射** `archived: p.status === 'archived'`（`NoteEditorPage.tsx:436`、`NoteEditorPage.tsx:879`、`TransactionFormDrawer.tsx:352`、`TodoPage.tsx:857`）后才传入，属全仓重复的内联约定而非孤例——P1 实现该映射时应收口成 `toArchivedFlag(p)` 工具函数。消解器若直接对 repo 原始 Project 调 `archivedLast` 将**完全不生效**——候选池组装时必须先做该字段映射，再执行沉底。
+4. **本地 Relay**（Node 进程 + token + 白名单 + confirmToken）+ **CSP 补 `ws://127.0.0.1`（仅 dev/本地自用构建注入，生产构建 CSP 不含 `ws:`；注入机制：vite `transformIndexHtml` 按 mode 改写 meta，现仓 `vite.config.ts` 无任何 CSP 构建处理，需一并新增）**
 5. 读写工具集（按 §9.3/§9.4 修正版；含 `toggleTodoDone`；`checkinHabit`/`uncheckHabit` 按 §9.6.1 **一次收口 3 处调用点**）
 6. skill 文件首版（与 MCP tools schema 同源 zod 生成）
 7. 跑通 E2E 场景 = P1 主干验收
