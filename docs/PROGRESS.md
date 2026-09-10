@@ -90,6 +90,7 @@
 | 边界 | ✅ 功能配置 = 影响数据算出来结果的业务规则（写 moduleConfigs 同步表，多端一致）；系统设置 = 界面/通知/同步/导出等应用级偏好（写 settings singleton，不进同步） |
 | 迁移 | ✅ `settings/DataManagementTab.tsx` → `moduleConfig/CrmIntimacyConfig.tsx`（git mv，逻辑零改写）；早期 `module-config/` 单层注册表版同期删除，以两级 `moduleConfig/registry.ts` 为准 |
 | 复用 | ✅ 配置片段 `Section`/`Toggle` 抽到 `moduleConfig/parts.tsx`，供后续模块配置面板复用；配置逻辑零改写，仅容器外迁 |
+| ⌘K 入口 | ✅ 快捷指令区单条「功能配置」入口（去重后不再重复两条）；无绑定快捷键的指令不渲染空 `kbd` 徽标 |
 
 ### CRM 客户时间线（Issue #11，已收尾）
 

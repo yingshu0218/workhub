@@ -27,7 +27,7 @@
 - 语义引用消解：候选池走活记录、按 id 去重、**去重后 id 唯一才自动消解**，重名/命中超阈值必反问，空/过短输入前置拦截；Project 归档沉底、Customer 不沉底（无归档字段）
 - 强原子链 `saveTxnAndInteractionAndTouch`（记账+关联+补拜访），先 `transaction:created` 后 `customer:contacted`，均在事务外；其余多步意图默认弱关联 + 逐条勾选
 - 验收断点挂 `transaction:created`（`customer:contacted` 是孤儿事件仅保留契约，不挂钩奖杯/EXP 断言）
-- `fuzzyMatch/fuzzySort` 从 MatchCombobox 提升到 shared（P1 显式任务）；`createCustomerWithInit` 下沉 repositories；打卡抽共享 `checkinHabit`（打卡幂等与 toggle 取消分离）
+- `fuzzyMatch/fuzzySort` 从 MatchCombobox 提升到 shared（P1 显式任务）；`createCustomerWithInit` 下沉 repositories；打卡抽共享 `checkinHabit`（打卡幂等与 toggle 取消分离，**收口 3 处调用点**）
 
 ---
 
@@ -63,7 +63,7 @@ repositories（纯存储）→ 同步引擎 / eventBus → 奖杯、仪表盘联
 | fin_recordTransaction | saveTransactionWithAttachments | `transaction:created`（仅 create 新 id） | P1 |
 | crm_addInteraction | saveInteractionAndTouchCustomer | `customer:contacted`（统一 emit，含项目跟进） | P1 |
 | crm_saveTxnAndInteractionAndTouch | 组合原子函数（新增，单事务） | 事务外先 `transaction:created` 后 `customer:contacted` | P1 |
-| habit_checkin | checkinHabit（新抽共享函数，幂等） | `habit:checked`（仅实际新建打卡时） | P1 |
+| habit_checkin | checkinHabit（新抽共享函数，幂等，**收口 3 处调用点**，见 §9.6.1） | `habit:checked`（仅实际新建打卡时） | P1 |
 | crm_createCustomer / updateCustomer / addCustomerRelation（双向落两侧）/ fin_createLedger / todo_* | customerRepo.put 等 | 无既有事件，不加新的 | P1 |
 | note_convertQuickNote / note_createQuickNote | quickNoteRepo.put | `quicknote:convert` | **P2 占位** |
 
@@ -156,34 +156,150 @@ repositories（纯存储）→ 同步引擎 / eventBus → 奖杯、仪表盘联
 
 ---
 
-## 八、遗留待拍板（仅 2 项，均不阻塞 P0/P1 启动）
+## 八、遗留待拍板（v0.4 口径，已被 §九 取代，仅存档）
+
+> ⚠️ 本节 2 项拍板均已被 §9.9 取代，保留仅为追溯 v0.4 原始口径，勿据此动工。
 
 1. **MCP 协议细节**：桥对 Agent 暴露的协议形态按「MCP over WebSocket（stdio 不适用于浏览器运行时）」理解是否准确，或有指定 Agent（workbuddy/hermes）的私有协议需优先兼容——建议 P1 第 4 步动工前由小蓝指定一个先行接入的 Agent 实测。
 2. **桥会话生命期**：桥级单例会话态（多轮澄清暂存）的过期策略（按连接断开即清 vs 空闲 N 分钟过期）——P1 实现时默认「连接断开即清」，无异议即按此定。
 
 ---
 
-## 九、v0.5 追加修订（2026-09-10，对齐 main 最新代码，三方收敛最终定稿）
+## 九、v0.6 定稿（承接原 v0.5 修订，2026-09-10 三方终审：hy4-preview / deepseek-v4-flash / glm-5.3-flash）
 
-> 触发：小蓝确认形态为「外部 Agent（workbuddy/codebuddy/hermes）+ 项目 skill」，不走内置 LLM；并明确后续测试将全面转为 Agent 自动化（跑业务流程，非代码评审）。以下为对 main 分支最新提交的漂移修正与最终收敛口径。
+> 触发：小蓝要求三方「讨论出最终方案，并验证是否符合预想」。本节为**唯一有效口径**，与前文冲突处一律以本节为准。
 
-### 9.1 对码漂移修正（v0.4 文档三处与代码现状不符，以代码为准）
+### 9.1 ⛔ P0 硬错纠正：v0.4/v0.5 的「应用内 WebSocket 桥」在纯浏览器运行时不成立
 
-| # | v0.4 原文 | 代码现状（对码核验） | 修正 |
+**事实基准（hy4-preview 对码核验）**：
+
+- 全仓 `grep -rn "WebSocket\|ws://\|127.0.0.1" src/` **零命中**——不存在任何服务端端点代码；
+- `package.json` 依赖仅有 dexie / react / vite 等浏览器侧包，**无 ws / socket.io / express / node:http 任何一个**；
+- `src/db/db.ts` 17 张表 + 附件 Blob 全落 IndexedDB；`sync/engine.ts` 绑死 `window.addEventListener('online')` 与 `navigator.onLine`；
+- 结论：**浏览器 JS 无法 `listen()`。浏览器只能作为 WebSocket 的「客户端」发起外连，无法作为「服务端」被 Agent 连入。** v0.4 §三「应用运行时内起本地服务端点（WebSocket 优先，HTTP fallback）」在物理上不可实现，v0.5 全盘继承了这个错误。
+
+**v0.6 纠正**：桥的形态由「应用内监听端口」改为**反向连接（Outbound）**——应用主动外连一个本地 relay，Agent 也连同一个 relay，二者在 relay 上配对：
+
+```
+外部 Agent（workbuddy / codebuddy / hermes）
+        │
+        ▼  stdio / WebSocket
+┌──────────────────────────────────────────┐
+│ 本地 Relay（MCP over WebSocket，Node 进程）│ ← 唯一需要新起的进程，绑 127.0.0.1 + token
+│   · 与浏览器之间是「浏览器主动连出的 WS」  │
+│   · 与 Agent 之间是 stdio 或 WS          │
+└──────────────────────────────────────────┘
+        ▲ 浏览器主动连出（Outbound WebSocket）
+        │
+寻鸽工作台页面（IndexedDB / repository / agentOps 全在此进程内）
+```
+
+- **数据不动，指令动**：权威数据始终在浏览器 IndexedDB 里，agentOps 在页面进程内执行写库；relay 只转发「工具调用请求 / 结果」，绝不持有数据。这保留了 v0.4「Node 侧车直读 IndexedDB 不可行」的正确裁决，同时修掉了「浏览器能监听端口」的错误假设。
+- **为什么不是「Node 侧车直连数据库」**：附件是 Blob、同步引擎绑 `window/navigator`、repository 耦合 `@/db` 单例——v0.4 §三的三条理由依旧成立，不重开。
+- **为什么不是「应用内监听」**：见上，浏览器无 `listen` 能力。
+- **CORS/CSP 前置**：`index.html` 的 CSP 为 `connect-src 'self' blob: https: http:`——`ws://127.0.0.1` 不在白名单内，需在桥落地时补 `ws:`（同 commit）。这是 v0.4/v0.5 完全没核到的硬阻塞点。
+- **HTTPS 部署场景**：生产跑在 `https://` 时浏览器**禁止**连 `ws://`（混合内容），relay 必须走 `wss://` 或仅限 dev 模式。v0.6 定：**relay 首版仅服务 dev/本地自用，不做生产暴露**。
+
+### 9.2 前提链纠正：skill/MCP 不是「第一件事」，是「最后一件」
+
+小蓝原话「这样子的前提就是要把 skill 和 mcp 配置了」。**方向对，但顺序反了**。正确依赖链（不可跳步）：
+
+```
+agentOps 门面（写操作唯一收口：zod 校验 / 风险分级 / 事件收口 / create 门控 / 事务外 emit）
+   ↓ 没有它，relay 转发过去的就是裸写库
+Relay + 安全边界（127.0.0.1 + token + 能力白名单 + 一次性 confirmToken）
+   ↓ 没有它，Agent 连不进来
+读/写工具集 + resolveEntity 消解器
+   ↓ 没有它，工具面是空的
+skill 文件 + MCP tools schema（同一套 zod schema 生成，杜绝双份漂移）
+   ↓ 最后一步，Agent 靠它理解意图
+```
+
+**只配 skill/MCP 而没有 agentOps = 把 17 张表裸暴露给外部 Agent。** 这是本轮对用户预想的**唯一实质性修正**。
+
+### 9.3 对 main 最新代码的第二轮漂移核验（hy4-preview 对码，v0.5 之后又有 4 处新增漂移）
+
+| # | v0.5 口径 | main 现状（对码） | v0.6 修正 |
 |---|---|---|---|
-| D1 | `crm_createCustomer`「含首联待办初始化」 | 提交 `1a10062` 已删除 `firstContactTodo`，`CustomerInitOptions` 仅剩 `openingLog` / `linkTransactionId` | 工具语义改为「建档 + 可选 opening 日志 / 关联已有交易」，删除首联待办语义 |
-| D2 | `updateCustomer` 含 `stage` / `industry` 枚举校验 | 同一提交已删除 `Customer.stage` / `Customer.industry` 字段，仅剩 `tier`(S/A/B/潜在) + `decisionLevel` | `crm_updateCustomer` 仅保留 `tier / decisionLevel / healthScore` 可编辑面 |
-| D3 | 记账账本「唯一账本缺省 / 多账本必反问」 | `Ledger.isDefault`（Issue #67）已实装，`TransactionFormDrawer` 默认账本取 `ledgers.find(l => l.isDefault)?.id ?? ledgers[0]?.id` | 记账账本策略改为 **优先 `isDefault` → 否则唯一账本 → 多账本且无默认才反问**，与 UI 行为逐字段对齐 |
+| **D4** | 事件总线「8 个事件」 | `eventBus.ts` 实为 **9 个**（新增 `moduleConfig:changed`，Issue #34） | 声明表按 9 事件对齐；**agentOps 不 emit 它**（配置属人工决策，不开放给 Agent） |
+| **D5** | 记账默认 `status='已结算'` | `TransactionFormDrawer` 新建恒为 **`status: '待对账'`**（:192） | 记账工具默认 **待对账**，与 UI 逐字段一致；不臆造 |
+| **D6** | 待办完成「改 status」 | Issue #74 已收口为领域函数 **`toggleTodoDone`**（status + completedAt 成对写入，三入口统一） | `todo_completeTodo` 必须走 `toggleTodoDone`，禁止自行拼字段 |
+| **D7** | 未提账本缺省失败语义 | `ledgerId` 为空时 UI 直接 `setError('请先创建账本')` | 无账本时工具返回**可操作错误**，不静默落库 |
 
-### 9.2 最终执行口径（v0.4 全部不变式保留，一个不砍）
+另复核确认（无误，维持 v0.5）：D1 首联待办已删（`CustomerInitOptions` 仅剩 `openingLog` / `linkTransactionId`）、D2 `Customer.stage/industry` 已删、D3 `Ledger.isDefault` 已实装（缺省策略 `isDefault → 唯一账本 → 反问`）。
 
-- 意图理解层外包外部 Agent，应用零 LLM 代码、零 API Key、零 CORS 问题（v0.4 E1-E7 全部成立）。
-- 执行载体：应用内 Agent 桥（WebSocket 127.0.0.1 + token，HTTP fallback）为 P0/P1 主路径；Node 侧车 MCP Server 降 P3 可选。
-- 暴露面唯一入口 = agentOps 门面（schema 校验 + 风险分级 + 事件收口 + create 门控 + 事务外 emit），桥零特权。
-- 推进顺序：agentOps 门面 → 事件下沉（三边界）→ 消解器 + `resolveEntity` → 桥 → 读写工具集（按 §9.1 修正）→ skill 首版 → E2E 场景验收。
+### 9.4 必填/可缺省字段纪律（v0.5 缺失，P1 写工具会直接踩）
 
-### 9.3 E2E 验收场景（兼作后续 Agent 自动化测试基线）
+> **对齐原则（v0.6 修订）**：工具层的必填口径一律**对齐 UI 实际落库行为**，而非对齐表单标签上的 `*`。UI 未校验的字段，工具层也不得强制必填，否则 AI 与手工两条路径行为不一致（同一份数据两种约束），后续无法用同一套断言做 E2E 验收。
 
-> 加客户「深蓝科技·王五」→ 给王五记一笔 2000 支出（关联王五，账本走 isDefault 缺省）→ 读回该客户账目与沟通记录 → 建待办「周五回访王五」→ 查待办列表确认存在。
+| 工具 | 必填 | 可缺省（带兜底） |
+|---|---|---|
+| `fin_recordTransaction` | `summary`、`amount`(>0，≤9,999,999,999，两位小数)、`ledgerId`(为空返回可操作错误「请先创建账本」，见 §9.3 D7) | `type`(默认 expense)、`occurredAt`(默认今天 00:00)、`status`(默认 **待对账**)、`channel`(**可缺省**，UI `save()` 未校验非空，见下注)、`tags`/`note`/`customerId`/`todoId`/`projectId` |
+| `crm_createCustomer` | `name` | `tier`(默认 **A**，与 `CustomerFormDrawer.tsx:33` 初值一致)、`decisionLevel`(默认 **决策人**，同 `:32`)、`healthScore`(默认 **60**，同 `:39`，钳 0-100)、`tags`(走 `normalizeTags`)、`openingLog`/`linkTransactionId` |
+| `todo_createTodo` | `title` | `priority`(默认 P2)、`status`(默认 todo)、`dueAt`/`customerId`/`listId`/`projectId` |
+| `crm_addInteraction` | `customerId`(须 resolveEntity 产出)、`content` | `type`(默认 电话)、`at`(默认 now)、`projectId` |
 
-覆盖：消解（重名反问）、写工具（含关联）、读限幅、跨模块弱引用、事件联动（`transaction:created` 与手工记账载荷逐字段一致）。跑通即 P1 主干验收通过；此后功能回归均可由 Agent 重跑该场景自动化执行。
+**`channel` 口径注（v0.6 修正）**：`CHANNELS`（`TransactionFormDrawer.tsx:13`）确为五选一 `['微信','支付宝','银行卡','现金','对公转账']`，但 `save()`（`:140-160`）**只校验 `amount` / `ledgerId` / 附件大小，不校验 `channel` 非空**——即手工路径允许空渠道落库。故工具层 `channel` **可缺省**（缺省为空，或按 UI 现状不填），仅当显式传入时才做五选一枚举校验。**不得**把 `channel` 声明为必填。
+
+**`tier` / `decisionLevel` / `healthScore` 口径注（v0.6 复核）**：三者默认值已逐条对码 `CustomerFormDrawer.tsx`（`:32` 决策人 / `:33` A / `:39` 60），文档取值与 UI 初值一致，**维持不变**（此项为审计要求复核确认，非臆造）。
+
+### 9.5 两个被 v0.4/v0.5 忽略的既有 bug（顺带修，成本极低）
+
+1. **edit 误发 `transaction:created`**：`TransactionFormDrawer.tsx:207` 在编辑模式也 emit，会重复触发奖杯评估。事件下沉时按 v0.3 边界①「仅新 id 才 emit」一并修掉。
+2. **项目跟进不发 `customer:contacted`**：`ProjectDetailPage.tsx:602` 调 `saveInteractionAndTouchCustomer` 但不 emit。按 v0.3 裁决②「项目跟进也算客户联系，统一 emit 并文档化」补齐。
+
+### 9.6 最终架构（v0.6 唯一口径）
+
+```
+外部 Agent（自带 LLM 意图理解）
+   ↓ 读 skill + MCP tools 清单 → 选工具 → 先 resolveEntity → 中/高风险先 preview
+本地 Relay（Node 进程，127.0.0.1 + token；与浏览器之间是浏览器主动连出的 WS）
+   ↓ 只转发，零特权，不 import repositories
+浏览器页面内 agentOps（zod 校验 + 风险分级 + 事件收口 + create 门控 + 事务外 emit）
+   ↓
+repositories（createRepository 工厂保持纯写）→ 同步引擎 / eventBus → 奖杯 / 仪表盘
+```
+
+**不变式（一条不砍）**：事件永在事务 commit 之后；`transaction:created` 仅新建 id 才发；消解按 id 去重、去重后唯一才静默消解、重名/超阈值必反问；写工具拒绝未经 `resolveEntity` 的字符串关联；`createCustomerWithInit` 下沉 repositories；`fuzzyMatch/fuzzySort` 从 MatchCombobox 提升到 shared；打卡抽 `checkinHabit`，**收口全部 3 处调用点**（见 §9.6.1，打卡幂等与 toggle 取消分离）。
+
+#### 9.6.1 打卡逻辑收口范围（v0.6 修正：3 处，非 2 处）
+
+`habitLogId` 只是纯 id 生成器（`repositories/index.ts:154`）；真正的「打卡/取消」逻辑（`put`/`softDelete` + `emit('habit:checked')`）当前**内联重复在 3 处**，抽 `checkinHabit` 时必须三处一并收口，否则漂移仍在：
+
+| # | 位置 | 形态 |
+|---|---|---|
+| 1 | `src/modules/habits/HabitsPage.tsx:65-77` | 手工 toggle：`doneToday ? softDelete : put + emit` |
+| 2 | `src/modules/dashboard/cards.tsx:200-213` | 工作台 HabitLoopCard：同款 `put + emit`，但**软删走 `existing.id`** 而非 `habitLogId` |
+| 3 | `src/shared/effects.ts:126-140` | **专注→习惯联动**：`focus:completed` 驱动，`put` 带 `evidence` 字段，且**已存在即 return**（不 emit） |
+
+**收口口径**：`checkinHabit(habitId, date, opts?)` 返回 `{ created: boolean }` 并只在**实际新建**时 emit `habit:checked`；`opts.evidence` 供 #3 传入；取消打卡独立为 `uncheckHabit(habitId, date)`（软删 + 不 emit）。#2 的软删入口统一改走 `habitLogId` 派生 id，消除「按 existing.id 删」与「按确定性 id 删」两套语义。**三处迁移完成后，`grep -rn "habitLogId" src/modules src/shared` 应只剩 `checkinHabit`/`uncheckHabit` 内部引用**（`db/seed.ts` 造数除外）。
+
+### 9.7 P1 推进顺序（v0.6 修订）
+
+1. **agentOps 门面 + 事件对齐测试**（断点 `transaction:created`，含 §9.5 两个 bug 修复）
+2. 事件下沉 repositories（三边界：create 门控 / interaction 统一 emit / 事务外硬规则）
+3. 消解器 + `resolveEntity`（id 去重 / 阈值反问 / 空输入拦截 / Project 归档沉底）
+4. **本地 Relay**（Node 进程 + token + 白名单 + confirmToken）+ **CSP 补 `ws:`**
+5. 读写工具集（按 §9.3/§9.4 修正版；含 `toggleTodoDone`；`checkinHabit`/`uncheckHabit` 按 §9.6.1 **一次收口 3 处调用点**）
+6. skill 文件首版（与 MCP tools schema 同源 zod 生成）
+7. 跑通 E2E 场景 = P1 主干验收
+
+### 9.8 E2E 验收场景（沿用 v0.5，补强断言）
+
+> 加客户「深蓝科技·王五」→ 给王五记一笔 2000 支出（账本走 isDefault 缺省，status=待对账）→ 读回该客户账目与沟通记录 → 建待办「周五回访王五」→ 查待办列表确认存在。
+
+补强断言：① 经 relay 记一笔 vs 手工记账，`transaction:created` 载荷逐字段一致且奖杯/EXP 无差异；② 编辑该笔流水**不得**再触发 `transaction:created`；③ 读工具返回条数/字段不超白名单；④ 无 token 连接被拒；白名单关闭的域不出现在 tools 清单。
+
+### 9.9 待拍板（1 项，不阻塞前 3 步）
+
+**Relay 与 Agent 之间的协议形态**：stdio（CNB CodeBuddy 等本地 CLI Agent 主流）优先，还是 WebSocket（远程/多客户端）优先？建议 **stdio 优先 + WS 同进程并存**，第 4 步动工前由小蓝指定一个先行实测的 Agent（workbuddy / hermes / codebuddy 任一）即可定。
+
+### 9.10 交付载体与 PR 治理（v0.6 修正）
+
+**问题**：审计发现承载本文档的 PR 曾出现「分支基点停在旧 main」的情况——`git diff main..分支` 会混入大量非文档变更（如删除 `src/modules/moduleConfig/`、`scripts/check-icons.mjs`、`src/design-system/Toast.tsx`、`src/modules/todo/domain.ts`，并还原 `SettingsPage`/`AppLayout`/`TodoPage`），一旦合并等于顺手回滚主干功能。
+
+**v0.6 处置（已完成）**：
+
+- 已将该文档分支与最新 `main` 合并对齐（merge commit `0f9a69b` + 交叉引用修正 `6a77b52`）。当前 `git diff --numstat origin/main <分支>` 输出**仅 1 个文件** `docs/agent-bridge-skill-v0.4.md`，与「纯文档变更」的声明一致；
+- 冲突 PR **#104**（glm 的 D4/D5 文档修订）已 `closed` 且未合并，其内容已被本文档 §9.3 D4/D5 完全覆盖，无需再合（避免与 #105 重复）。
+- **PR 自查铁律（写进流程）**：本文档类 PR 合并前必须确认 `git diff --numstat origin/main <分支>` **只含 `docs/agent-bridge-skill-v0.4.md` 一行**；出现任何 `src/`、`scripts/`、`package.json` 变更即视为分支基点过期，必须 `git fetch origin main && git merge origin/main` 后再合。

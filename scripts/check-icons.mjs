@@ -11,8 +11,11 @@
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-const ROOT = new URL('..', import.meta.url).pathname
+// 注意：必须用 fileURLToPath 解码，直接用 new URL(...).pathname 会把中文路径
+// 变成 %E5%B7%A5... 形式，导致在含中文的目录下 readdirSync 报 ENOENT
+const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const SRC = join(ROOT, 'src')
 const ICON_DIR = join(SRC, 'assets', 'icons')
 
