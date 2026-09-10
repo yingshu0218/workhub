@@ -352,10 +352,16 @@ export async function saveTransactionWithAttachments(
  * 沟通日志 + 客户最近联系时间原子落库：单 Dexie 事务覆盖 interactions / customers / syncQueue 三表，
  * 任一步失败整体回滚（避免"日志已落库而 lastContactAt 未刷新"的数据不一致）。
  * 客户侧先 get 最新记录再仅 update lastContactAt 单字段（禁止整记录展开覆盖并发写入的其他字段）。
+ *
+ * `touchAt`（可选，默认 = interaction.at）：客户侧「最近联系时间」的落库值。
+ * 传入它允许调用方把「日志真实时间」与「客户最近联系时间」解耦 —— agentOps 补录历史沟通时
+ * 用 `max(prev, at)` 避免把 lastContactAt 拉回过去（否则客户久未跟进提醒永久静默）。
+ * 缺省行为与历史完全一致（= interaction.at），UI 两个入口不受影响。
  */
 export async function saveInteractionAndTouchCustomer(
   interaction: PutInput<Interaction>,
   customerId: string,
+  touchAt?: number,
 ): Promise<string> {
   const now = Date.now()
   await db.transaction('rw', [db.interactions, db.customers, db.syncQueue], async () => {
@@ -383,7 +389,7 @@ export async function saveInteractionAndTouchCustomer(
       throw new Error(`saveInteractionAndTouchCustomer: customer ${customerId} not found`)
     }
     await db.customers.update(customerId, {
-      lastContactAt: interaction.at,
+      lastContactAt: touchAt ?? interaction.at,
       updatedAt: now,
       rev: prevCustomer.rev + 1,
     })

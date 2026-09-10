@@ -17,6 +17,7 @@ import {
   createLedgerSchema,
   addRelationSchema,
   TOOL_RISK,
+  TOOL_EVENTS,
   type AgentEventDeclaration,
 } from './schema'
 
@@ -49,10 +50,28 @@ function parseOrError<S extends z.ZodTypeAny>(schema: S, input: unknown):
   return { ok: false, error: msgs.join('；') }
 }
 
-/** 事务外统一事件出口（硬规则：永不在事务体内 emit） */
-function emitDeclared(tool: string, payloads: AgentEventDeclaration[]): void {
-  for (const p of payloads) eventBus.emit(p.event, p.payload)
-  void tool // 事件声明表已在 TOOL_EVENTS 静态约束；此处仅顺序发射
+/**
+ * 事务外统一事件出口（硬规则：永不在事务体内 emit）。
+ *
+ * 事件名**从 TOOL_EVENTS 声明表推导**，payload 由调用方构造：
+ * 声明表是唯一事实源，若某工具在 TOOL_EVENTS 里没声明事件，这里一个都不会发；
+ * 声明了但调用方没给对应 payload，则抛错（防「声明表与实际 emit 两条独立路径」的漂移）。
+ */
+function emitDeclared(tool: string, payloads: Record<string, AgentEventDeclaration['payload']>): void {
+  const declared = TOOL_EVENTS[tool] ?? []
+  for (const event of declared) {
+    const payload = payloads[event]
+    if (payload === undefined) {
+      throw new Error(`emitDeclared: 工具 ${tool} 声明了事件 ${event} 但未提供 payload`)
+    }
+    eventBus.emit(event, payload)
+  }
+  // 调用方多给了未声明事件的 payload → 同样视为漂移，直接拒绝
+  for (const event of Object.keys(payloads)) {
+    if (!declared.includes(event as (typeof declared)[number])) {
+      throw new Error(`emitDeclared: 工具 ${tool} 未声明事件 ${event}，禁止越表 emit`)
+    }
+  }
 }
 
 /** fin_recordTransaction：记一笔（§9.4 口径：status 默认待对账，channel 可缺省） */
@@ -86,9 +105,9 @@ export async function fin_recordTransaction(input: unknown): Promise<AgentOpResu
   }
   // agentOps 首版不含 Blob 附件通道（外部 Agent 无法构造 Blob），附件走 UI 路径
   await saveTransactionWithAttachments(record, [])
-  emitDeclared('fin_recordTransaction', [
-    { event: 'transaction:created', payload: { transactionId: id, customerId: d.customerId } },
-  ])
+  emitDeclared('fin_recordTransaction', {
+    'transaction:created': { transactionId: id, customerId: d.customerId },
+  })
   return ok({ transactionId: id, status: d.status })
 }
 
@@ -123,7 +142,17 @@ export async function crm_createCustomer(input: unknown): Promise<AgentOpResult>
   return ok({ customerId: record.id })
 }
 
-/** crm_addInteraction：记沟通日志（原子双写刷新 lastContactAt） */
+/**
+ * crm_addInteraction：记沟通日志（原子双写刷新 lastContactAt）。
+ *
+ * lastContactAt 口径（对齐 UI 现状，§9.4 同源原则）：
+ * `saveInteractionAndTouchCustomer` 是**无条件** `lastContactAt = interaction.at`（非 max），
+ * 而 UI 两个入口（CustomerDetailPage / ProjectDetailPage）都传 `Date.now()`，碰不到「打回过去」。
+ * 外部 Agent 补录历史沟通时若传过去时间，会把 `lastContactAt` 打回过去 ——
+ * 直接让「客户久未跟进提醒」（notifications.customerStaleAlert）永久静默。
+ * 故工具层显式对齐 UI：**日志时间可回溯（at 原样落库），但不允许把 lastContactAt 拉回过去**。
+ * 具体做法：at 早于当前 lastContactAt 时，客户侧仍用当前值（不倒退），日志本身保留真实时间。
+ */
 export async function crm_addInteraction(input: unknown): Promise<AgentOpResult> {
   const parsed = parseOrError(addInteractionSchema, input)
   if (!parsed.ok) return parsed
@@ -135,6 +164,10 @@ export async function crm_addInteraction(input: unknown): Promise<AgentOpResult>
     return err(`客户不存在：${d.customerId}，请先 resolveEntity 消解`)
   }
 
+  const at = d.at ?? Date.now()
+  // 不让 lastContactAt 倒退：补录历史日志时保持客户最近联系时间不后退
+  const touchAt = Math.max(customer.lastContactAt ?? 0, at)
+
   const id = newId('itx')
   await saveInteractionAndTouchCustomer(
     {
@@ -142,15 +175,16 @@ export async function crm_addInteraction(input: unknown): Promise<AgentOpResult>
       customerId: d.customerId,
       type: d.type,
       content: d.content,
-      at: d.at ?? Date.now(),
+      at,
       projectId: d.projectId,
     },
     d.customerId,
+    touchAt,
   )
-  emitDeclared('crm_addInteraction', [
-    { event: 'customer:contacted', payload: { customerId: d.customerId } },
-  ])
-  return ok({ interactionId: id })
+  emitDeclared('crm_addInteraction', {
+    'customer:contacted': { customerId: d.customerId },
+  })
+  return ok({ interactionId: id, at, lastContactAt: touchAt })
 }
 
 /** crm_addRelation：双向落两侧（v0.2 裁决：A/B 两侧 relations[] 各写一条） */
@@ -221,7 +255,15 @@ export async function todo_createTodo(input: unknown): Promise<AgentOpResult> {
   return ok({ todoId: id })
 }
 
-/** todo_completeTodo：完成态切换，唯一入口 toggleTodoDone（§9.3 D6） */
+/**
+ * todo_completeTodo：完成态切换，唯一落库入口 toggleTodoDone（§9.3 D6，status + completedAt 成对写）。
+ *
+ * 幂等口径（P1 复审 ⑥）：**入参态已等于目标态时直接返回，不落库**。
+ * - 不幂等会推进 `completedAt`（「今日已完成」统计与 CRM 时间轴的唯一依据）并多入一条同步队列；
+ * - 外部 Agent 重试同一请求（超时重发、链路重放）是常态，必须挡住；
+ * - UI 侧 `toggle(t)` 传列表里的实时记录，语义是「点一下切换」，与工具层「声明目标态」不同：
+ *   工具层是**目标态语义**（done=true 即要求它处于已完成），已达态即无操作。
+ */
 export async function todo_completeTodo(input: unknown): Promise<AgentOpResult> {
   const parsed = parseOrError(completeTodoSchema, input)
   if (!parsed.ok) return parsed
@@ -229,11 +271,21 @@ export async function todo_completeTodo(input: unknown): Promise<AgentOpResult> 
 
   const todo = await db.todos.get(d.todoId)
   if (!todo || todo.deleted) return err(`待办不存在：${d.todoId}`)
-  // toggleTodoDone 语义：从「入参记录的当前态」取反。显式把入参状态摆到目标态的反面，
-  // 使 toggle 后恰好落在 d.done 声明的目标态（status + completedAt 成对写由 toggle 保证）
-  const asInput: Todo = { ...todo, status: d.done ? 'todo' : 'done', completedAt: d.done ? undefined : todo.completedAt }
+
+  // 转换当前态 → 目标态；已完成态（含 completedAt 已盖）保持不动
+  const targetStatus = d.done ? 'done' : 'todo'
+  const already = todo.status === targetStatus
+  if (already) {
+    return ok({ todoId: d.todoId, status: todo.status, changed: false })
+  }
+  // toggleTodoDone 从「入参记录的当前态」取反，故把入参摆到目标态的反面，toggle 后恰为目标态
+  const asInput: Todo = {
+    ...todo,
+    status: d.done ? 'todo' : 'done',
+    completedAt: d.done ? undefined : todo.completedAt,
+  }
   const next = await toggleTodoDone(asInput)
-  return ok({ todoId: d.todoId, status: next.status })
+  return ok({ todoId: d.todoId, status: next.status, changed: true })
 }
 
 /** fin_createLedger：建账本（isDefault 全局唯一纪律与 UI 一致） */

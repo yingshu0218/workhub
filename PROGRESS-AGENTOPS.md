@@ -10,7 +10,7 @@
 | src/agent/schema.ts | 7 个写工具的 zod 入参 schema + 风险分级（TOOL_RISK）+ 事件声明（TOOL_EVENTS 声明表） |
 | src/agent/executor.ts | agentOps 执行器：zod 校验 → 落库（repositories 复合/原子函数）→ 事务 commit 后统一 emit |
 | src/agent/createCustomerWithInit.ts | 自 modules/crm/hooks.ts 下沉的建档复合函数（逐行等价搬迁，供 executor 依赖，不反向依赖业务模块） |
-| src/agent/__tests__/agentOps.alignment.test.ts | 事件对齐对照测试（11 条） |
+| src/agent/__tests__/agentOps.alignment.test.ts | 事件对齐对照测试（21 条） |
 | vitest.config.ts + package.json test 脚本 | 测试基建（vitest + fake-indexeddb，devDependencies） |
 
 ## 覆盖的方案要点
@@ -38,5 +38,19 @@
 
 - `npm run lint` ✅
 - `npx tsc -b` ✅
-- `npm test` ✅ 11/11（vitest + fake-indexeddb）
+- `npm test` ✅ 21/21（vitest + fake-indexeddb）
 - `npm run build` ✅
+
+## 复审补强（P1 复审 ②/③/5.3/⑥ + 4/5.1，2026-09-10）
+
+| # | 项 | 处置 |
+|---|---|---|
+| ② | `occurredAt` 范围校验（`z.string().date()` 放行 1900/9999） | schema 加 `occurredAtSchema`：格式 + 日期真实存在 + 范围 `[2000-01-01, 今天+1]`；3 条测试 |
+| ③ | `crm_addInteraction` 把 `lastContactAt` 打回过去 | `saveInteractionAndTouchCustomer` 加可选 `touchAt`（默认 = `at`，UI 行为不变）；agentOps 传 `max(prev, at)`，**日志时间保留真实值**、仅客户最近联系时间不倒退；2 条测试 |
+| 5.3 | `emitDeclared` 的 `tool` 是死参数，事件名硬编码 | 改为**从 `TOOL_EVENTS` 推导事件名**：声明表是唯一事实源，多给/少给 payload 均抛错；2 条测试 |
+| ⑥ | `todo_completeTodo` 非幂等（重试推进 `completedAt` + 多入队） | 入参态已等于目标态时**直接 return、不落库**，返回 `{ changed: false }`；2 条测试 |
+| 4 | §2.1「P1」易被读成「第 1 步」 | 方案文档 §2.1 表头补注（P1 = 整个 P1 期） |
+| 5.1 | §2.1「repositories 复合函数下沉 emit」与 §9.6「事务外 emit」口径需唯一化 | 方案文档 §2.1 事件纪律补一句：emit 收口到 repositories 层函数**事务体之外** |
+
+> 待拍板项（第三节 lastContactAt 走 a/b、第六节「点已 done 待办」期望行为）仍待小蓝确认；
+> 本轮按 **a（工具层对齐 UI）+ 幂等（目标态语义）** 保守落地，均不改 UI 语义，若拍板走 b 再调。

@@ -1,3 +1,4 @@
+import dayjs from 'dayjs'
 import { z } from 'zod'
 
 /**
@@ -22,6 +23,37 @@ const MAX_AMOUNT = 9_999_999_999
 const CHANNELS = ['微信', '支付宝', '银行卡', '现金', '对公转账'] as const
 const INTERACTION_TYPES = ['电话', '会议', '邮件', '拜访', '跟进', '小结', '其他'] as const
 
+/**
+ * 记账日期合理下限：2000-01-01（本地时区当天 00:00）。
+ * 与 UI 对齐：表单是原生 `type="date"`（TransactionFormDrawer 记账时间），
+ * 提供年/月/日分段控件，**不存在 1900/9999 这类值**——故工具层同样不接受。
+ */
+export const MIN_OCCURRED_DATE = '2000-01-01'
+
+/** 记账日期上限 = 今天 + 日历宽限（容忍时区/次日记账）。UI 日期控件不显式封顶，但也不会手输未来年份 */
+const FUTURE_GRACE_DAYS = 1
+
+function todayISO(offsetDays = 0): string {
+  const d = new Date()
+  d.setDate(d.getDate() + offsetDays)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+/**
+ * 记账日期口径（对齐 UI：`dayjs(v).startOf('day')`，仅日期、无时分）：
+ * - 格式 YYYY-MM-DD；
+ * - 真实存在的日期（挡掉 2025-02-30 这类语法合法但不存在的值）；
+ * - 范围 [MIN_OCCURRED_DATE, 今天+1]——`z.string().date()` 只做语法校验，
+ *   会放行 1900-01-01 / 9999-12-31，而 Transaction.occurredAt 被全站财务统计
+ *   直接聚合，一次「幻觉日期」即静默污染统计口径（lint：§7 幻觉兜底防线的洞）。
+ */
+const occurredAtSchema = z
+  .string()
+  .date('记账日期格式须为 YYYY-MM-DD')
+  .refine((v) => dayjs(v, 'YYYY-MM-DD', true).isValid(), '记账日期不存在（请检查月份与日）')
+  .refine((v) => v >= MIN_OCCURRED_DATE, `记账日期不能早于 ${MIN_OCCURRED_DATE}`)
+  .refine((v) => v <= todayISO(FUTURE_GRACE_DAYS), '记账日期不能晚于今天')
+
 /** 金额口径与 UI 一致：>0、两位小数、10 位数封顶（TransactionFormDrawer save()） */
 const amountSchema = z
   .number()
@@ -36,8 +68,8 @@ export const recordTransactionSchema = z.object({
   summary: z.string().trim().min(1, '请填写交易名称'),
   amount: amountSchema,
   type: z.enum(['income', 'expense']).default('expense'),
-  /** 仅日期：统一落当天 00:00（UI 同款）；缺省=今天 */
-  occurredAt: z.string().date().optional(),
+  /** 仅日期：统一落当天 00:00（UI 同款）；缺省=今天。范围见 occurredAtSchema（挡幻觉日期） */
+  occurredAt: occurredAtSchema.optional(),
   /** UI save() 未校验 channel 非空（§9.4 口径注）：可缺省，仅显式传入时枚举校验 */
   channel: z.enum(CHANNELS).optional(),
   status: z.enum(['已结算', '待对账']).default('待对账'),

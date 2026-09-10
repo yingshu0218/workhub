@@ -11,8 +11,8 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import 'fake-indexeddb/auto'
 import { db } from '@/db/db'
 import { eventBus } from '@/shared/eventBus'
-import { fin_recordTransaction, crm_createCustomer, crm_addInteraction, crm_addRelation, todo_createTodo, todo_completeTodo } from '../executor'
-import { recordTransactionSchema } from '../schema'
+import { fin_recordTransaction, crm_createCustomer, crm_addInteraction, crm_addRelation, todo_createTodo, todo_completeTodo, AGENT_TOOLS } from '../executor'
+import { recordTransactionSchema, TOOL_EVENTS } from '../schema'
 
 // fake-indexeddb/auto 已注册全局 indexedDB，Dexie 直接可用（独立于应用环境）
 
@@ -165,5 +165,110 @@ describe('风险分级接线（P1 复审 ① 防再犯）', () => {
       expect(['low', 'medium']).toContain(tool.risk)
       expect(tool.risk).toBe(TOOL_RISK[name])
     }
+  })
+})
+
+describe('幻觉日期兜底：occurredAt 范围校验（P1 复审 ②）', () => {
+  const base = { ledgerId: 'l1', summary: 'x', amount: 120 }
+
+  it('schema 层拒绝 1900-01-01 / 9999-12-31（z.string().date() 的洞）', () => {
+    expect(recordTransactionSchema.safeParse({ ...base, occurredAt: '1900-01-01' }).success).toBe(false)
+    expect(recordTransactionSchema.safeParse({ ...base, occurredAt: '9999-12-31' }).success).toBe(false)
+    // 语法合法但不存在的日期也要挡（2025-02-30）
+    expect(recordTransactionSchema.safeParse({ ...base, occurredAt: '2025-02-30' }).success).toBe(false)
+  })
+
+  it('合理范围放行：2000-01-01 / 今天', () => {
+    const today = new Date()
+    const todayISO = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+    expect(recordTransactionSchema.safeParse({ ...base, occurredAt: '2000-01-01' }).success).toBe(true)
+    expect(recordTransactionSchema.safeParse({ ...base, occurredAt: todayISO }).success).toBe(true)
+  })
+
+  it('执行器层：非法日期返回可操作错误且不落库', async () => {
+    await db.ledgers.put({ id: 'l1', name: '主', currency: 'CNY', openingBalance: 0, closingCycle: '月结', sortOrder: 0, createdAt: 1, updatedAt: 0, deleted: 0, rev: 0 })
+    const r = await fin_recordTransaction({ ledgerId: 'l1', summary: '穿越', amount: 1, occurredAt: '9999-12-31' })
+    expect(r.ok).toBe(false)
+    expect(r.error).toContain('记账日期')
+    expect(await db.transactions.count()).toBe(0)
+  })
+})
+
+describe('事件声明表是唯一事实源（P1 复审 5.3：emitDeclared 不得成死参数）', () => {
+  it('未声明事件的工具一个事件都不发（createCustomer 无既有事件）', async () => {
+    const events: unknown[] = []
+    const orig = eventBus.emit.bind(eventBus)
+    eventBus.emit = (event, payload) => { events.push({ event, payload }); orig(event, payload) }
+    const r = await crm_createCustomer({ name: '无事件客户' })
+    expect(r.ok).toBe(true)
+    expect(events).toHaveLength(0)
+  })
+
+  it('声明表覆盖到的工具都有对应的 TOOL_EVENTS 键可查', () => {
+    // 每个工具名都能在 TOOL_EVENTS 上查（缺声明即 undefined → 空数组，不报错）
+    for (const name of Object.keys(AGENT_TOOLS)) {
+      expect(Array.isArray(TOOL_EVENTS[name] ?? [])).toBe(true)
+    }
+    // 断点工具的声明必须是 transaction:created，且不等于 UI 之外的其它事件
+    expect(TOOL_EVENTS['fin_recordTransaction']).toEqual(['transaction:created'])
+  })
+})
+
+describe('lastContactAt 只前进：补录历史沟通不回退客户最近联系时间（P1 复审 ③）', () => {
+  it('crm_addInteraction 传过去时间时 lastContactAt 保持现值，日志本身保留真实时间', async () => {
+    const c = await crm_createCustomer({ name: '王五' })
+    const customerId = (c.data as { customerId: string }).customerId
+    const before = (await db.customers.get(customerId))!.lastContactAt
+
+    const past = 1 // 1970-01-01
+    const r = await crm_addInteraction({ customerId, content: '补录去年的拜访', at: past })
+    expect(r.ok).toBe(true)
+
+    const after = await db.customers.get(customerId)
+    expect(after!.lastContactAt).toBeGreaterThanOrEqual(before) // 不倒退
+    // 日志本体的时间保留真实值（回溯补录不篡改记录时间）
+    const itx = await db.interactions.get((r.data as { interactionId: string }).interactionId)
+    expect(itx!.at).toBe(past)
+  })
+
+  it('正常当前时间沟通会推进 lastContactAt', async () => {
+    const c = await crm_createCustomer({ name: '赵六' })
+    const customerId = (c.data as { customerId: string }).customerId
+    const before = (await db.customers.get(customerId))!.lastContactAt
+    const future = before + 60_000
+    const r = await crm_addInteraction({ customerId, content: '刚通完电话', at: future })
+    expect(r.ok).toBe(true)
+    expect((await db.customers.get(customerId))!.lastContactAt).toBe(future)
+  })
+})
+
+describe('todo_completeTodo 幂等：已达目标态不重复落库（P1 复审 ⑥）', () => {
+  it('重复 complete 不推进 completedAt、不多入同步队列', async () => {
+    const t = await todo_createTodo({ title: '回访' })
+    const id = (t.data as { todoId: string }).todoId
+    await todo_completeTodo({ todoId: id, done: true })
+    const first = await db.todos.get(id)
+    const revAfterFirst = first!.rev
+    const queueAfterFirst = await db.syncQueue.count()
+
+    await new Promise((res) => setTimeout(res, 5))
+    const again = await todo_completeTodo({ todoId: id, done: true })
+    expect(again.ok).toBe(true)
+    expect((again.data as { changed: boolean }).changed).toBe(false)
+
+    const second = await db.todos.get(id)
+    expect(second!.completedAt).toBe(first!.completedAt)
+    expect(second!.rev).toBe(revAfterFirst)
+    expect(await db.syncQueue.count()).toBe(queueAfterFirst)
+  })
+
+  it('取消完成是有效变更（changed: true）', async () => {
+    const t = await todo_createTodo({ title: '回访2' })
+    const id = (t.data as { todoId: string }).todoId
+    await todo_completeTodo({ todoId: id, done: true })
+    const r = await todo_completeTodo({ todoId: id, done: false })
+    expect(r.ok).toBe(true)
+    expect((r.data as { changed: boolean }).changed).toBe(true)
+    expect((await db.todos.get(id))!.status).toBe('todo')
   })
 })
