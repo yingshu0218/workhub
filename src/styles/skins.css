@@ -406,9 +406,12 @@ h4,
    侧栏/页头为全幅常驻 chrome：容器不做玻璃化/切角大改造（防过度设计、
    保对比度），只调右 border 与导航项形态；none 皮肤不含本段，零回归。
    ---- pixel：导航项直角 + 硬描边，激活态右下硬投影（对齐参考图 4） ---- */
-:root[data-skin='pixel'] .app-sidebar,
-:root[data-skin='pixel'] .app-header {
+:root[data-skin='pixel'] .app-sidebar {
   border-right-color: var(--skin-border-color);
+}
+
+:root[data-skin='pixel'] .app-header {
+  border-bottom-color: var(--skin-border-color);
 }
 
 :root[data-skin='pixel'] .app-nav-link {
@@ -495,17 +498,4 @@ h4,
 
 :root[data-skin='glass'] .app-header {
   border-bottom-color: var(--skin-border-color);
-}
-
-/* ---- 通用档：.surface-card-xl / .surface-card-low 形态与卡片同源 ----
-   工作区切换弹层、浮层信息卡等表面在四套皮肤下与内容区卡片同形态 */
-:root[data-skin]:not([data-skin='none']) .surface-card-xl,
-:root[data-skin]:not([data-skin='none']) .surface-card-low {
-  border: var(--skin-border-width) solid var(--skin-border-color);
-  border-radius: var(--skin-card-radius);
-  box-shadow: var(--skin-shadow-card);
-}
-
-:root[data-skin]:not([data-skin='none']) .surface-card-xl:hover {
-  box-shadow: var(--skin-shadow-hover);
 }
