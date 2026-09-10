@@ -4,7 +4,7 @@ import dayjs from 'dayjs'
 import type { Habit } from '@/db/types'
 import { habitLogRepo, habitLogId, deleteHabitCascade } from '@/repositories'
 import { eventBus } from '@/shared/eventBus'
-import { Button, Card, Chip, EmptyState, PageHeader } from '@/design-system/ui'
+import { Button, Card, Chip, ConfirmDialog, EmptyState, PageHeader } from '@/design-system/ui'
 import {
   useHabitStats,
   useHabitMonthCounts,
@@ -36,6 +36,10 @@ export default function HabitsPage() {
   const [selectedDate, setSelectedDate] = useState<string | undefined>(undefined)
   const [editing, setEditing] = useState<Habit | null>(null)
   const [creating, setCreating] = useState(false)
+  // 删除习惯确认（应用风格弹窗，替代 window.confirm）
+  const [confirmHabit, setConfirmHabit] = useState<{ habit: Habit; totalChecks: number } | null>(
+    null,
+  )
 
   const stats = useHabitStats(month)
   const counts = useHabitMonthCounts(month)
@@ -75,11 +79,7 @@ export default function HabitsPage() {
 
   /** 删除习惯 —— 确认后单事务级联软删习惯及其全部历史打卡 */
   function removeHabit(habit: Habit, totalChecks: number) {
-    const msg =
-      totalChecks > 0
-        ? `删除习惯「${habit.name}」？\n该习惯已有 ${totalChecks} 次历史打卡记录，将一并删除，此操作不可撤销。`
-        : `删除习惯「${habit.name}」？此操作不可撤销。`
-    if (confirm(msg)) void deleteHabitCascade(habit.id)
+    setConfirmHabit({ habit, totalChecks })
   }
 
   const monthTotalChecks = stats.reduce((sum, s) => sum + s.monthChecks, 0)
@@ -306,6 +306,25 @@ export default function HabitsPage() {
         onClose={() => {
           setCreating(false)
           setEditing(null)
+        }}
+      />
+
+      {/* 删除习惯确认（应用风格弹窗，替代 window.confirm） */}
+      <ConfirmDialog
+        open={confirmHabit !== null}
+        title={`删除习惯「${confirmHabit?.habit.name ?? ''}」？`}
+        danger
+        confirmText="删除"
+        message={
+          confirmHabit && confirmHabit.totalChecks > 0
+            ? `该习惯已有 ${confirmHabit.totalChecks} 次历史打卡记录，将一并删除，此操作不可撤销。`
+            : '此操作不可撤销。'
+        }
+        onCancel={() => setConfirmHabit(null)}
+        onConfirm={() => {
+          const target = confirmHabit
+          setConfirmHabit(null)
+          if (target) void deleteHabitCascade(target.habit.id)
         }}
       />
     </div>
