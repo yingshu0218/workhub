@@ -44,7 +44,7 @@ export interface CanvasGraph {
     customerId: string
     title: string
     priority: 'P1' | 'P2' | 'P3'
-    status: 'todo' | 'doing' | 'done'
+    status: Todo['status']
     projectId?: string
   }[]
   /** 沟通日志投影：桥接推导需 customerId+projectId（CanvasGraph 原不含 interaction，Issue #34 补齐） */

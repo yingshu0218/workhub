@@ -1,5 +1,6 @@
 import dayjs from 'dayjs'
 import type { Customer, Todo, Transaction, Note } from '@/db/types'
+import { isTodoOpen } from '@/modules/todo/domain'
 
 /**
  * 灵感闪现规则引擎（Phase 6 · 戒点①：权重一律从源记录推导，不存快照）
@@ -52,7 +53,7 @@ function buildCandidates(input: EngineInput): InspirationCandidate[] {
 
   // ── 待办类：逾期（权重最高）与今日到期 ──
   for (const t of input.todos) {
-    if (t.status === 'done') continue
+    if (!isTodoOpen(t)) continue
     if (!t.dueAt) continue
     const overdueMs = now - t.dueAt
     const customer = t.customerId ? customersById.get(t.customerId) : undefined

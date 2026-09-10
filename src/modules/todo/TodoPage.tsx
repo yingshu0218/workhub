@@ -19,6 +19,7 @@ import { MatchCombobox } from '@/design-system/MatchCombobox'
 import dayjs from 'dayjs'
 import { useFocusStore } from '@/stores/focus'
 import { toggleTodoDone } from './toggle'
+import { isTodoOpen, isDueToday } from './domain'
 import {
   useTodoLists,
   useTodoListCounts,
@@ -119,7 +120,8 @@ export default function TodoPage() {
       }),
     [todos, sortDir],
   )
-  const openTodos = sortedTodos.filter((t) => t.status !== 'done')
+  // 未完成口径统一走领域层 isTodoOpen()，不再手写 status !== 'done'
+  const openTodos = sortedTodos.filter(isTodoOpen)
   // 逾期提醒（P1-2 死开关接通）：全局未完成且已过截止时间，按设置开关决定是否提示
   const overdueTodos = useMemo(
     () => openTodos.filter((t) => t.dueAt && dayjs(t.dueAt).isBefore(dayjs())),
@@ -129,12 +131,12 @@ export default function TodoPage() {
   // 日历日边界：今天 = 今日截止 ∪ 逾期未完成；最近七天 = [今天, +7天] ∪ 逾期未完成
   const weekEndStr = dayjs().add(7, 'day').format('YYYY-MM-DD')
   const matchesSmart = (t: Todo): boolean => {
-    if (t.status !== 'done') {
+    if (isTodoOpen(t)) {
       if (selKind === 'all') return true
       if (selKind === 'inbox') return !t.listId
       if (!t.dueAt) return false
       const d = dayjs(t.dueAt).format('YYYY-MM-DD')
-      if (selKind === 'today') return d <= todayStr
+      if (selKind === 'today') return isDueToday(t, todayStr)
       if (selKind === 'week') return d <= weekEndStr
     }
     return false
@@ -146,8 +148,8 @@ export default function TodoPage() {
     : sortedTodos.filter((t) => matchesSmart(t) || (focusRingId !== null && t.id === focusRingId))
   // P1 / 已完成降级为右侧筛选 Chip，作用于当前左栏视图/清单之内；全部未命中时兜底展示空态
   const filtered = baseScope.filter((t) => {
-    if (chipP1 && !(t.status !== 'done' && t.priority === 'P1')) return false
-    if (chipDone && t.status !== 'done') return false
+    if (chipP1 && !(isTodoOpen(t) && t.priority === 'P1')) return false
+    if (chipDone && isTodoOpen(t)) return false
     return true
   })
 
@@ -184,8 +186,7 @@ export default function TodoPage() {
       key: 'today',
       icon: 'today',
       label: '今天',
-      count: openTodos.filter((t) => t.dueAt && dayjs(t.dueAt).format('YYYY-MM-DD') <= todayStr)
-        .length,
+      count: openTodos.filter((t) => isDueToday(t, todayStr)).length,
     },
     {
       key: 'week',
@@ -515,13 +516,13 @@ export default function TodoPage() {
                   >
                     <button onClick={() => toggle(t)} className="shrink-0">
                       <Icon
-                        name={t.status === 'done' ? 'check_circle' : 'radio_button_unchecked'}
+                        name={!isTodoOpen(t) ? 'check_circle' : 'radio_button_unchecked'}
                         size={20}
-                        fill={t.status === 'done'}
+                        fill={!isTodoOpen(t)}
                         className={
-                          t.status !== 'done' && t.priority === 'P1'
+                          isTodoOpen(t) && t.priority === 'P1'
                             ? 'text-danger'
-                            : t.status !== 'done'
+                            : isTodoOpen(t)
                               ? 'text-outline'
                               : ''
                         }
@@ -530,16 +531,11 @@ export default function TodoPage() {
                     <div className="min-w-0 flex-1">
                       <div
                         className={`truncate text-[1rem] ${
-                          t.status === 'done' ? 'text-outline line-through' : 'font-medium'
+                          !isTodoOpen(t) ? 'text-outline line-through' : 'font-medium'
                         }`}
                       >
                         {t.title}
-                        {/* 状态标记：'doing' 三态可见化；「专注中」为专注计时实时态，与持久化状态独立 */}
-                        {t.status === 'doing' && (
-                          <span className="ml-2 align-middle">
-                            <Chip tone="amber">进行中</Chip>
-                          </span>
-                        )}
+                        {/* 状态只留两态（Issue #74），「专注中」为专注计时运行时态，与持久化状态独立 */}
                         {isDoing && (
                           <span className="ml-2 align-middle">
                             <Chip tone="blue" icon="timer">
@@ -551,7 +547,7 @@ export default function TodoPage() {
                       {t.dueAt && (
                         <div className="mt-0.5 text-[0.8571rem] text-outline">
                           截止 {dayjs(t.dueAt).format('M月D日 HH:mm')}
-                          {t.status !== 'done' && dayjs(t.dueAt).isBefore(dayjs()) && (
+                          {isTodoOpen(t) && dayjs(t.dueAt).isBefore(dayjs()) && (
                             <span className="ml-1.5 text-danger">已逾期</span>
                           )}
                         </div>
@@ -576,7 +572,7 @@ export default function TodoPage() {
                     >
                       {t.priority}
                     </Chip>
-                    {t.status !== 'done' && (
+                    {isTodoOpen(t) && (
                       <Button
                         size="sm"
                         variant="tonal"
@@ -641,11 +637,11 @@ export default function TodoPage() {
               : selKind === 'inbox'
                 ? !saved.listId
                 : selKind === 'today'
-                  ? saved.status !== 'done' && !!savedDay && savedDay <= todayStr
-                  : saved.status !== 'done' && !!savedDay && savedDay <= weekEndStr
+                  ? isTodoOpen(saved) && !!savedDay && savedDay <= todayStr
+                  : isTodoOpen(saved) && !!savedDay && savedDay <= weekEndStr
           const chipOk =
-            (!chipP1 || (saved.status !== 'done' && saved.priority === 'P1')) &&
-            (!chipDone || saved.status === 'done')
+            (!chipP1 || (isTodoOpen(saved) && saved.priority === 'P1')) &&
+            (!chipDone || !isTodoOpen(saved))
           if (!visible || !chipOk) {
             setSelListId(null)
             setChipP1(false)
@@ -690,7 +686,7 @@ export function TodoFormDrawer({
   const [title, setTitle] = useState('')
   const [desc, setDesc] = useState('')
   const [priority, setPriority] = useState<Todo['priority']>('P2')
-  // 状态三态化：让 'doing' 从死枚举变成可达状态（原仅种子数据出现，UI 无法设置）
+  // 状态两态（Issue #74）：仅待处理/已完成，完成时间与 status 成对写入
   const [status, setStatus] = useState<Todo['status']>('todo')
   const [dueAt, setDueAt] = useState('')
   const [customerId, setCustomerId] = useState('')
@@ -787,7 +783,6 @@ export function TodoFormDrawer({
             {(
               [
                 { key: 'todo', label: '待处理' },
-                { key: 'doing', label: '进行中' },
                 { key: 'done', label: '已完成' },
               ] as const
             ).map((opt) => (

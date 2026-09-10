@@ -7,6 +7,7 @@ import { MatchCombobox } from '@/design-system/MatchCombobox'
 import { eventBus } from '@/shared/eventBus'
 import { todoRepo, habitLogRepo, habitLogId, newId } from '@/repositories'
 import { toggleTodoDone } from '@/modules/todo/toggle'
+import { isDueToday, isTodoOpen } from '@/modules/todo/domain'
 import { useState } from 'react'
 import type { Todo, Customer, Ledger } from '@/db/types'
 import dayjs from 'dayjs'
@@ -23,7 +24,7 @@ export function FocusCard() {
   const customers = useCollection<Customer>('customers')
   const ledgers = useCollection<Ledger>('ledgers')
   const doing = todos.find((t) => t.id === focus.todoId)
-  const openTodos = todos.filter((t) => t.status !== 'done')
+  const openTodos = todos.filter(isTodoOpen)
 
   // 专注进行中时的关联实体引用（对齐原型 01）：无关联则不显示
   const refCustomer = doing?.customerId
@@ -277,9 +278,8 @@ export function TodayTodosCard() {
   const todos = useCollection<Todo>('todos')
   const todayStr = dayjs().format('YYYY-MM-DD')
   const list = todos
-    .filter(
-      (t) => t.status !== 'done' && !!t.dueAt && dayjs(t.dueAt).format('YYYY-MM-DD') === todayStr,
-    )
+    // 「今天」口径（Issue #74）：今日截止 ∪ 逾期未完成，与待办中心一致
+    .filter((t) => isDueToday(t, todayStr))
     .sort((a, b) => (a.dueAt ?? Infinity) - (b.dueAt ?? Infinity))
   const doneToday = todos.filter(
     (t) =>
@@ -360,7 +360,7 @@ export function TodayTodosCard() {
         className="mt-3 border-t border-outline-variant/40 pt-3 text-left text-[0.8571rem] text-primary hover:underline"
         onClick={() => (location.href = '/todo')}
       >
-        进入待办事项中心查看全部（{todos.filter((t) => t.status !== 'done').length}）→
+        进入待办事项中心查看全部（{todos.filter(isTodoOpen).length}）→
       </button>
     </Card>
   )
