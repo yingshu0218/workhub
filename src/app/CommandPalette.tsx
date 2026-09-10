@@ -105,6 +105,15 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
       },
     },
     {
+      icon: 'tune',
+      label: '功能配置',
+      desc: '业务模块配置（亲密度权重 / 黑名单策略等）',
+      run: () => {
+        onClose()
+        navigate('/module-config')
+      },
+    },
+    {
       icon: 'edit_note',
       label: '新建笔记',
       desc: '双向链接与思维白板',
