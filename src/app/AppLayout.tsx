@@ -18,6 +18,7 @@ const NAV_ITEMS = [
   { to: '/habits', icon: 'local_fire_department', label: '打卡习惯' },
   { to: '/trophies', icon: 'emoji_events', label: '成就奖杯' },
   { to: '/inspiration', icon: 'auto_awesome', label: '灵感闪现' },
+  { to: '/module-config', icon: 'tune', label: '功能配置' },
 ]
 
 const TITLES: Record<string, string> = {
@@ -33,6 +34,7 @@ const TITLES: Record<string, string> = {
   '/trophies': '成就奖杯',
   '/profile': '个人主页',
   '/inspiration': '灵感闪现',
+  '/module-config': '功能配置',
   '/settings': '系统设置',
 }
 

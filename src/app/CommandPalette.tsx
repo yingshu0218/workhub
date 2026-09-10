@@ -111,6 +111,16 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
       kbd: '⌘N',
       run: () => void createNote(),
     },
+    {
+      icon: 'tune',
+      label: '功能配置',
+      desc: '各业务模块的业务规则配置',
+      kbd: '',
+      run: () => {
+        onClose()
+        navigate('/module-config')
+      },
+    },
   ]
 
   const onKeyDown = (e: React.KeyboardEvent) => {
@@ -218,7 +228,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
             </span>
             <span className="text-[0.7143rem] text-outline">寻鸽快速通道</span>
           </div>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-4 gap-2">
             {quickActions.map((a) => (
               <button
                 key={a.label}
