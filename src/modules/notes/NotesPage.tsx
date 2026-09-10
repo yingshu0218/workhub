@@ -2,7 +2,16 @@ import { useEffect, useMemo, useState } from 'react'
 import { Icon } from '@/design-system/Icon'
 import { useNavigate } from 'react-router-dom'
 import { noteRepo, newId } from '@/repositories'
-import { Button, Card, EmptyState, PageHeader, inputCls } from '@/design-system/ui'
+import {
+  Button,
+  Card,
+  ConfirmDialog,
+  EmptyState,
+  PageHeader,
+  PromptDialog,
+  inputCls,
+} from '@/design-system/ui'
+import { useToast } from '@/design-system/Toast'
 import dayjs from 'dayjs'
 import { NOTE_PROSE_CSS, renderMarkdown, tagStyle, wordCount } from './shared'
 import {
@@ -40,6 +49,10 @@ export default function NotesPage() {
   const [addingFolder, setAddingFolder] = useState(false)
   // 查看弹窗：当前正在弹窗预览的笔记 id（null=关闭）
   const [viewId, setViewId] = useState<string | null>(null)
+  // 删除确认弹窗（应用风格，替代 window.confirm）
+  const [confirmFolder, setConfirmFolder] = useState<NoteFolder | null>(null)
+  // 重命名文件夹输入弹窗（应用风格，替代 window.prompt）
+  const [renameTarget, setRenameTarget] = useState<NoteFolder | null>(null)
 
   /** 标签聚合（含计数），按引用次数降序 */
   const tagCloud = useMemo(() => {
@@ -104,8 +117,13 @@ export default function NotesPage() {
     setAddingFolder(false)
   }
 
-  async function handleRenameFolder(f: NoteFolder) {
-    const name = window.prompt('重命名文件夹', f.name)?.trim()
+  function handleRenameFolder(f: NoteFolder) {
+    setRenameTarget(f)
+  }
+
+  /** 确认重命名：名称未变或为空则忽略 */
+  async function doRenameFolder(f: NoteFolder, raw: string) {
+    const name = raw.trim()
     if (!name || name === f.name) return
     await renameNoteFolder(f.id, name)
     if (scope.kind === 'folder' && scope.folder.id === f.id)
@@ -113,15 +131,7 @@ export default function NotesPage() {
   }
 
   async function handleDeleteFolder(f: NoteFolder) {
-    const count = folderCounts.get(f.id) ?? 0
-    if (
-      !window.confirm(
-        `确认删除文件夹「${f.name}」？${count > 0 ? `名下 ${count} 篇笔记将移回「未归档」。` : ''}`,
-      )
-    )
-      return
-    await deleteNoteFolderCascade(f.id)
-    if (scope.kind === 'folder' && scope.folder.id === f.id) setScope({ kind: 'all' })
+    setConfirmFolder(f)
   }
 
   function scopeLabel(): string {
@@ -345,6 +355,40 @@ export default function NotesPage() {
       </div>
 
       {/* 查看弹窗：背景虚化遮罩 + 居中卡片，关闭即返回列表 */}
+      <ConfirmDialog
+        open={!!confirmFolder}
+        title={`删除文件夹「${confirmFolder?.name ?? ''}」`}
+        message={
+          confirmFolder && (folderCounts.get(confirmFolder.id) ?? 0) > 0
+            ? `名下 ${folderCounts.get(confirmFolder.id)} 篇笔记将移回「未归档」。`
+            : undefined
+        }
+        confirmText="删除"
+        danger
+        onConfirm={() => {
+          if (confirmFolder) void deleteNoteFolderCascade(confirmFolder.id)
+          if (confirmFolder && scope.kind === 'folder' && scope.folder.id === confirmFolder.id)
+            setScope({ kind: 'all' })
+          setConfirmFolder(null)
+        }}
+        onCancel={() => setConfirmFolder(null)}
+      />
+
+      {/* 重命名文件夹输入弹窗（应用风格，替代 window.prompt） */}
+      <PromptDialog
+        open={renameTarget !== null}
+        title="重命名文件夹"
+        label="文件夹名称"
+        defaultValue={renameTarget?.name ?? ''}
+        confirmText="保存"
+        onCancel={() => setRenameTarget(null)}
+        onConfirm={(value) => {
+          const target = renameTarget
+          setRenameTarget(null)
+          if (target) void doRenameFolder(target, value)
+        }}
+      />
+
       {viewId && (
         <NoteViewModal
           noteId={viewId}
@@ -372,6 +416,11 @@ function NoteViewModal({
   const note = useNoteRecord(noteId)
   const folders = useNoteFolders()
   const html = useMemo(() => renderMarkdown(note?.markdown ?? ''), [note?.markdown])
+  // 删除确认弹窗（应用风格，替代 window.confirm）
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  // 移动笔记：文件夹选择弹窗（应用风格，替代 window.prompt 输编号）
+  const [moveOpen, setMoveOpen] = useState(false)
+  const toast = useToast()
 
   // Esc 关闭 + 弹窗期间锁定背景滚动
   useEffect(() => {
@@ -401,30 +450,28 @@ function NoteViewModal({
     setTimeout(() => URL.revokeObjectURL(url), 3000)
   }
 
-  async function handleDelete() {
-    if (!window.confirm(`确认删除笔记「${cur.title}」？`)) return
+  function handleDelete() {
+    setConfirmDelete(true)
+  }
+
+  async function doDelete() {
     await noteRepo.softDelete(cur.id)
+    setConfirmDelete(false)
     onClose()
   }
 
-  async function handleMove() {
-    const targets = folders.filter((f) => f.id !== cur.folderId)
-    if (targets.length === 0 && !cur.folderId) {
-      window.alert('暂无文件夹，可先在左栏「新建文件夹」')
+  function handleMove() {
+    if (folders.length === 0 && !cur.folderId) {
+      toast.info('暂无文件夹，可先在左栏「新建文件夹」')
       return
     }
-    const pick = window.prompt(
-      `移动「${cur.title}」到：
-${folders.map((f, i) => `${i + 1}. ${f.name}`).join('\n')}${cur.folderId ? '\n0. 移回未归档' : ''}\n\n输入编号：`,
-    )
-    if (pick === null) return
-    const idx = parseInt(pick, 10)
-    if (cur.folderId && idx === 0) {
-      await moveNoteToFolder(cur.id, undefined)
-      return
-    }
-    const target = targets[idx - 1]
-    if (target) await moveNoteToFolder(cur.id, target.id)
+    setMoveOpen(true)
+  }
+
+  /** 移动笔记到指定文件夹（undefined = 移回未归档） */
+  async function doMove(folderId: string | undefined) {
+    setMoveOpen(false)
+    await moveNoteToFolder(cur.id, folderId)
   }
 
   return (
@@ -508,6 +555,56 @@ ${folders.map((f, i) => `${i + 1}. ${f.name}`).join('\n')}${cur.folderId ? '\n0.
           </Button>
         </div>
       </div>
+      <ConfirmDialog
+        open={confirmDelete}
+        title={`删除笔记「${cur.title}」`}
+        message="删除后可在回收站恢复。"
+        confirmText="删除"
+        danger
+        onConfirm={() => void doDelete()}
+        onCancel={() => setConfirmDelete(false)}
+      />
+
+      {/* 移动笔记：文件夹选择弹窗（应用风格，替代 window.prompt 输编号） */}
+      {moveOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/25" onClick={() => setMoveOpen(false)} />
+          <div className="relative w-full max-w-sm rounded-xl border border-outline-variant/40 bg-surface-container-lowest p-6 shadow-[0_8px_32px_rgba(0,0,0,0.16)]">
+            <h3 className="text-[1.0714rem] font-semibold">移动笔记</h3>
+            <div className="mt-2 text-[0.9286rem] text-on-surface-variant">
+              将「{cur.title.trim() || '未命名笔记'}」移动到：
+            </div>
+            <div className="mt-4 max-h-[300px] space-y-1 overflow-y-auto">
+              {folders
+                .filter((f) => f.id !== cur.folderId)
+                .map((f) => (
+                  <button
+                    key={f.id}
+                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[0.9286rem] transition-colors hover:bg-surface-container-high"
+                    onClick={() => void doMove(f.id)}
+                  >
+                    <Icon name="folder" size={18} className="text-primary" />
+                    <span className="flex-1 truncate">{f.name}</span>
+                  </button>
+                ))}
+              {cur.folderId && (
+                <button
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[0.9286rem] transition-colors hover:bg-surface-container-high"
+                  onClick={() => void doMove(undefined)}
+                >
+                  <Icon name="folder_open" size={18} className="text-outline" />
+                  <span className="flex-1 truncate">移回未归档</span>
+                </button>
+              )}
+            </div>
+            <div className="mt-5 flex justify-end">
+              <Button variant="ghost" onClick={() => setMoveOpen(false)}>
+                取消
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

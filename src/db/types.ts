@@ -51,11 +51,9 @@ export interface Customer extends SyncMeta {
   id: string
   name: string
   company: string
-  industry: string
   title: string
   decisionLevel: '决策人' | '影响者' | '使用者' | '把关人'
   tier: 'S' | 'A' | 'B' | '潜在'
-  stage: string
   tags: string[]
   phone: string
   wechat: string

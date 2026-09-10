@@ -6,6 +6,7 @@ import { useSyncStore } from '@/sync/store'
 import { registerShortcut } from '@/shared/shortcuts'
 import CommandPalette from './CommandPalette'
 import TrophyUnlockToast from './TrophyUnlockToast'
+import { ToastProvider } from '@/design-system/Toast'
 import QuickCapture from '@/modules/notes/QuickCapturePanel'
 
 const NAV_ITEMS = [
@@ -34,8 +35,8 @@ const TITLES: Record<string, string> = {
   '/trophies': '成就奖杯',
   '/profile': '个人主页',
   '/inspiration': '灵感闪现',
-  '/settings': '系统设置',
   '/module-config': '功能配置',
+  '/settings': '系统设置',
 }
 
 /** 工作区条目（原型 19-dashboard-account）：切换仅改 UI 选中态，数据隔离 Phase 7 后考虑 */
@@ -65,7 +66,7 @@ function SyncBadge() {
   )
 }
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
+function AppLayoutInner({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation()
   const navigate = useNavigate()
   // /crm/:id/timeline 为动态段路由，TITLES 精确匹配不到，先按后缀识别
@@ -270,5 +271,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
       <TrophyUnlockToast />
     </div>
+  )
+}
+
+/** 布局入口：挂载全局 Toast Provider，供各模块 useToast() 使用（替代原生 alert） */
+export default function AppLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <ToastProvider>
+      <AppLayoutInner>{children}</AppLayoutInner>
+    </ToastProvider>
   )
 }

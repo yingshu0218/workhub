@@ -160,3 +160,30 @@ repositories（纯存储）→ 同步引擎 / eventBus → 奖杯、仪表盘联
 
 1. **MCP 协议细节**：桥对 Agent 暴露的协议形态按「MCP over WebSocket（stdio 不适用于浏览器运行时）」理解是否准确，或有指定 Agent（workbuddy/hermes）的私有协议需优先兼容——建议 P1 第 4 步动工前由小蓝指定一个先行接入的 Agent 实测。
 2. **桥会话生命期**：桥级单例会话态（多轮澄清暂存）的过期策略（按连接断开即清 vs 空闲 N 分钟过期）——P1 实现时默认「连接断开即清」，无异议即按此定。
+
+---
+
+## 九、v0.5 追加修订（2026-09-10，对齐 main 最新代码，三方收敛最终定稿）
+
+> 触发：小蓝确认形态为「外部 Agent（workbuddy/codebuddy/hermes）+ 项目 skill」，不走内置 LLM；并明确后续测试将全面转为 Agent 自动化（跑业务流程，非代码评审）。以下为对 main 分支最新提交的漂移修正与最终收敛口径。
+
+### 9.1 对码漂移修正（v0.4 文档三处与代码现状不符，以代码为准）
+
+| # | v0.4 原文 | 代码现状（对码核验） | 修正 |
+|---|---|---|---|
+| D1 | `crm_createCustomer`「含首联待办初始化」 | 提交 `1a10062` 已删除 `firstContactTodo`，`CustomerInitOptions` 仅剩 `openingLog` / `linkTransactionId` | 工具语义改为「建档 + 可选 opening 日志 / 关联已有交易」，删除首联待办语义 |
+| D2 | `updateCustomer` 含 `stage` / `industry` 枚举校验 | 同一提交已删除 `Customer.stage` / `Customer.industry` 字段，仅剩 `tier`(S/A/B/潜在) + `decisionLevel` | `crm_updateCustomer` 仅保留 `tier / decisionLevel / healthScore` 可编辑面 |
+| D3 | 记账账本「唯一账本缺省 / 多账本必反问」 | `Ledger.isDefault`（Issue #67）已实装，`TransactionFormDrawer` 默认账本取 `ledgers.find(l => l.isDefault)?.id ?? ledgers[0]?.id` | 记账账本策略改为 **优先 `isDefault` → 否则唯一账本 → 多账本且无默认才反问**，与 UI 行为逐字段对齐 |
+
+### 9.2 最终执行口径（v0.4 全部不变式保留，一个不砍）
+
+- 意图理解层外包外部 Agent，应用零 LLM 代码、零 API Key、零 CORS 问题（v0.4 E1-E7 全部成立）。
+- 执行载体：应用内 Agent 桥（WebSocket 127.0.0.1 + token，HTTP fallback）为 P0/P1 主路径；Node 侧车 MCP Server 降 P3 可选。
+- 暴露面唯一入口 = agentOps 门面（schema 校验 + 风险分级 + 事件收口 + create 门控 + 事务外 emit），桥零特权。
+- 推进顺序：agentOps 门面 → 事件下沉（三边界）→ 消解器 + `resolveEntity` → 桥 → 读写工具集（按 §9.1 修正）→ skill 首版 → E2E 场景验收。
+
+### 9.3 E2E 验收场景（兼作后续 Agent 自动化测试基线）
+
+> 加客户「深蓝科技·王五」→ 给王五记一笔 2000 支出（关联王五，账本走 isDefault 缺省）→ 读回该客户账目与沟通记录 → 建待办「周五回访王五」→ 查待办列表确认存在。
+
+覆盖：消解（重名反问）、写工具（含关联）、读限幅、跨模块弱引用、事件联动（`transaction:created` 与手工记账载荷逐字段一致）。跑通即 P1 主干验收通过；此后功能回归均可由 Agent 重跑该场景自动化执行。
