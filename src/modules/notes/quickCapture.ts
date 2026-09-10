@@ -2,6 +2,7 @@ import { noteRepo, quickNoteRepo, todoRepo, newId } from '@/repositories'
 import type { PutInput } from '@/repositories/repository'
 import type { Note, QuickNote, Todo } from '@/db/types'
 import { eventBus } from '@/shared/eventBus'
+import { syncEngine } from '@/sync/engine'
 import { extractMentions } from './shared'
 
 /**
@@ -27,8 +28,41 @@ export const QUICK_CAPTURE_TAG = '速记'
 export const QUICK_CAPTURE_ARCHIVE_TAG = '速记归档'
 /** 速记转待办的默认优先级：速记不是紧急事项，进收集箱待后续排期 */
 export const QUICK_CAPTURE_TODO_PRIORITY: Todo['priority'] = 'P2'
-/** 速记转待办的 desc：标明来源，便于在待办中心回溯 */
+/** 速记转待办的 desc：标明来源，便于在待办中心回溯（无通道信息时的默认值） */
 export const QUICK_CAPTURE_TODO_DESC = '由随手速记转入收集箱'
+/** 速记转笔记时追加的 desc 行：正式笔记模型暂无来源字段，用 markdown 末行留痕 */
+export const QUICK_CAPTURE_NOTE_ORIGIN = '> 由随手速记转入团队笔记'
+
+/**
+ * 速记处置**发起通道** —— 用于在目标记录上留痕，回答「这条待办是哪来的」。
+ * 目前有工作台卡（dashboard）与侧栏快速便签（sidebar）两个入口，两者 UI 不同、
+ * 处置语义相同，唯一差异就是来源留痕，故作为参数由调用方声明而非各自拼字段。
+ */
+export type ConvertChannel = 'dashboard' | 'sidebar'
+
+/**
+ * 处置通道 → 待办 desc / 笔记来源行的映射。
+ * 做成表而非散落的模板字符串：新增通道时只加一行，不会漏改某一个入口。
+ */
+export const CONVERTED_VIA: Record<ConvertChannel, { todoDesc: string; noteOrigin: string }> = {
+  dashboard: {
+    todoDesc: '由工作台速记转入收集箱',
+    noteOrigin: '> 由工作台速记转入团队笔记',
+  },
+  sidebar: {
+    todoDesc: '由侧栏快速便签转入收集箱',
+    noteOrigin: '> 由侧栏快速便签转入团队笔记',
+  },
+}
+
+/** 取通道留痕：通道缺省（旧调用）时退回通用文案，保持签名向后兼容 */
+function viaText(channel?: ConvertChannel) {
+  const conf = channel ? CONVERTED_VIA[channel] : undefined
+  return {
+    todoDesc: conf?.todoDesc ?? QUICK_CAPTURE_TODO_DESC,
+    noteOrigin: conf?.noteOrigin ?? QUICK_CAPTURE_NOTE_ORIGIN,
+  }
+}
 
 export interface SaveQuickCaptureInput {
   content: string
@@ -78,15 +112,20 @@ export async function saveQuickCapture({
  * 口径（Issue #134）：
  * - `listId` 恒为 undefined —— 新建即收集箱成员，与待办中心「收集箱 = 无归属未完成」一致；
  * - `status='todo'`、不带 `dueAt` —— 收集箱不催办，截止时间留给用户在待办中心补；
- * - 正文首行作标题（60 字），全文入 `desc`，长文速记不丢信息。
+ * - 正文首行作标题（60 字），全文入 `desc`，长文速记不丢信息；
+ * - 多行正文末尾追加一行通道留痕（`由<通道>转入收集箱`），单行正文直接以通道文案作 desc。
  */
-export async function captureToTodo(content: string): Promise<string> {
+export async function captureToTodo(content: string, channel?: ConvertChannel): Promise<string> {
   const text = content.trim()
   const id = newId('td')
+  const title = quickCaptureTodoTitle(text)
+  const { todoDesc } = viaText(channel)
+  // 单行速记：标题已承载全文，desc 用来源说明；多行速记：全文保真，末尾补来源行
+  const desc = text === title ? todoDesc : `${text}\n\n— ${todoDesc}`
   await todoRepo.put({
     id,
-    title: quickCaptureTodoTitle(text),
-    desc: text === quickCaptureTodoTitle(text) ? QUICK_CAPTURE_TODO_DESC : text,
+    title,
+    desc,
     priority: QUICK_CAPTURE_TODO_PRIORITY,
     status: 'todo',
     createdAt: Date.now(),
@@ -94,13 +133,18 @@ export async function captureToTodo(content: string): Promise<string> {
   return id
 }
 
-/** 正文 → 正式笔记（tag「速记归档」）。返回新建笔记 id。 */
-export async function captureToNote(content: string): Promise<string> {
-  const markdown = content.trim()
+/**
+ * 正文 → 正式笔记（tag「速记归档」）。返回新建笔记 id。
+ * 末行附通道来源（`> 由…转入团队笔记`），便于在笔记里回溯这条归档从哪来。
+ */
+export async function captureToNote(content: string, channel?: ConvertChannel): Promise<string> {
+  const body = content.trim()
+  const { noteOrigin } = viaText(channel)
+  const markdown = body.endsWith(noteOrigin) ? body : `${body}\n\n${noteOrigin}`
   const id = newId('n')
   await noteRepo.put({
     id,
-    title: quickCaptureTitle(markdown),
+    title: quickCaptureTitle(body),
     markdown,
     tags: [QUICK_CAPTURE_ARCHIVE_TAG],
     backlinks: [],
@@ -118,9 +162,22 @@ export async function captureToNote(content: string): Promise<string> {
 export async function convertQuickNote(
   quickNote: QuickNote,
   to: 'todo' | 'note',
+  channel?: ConvertChannel,
 ): Promise<string> {
-  const targetId = to === 'todo' ? await captureToTodo(quickNote.content) : await captureToNote(quickNote.content)
-  await quickNoteRepo.put({ ...quickNote, convertedTo: to })
+  const convertedAt = Date.now()
+  const targetId =
+    to === 'todo'
+      ? await captureToTodo(quickNote.content, channel)
+      : await captureToNote(quickNote.content, channel)
+  // `convertedTo` 记录「去向 + 通道 + 时间」，便于暂存区与审计回溯
+  await quickNoteRepo.put({
+    ...quickNote,
+    convertedTo: to,
+    convertedAt,
+    ...(channel ? { convertedVia: channel } : {}),
+  })
   eventBus.emit('quicknote:convert', { quickNoteId: quickNote.id, to })
+  // 处置后立即触发一次同步：速记处置是用户显式动作，不应等下一次自动心跳
+  syncEngine.requestSync()
   return targetId
 }

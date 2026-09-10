@@ -87,14 +87,19 @@ export default function DashboardPage() {
         + 右 5 列协同列（每日习惯闭环 + 随手速记暂存便签）。
         分区依据是「谁与我此刻直接相关」：推进中的事项（专注/待办）在左，习惯与外置捕获在右；
         速记是**收集箱入口**，需要常驻可见与足够书写面积，故独占右列下方整块。
-        小屏（<lg）退化为单列纵向堆叠，卡内滚动区各自收敛，避免长页互相挤压。
+
+        行高（Issue #134 二轮）：左右两列各自「上半卡 auto + 下半卡 1fr」，
+        靠 `lg:grid-rows-[auto_minmax(0,1fr)]` 让每列的**下半张卡拉满剩余高度**——
+        这样速记的大文本框才能真正变高（而不是仅靠 rows=4 定死），
+        左列今日待办也多出可见行数；列内 min-h-0 保证内部滚动区正常收敛不撑破卡片。
+        小屏（<lg）退化为单列纵向堆叠，行高规则不生效。
       */}
-      <div className="mt-5 grid grid-cols-1 items-stretch gap-4 lg:grid-cols-12">
-        <div className="flex flex-col gap-4 lg:col-span-7">
+      <div className="mt-5 grid grid-cols-1 items-stretch gap-4 lg:grid-cols-12 lg:grid-rows-[auto_minmax(0,1fr)]">
+        <div className="grid min-h-0 gap-4 lg:col-span-7 lg:row-span-2 lg:grid-rows-[auto_minmax(0,1fr)]">
           <FocusCard />
           <TodayTodosCard />
         </div>
-        <div className="flex flex-col gap-4 lg:col-span-5">
+        <div className="grid min-h-0 gap-4 lg:col-span-5 lg:row-span-2 lg:grid-rows-[auto_minmax(0,1fr)]">
           <HabitLoopCard />
           <QuickNoteCard />
         </div>
