@@ -654,14 +654,14 @@ export default function GraphCanvas({
           </div>
         )}
 
-        {/* 亲密度图例（Issue #34，仅 customer-only + 亲密度启用）：圈层=等级，节点大小即远近 */}
+        {/* 健康分图例（原亲密度，Issue #108 改名，仅 customer-only 模式启用）：圈层=等级，节点大小即远近 */}
         {mode === 'customer-only' && intimacyCfg && (
           <div
             className="absolute right-3 top-3 z-10 flex max-w-[240px] flex-wrap items-center justify-end gap-x-2 gap-y-1"
             onPointerDown={(e) => e.stopPropagation()}
           >
             <span className="text-[0.7143rem] font-medium uppercase tracking-wide text-outline">
-              亲密度圈层
+              健康分圈层
             </span>
             {intimacyCfg.levels.map((l) => {
               const v = INTIMACY_VISUAL[l.key]

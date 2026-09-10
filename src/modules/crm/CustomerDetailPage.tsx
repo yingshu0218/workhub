@@ -19,7 +19,7 @@ import dayjs from 'dayjs'
 import { isTodoOpen } from '@/modules/todo/domain'
 import CustomerFormDrawer from './CustomerFormDrawer'
 import { useCustomerTodos, useCustomerTransactions } from './hooks'
-import { fmtRelative, healthColor, tierChipTone } from './shared'
+import { fmtRelative, tierChipTone } from './shared'
 import IntimacyPicker from './intimacy/IntimacyPicker'
 import {
   TIMELINE_FILTERS,
@@ -59,7 +59,8 @@ export default function CustomerDetailPage() {
   const transactions = useCustomerTransactions(id)
   const todos = useCustomerTodos(id)
   const timeline = useCustomerTimeline(id)
-  const [timelineFilter, setTimelineFilter] = useState<TimelineFilter>('all')
+  // 默认只显示沟通日志（Issue #108）：交易/待办动态切「全部」chip 再看，消除一屏双份
+  const [timelineFilter, setTimelineFilter] = useState<TimelineFilter>('interaction')
   // 关联待办口径：计数与列表统一只统计未完成项
   const openTodos = todos.filter(isTodoOpen)
   const visibleTimeline = filterTimeline(timeline, timelineFilter)
@@ -94,7 +95,6 @@ export default function CustomerDetailPage() {
     )
   }
 
-  const hc = healthColor(customer.healthScore)
 
   function handleDelete(name: string, id: string) {
     setConfirmDelete({ name, id })
@@ -103,8 +103,8 @@ export default function CustomerDetailPage() {
   return (
     <div className="mx-auto max-w-[1200px]">
       <PageHeader
-        title="客户智能管家"
-        subtitle={`${customer.company || '独立顾问'} · 跨模块协同，贯通商机、履约与资金流向回溯`}
+        title={customer.name}
+        subtitle={customer.company || undefined}
         actions={
           <>
             <Button variant="ghost" icon="arrow_back" onClick={() => navigate('/crm')}>
@@ -162,26 +162,19 @@ export default function CustomerDetailPage() {
               ))}
             </div>
 
-            {/* 健康指数环形 */}
-            <div className="mt-4 flex items-center gap-4 rounded-xl bg-surface-container-low/60 p-4">
-              <HealthRing score={customer.healthScore} color={hc} />
+            {/* 最近联系摘要（原健康指数环形已移除，关系好坏以健康分档位为准） */}
+            <div className="mt-4 flex items-center gap-3 rounded-xl bg-surface-container-low/60 p-4">
+              <Icon name="schedule" className="text-[1.4286rem] text-primary" />
               <div className="min-w-0">
-                <div className="text-[0.9286rem] font-semibold">客情健康指数</div>
-                <div className="mt-0.5 text-[0.8571rem] text-on-surface-variant">
-                  最近联系 {fmtRelative(customer.lastContactAt)}
-                </div>
-                <div className="mt-1 text-[0.7857rem] text-outline">
-                  {customer.healthScore >= 80
-                    ? '互动频繁 · 关系稳固'
-                    : customer.healthScore >= 60
-                      ? '跟进正常 · 保持节奏'
-                      : '久未跟进 · 建议立刻触达'}
+                <div className="text-[0.9286rem] font-semibold">最近联系 {fmtRelative(customer.lastContactAt)}</div>
+                <div className="mt-0.5 text-[0.7857rem] text-outline">
+                  建档 {dayjs(customer.createdAt).format('YYYY-MM-DD')}
                 </div>
               </div>
             </div>
           </Card>
 
-          {/* 亲密度档位（Issue #34）：手动 7 档优先，未设置走算法兜底 */}
+          {/* 健康分档位（原亲密度改名，Issue #108）：手动 7 档优先，未设置走算法兜底 */}
           <IntimacyPicker customer={customer} />
 
           {/* 联系渠道 */}
@@ -441,7 +434,7 @@ function TimelineItem({ event }: { event: TimelineEvent }) {
     )
   }
   if (event.kind === 'todo') {
-    const done = event.event === 'done'
+    const done = event.status === 'done'
     return (
       <div className="relative">
         <span className="absolute -left-[22px] top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-surface-container-low">
@@ -481,37 +474,6 @@ function TimelineItem({ event }: { event: TimelineEvent }) {
         {event.content}
       </p>
     </div>
-  )
-}
-
-/** 健康指数环形（SVG） */
-function HealthRing({ score, color }: { score: number; color: string }) {
-  const r = 26
-  const circ = 2 * Math.PI * r
-  return (
-    <svg width="72" height="72" viewBox="0 0 72 72" className="shrink-0">
-      <circle cx="36" cy="36" r={r} fill="none" stroke="#dce9ff" strokeWidth="7" />
-      <circle
-        cx="36"
-        cy="36"
-        r={r}
-        fill="none"
-        stroke={color}
-        strokeWidth="7"
-        strokeLinecap="round"
-        strokeDasharray={`${(score / 100) * circ} ${circ}`}
-        transform="rotate(-90 36 36)"
-      />
-      <text
-        x="36"
-        y="40"
-        textAnchor="middle"
-        className="fill-on-surface"
-        style={{ fontSize: 15, fontWeight: 700 }}
-      >
-        {score}
-      </text>
-    </svg>
   )
 }
 

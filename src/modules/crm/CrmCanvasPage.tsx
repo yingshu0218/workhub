@@ -17,7 +17,7 @@ export default function CrmCanvasPage() {
   const intimacyCfg = useIntimacyConfig()
   // 视图切换（Issue #34）：customer-only=纯客户关系网（默认，需求主视角）；mixed=原全景（客户+业务实体）
   const [mode, setMode] = useState<GraphMode>('customer-only')
-  // 首屏「以我为重心」（Issue #94）：布局收敛后视图中心锚到核心客户（亲密度最高→连接度→最近联系），
+  // 首屏「以我为重心」（Issue #94）：布局收敛后视图中心锚到核心客户（健康分档位最高→连接度→最近联系），
   // 确定性选取保证同数据同锚点；两模式均生效，混合视图为同一「我」主体
   const [fitAnchor, setFitAnchor] = useState<string | null>(null)
   const anchorDoneRef = useRef(false)

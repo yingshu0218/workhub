@@ -35,7 +35,7 @@ export function boneColor(e: TimelineEvent): { color: string; fill: string } {
       ? { color: '#006c49', fill: '#6cf8bb' }
       : { color: '#ba1a1a', fill: '#ffdad6' }
   if (e.kind === 'todo')
-    return e.event === 'done'
+    return e.status === 'done'
       ? { color: '#006c49', fill: '#6cf8bb' }
       : { color: '#943700', fill: '#ffede6' }
   return { color: '#004ac6', fill: '#dbe1ff' }
@@ -43,14 +43,14 @@ export function boneColor(e: TimelineEvent): { color: string; fill: string } {
 
 export function boneUp(e: TimelineEvent): boolean {
   if (e.kind === 'transaction') return e.direction === 'income'
-  if (e.kind === 'todo') return e.event === 'done'
+  if (e.kind === 'todo') return e.status === 'done'
   return false
 }
 
 export function boneLabel(e: TimelineEvent): string {
   if (e.kind === 'transaction')
     return `${e.direction === 'income' ? '+' : '-'}${fmtMoney(e.amount)}`
-  if (e.kind === 'todo') return e.event === 'done' ? '完成待办' : '新增待办'
+  if (e.kind === 'todo') return e.status === 'done' ? '完成待办' : '新增待办'
   return e.type
 }
 

@@ -42,7 +42,7 @@ export const MODULE_CONFIGS: ModuleConfigEntry[] = [
     items: [
       {
         id: 'intimacy',
-        label: '亲密度',
+        label: '健康分',
         icon: 'favorite',
         desc: '等级名称与判据、黑名单屏蔽范围、算法兜底权重与切档阈值',
         component: CrmIntimacyConfig,

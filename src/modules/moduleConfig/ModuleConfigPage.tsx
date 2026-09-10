@@ -37,7 +37,7 @@ export default function ModuleConfigPage() {
     <div className="mx-auto max-w-[1200px]">
       <PageHeader
         title="功能配置"
-        subtitle="各业务模块的规则与判据集中管理（亲密度权重、屏蔽策略等）· 配置随同步多端一致，与「系统设置」的界面偏好严格分开"
+        subtitle="各业务模块的规则与判据集中管理（健康分权重、屏蔽策略等）· 配置随同步多端一致，与「系统设置」的界面偏好严格分开"
       />
 
       <div className="grid grid-cols-[232px_1fr] items-start gap-4">

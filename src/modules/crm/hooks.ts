@@ -17,7 +17,6 @@ export interface CanvasGraph {
     name: string
     company: string
     tier: 'S' | 'A' | 'B' | '潜在'
-    healthScore: number
     /** 最近联系时间（图谱缩略卡展示用，Issue #34） */
     lastContactAt: number
     /** 客户间语义关系（全景图画客户↔客户边的数据源；投影时过滤掉指向已删除/不存在客户的悬挂引用） */
@@ -102,7 +101,6 @@ export function useCanvasGraph(): CanvasGraph {
         name: c.name,
         company: c.company,
         tier: c.tier,
-        healthScore: c.healthScore,
         lastContactAt: c.lastContactAt,
         // 悬挂防御：只带出指向现存客户的 relations（删除级联已解绑，这里再挡一层历史脏数据）
         relations: (c.relations ?? []).filter((r) => customerIds.has(r.targetId)),

@@ -1,7 +1,7 @@
 import type { Chip } from '@/design-system/ui'
 import dayjs from 'dayjs'
 
-/** CRM 页面间共享的轻量展示工具（分层配色 / 健康指数配色 / 相对时间） */
+/** CRM 页面间共享的轻量展示工具（分层配色 / 相对时间） */
 
 export type ChipTone = React.ComponentProps<typeof Chip>['tone']
 
@@ -17,13 +17,6 @@ export function tierChipTone(tier: 'S' | 'A' | 'B' | '潜在'): ChipTone {
     default:
       return 'gray'
   }
-}
-
-/** 健康指数配色：≥80 绿 / ≥60 琥珀 / 其余红 */
-export function healthColor(score: number): string {
-  if (score >= 80) return '#006c49'
-  if (score >= 60) return '#943700'
-  return '#ba1a1a'
 }
 
 /** 相对时间（本地推导，避免引入 relativeTime 插件） */
