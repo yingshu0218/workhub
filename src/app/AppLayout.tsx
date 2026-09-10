@@ -35,7 +35,7 @@ const TITLES: Record<string, string> = {
   '/profile': '个人主页',
   '/inspiration': '灵感闪现',
   '/settings': '系统设置',
-  '/feature-config': '功能配置',
+  '/module-config': '功能配置',
 }
 
 /** 工作区条目（原型 19-dashboard-account）：切换仅改 UI 选中态，数据隔离 Phase 7 后考虑 */
@@ -68,10 +68,10 @@ function SyncBadge() {
 function AppLayoutInner({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation()
   const navigate = useNavigate()
-  // /crm/:id/timeline 与 /feature-config/... 为动态段路由，TITLES 精确匹配不到，先按前缀识别
+  // /crm/:id/timeline 与 /module-config/... 为动态段路由，TITLES 精确匹配不到，先按前缀识别
   const title =
     (pathname.match(/^\/crm\/[^/]+\/timeline$/) ? TITLES['/crm/:id/timeline'] : undefined) ??
-    (pathname.startsWith('/feature-config') ? TITLES['/feature-config'] : undefined) ??
+    (pathname.startsWith('/module-config') ? TITLES['/module-config'] : undefined) ??
     TITLES[pathname] ??
     NAV_ITEMS.find((n) => pathname.startsWith(n.to))?.label ??
     '寻鸽工作台'
@@ -162,7 +162,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
 
         <div className="border-t border-outline-variant/40 p-3">
           <NavLink
-            to="/feature-config"
+            to="/module-config"
             className={({ isActive }) =>
               `app-nav-link mb-1 flex items-center gap-3 rounded-lg px-3 py-2 text-[0.9643rem] ${
                 isActive ? 'is-active bg-primary-fixed font-semibold text-primary' : 'text-on-surface-variant hover:bg-surface-container'

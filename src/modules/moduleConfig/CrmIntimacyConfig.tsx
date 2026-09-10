@@ -71,7 +71,9 @@ function Toggle({
 
 export default function CrmIntimacyConfig() {
   const cfg = useIntimacyConfig()
-  const [editingLevels, setEditingLevels] = useState<Record<IntimacyLevel, { name: string; desc: string }>>(
+  const [editingLevels, setEditingLevels] = useState<
+    Record<IntimacyLevel, { name: string; desc: string }>
+  >(
     () =>
       Object.fromEntries(cfg.levels.map((l) => [l.key, { name: l.name, desc: l.desc }])) as Record<
         IntimacyLevel,
@@ -90,7 +92,9 @@ export default function CrmIntimacyConfig() {
   }
 
   async function saveLevels() {
-    await saveIntimacyConfig({ levels: INTIMACY_LEVELS.map((k) => ({ key: k, ...editingLevels[k]! })) })
+    await saveIntimacyConfig({
+      levels: INTIMACY_LEVELS.map((k) => ({ key: k, ...editingLevels[k]! })),
+    })
     flash('亲密度等级名称已保存')
   }
 
@@ -141,7 +145,8 @@ export default function CrmIntimacyConfig() {
       todo: norm(next.todo),
       project: norm(next.project),
     }
-    const diff = 100 - (normalized.contact + normalized.finance + normalized.todo + normalized.project)
+    const diff =
+      100 - (normalized.contact + normalized.finance + normalized.todo + normalized.project)
     if (diff !== 0) normalized.contact += diff // 余数补偿，保证和恒为 100
     setWeights(normalized)
     void saveAlgorithm({ weights: normalized })
@@ -195,7 +200,9 @@ export default function CrmIntimacyConfig() {
               <div key={k} className="flex items-center gap-2">
                 <span
                   className={`w-9 shrink-0 rounded px-1.5 py-1 text-center text-[0.7857rem] font-bold ${
-                    isolation ? 'bg-danger-container/60 text-danger' : 'bg-primary-fixed/60 text-primary'
+                    isolation
+                      ? 'bg-danger-container/60 text-danger'
+                      : 'bg-primary-fixed/60 text-primary'
                   }`}
                   title={k}
                 >
@@ -241,10 +248,22 @@ export default function CrmIntimacyConfig() {
         <div className="space-y-3">
           {(
             [
-              { key: 'hideInGraph', label: '关系图谱隐藏', desc: '黑名单客户不再出现在客户关系画布' },
+              {
+                key: 'hideInGraph',
+                label: '关系图谱隐藏',
+                desc: '黑名单客户不再出现在客户关系画布',
+              },
               { key: 'hideInSearch', label: '全局搜索屏蔽', desc: '⌘K 搜索与全局搜索结果中隐藏' },
-              { key: 'excludeFromPicker', label: '单据选择器排除', desc: '新建流水/待办/沟通时客户选择器不可选' },
-              { key: 'hideInTimeline', label: '时间线隐藏', desc: '客户列表与时间线中隐藏（仅档案直接访问可见）' },
+              {
+                key: 'excludeFromPicker',
+                label: '单据选择器排除',
+                desc: '新建流水/待办/沟通时客户选择器不可选',
+              },
+              {
+                key: 'hideInTimeline',
+                label: '时间线隐藏',
+                desc: '客户列表与时间线中隐藏（仅档案直接访问可见）',
+              },
             ] as const
           ).map((row) => (
             <div key={row.key} className="flex items-center justify-between gap-4">
@@ -321,7 +340,9 @@ export default function CrmIntimacyConfig() {
                   max={100}
                   className={`${inputCls} w-16`}
                   value={thresholds[row.key]}
-                  onChange={(e) => setThresholds({ ...thresholds, [row.key]: Number(e.target.value) })}
+                  onChange={(e) =>
+                    setThresholds({ ...thresholds, [row.key]: Number(e.target.value) })
+                  }
                   onBlur={() => applyThresholds(thresholds)}
                 />
               </label>

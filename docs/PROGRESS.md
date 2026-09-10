@@ -2,7 +2,7 @@
 
 > **本仓库的唯一进度事实来源。** 所有人（含 AI 开发代理）推进或变更任何开发工作，必须在**同一个 commit** 里同步更新本文件对应状态。README 底部的 Changelog 记录"发生了什么"，本文档记录"现在处于什么状态"——前者追加式流水，后者始终反映最新全貌。
 
-**最后更新**：2026-09-10（Issue #86 功能配置页：业务模块规则配置从系统设置「数据管理」Tab 独立成 `/feature-config` 页，左栏模块 → 子菜单两级导航 + 注册表派生，系统设置改留指路牌并移除该 Tab（同日先以 /module-config 落地，后按两级子菜单方案收敛为 /feature-config）；Issue #74 待办打勾完成修复：完成态收口领域函数 `toggleTodoDone`（status + completedAt 成对写入，三处入口统一）+ 完成态同步合并本地优先（服务端缺字段回拉不再回滚完成状态）+ collections.json todos 补 sortOrder；Issue #54 主题风格体系：风格(skin)与配色解耦为独立持久化字段、先风格后配色；新增 glass/kid 风格包；皮肤层补齐导航 chrome（侧栏/页头/CRM 分组项语义化 .app-sidebar/.app-header/.app-nav-link）与裸 Tailwind 面板穿透；pixel 3px 描边贯穿、glass 深色弹窗对比度兜底、半径档全量走 var(--radius-*)；Issue #50 笔记 @提及浮层交互重构：顶部新增可见模糊匹配输入框（@ 唤起后自动聚焦，筛选词从正文迁入框内，正文 @ 后不再承载筛选词）+ 客户/待办/账本/项目四类横向 tab 统一「点选即插入」交互，移除重复 projectTab 锚点，所属项目选择收敛到右侧栏唯一入口；Issue #34 客户亲密度体系落地：Customer.intimacy 手动 7 档 + 算法兜底 + moduleConfigs 同步表 v9 + 设置页「数据管理」Tab + 图谱圈层/黑名单过滤；Issue #50 笔记关联体验升级：@提及浮层模糊匹配+键盘导航、编辑态关联主体/反向链接悬浮卡片；Issue #70 侧栏快速便签：左下角折叠单行捕获 → saveQuickCapture 落正式 Note，tag「速记」+ 默认目录，设置页「笔记偏好」选目录） · 维护人：yingshu0218 / cnb.cMPXRmKswEA / npc/CodeBuddy
+**最后更新**：2026-09-10（Issue #86 功能配置页：业务模块规则配置从系统设置「数据管理」Tab 独立成 `/module-config` 页，注册表两级 `{ module, items }` 派生左栏模块 → 子菜单常显导航 + 右侧面板（子项路由可书签直达），系统设置改留指路牌并移除该 Tab；Issue #74 待办打勾完成修复：完成态收口领域函数 `toggleTodoDone`（status + completedAt 成对写入，三处入口统一）+ 完成态同步合并本地优先（服务端缺字段回拉不再回滚完成状态）+ collections.json todos 补 sortOrder；Issue #54 主题风格体系：风格(skin)与配色解耦为独立持久化字段、先风格后配色；新增 glass/kid 风格包；皮肤层补齐导航 chrome（侧栏/页头/CRM 分组项语义化 .app-sidebar/.app-header/.app-nav-link）与裸 Tailwind 面板穿透；pixel 3px 描边贯穿、glass 深色弹窗对比度兜底、半径档全量走 var(--radius-*)；Issue #50 笔记 @提及浮层交互重构：顶部新增可见模糊匹配输入框（@ 唤起后自动聚焦，筛选词从正文迁入框内，正文 @ 后不再承载筛选词）+ 客户/待办/账本/项目四类横向 tab 统一「点选即插入」交互，移除重复 projectTab 锚点，所属项目选择收敛到右侧栏唯一入口；Issue #34 客户亲密度体系落地：Customer.intimacy 手动 7 档 + 算法兜底 + moduleConfigs 同步表 v9 + 设置页「数据管理」Tab + 图谱圈层/黑名单过滤；Issue #50 笔记关联体验升级：@提及浮层模糊匹配+键盘导航、编辑态关联主体/反向链接悬浮卡片；Issue #70 侧栏快速便签：左下角折叠单行捕获 → saveQuickCapture 落正式 Note，tag「速记」+ 默认目录，设置页「笔记偏好」选目录） · 维护人：yingshu0218 / cnb.cMPXRmKswEA / npc/CodeBuddy
 
 ---
 
@@ -76,7 +76,8 @@
 |---|---|
 | 数据模型 | ✅ Customer.intimacy?: { level: T1~T5/I6/I7, note?, updatedAt }（内嵌可选字段零迁移，tier 与 intimacy 语义正交互不读写）；算法最多推 T2、永不给出 T1/I6/I7 |
 | 配置中心 | ✅ moduleConfigs 同步表（Dexie v9 + pb module_configs 集合，key 寻址 crm.intimacy）：等级名称/判据可编辑（key 固定）、黑名单屏蔽开关矩阵（默认只开图谱隐藏）、算法权重 30/30/20/20 + 切档阈值 85/70/50（归一化 + 单调校验） |
-| 配置页 | ✅ Issue #86 独立成「功能配置」页 `/feature-config`（同日先以单页 `/module-config` 落地，后按两级子菜单方案收敛为 `/feature-config/:moduleId/:itemId`，`/module-config` 已废弃移除）；左栏模块 → 子菜单，CRM·亲密度三配置区迁入 `src/modules/featureConfig/CrmIntimacyConfig.tsx`；系统设置移除「数据管理」Tab、改留指路牌；改动即时落库广播 moduleConfig:changed |
+| 配置页 | ✅ Issue #86 独立成「功能配置」页 `/module-config`（左栏模块 → 子菜单，CRM·亲密度三配置区迁入 `src/modules/moduleConfig/CrmIntimacyConfig.tsx`）；系统设置移除「数据管理」Tab、改留指路牌；改动即时落库广播 moduleConfig:changed |
+| 路径收敛 | ✅ 并行 PR（#90/#91 已合入、#92/#97/#98 待收敛）统一取 `/module-config`，目录 `module-config/` → `moduleConfig/`；避免合并顺序变化导致路由分裂，页面标题仍为「功能配置」 |
 | 消费链 | ✅ 客户详情亲密度选择器（隔离态降级留痕 note）、缩略卡亲密度徽章/备注、customer-only 图谱节点大小按档位（远近即大小）+ 亲密度图例、黑名单默认图谱隐藏；导出/恢复存档含 moduleConfigs |
 | 待人工 | ⚠️ 服务端需重导入 collections.json（新增 module_configs 集合）+ 一次全量推送；⌘K/选择器/时间线黑名单屏蔽开关已留好口径，消费点接线为后续小增量 |
 
@@ -85,10 +86,10 @@
 | 项 | 状态 |
 |---|---|
 | 入口 | ✅ 侧栏「系统设置」上方并列新增「功能配置」（icon `tune`）；⌘K 快捷指令加一格「功能配置」 |
-| 路由 | ✅ `/feature-config/:moduleId/:itemId`（空路由/只给模块 → Navigate replace 补齐首个可用子项） |
-| 页面结构 | ✅ 左栏模块分组 + 配置子菜单（二级），右侧配置面板；子项经注册表 `src/modules/featureConfig/registry.ts` 派生，新增模块只加注册项 |
+| 路由 | ✅ `/module-config/:moduleId/:itemId`（空路由/只给模块 → Navigate replace 补齐首个可用子项，子项可书签/⌘K 深链直达） |
+| 页面结构 | ✅ 左栏模块分组 + 配置子菜单（二级）**常显**（不随模块数退化，复用 CRM/财务/笔记「max-w-[1200px] + 左列表 + 右内容」骨架）；注册表两级 `{ module, items }`，同模块新增配置域只加 items 不出重复条目 |
 | 边界 | ✅ 功能配置 = 影响数据算出来结果的业务规则（写 moduleConfigs 同步表，多端一致）；系统设置 = 界面/通知/同步/导出等应用级偏好（写 settings singleton，不进同步） |
-| 迁移 | ✅ `settings/DataManagementTab.tsx` → `featureConfig/CrmIntimacyConfig.tsx`（git mv，逻辑零改写，仅去掉标题里的「· CRM 客户」后缀，改由面包屑表达模块）；`module-config/` 目录同期删除，注册表 `featureConfig/registry.ts` 为准 |
+| 迁移 | ✅ `settings/DataManagementTab.tsx` → `moduleConfig/CrmIntimacyConfig.tsx`（git mv，逻辑零改写）；早期 `module-config/` 单层注册表版同期删除，以两级 `moduleConfig/registry.ts` 为准 |
 
 ### CRM 客户时间线（Issue #11，已收尾）
 

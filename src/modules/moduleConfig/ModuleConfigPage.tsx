@@ -8,8 +8,12 @@ import { MODULE_CONFIGS, findItem, findModule, firstModuleItem } from './registr
  * 与「系统设置 /settings」严格区分：这里只管各业务模块的规则配置（写 moduleConfigs 同步表，多端一致），
  * 系统设置只管应用级外观/通知/同步/数据导出等本地偏好（写 settings singleton，不进同步）。
  *
- * 路由 /feature-config/:moduleId/:itemId —— 子菜单可直达（书签/⌘K 深链友好）；
+ * 路由 /module-config/:moduleId/:itemId —— 子菜单可直达（书签/⌘K 深链友好）；
  * 只给模块或空路由时重定向到首个可用子项，不留历史垃圾（replace）。
+ *
+ * 路径命名：页面标题「功能配置」、路径 /module-config（同 /settings 标题「系统设置」）。
+ * 不是「谁先提谁赢」——是 /module-config 已随 PR #90/#91 合入主干并写进 README/PROGRESS/开发计划，
+ * 后续 PR 改名的边际成本 > 沿用；且三份并行 PR 各用一个名字会在合并顺序变化时造成路由分裂。
  */
 
 export default function ModuleConfigPage() {
@@ -18,11 +22,11 @@ export default function ModuleConfigPage() {
   // 补齐路由：只给 moduleId → 首个 itemId；都没给 → 注册表首项
   if (moduleId && !itemId) {
     const first = findModule(moduleId)?.items[0]
-    if (first) return <Navigate to={`/feature-config/${moduleId}/${first.id}`} replace />
+    if (first) return <Navigate to={`/module-config/${moduleId}/${first.id}`} replace />
   }
   if (!moduleId || !itemId) {
     const first = firstModuleItem()
-    if (first) return <Navigate to={`/feature-config/${first.moduleId}/${first.itemId}`} replace />
+    if (first) return <Navigate to={`/module-config/${first.moduleId}/${first.itemId}`} replace />
   }
 
   const activeModule = findModule(moduleId)
@@ -54,7 +58,7 @@ export default function ModuleConfigPage() {
                   {m.items.map((it) => (
                     <NavLink
                       key={it.id}
-                      to={`/feature-config/${m.id}/${it.id}`}
+                      to={`/module-config/${m.id}/${it.id}`}
                       className={({ isActive }) =>
                         `block rounded-lg py-2 pl-8 pr-2.5 text-[0.9286rem] transition-colors ${
                           isActive

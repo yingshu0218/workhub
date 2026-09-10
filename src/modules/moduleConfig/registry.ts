@@ -12,7 +12,7 @@ import CrmIntimacyConfig from './CrmIntimacyConfig'
  */
 
 export interface ModuleConfigItem {
-  /** 子项 id（URL 段，如 intimacy → /feature-config/crm/intimacy） */
+  /** 子项 id（URL 段，如 intimacy → /module-config/crm/intimacy） */
   id: string
   /** 子菜单显示名 */
   label: string

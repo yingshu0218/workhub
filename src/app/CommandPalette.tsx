@@ -116,11 +116,11 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
     {
       icon: 'tune',
       label: '功能配置',
-      desc: '业务模块规则与权重',
-      kbd: 'Go',
+      desc: '业务模块规则与权重（亲密度 / 黑名单等）',
+      kbd: '',
       run: () => {
         onClose()
-        navigate('/feature-config')
+        navigate('/module-config')
       },
     },
   ]
