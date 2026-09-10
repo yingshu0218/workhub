@@ -53,7 +53,7 @@ export default function TransactionFormDrawer({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [error, setError] = useState('')
   const [seedKey, setSeedKey] = useState(0)
-  const summaryRef = useAutoFocus<HTMLInputElement>()
+  const summaryRef = useAutoFocus<HTMLInputElement>(open)
 
   // 打开时重置（渲染期重置模式，同 TodoFormDrawer）；编辑模式以旧记录回填
   const openKey = `${open}-${defaultLedgerId}-${editTxn?.id ?? ''}`

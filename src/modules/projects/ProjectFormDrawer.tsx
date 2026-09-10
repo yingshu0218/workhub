@@ -42,7 +42,7 @@ export default function ProjectFormDrawer({
   const [note, setNote] = useState('')
   const [error, setError] = useState('')
   const [seedKey, setSeedKey] = useState(0)
-  const nameRef = useAutoFocus<HTMLInputElement>()
+  const nameRef = useAutoFocus<HTMLInputElement>(open)
 
   // 客户候选：挂靠客户打通 CRM（客户详情「名下项目」/ 关系画布「客户→项目」层级）
   const customers = useCollection<Customer>('customers')

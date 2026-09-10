@@ -3,6 +3,32 @@ import { Icon } from './Icon'
 
 /** 基础组件库（对齐 DESIGN.md：白卡/8px 圆角/1px 边框/柔和阴影/胶囊 Chip） */
 
+/** Esc 关闭栈：多层弹层叠放时按 Esc 只关最上层（Issue #107 审计：原实现三层齐落） */
+type EscapeLayer = { kind: 'modal' | 'dialog'; close: () => void }
+const escapeStack: EscapeLayer[] = []
+
+/**
+ * 弹层挂载时入栈、卸载时出栈；keydown 按下时仅栈顶层响应 Esc。
+ * 叠放场景（如凭证详情 Drawer z-50 → 流水编辑 Modal z-[55] → 确认框 z-[60]）逐层关闭。
+ */
+export function useEscapeLayer(open: boolean, onClose: () => void, kind: EscapeLayer['kind'] = 'modal') {
+  useEffect(() => {
+    if (!open) return
+    const layer: EscapeLayer = { kind, close: onClose }
+    escapeStack.push(layer)
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      if (escapeStack[escapeStack.length - 1] === layer) onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => {
+      const i = escapeStack.indexOf(layer)
+      if (i >= 0) escapeStack.splice(i, 1)
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [open, onClose, kind])
+}
+
 export function Drawer({
   open,
   title,
@@ -16,12 +42,7 @@ export function Drawer({
   children: ReactNode
   width?: number
 }) {
-  useEffect(() => {
-    if (!open) return
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [open, onClose])
+  useEscapeLayer(open, onClose)
 
   if (!open) return null
   return (
@@ -61,12 +82,7 @@ export function Modal({
   /** 弹窗内再开弹窗时传 true，抬到 ConfirmDialog 之下的更高层 */
   elevated?: boolean
 }) {
-  useEffect(() => {
-    if (!open) return
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [open, onClose])
+  useEscapeLayer(open, onClose)
 
   if (!open) return null
   const sizes = { md: 'sm:max-w-2xl', lg: 'sm:max-w-4xl', xl: 'sm:max-w-5xl' }[size]
@@ -104,12 +120,18 @@ export function Field({ label, children }: { label: string; children: ReactNode 
 /**
  * 打开弹窗时聚焦首个输入框且不滚动页面（替代裸 autoFocus —— 后者会因浏览器默认
  * focus 行为把被遮罩层后面滚动容器拉到可视区，表现为「一打开表单页面就跳滚」）。
+ *
+ * 必须传 `active`（通常为弹层 open）：表单组件常驻挂载、靠 open 控制显隐，
+ * 若只在挂载时聚焦一次，首帧输入框尚未渲染、之后打开弹窗也不会重跑，焦点会静默丢失。
+ * rAF 延迟一帧，确保打开态首次渲染的 DOM 已就绪。
  */
-export function useAutoFocus<T extends HTMLElement>() {
+export function useAutoFocus<T extends HTMLElement>(active = true) {
   const ref = useRef<T>(null)
   useEffect(() => {
-    ref.current?.focus({ preventScroll: true })
-  }, [])
+    if (!active) return
+    const raf = requestAnimationFrame(() => ref.current?.focus({ preventScroll: true }))
+    return () => cancelAnimationFrame(raf)
+  }, [active])
   return ref
 }
 
@@ -280,15 +302,13 @@ export function ConfirmDialog({
   onConfirm: () => void
   onCancel: () => void
 }) {
+  useEscapeLayer(open, onCancel, 'dialog')
   useEffect(() => {
     if (!open) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCancel()
-      if (e.key === 'Enter') onConfirm()
-    }
+    const onKey = (e: KeyboardEvent) => e.key === 'Enter' && onConfirm()
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [open, onConfirm, onCancel])
+  }, [open, onConfirm])
 
   if (!open) return null
   return (
@@ -345,14 +365,7 @@ export function PromptDialog({
     if (open) setValue(defaultValue)
   }, [open, defaultValue])
 
-  useEffect(() => {
-    if (!open) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCancel()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [open, onCancel])
+  useEscapeLayer(open, onCancel, 'dialog')
 
   if (!open) return null
   const submit = () => onConfirm(value.trim())
