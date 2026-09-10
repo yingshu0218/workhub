@@ -9,6 +9,7 @@ import { backfillTodoCompletedAt } from './modules/todo/domain'
 import { syncEngine } from './sync/engine'
 import { installKeyboardListener } from './shared/shortcuts'
 import { installModuleEffects } from './shared/effects'
+import { IdentityProvider } from './modules/identity'
 
 dayjs.locale('zh-cn')
 
@@ -43,7 +44,11 @@ function Bootstrap() {
     return () => syncEngine.stop()
   }, [])
 
-  return <AppRouter />
+  return (
+    <IdentityProvider>
+      <AppRouter />
+    </IdentityProvider>
+  )
 }
 
 createRoot(document.getElementById('root')!).render(

@@ -28,6 +28,8 @@ export interface ForceGraphOptions {
   categories?: RelationCategory[]
   /** 亲密度配置（Issue #34）：传入启用黑名单过滤 + 亲密度圈层布局 */
   intimacyCfg?: ModuleConfigIntimacy
+  /** 「我」自节点显示名（Issue #123）：customer-only 模式画布中心节点文案 */
+  selfName?: string
   /** 布局稳定回调（仿真自然收敛时触发一次，供调用方做首屏适应/聚焦，Issue #34） */
   onLayoutSettled?: () => void
 }
@@ -39,6 +41,7 @@ export function useForceGraph({
   mode,
   categories,
   intimacyCfg,
+  selfName,
   onLayoutSettled,
 }: ForceGraphOptions) {
   const [nodes, setNodes] = useState<GraphNode[]>([])
@@ -56,6 +59,7 @@ export function useForceGraph({
       mode,
       categories,
       intimacyCfg,
+      selfName,
       center: { x: size.w / 2, y: size.h / 2 },
     })
     const ns = built.nodes
@@ -78,6 +82,8 @@ export function useForceGraph({
           .id((d) => d.id)
           // 客户↔客户关系边给更小 distance：让有关联的客户在布局上聚拢，关系结构可读
           .distance((l) => {
+            // 「我」辐条（Issue #123）：给中等距离，客户沿外围成环，星型层次一眼可读
+            if (l.kind === 'self') return 150
             if (l.kind === 'relation') return 60
             // 二跳桥接弱边：距离放宽，让主线结构优先、桥接不抢布局
             if (l.kind === 'bridge') return 110
@@ -122,7 +128,7 @@ export function useForceGraph({
         rafRef.current = null
       }
     }
-  }, [graph, size.w, size.h, focusId, mode, categories, intimacyCfg])
+  }, [graph, size.w, size.h, focusId, mode, categories, intimacyCfg, selfName])
 
   return { nodes, links, setNodes, setLinks, simRef }
 }

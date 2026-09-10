@@ -4,9 +4,12 @@ import type { Todo, Customer, Transaction } from '@/db/types'
 import { FocusCard, HabitLoopCard, QuickNoteCard, TodayTodosCard } from './cards'
 import dayjs from 'dayjs'
 import { isDueToday } from '@/modules/todo/domain'
+import { useUserName } from '@/modules/identity'
 
 /** Focus Synchronizer 仪表盘（Phase 1 实装版） */
 export default function DashboardPage() {
+  // 问候语用户名为当前身份（Issue #123，默认「阿蓝」）
+  const userName = useUserName()
   const todos = useCollection<Todo>('todos')
   const customers = useCollection<Customer>('customers')
   const transactions = useCollection<Transaction>('transactions')
@@ -30,7 +33,7 @@ export default function DashboardPage() {
   return (
     <div className="mx-auto max-w-[1200px]">
       <PageHeader
-        title={`${greeting}，陈致远`}
+        title={`${greeting}，${userName}`}
         subtitle={dayjs().format('M月D日 dddd')}
         actions={
           <Button icon="post_add" variant="ghost">
