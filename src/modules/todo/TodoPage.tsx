@@ -129,10 +129,24 @@ export default function TodoPage() {
     }
   }
 
-  // 固定视图顺序：全部待办（默认）→ 今天 → 最近七天 → 收集箱，之后分割线接「我的清单」
+  // 固定视图顺序：全部待办 → 收集箱 → 今天 → 最近七天，之后分割线接「我的清单」
   const inboxCount = openTodos.filter((t) => !t.listId).length
-  const smartLists: { key: Filter; icon: string; label: string; count: number }[] = [
-    { key: 'all', icon: 'list', label: '全部待办', count: openTodos.length },
+  const smartLists: {
+    key: Filter
+    icon: string
+    label: string
+    count: number
+    /** 突出显示的固定入口：未选中时也用主色调样式与普通清单拉开层次 */
+    prominent?: boolean
+  }[] = [
+    { key: 'all', icon: 'list', label: '全部待办', count: openTodos.length, prominent: true },
+    {
+      key: 'inbox',
+      icon: 'move_to_inbox',
+      label: '收集箱',
+      count: inboxCount,
+      prominent: true,
+    },
     {
       key: 'today',
       icon: 'today',
@@ -147,7 +161,6 @@ export default function TodoPage() {
       count: openTodos.filter((t) => t.dueAt && dayjs(t.dueAt).format('YYYY-MM-DD') <= weekEndStr)
         .length,
     },
-    { key: 'inbox', icon: 'move_to_inbox', label: '收集箱', count: inboxCount },
   ]
   const selSmart = smartLists.find((l) => l.key === selKind)
   const selCustom = lists.find((l) => l.id === selListId)
@@ -233,13 +246,25 @@ export default function TodoPage() {
               onClick={() => selectSmart(l.key)}
               className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[0.9643rem] transition-colors ${
                 !selListId && selKind === l.key
-                  ? 'bg-primary-fixed font-semibold text-primary'
-                  : 'text-on-surface-variant hover:bg-surface-container'
+                  ? l.prominent
+                    ? 'bg-primary font-semibold text-on-primary'
+                    : 'bg-primary-fixed font-semibold text-primary'
+                  : l.prominent
+                    ? 'bg-primary-container/10 font-semibold text-primary hover:bg-primary-container/20'
+                    : 'text-on-surface-variant hover:bg-surface-container'
               }`}
             >
               <Icon name={l.icon} size={19} />
               <span className="flex-1 text-left">{l.label}</span>
-              <span className="text-[0.7857rem] text-outline">{l.count}</span>
+              <span
+                className={`text-[0.7857rem] ${
+                  l.prominent && (selListId || selKind !== l.key)
+                    ? 'font-semibold text-primary/70'
+                    : 'text-outline'
+                }`}
+              >
+                {l.count}
+              </span>
             </button>
           ))}
 
