@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Icon } from '@/design-system/Icon'
 import { useNavigate } from 'react-router-dom'
 import { useCollection } from '@/queries/hooks'
@@ -31,7 +31,6 @@ export default function CrmPage() {
   const customers = useCollection<Customer>('customers')
   const navigate = useNavigate()
   const [group, setGroup] = useState<'all' | Customer['tier']>('all')
-  const [industryFilter, setIndustryFilter] = useState('all')
   const [keyword, setKeyword] = useState('')
   const [formOpen, setFormOpen] = useState(false)
   // 自定义分组（Issue #63）：选中分组 id 与编辑弹层
@@ -41,11 +40,6 @@ export default function CrmPage() {
   const customGroups = useCustomerGroups()
   const groupCounts = useCustomerGroupCounts(customers, customGroups)
   const selectedGroup = customGroups.find((g) => g.id === selectedGroupId) ?? null
-
-  const industries = useMemo(
-    () => Array.from(new Set(customers.map((c) => c.industry).filter(Boolean))).sort(),
-    [customers],
-  )
 
   const counts = {
     total: customers.length,
@@ -68,10 +62,9 @@ export default function CrmPage() {
     .filter((c) => {
       if (group !== 'all' && c.tier !== group) return false
       if (selectedGroup && !matchGroup(c, selectedGroup)) return false
-      if (industryFilter !== 'all' && c.industry !== industryFilter) return false
       if (keyword.trim()) {
         const kw = keyword.trim().toLowerCase()
-        const haystack = [c.name, c.company, c.title, c.industry, c.tags.join(' ')]
+        const haystack = [c.name, c.company, c.title, c.tags.join(' ')]
           .join(' ')
           .toLowerCase()
         if (!haystack.includes(kw)) return false
@@ -237,20 +230,8 @@ export default function CrmPage() {
             />
           </div>
 
-          {/* 筛选工具栏：行业 / 关键字 */}
-          <div className="mb-3 mt-5 flex flex-wrap items-center gap-2">
-            <select
-              className={`${inputCls} w-44`}
-              value={industryFilter}
-              onChange={(e) => setIndustryFilter(e.target.value)}
-            >
-              <option value="all">全部行业</option>
-              {industries.map((i) => (
-                <option key={i} value={i}>
-                  {i}
-                </option>
-              ))}
-            </select>
+          {/* 筛选工具栏：关键字 */}
+          <div className="mb-3 mt-5 flex items-center gap-2">
             <div className="ml-auto w-56">
               <input
                 className={inputCls}
@@ -342,7 +323,6 @@ function CustomerRow({ customer: c, onOpen }: { customer: Customer; onOpen: () =
         <div className="mt-0.5 truncate text-[0.8571rem] text-on-surface-variant">
           {c.company || '—'}
           {c.title ? ` · ${c.title}` : ''}
-          {c.industry ? ` · ${c.industry}` : ''}
         </div>
         <div className="mt-1 flex flex-wrap items-center gap-1.5">
           {c.tags.map((t) => (

@@ -144,14 +144,11 @@ export default function CustomerDetailPage() {
                   {customer.title ? ` · ${customer.title}` : ''}
                 </div>
                 <div className="mt-1 text-[0.8571rem] text-outline">
-                  {customer.industry || '—'} · {customer.decisionLevel}
+                  {customer.decisionLevel}
                 </div>
               </div>
             </div>
             <div className="mt-3 flex flex-wrap items-center gap-1.5">
-              <Chip tone="blue" icon="flag">
-                {customer.stage}
-              </Chip>
               {customer.tags.map((t) => (
                 <Chip key={t} tone="gray">
                   #{t}
