@@ -78,7 +78,7 @@
 | 路由 | ✅ `/feature-config/:moduleId/:itemId`（空路由/只给模块 → Navigate replace 补齐首个可用子项） |
 | 页面结构 | ✅ 左栏模块分组 + 配置子菜单（二级），右侧配置面板；子项经注册表 `src/modules/featureConfig/registry.ts` 派生，新增模块只加注册项 |
 | 边界 | ✅ 功能配置 = 影响数据算出来结果的业务规则（写 moduleConfigs 同步表，多端一致）；系统设置 = 界面/通知/同步/导出等应用级偏好（写 settings singleton，不进同步） |
-| 迁移 | ✅ `DataManagementTab` → `featureConfig/CrmIntimacyConfig`（逻辑零改写，仅去掉标题里的「· CRM 客户」后缀，改由面包屑表达模块） |
+| 迁移 | ✅ `settings/DataManagementTab.tsx` → `featureConfig/CrmIntimacyConfig.tsx`（git mv，逻辑零改写，仅去掉标题里的「· CRM 客户」后缀，改由面包屑表达模块） |
 
 ### CRM 客户时间线（Issue #11，已收尾）
 

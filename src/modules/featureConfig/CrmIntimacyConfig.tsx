@@ -69,7 +69,7 @@ function Toggle({
   )
 }
 
-export default function DataManagementTab() {
+export default function CrmIntimacyConfig() {
   const cfg = useIntimacyConfig()
   const [editingLevels, setEditingLevels] = useState<Record<IntimacyLevel, { name: string; desc: string }>>(
     () =>
