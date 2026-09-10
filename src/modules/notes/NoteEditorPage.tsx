@@ -45,9 +45,9 @@ type HoverCardState =
   | { kind: 'mention'; type: MentionType; eid: string; label: string }
   | { kind: 'backlink'; noteId: string; title: string }
 
-/** @提及浮层/关联弹窗共用的 tab 维度：四类实体 + projectTab 联动锚点（Issue #50） */
-type MentionsTab = MentionType | 'projectTab'
-const MENTIONS_TABS: MentionsTab[] = ['customer', 'todo', 'ledger', 'project', 'projectTab']
+/** @提及浮层 tab 维度：四类实体横向标签页，交互逻辑统一（Issue #50） */
+type MentionsTab = MentionType
+const MENTIONS_TABS: MentionsTab[] = ['customer', 'todo', 'ledger', 'project']
 
 const TYPE_META: Record<MentionType, { tab: string; cls: string }> = {
   customer: { tab: '客户', cls: 'md-mention-customer' },
@@ -250,8 +250,6 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
     y: number
   } | null>(null)
   const [mentionTab, setMentionTab] = useState<MentionsTab>('customer')
-  // 浮层是否切换到「项目选择」视图（编辑态下不打断写作流，直接选关联项目）
-  const [panelProject, setPanelProject] = useState(false)
   // 浮层键盘高亮项（↑↓ 移动 / Enter 选中；候选列表变化时由 mentionItems 计算处收敛范围）
   const [activeIdx, setActiveIdx] = useState(0)
   // Issue #50 悬浮卡片：编辑态点击关联主体/反向链接不再跳转，就地弹卡展示摘要
@@ -267,6 +265,8 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
   tagsRef.current = tags
   const mentionRef = useRef(mention)
   mentionRef.current = mention
+  // 浮层顶部筛选输入框：@ 唤起后主输入落在这里，正文不再参与筛选词提取（Issue #50）
+  const mentionInputRef = useRef<HTMLInputElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
@@ -333,17 +333,25 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
   // ===== @提及浮层 =====
   function closeMention() {
     setMention(null)
+    // 关闭后焦点还给编辑器（搜索框输入/键盘选择/Esc/外点关闭均不丢写作焦点）
+    viewRef.current?.focus()
+  }
+
+  /** 键入 @ 后打开浮层：记录 @ 位置，筛选词主输入迁移到浮层顶部输入框（Issue #50） */
+  function openMention(from: number, x: number, y: number) {
+    setMention({ from, query: '', x, y })
+    setMentionTab('customer')
+    setActiveIdx(0)
   }
 
   function selectMentionItem(item: MentionItem) {
     const view = viewRef.current
     const m = mentionRef.current
     if (!view || !m) return
-    const pos = view.state.selection.main.head
-    // label 剔除 ]/) 防止 MENTION_RE 解析断裂（审计 P2-1）
+    // label 剔除 ]/) 防止 MENTION_RE 解析断裂（审计 P2-1）；筛选词在输入框里，正文只需替换 @ 符号
     const insert = `@[${safeMentionLabel(item.label)}](${item.type}:${item.id}) `
     view.dispatch({
-      changes: { from: m.from, to: pos, insert },
+      changes: { from: m.from, to: m.from + 1, insert },
       selection: { anchor: m.from + insert.length },
     })
     view.focus()
@@ -451,7 +459,6 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
       closeMention()
       return true
     }
-    if (panelProject) return false
     const len = sortedMentionItems.length
     if (len === 0) return true
     if (key === 'ArrowDown') {
@@ -482,7 +489,7 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
         extensions: [
           lineNumbers(),
           // placeholder 必须单行：CodeMirror 以 inline-block widget 插入空文档行首，两行文本会把首行行盒撑成 2 行高
-          placeholder('开始写点什么… 键入 @ 唤起 客户 / 待办 / 账本 选择器'),
+          placeholder('开始写点什么… 键入 @ 关联 客户 / 待办 / 账本 / 项目'),
           EditorView.lineWrapping,
           markdown(),
           syntaxHighlighting(defaultHighlightStyle),
@@ -521,38 +528,26 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
             const pos = u.state.selection.main.head
             const m = mentionRef.current
             if (u.docChanged) {
-              // 刚键入 '@'：打开浮层并记录 '@' 位置
+              // 刚键入 '@'：打开浮层并记录 '@' 位置；筛选词此后由浮层顶部输入框接管（Issue #50）
               let typed = ''
               u.changes.iterChanges((_fA, _tA, _fB, _tB, inserted) => {
                 typed = inserted.toString()
               })
               if (typed.endsWith('@')) {
                 const coords = view.coordsAtPos(pos)
-                setMention({
-                  from: pos - 1,
-                  query: '',
-                  x: coords?.left ?? 200,
-                  y: (coords?.bottom ?? 200) + 6,
-                })
-                setMentionTab('customer')
-                setActiveIdx(0)
+                openMention(
+                  pos - 1,
+                  coords?.left ?? 200,
+                  (coords?.bottom ?? 200) + 6,
+                )
                 return
               }
-              // 浮层已开：光标后的输入即筛选词；出现空白/超长即关闭
-              if (m) {
-                if (pos <= m.from) {
-                  closeMention()
-                } else {
-                  const q = u.state.doc.sliceString(m.from + 1, pos)
-                  if (q.length > 24 || /[\s@]/.test(q)) closeMention()
-                  else {
-                    setMention({ ...m, query: q })
-                    setActiveIdx(0) // 筛选词变化后高亮回到首位，Enter 语义符合直觉
-                  }
-                }
+              // 浮层已开：删除 @ 或插入空白即关闭（正文不再承载筛选词）
+              if (m && (pos <= m.from || /[\s@]/.test(u.state.doc.sliceString(pos - 1, pos)))) {
+                closeMention()
               }
-            } else if (m && (pos <= m.from || pos > m.from + 1 + m.query.length)) {
-              // 光标移出提及范围：关闭
+            } else if (m && pos <= m.from) {
+              // 光标移出提及起始位置：关闭
               closeMention()
             }
           }),
@@ -570,6 +565,8 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
   // 浮层打开时：点击外部 / Esc 关闭（面板内 mousedown 已阻止默认，不丢 CM 焦点）
   useEffect(() => {
     if (!mention) return
+    // 主输入迁移到浮层搜索框：打开即聚焦，后续筛选词都从这里输入（Issue #50）
+    requestAnimationFrame(() => mentionInputRef.current?.focus())
     const onDown = (e: MouseEvent) => {
       if (panelRef.current?.contains(e.target as Node)) return
       closeMention()
@@ -866,7 +863,6 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
               onChangeMeta={() => {
                 // Issue #50 联动：选完项目把 @提及 Tab 切到 project，保持心智一致
                 setMentionTab('project')
-                setPanelProject(false)
               }}
             />
           </div>
@@ -977,7 +973,7 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
         </div>
       )}
 
-      {/* @提及浮层（客户 / 待办 / 账本 三类 tab） */}
+      {/* @提及浮层：顶部筛选输入框 + 客户/待办/账本/项目 四类横向 tab（Issue #50） */}
       {mention && (
         <div
           ref={panelRef}
@@ -985,70 +981,41 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
           style={{ left: Math.min(mention.x, window.innerWidth - 340), top: mention.y }}
           onMouseDown={(e) => e.preventDefault()}
         >
+          {/* 浮层顶部筛选输入框：@ 唤起后自动聚焦，模糊匹配词在此输入（Issue #50） */}
+          <div className="border-b border-outline-variant/30 bg-surface-container-low/50 px-2.5 py-2">
+            <input
+              ref={mentionInputRef}
+              value={mention.query}
+              onChange={(e) => {
+                setMention({ ...mention, query: e.target.value })
+                setActiveIdx(0)
+              }}
+              onKeyDown={(e) => {
+                // 输入框内的键盘导航；IME 组合输入期间不触发选择
+                if (e.nativeEvent.isComposing) return
+                if (handleMentionNav(e.key)) e.preventDefault()
+              }}
+              placeholder={`筛选${TYPE_META[mentionTab].tab}，支持模糊匹配`}
+              className="w-full rounded-md border border-outline-variant/60 bg-surface px-2.5 py-1.5 text-[0.9286rem] text-on-surface outline-none transition-colors placeholder:text-outline focus:border-primary"
+            />
+          </div>
           <div className="flex gap-1 border-b border-outline-variant/30 bg-surface-container-low/50 px-2 py-1.5">
-            {MENTIONS_TABS.map((t) =>
-              t === 'projectTab' ? (
-                <button
-                  key={t}
-                  title="前往所属项目选择"
-                  onClick={() => setPanelProject(true)}
-                  className={`ml-auto rounded-md px-2.5 py-1 text-[0.8571rem] transition-colors ${
-                    panelProject
-                      ? 'bg-primary font-semibold text-on-primary'
-                      : 'text-on-surface-variant hover:text-on-surface'
-                  }`}
-                >
-                  项目
-                </button>
-              ) : (
-                <button
-                  key={t}
-                  onClick={() => {
-                    setPanelProject(false)
-                    setMentionTab(t)
-                  }}
-                  className={`rounded-md px-2.5 py-1 text-[0.8571rem] transition-colors ${
-                    !panelProject && mentionTab === t
-                      ? 'bg-primary font-semibold text-on-primary'
-                      : 'text-on-surface-variant hover:text-on-surface'
-                  }`}
-                >
-                  {TYPE_META[t].tab}
-                </button>
-              ),
-            )}
+            {MENTIONS_TABS.map((t) => (
+              <button
+                key={t}
+                onClick={() => setMentionTab(t)}
+                className={`flex-1 rounded-md px-2.5 py-1 text-[0.8571rem] transition-colors ${
+                  mentionTab === t
+                    ? 'bg-primary font-semibold text-on-primary'
+                    : 'text-on-surface-variant hover:text-on-surface'
+                }`}
+              >
+                {TYPE_META[t].tab}
+              </button>
+            ))}
             <span className="ml-auto self-center pr-1 text-[0.7857rem] text-outline">Esc 关闭</span>
           </div>
-          {panelProject ? (
-            <div className="p-3">
-              <MatchCombobox
-                value={noteRef.current.projectId ?? ''}
-                options={mentionProjects.map((p) => ({
-                  id: p.id,
-                  label: p.name,
-                  sub: p.status === 'archived' ? '已归档' : undefined,
-                  archived: p.status === 'archived',
-                  icon: 'folder_open',
-                  project: p,
-                }))}
-                placeholder="输入项目名称模糊搜索"
-                emptyText="没有匹配的项目"
-                onChange={(pid) => void moveNoteToProject(noteRef.current.id, pid || undefined)}
-                onChangeMeta={(opt) => {
-                  // Issue #50 联动：选中某项目后，@提及 Tab 切到项目并预填筛选词
-                  setPanelProject(false)
-                  setMentionTab('project')
-                  setMention((prev) =>
-                    prev ? { ...prev, query: opt?.project?.name ?? prev.query } : prev,
-                  )
-                }}
-              />
-              <div className="mt-2 text-[0.7857rem] leading-relaxed text-outline">
-                支持模糊搜索与「不关联」，选中后 @提及浮层自动切到项目 Tab 并预填筛选词。
-              </div>
-            </div>
-          ) : (
-            <div className="max-h-60 overflow-y-auto p-1">
+          <div className="max-h-60 overflow-y-auto p-1">
               {sortedMentionItems.length === 0 ? (
                 <div className="px-3 py-4 text-center text-[0.8571rem] text-outline">无匹配项</div>
               ) : (
@@ -1078,8 +1045,7 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
                   </button>
                 ))
               )}
-            </div>
-          )}
+          </div>
         </div>
       )}
     </div>
