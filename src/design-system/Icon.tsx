@@ -19,6 +19,8 @@ for (const [path, svg] of Object.entries(modules)) {
     .replace('<svg ', '<svg fill="currentColor" width="1em" height="1em" ')
 }
 
+const warnedIcons = new Set<string>()
+
 export function Icon({
   name,
   className = '',
@@ -33,7 +35,18 @@ export function Icon({
   style?: CSSProperties
 }) {
   const svg = (fill && ICONS[name + '-fill']) || ICONS[name]
-  if (!svg) return null
+  if (!svg) {
+    // 图标缺失会静默渲染为空白（构建/lint 全绿，肉眼才发现）。
+    // dev 期显式告警，配合 scripts/check-icons.mjs 在 CI 前置拦截，杜绝同类问题复发。
+    if (import.meta.env.DEV && !warnedIcons.has(name)) {
+      warnedIcons.add(name)
+      console.warn(
+        `[Icon] 图标「${name}」不存在于 src/assets/icons/，已渲染为空白。` +
+          '请从 @material-symbols/svg-400/rounded 拷贝同名 svg 到 src/assets/icons/。',
+      )
+    }
+    return null
+  }
   return (
     <span
       className={`inline-block shrink-0 align-[-0.15em] ${className}`}

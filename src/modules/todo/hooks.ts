@@ -22,10 +22,12 @@ export function useTodoLists(): TodoList[] {
 /** 新建清单 */
 export async function createTodoList(name: string): Promise<TodoList> {
   const existing = await db.todoLists.toArray()
+  const alive = existing.filter((l) => !l.deleted)
   const list: TodoList = {
     id: newId('tl'),
     name: name.trim(),
-    sortOrder: existing.filter((l) => !l.deleted).length,
+    // 取当前最大 sortOrder + 1：用「列表长度」在删除后会产生重号（如 0,2,3 后再新建又得 3）
+    sortOrder: alive.reduce((max, l) => Math.max(max, l.sortOrder), -1) + 1,
     createdAt: Date.now(),
     updatedAt: 0,
     deleted: 0,
@@ -63,7 +65,8 @@ export async function deleteTodoListCascade(id: string): Promise<void> {
       await db.todoLists.put({ ...prev, deleted: 1, updatedAt: now, rev: prev.rev + 1 })
       await db.syncQueue.add({ table: 'todoLists', recordId: id, op: 'delete', createdAt: now })
     }
-    for (const t of todos.filter((x) => !x.deleted)) {
+    // 含已软删待办一并解绑：否则其 listId 指向已删清单，UI 上既不在任何清单、也不进「收集箱」
+    for (const t of todos) {
       await db.todos.put({ ...t, listId: undefined, updatedAt: now, rev: t.rev + 1 })
       await db.syncQueue.add({ table: 'todos', recordId: t.id, op: 'upsert', createdAt: now })
     }
@@ -112,18 +115,6 @@ export function useTodoListOptions(): { id: string; name: string }[] {
 
 /** 供类型引用（防 dayjs 未用告警的占位导出不必要——保留工具函数） */
 export const todayKey = () => dayjs().format('YYYY-MM-DD')
-
-/** Todo 归入/移出清单 */
-export async function assignTodoToList(todoId: string, listId: string | undefined): Promise<void> {
-  const t = await db.todos.get(todoId)
-  if (!t || t.deleted) return
-  const now = Date.now()
-  await db.transaction('rw', [db.todos, db.syncQueue], async () => {
-    await db.todos.put({ ...t, listId, updatedAt: now, rev: (t.rev ?? 0) + 1 })
-    await db.syncQueue.add({ table: 'todos', recordId: todoId, op: 'upsert', createdAt: now })
-  })
-  syncEngine.requestSync()
-}
 
 /** 类型 占位（Todo 引用防 tree-shake 误报） */
 export type { Todo }

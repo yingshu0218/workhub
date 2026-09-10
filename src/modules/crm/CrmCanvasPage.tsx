@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, Chip, PageHeader } from '@/design-system/ui'
 import { useCanvasGraph } from './hooks'
+import { useIntimacyConfig } from './intimacy'
 import GraphCanvas from './graph/GraphCanvas'
-import type { GraphMode } from './graph/buildGraph'
+import { pickCanvasAnchor, type GraphMode } from './graph/buildGraph'
 
 /**
  * 客户关系画布（对齐原型 09-crm-canvas）—— 全景模式
@@ -13,8 +14,18 @@ import type { GraphMode } from './graph/buildGraph'
 export default function CrmCanvasPage() {
   const graph = useCanvasGraph()
   const navigate = useNavigate()
+  const intimacyCfg = useIntimacyConfig()
   // 视图切换（Issue #34）：customer-only=纯客户关系网（默认，需求主视角）；mixed=原全景（客户+业务实体）
   const [mode, setMode] = useState<GraphMode>('customer-only')
+  // 首屏「以我为重心」（Issue #94）：布局收敛后视图中心锚到核心客户（亲密度最高→连接度→最近联系），
+  // 确定性选取保证同数据同锚点；两模式均生效，混合视图为同一「我」主体
+  const [fitAnchor, setFitAnchor] = useState<string | null>(null)
+  const anchorDoneRef = useRef(false)
+  const handleGraphReady = () => {
+    if (anchorDoneRef.current) return
+    anchorDoneRef.current = true
+    setFitAnchor(pickCanvasAnchor(graph, intimacyCfg))
+  }
 
   return (
     <div className="mx-auto max-w-[1200px]">
@@ -139,8 +150,11 @@ export default function CrmCanvasPage() {
       <GraphCanvas
         graph={graph}
         mode={mode}
+        intimacyCfg={intimacyCfg}
         style={{ height: 'calc(100vh - 14rem)', minHeight: 320 }}
         showReheat
+        onGraphReady={handleGraphReady}
+        fitAnchorId={fitAnchor ?? undefined}
       />
     </div>
   )

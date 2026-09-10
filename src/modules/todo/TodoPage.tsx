@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Icon } from '@/design-system/Icon'
 import { useSearchParams } from 'react-router-dom'
-import { useCollection } from '@/queries/hooks'
+import { useCollection, useSettings } from '@/queries/hooks'
 import { todoRepo, newId } from '@/repositories'
 import type { Todo, Customer, Project } from '@/db/types'
 import {
@@ -35,6 +35,18 @@ export default function TodoPage() {
   const todos = useCollection<Todo>('todos')
   const lists = useTodoLists()
   const listCounts = useTodoListCounts()
+  // 归属展示用映射：列表行直接呈现客户/项目/清单，关联被级联解绑后可即时感知
+  const customers = useCollection<Customer>('customers')
+  const projects = useCollection<Project>('projects')
+  const customerName = useMemo(
+    () => new Map((customers ?? []).map((c) => [c.id, c.company || c.name])),
+    [customers],
+  )
+  const projectName = useMemo(
+    () => new Map((projects ?? []).map((p) => [p.id, p.name])),
+    [projects],
+  )
+  const listName = useMemo(() => new Map(lists.map((l) => [l.id, l.name])), [lists])
   const [selKind, setSelKind] = useState<Filter>('all')
   const [chipP1, setChipP1] = useState(false)
   const [chipDone, setChipDone] = useState(false)
@@ -44,6 +56,9 @@ export default function TodoPage() {
   // 列表排序方向：按创建时间升序 / 降序
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const focus = useFocusStore()
+  // 「逾期提醒」开关（设置 → 通知）：关闭后不再主动提示逾期，仅保留行内标记
+  const settings = useSettings()
+  const dueWarningOn = settings?.notifications?.todoDueWarning ?? true
 
   // 清单管理交互态
   const [creatingList, setCreatingList] = useState(false)
@@ -51,7 +66,9 @@ export default function TodoPage() {
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [dragId, setDragId] = useState<string | null>(null)
-  // 删除清单确认（应用风格弹窗，替代 window.confirm）
+  // 删除二次确认（待办 / 清单），统一用应用风格弹窗替代原生 confirm
+  const [confirmTodo, setConfirmTodo] = useState<Todo | null>(null)
+  // 清单删除确认态：带上待解绑待办数，供弹窗展示口径
   const [confirmList, setConfirmList] = useState<{
     id: string
     name: string
@@ -103,6 +120,11 @@ export default function TodoPage() {
     [todos, sortDir],
   )
   const openTodos = sortedTodos.filter((t) => t.status !== 'done')
+  // 逾期提醒（P1-2 死开关接通）：全局未完成且已过截止时间，按设置开关决定是否提示
+  const overdueTodos = useMemo(
+    () => openTodos.filter((t) => t.dueAt && dayjs(t.dueAt).isBefore(dayjs())),
+    [openTodos],
+  )
 
   // 日历日边界：今天 = 今日截止 ∪ 逾期未完成；最近七天 = [今天, +7天] ∪ 逾期未完成
   const weekEndStr = dayjs().add(7, 'day').format('YYYY-MM-DD')
@@ -130,8 +152,14 @@ export default function TodoPage() {
   })
 
   // 打勾完成/取消完成统一走领域函数（status 与 completedAt 成对写入，Issue #74）
+  // 写库失败（配额超限/隐私模式等）不再静默：catch 后给出可见提示
   async function toggle(t: Todo) {
-    await toggleTodoDone(t)
+    try {
+      await toggleTodoDone(t)
+    } catch (err) {
+      console.error('[todo] 更新完成状态失败', err)
+      window.alert('更新待办状态失败，请稍后重试。')
+    }
   }
 
   // 固定视图顺序：全部待办 → 收集箱 → 今天 → 最近七天，之后分割线接「我的清单」
@@ -200,10 +228,12 @@ export default function TodoPage() {
     setRenamingId(null)
   }
 
+  /** 点「删除」：先弹应用风格二次确认，不直接动数据 */
   function removeList(id: string) {
     const list = lists.find((l) => l.id === id)
     if (!list) return
-    const n = todos.filter((t) => t.listId === id && t.status !== 'done').length
+    // 计数与级联行为对齐：解绑全部未删除待办（含已完成），故统计口头口径为「N 条待办」
+    const n = todos.filter((t) => t.listId === id).length
     setConfirmList({ id, name: list.name, count: n })
   }
 
@@ -225,7 +255,9 @@ export default function TodoPage() {
     const from = ids.indexOf(dragId)
     const to = ids.indexOf(targetId)
     if (from < 0 || to < 0) return
-    ids.splice(to, 0, ids.splice(from, 1)[0])
+    // 先移除源项，再从数组中取目标索引：from < to 时目标项整体左移一位，需修正
+    const [moved] = ids.splice(from, 1)
+    ids.splice(from < to ? to - 1 : to, 0, moved)
     void reorderTodoLists(ids)
     setDragId(null)
   }
@@ -241,6 +273,26 @@ export default function TodoPage() {
           </Button>
         }
       />
+
+      {dueWarningOn && overdueTodos.length > 0 && (
+        <div className="mb-3 flex items-center gap-2 rounded-xl border border-danger/25 bg-danger/5 px-4 py-2.5 text-[0.9286rem] text-danger">
+          <Icon name="warning" size={18} />
+          <span className="flex-1">
+            有 <span className="font-semibold">{overdueTodos.length}</span> 条待办已逾期
+          </span>
+          <button
+            className="font-semibold underline underline-offset-2 hover:opacity-80"
+            onClick={() => {
+              setSelListId(null)
+              setChipP1(false)
+              setChipDone(false)
+              setSelKind('today')
+            }}
+          >
+            立即查看
+          </button>
+        </div>
+      )}
 
       <div className="grid grid-cols-[240px_1fr] gap-4 items-start">
         {/* 左侧清单：智能清单 + 我的清单（增删改/拖拽排序） */}
@@ -349,7 +401,7 @@ export default function TodoPage() {
                 <button
                   title="删除清单"
                   className="text-outline hover:text-danger"
-                  onClick={() => void removeList(l.id)}
+                  onClick={() => removeList(l.id)}
                 >
                   <Icon name="delete" size={14} />
                 </button>
@@ -482,6 +534,12 @@ export default function TodoPage() {
                         }`}
                       >
                         {t.title}
+                        {/* 状态标记：'doing' 三态可见化；「专注中」为专注计时实时态，与持久化状态独立 */}
+                        {t.status === 'doing' && (
+                          <span className="ml-2 align-middle">
+                            <Chip tone="amber">进行中</Chip>
+                          </span>
+                        )}
                         {isDoing && (
                           <span className="ml-2 align-middle">
                             <Chip tone="blue" icon="timer">
@@ -498,6 +556,20 @@ export default function TodoPage() {
                           )}
                         </div>
                       )}
+                      {/* 归属信息：仅在有归属时展示；弱引用被级联解绑后自然消失，可即时感知 */}
+                      {(() => {
+                        const owner = [
+                          t.customerId ? `客户 ${customerName.get(t.customerId) ?? '已删除'}` : null,
+                          t.projectId ? `项目 ${projectName.get(t.projectId) ?? '已删除'}` : null,
+                          t.listId ? `清单 ${listName.get(t.listId) ?? '已删除'}` : null,
+                        ].filter(Boolean)
+                        if (!owner.length) return null
+                        return (
+                          <div className="mt-0.5 truncate text-[0.7857rem] text-outline/80">
+                            {owner.join(' · ')}
+                          </div>
+                        )
+                      })()}
                     </div>
                     <Chip
                       tone={t.priority === 'P1' ? 'red' : t.priority === 'P2' ? 'amber' : 'gray'}
@@ -524,7 +596,7 @@ export default function TodoPage() {
                     <button
                       title="删除待办"
                       className="text-outline opacity-0 transition-opacity hover:text-danger group-hover:opacity-100"
-                      onClick={() => todoRepo.softDelete(t.id)}
+                      onClick={() => setConfirmTodo(t)}
                     >
                       <Icon name="delete" size={18} />
                     </button>
@@ -535,6 +607,20 @@ export default function TodoPage() {
           )}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmTodo !== null}
+        title={`删除待办「${confirmTodo?.title ?? ''}」`}
+        message="删除后该待办将不再显示，且暂无回收站入口，此操作不可撤销。"
+        confirmText="删除"
+        danger
+        onConfirm={() => {
+          const t = confirmTodo
+          setConfirmTodo(null)
+          if (t) void todoRepo.softDelete(t.id)
+        }}
+        onCancel={() => setConfirmTodo(null)}
+      />
 
       <TodoFormDrawer
         open={creating || editing !== null}
@@ -575,7 +661,7 @@ export default function TodoPage() {
         title={`删除清单「${confirmList?.name ?? ''}」？`}
         danger
         confirmText="删除"
-        message={`名下 ${confirmList?.count ?? 0} 条未完成待办将移入「全部待办」。`}
+        message={`名下 ${confirmList?.count ?? 0} 条待办将解除归属并移入「收集箱」。此操作不可撤销。`}
         onCancel={() => setConfirmList(null)}
         onConfirm={() => {
           const target = confirmList
@@ -604,6 +690,8 @@ export function TodoFormDrawer({
   const [title, setTitle] = useState('')
   const [desc, setDesc] = useState('')
   const [priority, setPriority] = useState<Todo['priority']>('P2')
+  // 状态三态化：让 'doing' 从死枚举变成可达状态（原仅种子数据出现，UI 无法设置）
+  const [status, setStatus] = useState<Todo['status']>('todo')
   const [dueAt, setDueAt] = useState('')
   const [customerId, setCustomerId] = useState('')
   const [listId, setListId] = useState('')
@@ -620,6 +708,7 @@ export function TodoFormDrawer({
     setTitle(todo?.title ?? '')
     setDesc(todo?.desc ?? '')
     setPriority(todo?.priority ?? 'P2')
+    setStatus(todo?.status ?? 'todo')
     setDueAt(todo?.dueAt ? dayjs(todo.dueAt).format('YYYY-MM-DDTHH:mm') : '')
     setCustomerId(todo?.customerId ?? '')
     setListId(todo?.listId ?? '')
@@ -640,7 +729,9 @@ export function TodoFormDrawer({
       title: title.trim(),
       desc: desc.trim(),
       priority,
-      status: todo?.status ?? 'todo',
+      status,
+      // 完成时间与状态成对维护：切到 done 时补时间戳，切离 done 时显式清空
+      completedAt: status === 'done' ? (todo?.completedAt ?? Date.now()) : undefined,
       dueAt: dueAt ? dayjs(dueAt).valueOf() : undefined,
       customerId: customerId || undefined,
       listId: listId || undefined,
@@ -687,6 +778,29 @@ export function TodoFormDrawer({
                 }`}
               >
                 {p}
+              </button>
+            ))}
+          </div>
+        </Field>
+        <Field label="状态">
+          <div className="flex gap-2">
+            {(
+              [
+                { key: 'todo', label: '待处理' },
+                { key: 'doing', label: '进行中' },
+                { key: 'done', label: '已完成' },
+              ] as const
+            ).map((opt) => (
+              <button
+                key={opt.key}
+                onClick={() => setStatus(opt.key)}
+                className={`rounded-lg border px-4 py-1.5 text-[0.9286rem] ${
+                  status === opt.key
+                    ? 'border-primary bg-primary-fixed font-semibold text-primary'
+                    : 'border-outline-variant text-on-surface-variant'
+                }`}
+              >
+                {opt.label}
               </button>
             ))}
           </div>
