@@ -6,12 +6,12 @@ import { saveIntimacyConfig, useIntimacyConfig } from '@/modules/crm/intimacy'
 import { isIntimacyTrustLevel } from '@/db/types'
 
 /**
- * 「数据管理」设置页（Issue #34 收敛稿）：集中管理各功能模块的自定义配置。
- * 本期承载 CRM·客户 的三个配置区：
+ * CRM · 客户 模块配置面板（功能配置页 · Issue #86，配置本体自 Issue #34 收敛稿原样迁入）。
+ * 业务逻辑零改写，仅容器由 SettingsPage「数据管理」Tab 改为独立页的三块纵向 Section：
  * ① 亲密度等级维护（7 档 key 固定不可增删，name/desc 可编辑，改名零迁移）
  * ② 黑名单全局屏蔽（开关矩阵，默认只开图谱隐藏，副作用渐进开放）
  * ③ 算法兜底与权重（总开关 + 4 因子滑杆 + 切档阈值，保存时归一化与单调性校验）
- * 配置写 moduleConfigs（同步表），改动即时落库广播 moduleConfig:changed。
+ * 配置写 moduleConfigs（同步表 crm.intimacy），改动即时落库广播 moduleConfig:changed。
  */
 
 function Section({
@@ -69,7 +69,7 @@ function Toggle({
   )
 }
 
-export default function DataManagementTab() {
+export default function CrmIntimacyConfig() {
   const cfg = useIntimacyConfig()
   const [editingLevels, setEditingLevels] = useState<Record<IntimacyLevel, { name: string; desc: string }>>(
     () =>
@@ -184,7 +184,7 @@ export default function DataManagementTab() {
       {/* ① 亲密度等级维护 */}
       <Section
         icon="favorite"
-        title="亲密度等级维护 · CRM 客户"
+        title="亲密度等级维护"
         desc="7 档固定槽位（T1~T5 信任轴 + I6/I7 隔离态）不可增删，仅名称与判据描述可编辑；改名零数据迁移"
       >
         <div className="space-y-2">
@@ -235,7 +235,7 @@ export default function DataManagementTab() {
       {/* ② 黑名单全局屏蔽 */}
       <Section
         icon="block"
-        title="黑名单全局屏蔽 · CRM 客户"
+        title="黑名单全局屏蔽"
         desc="黑名单（I7）在各功能面的屏蔽范围。默认只开图谱隐藏（图谱是经营视图）；档案页/关联区始终保留，不丢数据"
       >
         <div className="space-y-3">
@@ -264,7 +264,7 @@ export default function DataManagementTab() {
       {/* ③ 算法兜底与权重 */}
       <Section
         icon="tune"
-        title="算法兜底与权重 · CRM 客户"
+        title="算法兜底与权重"
         desc="未手动设置亲密度的客户由算法兜底分档；手动设置始终最优先。硬约束：算法最多推到 T2，永不给出 T1/I6/I7"
       >
         <div className="mb-4 flex items-center justify-between">

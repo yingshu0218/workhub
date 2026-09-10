@@ -38,12 +38,11 @@ import {
 import { pbPing, isSyncConfigured, enqueueAllForPush } from '@/sync/pocketbaseAdapter'
 import { syncEngine } from '@/sync/engine'
 import { useSyncStore } from '@/sync/store'
-import DataManagementTab from './DataManagementTab'
 import { useNoteFolders } from '@/modules/notes/hooks'
 import { moduleConfigRepo } from '@/repositories'
 
 /**
- * 系统设置（对齐原型 13~15/17/18/20 · 6 标签）
+ * 系统设置（对齐原型 13~15/17/18/20 · 7 标签）
  * 所有改动经 settingsRepo.save 即时落库并广播 settings:changed，各消费端实时应用（无「保存更改」按钮）
  */
 
@@ -53,7 +52,6 @@ const TABS = [
   { id: 'typography', label: '字体与排版', icon: 'text_fields' },
   { id: 'shortcuts', label: '通用与快捷键', icon: 'keyboard' },
   { id: 'notifications', label: '提醒与协同', icon: 'notifications_active' },
-  { id: 'data', label: '数据管理', icon: 'tune' },
   { id: 'sync', label: '云端同步', icon: 'cloud_sync' },
   { id: 'security', label: '数据与安全', icon: 'security' },
 ] as const
@@ -579,9 +577,6 @@ export default function SettingsPage() {
           </button>
         ))}
       </div>
-
-      {/* ── 数据管理（Issue #34：亲密度/黑名单/算法权重等模块自定义配置） ── */}
-      {tab === 'data' && <DataManagementTab />}
 
       {/* ── 外观与主题 ── */}
       {tab === 'appearance' && (
