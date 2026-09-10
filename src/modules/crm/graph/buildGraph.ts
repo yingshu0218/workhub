@@ -1,5 +1,5 @@
 import type { IntimacyLevel, RelationCategory } from '@/db/types'
-import { INTIMACY_VISUAL } from '@/db/types'
+import { INTIMACY_LEVELS, INTIMACY_VISUAL } from '@/db/types'
 import type { CanvasGraph } from '../hooks'
 import { buildScoreInput, resolveIntimacyLevel, isBlacklistHidden } from '../intimacy'
 import type { ModuleConfigIntimacy } from '@/db/types'
@@ -313,4 +313,44 @@ export function buildGraph(
     n.y = opts.center.y + Math.sin(angle) * 120
   })
   return { nodes: keptNodes, links: keptLinks }
+}
+
+/**
+ * 全局画布「我」锚点选取（Issue #94）：进入画布以核心客户为中心节点。
+ * 纯函数、确定性排序（同数据同结果），口径：亲密度档位（T1 最优先，I7 黑名单剔除，
+ * 未配置档位按 T5 基线）→ 连接度（relations + 桥接弱边数量）→ 最近联系时间新者优先。
+ * 返回 null（无可渲染客户）由调用方自行兜底。
+ */
+export function pickCanvasAnchor(
+  graph: CanvasGraph,
+  intimacyCfg?: ModuleConfigIntimacy,
+): string | null {
+  if (graph.customers.length === 0) return null
+  const degree = new Map<string, number>()
+  for (const c of graph.customers) degree.set(c.id, 0)
+  for (const c of graph.customers) {
+    for (const r of c.relations) {
+      // 悬挂引用不计入连接度（指向已删除客户）
+      if (degree.has(r.targetId)) {
+        degree.set(c.id, (degree.get(c.id) ?? 0) + 1)
+        degree.set(r.targetId, (degree.get(r.targetId) ?? 0) + 1)
+      }
+    }
+  }
+  const levelRank = (c: CanvasGraph['customers'][number]): number => {
+    if (!intimacyCfg) return 4
+    const input = intimacyCfg.algorithm.enabled ? buildScoreInput(graph, c.id) : null
+    const lv = resolveIntimacyLevel(c, intimacyCfg, input).level
+    return INTIMACY_LEVELS.indexOf(lv) // T1=0 … I7=6，越小越核心
+  }
+  const best = [...graph.customers]
+    .filter((c) => !(intimacyCfg && isBlacklistHidden(c, intimacyCfg, 'hideInGraph')))
+    .sort((a, b) => {
+      const d = levelRank(a) - levelRank(b)
+      if (d !== 0) return d
+      const deg = (degree.get(b.id) ?? 0) - (degree.get(a.id) ?? 0)
+      if (deg !== 0) return deg
+      return b.lastContactAt - a.lastContactAt
+    })
+  return best[0]?.id ?? null
 }

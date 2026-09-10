@@ -214,8 +214,10 @@ export default function GraphCanvas({
   // 统一规则：fit 任务可取消、执行时读当帧最新坐标；焦点锚定一旦生效即取消 pending fit
   // 并阻断后续所有自动 fit，保证锚定是最后一次视图操作。
   const fitKey = `${focusId ?? 'all'}-${nodes.length}-${mode}`
-  // 焦点锚定已生效标记：此后不再自动 fit（焦点客户已在视口中心，fit 反而挤走它）
-  const anchorLockedRef = useRef(false)
+  // 焦点锚定已生效标记：此后不再自动 fit（焦点客户已在视口中心，fit 反而挤走它）。
+  // 记录生效时的 fitKey：仅锁同一视图状态；fitKey 变化（切模式/数据重算）自动解锁，
+  // 否则 customer-only 切全景后自动 fit 被永久抑制，视图停留在旧中心（Issue #94 隐患）
+  const anchorLockedKeyRef = useRef<string | null>(null)
   // pending fit 的 rAF 句柄：锚定/重调度/卸载时可取消
   const fitRafRef = useRef<number | null>(null)
   // fitView 是每次渲染重建的闭包，rAF 回调经 ref 转发，保证执行时拿到最新版本（最新坐标）
@@ -224,7 +226,7 @@ export default function GraphCanvas({
 
   const runFit = () => {
     fitRafRef.current = null
-    if (anchorLockedRef.current) return
+    if (anchorLockedKeyRef.current === fitKey) return
     fitViewRef.current()
   }
   const scheduleFit = () => {
@@ -278,7 +280,7 @@ export default function GraphCanvas({
     const n = nodes.find((x) => x.id === anchorKey)
     if (!n || n.x == null || n.y == null || size.w === 0) return
     anchoredKeyRef.current = anchorKey
-    anchorLockedRef.current = true
+    anchorLockedKeyRef.current = fitKey
     if (fitRafRef.current != null) {
       cancelAnimationFrame(fitRafRef.current)
       fitRafRef.current = null
@@ -529,7 +531,7 @@ export default function GraphCanvas({
                         />
                         {n.kind === 'customer' ? (
                           <>
-                            {n.id === focusId && (
+                            {(n.id === focusId || n.id === fitAnchorId) && (
                               <circle
                                 r={n.radius + 7}
                                 fill="none"
