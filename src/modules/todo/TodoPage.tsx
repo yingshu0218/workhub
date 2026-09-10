@@ -17,6 +17,7 @@ import {
 import { MatchCombobox } from '@/design-system/MatchCombobox'
 import dayjs from 'dayjs'
 import { useFocusStore } from '@/stores/focus'
+import { toggleTodoDone } from './toggle'
 import {
   useTodoLists,
   useTodoListCounts,
@@ -121,12 +122,9 @@ export default function TodoPage() {
     return true
   })
 
+  // 打勾完成/取消完成统一走领域函数（status 与 completedAt 成对写入，Issue #74）
   async function toggle(t: Todo) {
-    if (t.status === 'done') {
-      await todoRepo.put({ ...t, status: 'todo', completedAt: undefined })
-    } else {
-      await todoRepo.put({ ...t, status: 'done', completedAt: Date.now() })
-    }
+    await toggleTodoDone(t)
   }
 
   // 固定视图顺序：全部待办 → 收集箱 → 今天 → 最近七天，之后分割线接「我的清单」

@@ -607,6 +607,11 @@
         "required": false
       },
       {
+        "name": "sortOrder",
+        "type": "number",
+        "required": false
+      },
+      {
         "name": "tombstonePushed",
         "type": "number",
         "required": false,
