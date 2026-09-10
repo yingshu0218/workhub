@@ -10,12 +10,17 @@ import { ToastProvider } from '@/design-system/Toast'
 import QuickCapture from '@/modules/notes/QuickCapturePanel'
 import { DEFAULT_WORKSPACE_SUB, useIdentity } from '@/modules/identity'
 
+/**
+ * 侧栏菜单（顺序即渲染顺序）。
+ * `childPrefixed`：该菜单是否含子路由——为 true 时子路径仍算选中（见 isNavItemActive）。
+ * 它是菜单自身的属性，新增带子路由的菜单只需在数据上标一个字段，无需再维护一份白名单。
+ */
 const NAV_ITEMS = [
   { to: '/', icon: 'dashboard', label: '工作台' },
   { to: '/notes', icon: 'description', label: '笔记' },
   { to: '/todo', icon: 'check_circle', label: '待办事项' },
-  { to: '/projects', icon: 'hub', label: '项目' },
-  { to: '/crm', icon: 'group', label: '客户管理' },
+  { to: '/projects', icon: 'hub', label: '项目', childPrefixed: true },
+  { to: '/crm', icon: 'group', label: '客户管理', childPrefixed: true },
   { to: '/finance', icon: 'account_balance_wallet', label: '财务中心' },
   { to: '/habits', icon: 'local_fire_department', label: '打卡习惯' },
   { to: '/trophies', icon: 'emoji_events', label: '成就奖杯' },
@@ -34,7 +39,11 @@ const NAV_ITEMS = [
  *   `/module-config/crm/intimacy` 仍属功能配置）
  * - 其余一律精确匹配：跨到别的模块（如 /todo → /module-config）立即失去高亮
  */
-const NAV_CHILD_PREFIXED = new Set(['/crm', '/projects', '/module-config'])
+const NAV_CHILD_PREFIXED = new Set<string>([
+  ...NAV_ITEMS.filter((i) => 'childPrefixed' in i && i.childPrefixed).map((i) => i.to),
+  // 功能配置菜单不在 NAV_ITEMS 里（渲染在侧栏底部独立区块），单独登记
+  '/module-config',
+])
 export function isNavItemActive(pathname: string, to: string): boolean {
   if (to === '/') return pathname === '/'
   if (NAV_CHILD_PREFIXED.has(to)) return pathname === to || pathname.startsWith(`${to}/`)

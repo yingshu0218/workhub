@@ -1,7 +1,7 @@
 # 寻鸽工作台 · 开发进度文档
 
 > **本仓库的唯一进度事实来源。** 所有人（含 AI 开发代理）推进或变更任何开发工作，必须在**同一个 commit** 里同步更新本文件对应状态。README 底部的 Changelog 记录"发生了什么"，本文档记录"现在处于什么状态"——前者追加式流水，后者始终反映最新全貌。
-**最后更新**：2026-09-10（Issue #128 待办三态 + 侧栏选中修复：侧栏 `NavLink` 前缀匹配导致离开后色块仍高亮，新增 `AppLayout.isNavItemActive` 统一判定（`/` 精确、`/crm`·`/projects`·`/module-config` 按段、其余精确）；待办状态两态扩三态 `todo|done|voided` + `voidedAt`（与 `completedAt` 互斥成对写），领域层 `isTodoDone`/`isTodoVoided`/`isTodoFinished` 收口；待办中心新增「已完成」「已作废」菜单、移除「已完成」筛选 Chip、「全部待办」严格只装未完成；新增「作废/恢复」一等交互（区别于删除：不删记录、可恢复、不催办不计完成率）；跨模块口径对齐（工作台/CRM 健康分/项目详情/清单计数/⌘K/消解器/时间轴/同步适配器），`collections.json` todos 补 `voidedAt`；新增 15 条测试）
+**最后更新**：2026-09-10（Issue #128 待办三态 + 侧栏选中修复：侧栏 `NavLink` 前缀匹配导致离开后色块仍高亮，新增 `AppLayout.isNavItemActive` 统一判定（`/` 精确、`/crm`·`/projects`·`/module-config` 按段、其余精确）；待办状态两态扩三态 `todo|done|voided` + `voidedAt`（与 `completedAt` 互斥成对写），领域层 `isTodoDone`/`isTodoVoided`/`isTodoFinished` 收口；待办中心新增「已完成」「已作废」菜单、移除「已完成」筛选 Chip、「全部待办」严格只装未完成；新增「作废/恢复」一等交互（区别于删除：不删记录、可恢复、不催办不计完成率）；跨模块口径对齐（工作台/CRM 健康分/项目详情/清单计数/⌘K/消解器/时间轴/同步适配器），`collections.json` todos 补 `voidedAt`；新增 17 条测试）
 
 ---
 
@@ -70,6 +70,7 @@
 | 作废动作 | ✅ 行内常显「作废」按钮（删除仍为 hover 显隐，两者意图不同不并排混淆）；`voidTodo`/`restoreTodo` 单点收口、幂等不重复入队；作废**不等于删除**——记录保留、可恢复、不催办、不计完成率 |
 | 跨模块口径 | ✅ 工作台「今日已完成」、CRM 健康分入参 `doneTodos`、项目详情待办列、清单未完成计数、⌘K 搜索状态前缀、agent 消解器候选标注（终态沉底）、CRM 时间轴「作废待办」灰标（锚点 `voidedAt`）、同步适配器终态本地优先（补 `voidedAt` 保留） |
 | 待人工 | ⚠️ 服务端需重导入 collections.json 让 `todos.voidedAt` 生效（并入上方同一次操作） |
+| 审计整改（第二轮） | ✅ ① `backfillTodoVoidedAt` 原为死代码（无调用点），已接入启动链（`main.tsx` seed → `backfillTodoCompletedAt` → `backfillTodoVoidedAt`）并补 2 条测试（补盖 + 入队 + 幂等）；② 深链 `?focus=<id>` 并入 `baseScope` 时未过视图闸门，已作废/已完成条目会被并进「全部待办」并计入「N 条未完成」，新增 `inFocusScope` 按当前视图状态过滤；③ `NAV_CHILD_PREFIXED` 由硬编码白名单改为从 `NAV_ITEMS.childPrefixed` 派生（仅 `/module-config` 因不在 `NAV_ITEMS` 中单独登记），新增带子路由菜单无需再手工同步 |
 
 ### 待办事项打勾完成修复（Issue #74，已提 PR）
 

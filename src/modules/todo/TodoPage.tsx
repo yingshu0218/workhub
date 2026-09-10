@@ -157,12 +157,20 @@ export default function TodoPage() {
     if (selKind === 'week') return d <= weekEndStr
     return false
   }
-  // 当前视图范围 = 智能视图/清单过滤 ∪ 深链定位条目（保证跳转目标恒可见）
+  // 深链定位（Issue #128）：焦点条目并集兜底时必须过「当前视图」这道闸门，
+  // 否则一条已作废/已完成的待办会被并进「全部待办」，还计入「N 条未完成」——与「全部待办=只看未完成」口径打架。
+  const inFocusScope = (t: Todo): boolean => {
+    if (focusRingId === null || t.id !== focusRingId) return false
+    if (selListId) return true
+    // 终态视图：只并对应的终态；未完成视图：只并未完成
+    if (selKind === 'done') return isTodoDone(t)
+    if (selKind === 'voided') return isTodoVoided(t)
+    return isTodoOpen(t)
+  }
+  // 当前视图范围 = 智能视图/清单过滤 ∪ 深链定位条目（保证跳转目标在当前口径内可见）
   const baseScope = selListId
-    ? sortedTodos.filter(
-        (t) => t.listId === selListId || (focusRingId !== null && t.id === focusRingId),
-      )
-    : sortedTodos.filter((t) => matchesSmart(t) || (focusRingId !== null && t.id === focusRingId))
+    ? sortedTodos.filter((t) => t.listId === selListId || inFocusScope(t))
+    : sortedTodos.filter((t) => matchesSmart(t) || inFocusScope(t))
   // P1 降级为右侧筛选 Chip，作用于当前左栏视图/清单之内；全部未命中时兜底展示空态
   const filtered = baseScope.filter((t) => {
     if (chipP1 && !(isTodoOpen(t) && t.priority === 'P1')) return false

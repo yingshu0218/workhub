@@ -18,6 +18,7 @@ import {
   isTodoFinished,
   todoStatusLabel,
   isDueToday,
+  backfillTodoVoidedAt,
 } from '../domain'
 import { setTodoVoided, voidTodo, restoreTodo, toggleTodoDone } from '../toggle'
 
@@ -118,5 +119,28 @@ describe('④ 作废不进「今天 / 逾期」催办口径', () => {
   it('未完成且逾期 → 仍算 dueToday（既有口径不回归）', () => {
     const overdue = mk('o1', 'todo', { dueAt: new Date('2026-09-09T10:00:00').getTime() })
     expect(isDueToday(overdue, today)).toBe(true)
+  })
+})
+
+describe('⑤ 存量兜底 backfillTodoVoidedAt（启动链已接线）', () => {
+  it('voided 缺 voidedAt 的记录被补盖时间戳并推同步队列，其余记录不受影响', async () => {
+    await db.todos.put(mk('v-missing', 'voided'))
+    await db.todos.put(mk('v-ok', 'voided', { voidedAt: 111 }))
+    await db.todos.put(mk('open-1', 'todo'))
+    const n = await backfillTodoVoidedAt()
+    expect(n).toBe(1)
+    const fixed = await db.todos.get('v-missing')
+    expect(fixed?.voidedAt).toBeGreaterThan(0)
+    // 已有时间戳的不动、未完成的不动
+    expect((await db.todos.get('v-ok'))?.voidedAt).toBe(111)
+    expect((await db.todos.get('open-1'))?.voidedAt).toBeUndefined()
+    // 补盖必须入同步队列（跨设备同步不丢）
+    expect(await db.syncQueue.where('recordId').equals('v-missing').count()).toBe(1)
+  })
+
+  it('幂等：重复执行不再命中（第二次返回 0）', async () => {
+    await db.todos.put(mk('v-idem', 'voided'))
+    expect(await backfillTodoVoidedAt()).toBe(1)
+    expect(await backfillTodoVoidedAt()).toBe(0)
   })
 })

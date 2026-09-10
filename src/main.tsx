@@ -5,7 +5,7 @@ import dayjs from 'dayjs'
 import AppRouter from './app/router'
 import './styles/index.css'
 import { seedIfEmpty } from './db/seed'
-import { backfillTodoCompletedAt } from './modules/todo/domain'
+import { backfillTodoCompletedAt, backfillTodoVoidedAt } from './modules/todo/domain'
 import { syncEngine } from './sync/engine'
 import { installKeyboardListener } from './shared/shortcuts'
 import { installModuleEffects } from './shared/effects'
@@ -29,6 +29,11 @@ function Bootstrap() {
       .then(() => backfillTodoCompletedAt())
       .then((n) => {
         if (n) console.info(`[migrate] 补齐 ${n} 条待办的 completedAt`)
+      })
+      // 存量兜底：voided 无 voidedAt 的待办补盖作废时间（同上，Issue #128 三态口径）
+      .then(() => backfillTodoVoidedAt())
+      .then((n) => {
+        if (n) console.info(`[migrate] 补齐 ${n} 条待办的 voidedAt`)
       })
     syncEngine.start()
     installKeyboardListener()
