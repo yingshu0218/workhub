@@ -3,43 +3,13 @@ import { createPortal } from 'react-dom'
 import { Icon } from '@/design-system/Icon'
 import { inputCls } from '@/design-system/ui'
 
-/** 模糊匹配：全部子序列命中即算匹配（如「深科」命中「深蓝科技」），优先级：前缀 > 子串 > 子序列 */
-export function fuzzyMatch(text: string, query: string): boolean {
-  const t = text.toLowerCase()
-  const q = query.toLowerCase().trim()
-  if (!q) return true
-  const idx = t.indexOf(q)
-  if (idx >= 0) return true
-  // 子序列回退
-  let i = 0
-  for (const ch of t) {
-    if (ch === q[i]) i++
-    if (i >= q.length) return true
-  }
-  return false
-}
-
-/** 按匹配质量排序：子串命中在前，同质量按原顺序 */
-export function fuzzySort<T>(items: T[], labelOf: (item: T) => string, query: string): T[] {
-  const q = query.toLowerCase().trim()
-  if (!q) return items
-  return [...items]
-    .map((item, i) => ({ item, i, score: labelOf(item).toLowerCase().indexOf(q) }))
-    .sort((a, b) => {
-      if (a.score !== b.score) {
-        if (a.score < 0) return 1
-        if (b.score < 0) return -1
-        return a.score - b.score
-      }
-      return a.i - b.i
-    })
-    .map((x) => x.item)
-}
-
-/** 候选项按归档状态沉底（归档项排最后，同状态保持原顺序），供「已归档」类候选统一使用 */
-export function archivedLast<T extends { archived?: boolean }>(items: T[]): T[] {
-  return [...items.filter((i) => !i.archived), ...items.filter((i) => i.archived)]
-}
+/**
+ * 模糊匹配基建已提升至 `@/shared/search`（Issue #33 agentOps P1 第 1 步：消除 shared ↔ design-system 反向依赖）。
+ * 此处 re-export 保持既有 5 个使用方（含 design-system 内部消费）零改动。
+ */
+export { fuzzyMatch, fuzzySort, archivedLast } from '@/shared/search'
+import { archivedLast, fuzzySort } from '@/shared/search'
+import { fuzzyMatch as _fuzzyMatch } from '@/shared/search'
 
 export interface MatchOption {
   id: string
@@ -83,7 +53,7 @@ export function MatchCombobox({
   const boxRef = useRef<HTMLDivElement>(null)
 
   const selected = options.find((o) => o.id === value)
-  const matched = options.filter((o) => fuzzyMatch(o.label, query))
+  const matched = options.filter((o) => _fuzzyMatch(o.label, query))
   // 归档沉底：先按匹配质量排序，再按 archived 沉底（稳定，两种顺序都保留）
   const filtered = archivedLast(fuzzySort(matched, (o) => o.label, query))
   // 「不关联」恒在首位（仅无已选时展示）

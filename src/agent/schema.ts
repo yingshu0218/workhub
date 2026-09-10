@@ -1,5 +1,6 @@
 import dayjs from 'dayjs'
 import { z } from 'zod'
+import type { AiDomain } from '@/db/types'
 
 /**
  * agentOps 工具 schema —— P1 第 1 步（方案 §9.7 / §2.1 事件声明表）
@@ -154,6 +155,8 @@ export const TOOL_RISK: Record<string, RiskLevel> = {
   'crm_addRelation': 'medium',
   'todo_createTodo': 'low',
   'todo_completeTodo': 'low',
+  /** 读工具：无副作用，风险恒为 low（不进 TOOL_EVENTS，读操作不产领域事件） */
+  'resolveEntity': 'low',
 }
 
 /** 事件声明：写工具 → 领域事件（agentOps 执行成功后、事务外统一 emit） */
@@ -161,4 +164,35 @@ export const TOOL_EVENTS: Record<string, AgentEventDeclaration['event'][]> = {
   'fin_recordTransaction': ['transaction:created'],
   'crm_addInteraction': ['customer:contacted'],
   // crm_createCustomer / fin_createLedger / todo_* / crm_addRelation：无既有事件，不加新的
+}
+
+/** resolveEntity —— 读工具（§2.2）：候选 id + label + sub，不含全字段与 relations */
+export const resolveEntitySchema = z.object({
+  query: z.string().min(1, '请提供要消解的实体名称'),
+  type: z.enum(['customer', 'project', 'todo', 'ledger', 'habit']),
+})
+
+/**
+ * 能力白名单域（与工具命名域前缀对齐，§四.3 / settings.ai.domains）。
+ * 白名单关闭的域：桥的 tools 清单里**不出现**该域工具（不仅拒绝调用）。
+ */
+export const TOOL_DOMAIN: Record<string, AiDomain> = {
+  fin_recordTransaction: 'fin',
+  fin_createLedger: 'fin',
+  crm_createCustomer: 'crm',
+  crm_addInteraction: 'crm',
+  crm_addRelation: 'crm',
+  todo_createTodo: 'todo',
+  todo_completeTodo: 'todo',
+  resolveEntity: 'read',
+}
+
+/** 域默认开关（settings.ai.domains 缺省时的兜底；写域默认全开、读域默认开） */
+export const DEFAULT_AI_DOMAINS: Record<AiDomain, boolean> = {
+  fin: true,
+  crm: true,
+  todo: true,
+  habit: true,
+  note: true,
+  read: true,
 }

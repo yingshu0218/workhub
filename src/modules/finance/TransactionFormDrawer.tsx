@@ -7,6 +7,7 @@ import type { Attachment } from '@/db/db'
 import type { Customer, Ledger, Project, Todo, Transaction } from '@/db/types'
 import { Button, Chip, Field, Modal, inputCls, useAutoFocus } from '@/design-system/ui'
 import { MatchCombobox, type MatchOption } from '@/design-system/MatchCombobox'
+import { toArchivedFlag } from '@/shared/search'
 import dayjs from 'dayjs'
 import { isTodoOpen } from '@/modules/todo/domain'
 
@@ -349,7 +350,7 @@ export default function TransactionFormDrawer({
               id: p.id,
               label: p.name,
               sub: p.status === 'archived' ? '已归档' : undefined,
-              archived: p.status === 'archived',
+              ...toArchivedFlag(p),
               icon: 'folder_open',
             }))}
             placeholder="输入项目名称模糊搜索"
