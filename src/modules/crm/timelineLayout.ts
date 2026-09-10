@@ -34,15 +34,18 @@ export function boneColor(e: TimelineEvent): { color: string; fill: string } {
     return e.direction === 'income'
       ? { color: '#006c49', fill: '#6cf8bb' }
       : { color: '#ba1a1a', fill: '#ffdad6' }
-  if (e.kind === 'todo')
-    return e.status === 'done'
-      ? { color: '#006c49', fill: '#6cf8bb' }
-      : { color: '#943700', fill: '#ffede6' }
+  if (e.kind === 'todo') {
+    // 三态配色（Issue #128）：完成=绿 / 作废=中性灰（终止而非成功，不得用成功率语义） / 进行中=橙
+    if (e.status === 'done') return { color: '#006c49', fill: '#6cf8bb' }
+    if (e.status === 'voided') return { color: '#737686', fill: '#e5eeff' }
+    return { color: '#943700', fill: '#ffede6' }
+  }
   return { color: '#004ac6', fill: '#dbe1ff' }
 }
 
 export function boneUp(e: TimelineEvent): boolean {
   if (e.kind === 'transaction') return e.direction === 'income'
+  // 待办骨刺方向：完成向上（正向），作废/进行中向下（Issue #128 作废不算成功，不上扬）
   if (e.kind === 'todo') return e.status === 'done'
   return false
 }
@@ -50,7 +53,11 @@ export function boneUp(e: TimelineEvent): boolean {
 export function boneLabel(e: TimelineEvent): string {
   if (e.kind === 'transaction')
     return `${e.direction === 'income' ? '+' : '-'}${fmtMoney(e.amount)}`
-  if (e.kind === 'todo') return e.status === 'done' ? '完成待办' : '新增待办'
+  if (e.kind === 'todo') {
+    if (e.status === 'done') return '完成待办'
+    if (e.status === 'voided') return '作废待办'
+    return '新增待办'
+  }
   return e.type
 }
 

@@ -114,8 +114,12 @@ export interface Todo extends SyncMeta {
   desc: string
   priority: 'P1' | 'P2' | 'P3'
   dueAt?: number
-  /** 两态（Issue #74 口径统一）：原 'doing' 为死枚举已移除，「专注中」是 focus store 运行时状态不落库 */
-  status: 'todo' | 'done'
+  /**
+   * 三态（Issue #74 收窄为两态，Issue #128 扩入 'voided'「已作废」）：
+   * - 'todo' 待处理 / 'done' 已完成 / 'voided' 已作废（事项终止，记录保留可恢复，区别于软删）
+   * - 原 'doing' 为死枚举已移除，「专注中」是 focus store 运行时状态不落库
+   */
+  status: 'todo' | 'done' | 'voided'
   customerId?: string
   ledgerId?: string
   habitId?: string
@@ -124,6 +128,8 @@ export interface Todo extends SyncMeta {
   /** 所属项目（可选弱引用：一次性的待办可不填；项目删除仅解绑） */
   projectId?: string
   completedAt?: number
+  /** 作废时间（status='voided' 时成对写入，与 completedAt 同款纪律；恢复待办时显式清空） */
+  voidedAt?: number
   createdAt: number
 }
 

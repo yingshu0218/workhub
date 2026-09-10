@@ -74,11 +74,14 @@ export function buildSearchIndex(inputs: {
     })
   }
   for (const t of inputs.todos) {
+    // 状态前缀（Issue #128）：⌘K 结果里一眼区分「已完成 / 已作废 / 待处理」，
+    // 终态条目仍在索引内（可搜到、可跳转回溯），只是标注清楚
+    const statusTag = t.status === 'done' ? '已完成' : t.status === 'voided' ? '已作废' : ''
     items.push({
       id: t.id,
       type: 'todo',
       title: t.title,
-      subtitle: t.desc,
+      subtitle: statusTag ? `${statusTag} · ${t.desc}` : t.desc,
       path: '/todo',
     })
   }

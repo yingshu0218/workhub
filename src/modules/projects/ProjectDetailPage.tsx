@@ -17,7 +17,7 @@ import {
   inputCls,
 } from '@/design-system/ui'
 import dayjs from 'dayjs'
-import { isTodoOpen } from '@/modules/todo/domain'
+import { isTodoOpen, isTodoDone, isTodoVoided, isTodoFinished } from '@/modules/todo/domain'
 import ProjectFormDrawer from './ProjectFormDrawer'
 import {
   deleteMilestone,
@@ -84,6 +84,8 @@ export default function ProjectDetailPage() {
   const income = transactions.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0)
   const expense = transactions.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
   const openTodos = todos.filter(isTodoOpen)
+  // 作废条目（Issue #128）不属于未完成，也不出现在项目待办清单的默认口径里
+  const visibleTodos = todos.filter((t) => !isTodoVoided(t))
   const customer = project.customerId
     ? customers.find((c) => c.id === project.customerId)
     : undefined
@@ -259,32 +261,35 @@ export default function ProjectDetailPage() {
                 去安排 →
               </button>
             </div>
-            {todos.length === 0 ? (
+            {visibleTodos.length === 0 ? (
               <div className="py-4 text-center text-[0.8571rem] text-outline">
                 暂无关联待办，新建待办时选择本项目即可
               </div>
             ) : (
               <div className="space-y-1.5">
-                {todos.slice(0, 6).map((t) => (
+                {visibleTodos.slice(0, 6).map((t) => (
                   <div
                     key={t.id}
                     className="flex items-center gap-2 rounded-lg bg-surface-container-low/50 px-3 py-2 text-[0.8929rem]"
                   >
+                    {/* 三态标注（Issue #128）：完成=绿「完成」/ 作废=灰「已作废」/ 未完成=优先级 */}
                     <Chip
                       tone={
-                        t.status === 'done'
+                        isTodoDone(t)
                           ? 'green'
-                          : t.priority === 'P1'
-                            ? 'red'
-                            : t.priority === 'P2'
-                              ? 'amber'
-                              : 'gray'
+                          : isTodoVoided(t)
+                            ? 'gray'
+                            : t.priority === 'P1'
+                              ? 'red'
+                              : t.priority === 'P2'
+                                ? 'amber'
+                                : 'gray'
                       }
                     >
-                      {t.status === 'done' ? '完成' : t.priority}
+                      {isTodoDone(t) ? '完成' : isTodoVoided(t) ? '已作废' : t.priority}
                     </Chip>
                     <span
-                      className={`min-w-0 truncate ${t.status === 'done' ? 'text-outline line-through' : ''}`}
+                      className={`min-w-0 truncate ${isTodoFinished(t) ? 'text-outline line-through' : ''}`}
                     >
                       {t.title}
                     </span>
@@ -295,9 +300,9 @@ export default function ProjectDetailPage() {
                     )}
                   </div>
                 ))}
-                {todos.length > 6 && (
+                {visibleTodos.length > 6 && (
                   <div className="text-center text-[0.7857rem] text-outline">
-                    还有 {todos.length - 6} 项…
+                    还有 {visibleTodos.length - 6} 项…
                   </div>
                 )}
               </div>

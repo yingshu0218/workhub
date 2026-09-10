@@ -163,9 +163,15 @@ export async function mergeRemoteRecord(
   // 整体覆盖会把 status 回滚成未完成（表现为「勾了又弹回去」）。
   // 完成态以本地为准：本地已完成而远端非完成时，保留本地 status/completedAt，
   // 仅合并远端其余字段（标题/描述等编辑仍能同步）。
+  // Issue #128 补充（main 合入时同步）：终态（完成/作废）同款本地优先——作废同理不应被远端旧值回滚。
+  // 只认「本地是终态、远端不是」的情形：远端也是终态时按 LWW 让远端赢（可能是另一端的更新操作）
   const remoteDone = remote.status === 'done'
   const localDone = local?.status === 'done'
-  const keepLocalDone = table === 'todos' && localDone && !remoteDone
+  const remoteVoided = remote.status === 'voided'
+  const localVoided = local?.status === 'voided'
+  const keepLocalDone =
+    table === 'todos' &&
+    ((localDone && !remoteDone) || (localVoided && !remoteVoided && !remoteDone))
 
   // 剥离 pb 系统字段（collectionId/collectionName/created/updated/server_received_at）与映射字段 localId
   const {
@@ -186,8 +192,11 @@ export async function mergeRemoteRecord(
     typeof remote.rev === 'number' ? remote.rev : 0,
   )
   if (keepLocalDone) {
+    // 终态本地优先：status 与**对应**时间戳成对保留（Issue #74 完成态 / Issue #128 作废态），
+    // 单保 status 不保时间戳会让「今日已完成」统计/时间轴锚点丢依据
     record.status = local!.status
     record.completedAt = local!.completedAt
+    record.voidedAt = local!.voidedAt
   }
 
   // 客户关系并集合并（Issue #130）：relations 是弱引用数组，
