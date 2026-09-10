@@ -10,7 +10,7 @@
  *   与中风险 confirmToken 的**一次性签发/核销**（防重放）；token 错一律拒绝。
  * - **双入口同进程**：stdio 与 WS 共用同一份路由（`createMcpRouter`）。
  */
-import { randomBytes, timingSafeEqual } from 'node:crypto'
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 
 /** MCP 协议版本（首版跟随 2024-11-05 稳定版） */
 export const MCP_PROTOCOL_VERSION = '2024-11-05'
@@ -24,6 +24,33 @@ export function safeEqual(a, b) {
   const bb = Buffer.from(String(b))
   if (ba.length !== bb.length) return false
   return timingSafeEqual(ba, bb)
+}
+
+/**
+ * 参数规范化：对象键递归排序（数组保序），消除「同语义不同键序」导致的指纹抖动。
+ * 仅用于指纹计算，不改动下发给浏览器的原始 args。
+ */
+function canonicalize(v) {
+  if (Array.isArray(v)) return v.map(canonicalize)
+  if (v && typeof v === 'object') {
+    const out = {}
+    for (const k of Object.keys(v).sort()) out[k] = canonicalize(v[k])
+    return out
+  }
+  return v
+}
+
+/**
+ * 确认票据的参数指纹（sha256）。
+ *
+ * 为什么必须是**强哈希且不可碰撞到近似值**：confirmToken 是「用户已确认」的唯一凭证，
+ * 指纹即「用户当时确认的那组参数」。若指纹弱/可伪造，越权路径成立：
+ * 预览「记 100 元」取票 → 拿同一张票执行「记 10000 元」。
+ * 故用 sha256 对 `tool + canonical(args)` 取全量摘要（非截断）。
+ */
+export function argsFingerprint(tool, args) {
+  const canonical = JSON.stringify({ tool: String(tool), args: canonicalize(args ?? {}) })
+  return createHash('sha256').update(canonical).digest('hex')
 }
 
 /** 生成接入 token（relay 启动时可打印/由环境变量注入） */
@@ -51,19 +78,40 @@ export class ConfirmTokenStore {
     this.map = new Map()
   }
 
-  /** 签发一次性 token */
+  /**
+   * 签发一次性 token。
+   * @param {object} meta 至少含 `tool`；若含 `args` 则写入参数指纹（票据绑定这组参数）
+   */
   issue(meta) {
     const token = randomBytes(18).toString('base64url')
-    this.map.set(token, { ...meta, expiresAt: this.now() + this.ttlMs })
-    return { confirmToken: token, expiresAt: this.now() + this.ttlMs }
+    const rec = { ...meta, expiresAt: this.now() + this.ttlMs }
+    // 参数指纹：票据一旦携带，redeem 时须与本次执行参数逐字节对得上（堵死越权路径）
+    if (meta && meta.tool !== undefined) {
+      rec.fingerprint = argsFingerprint(meta.tool, meta.args ?? {})
+    }
+    this.map.set(token, rec)
+    return { confirmToken: token, expiresAt: rec.expiresAt }
   }
 
-  /** 核销：成功即删除；失败返回原因 */
-  redeem(token) {
+  /**
+   * 核销：成功即删除；失败返回原因。
+   * @param {string} token
+   * @param {string} [fingerprint] 本次执行参数的指纹；票据带指纹时必传且须一致
+   */
+  redeem(token, fingerprint) {
     const rec = this.map.get(token)
     if (!rec) return { ok: false, reason: 'confirmToken 无效或已使用' }
+    // 先删：无论校验结果如何，票据都只能被消费一次（防重放 + 防拿无效指纹反复试探）
     this.map.delete(token)
     if (this.now() > rec.expiresAt) return { ok: false, reason: 'confirmToken 已过期，请重新预览确认' }
+    if (rec.fingerprint !== undefined) {
+      if (!fingerprint) {
+        return { ok: false, reason: 'confirmToken 必须随本次执行参数一同提交（票据已绑定参数）' }
+      }
+      if (!safeEqual(rec.fingerprint, fingerprint)) {
+        return { ok: false, reason: 'confirmToken 与该组参数不匹配：票据只对用户确认过的那组参数有效，请重新预览并确认' }
+      }
+    }
     return { ok: true, meta: rec }
   }
 
@@ -169,7 +217,9 @@ export function createMcpRouter({
         //      preview → confirm → execute 全链路（非 dev 一律不签发，防被静默绕过确认）。
         const meta = { confirmToken: params?.confirmToken }
         if (meta.confirmToken) {
-          const redeemed = confirmStore.redeem(meta.confirmToken)
+          // 核销时必须带上「本次执行参数」的指纹：票据绑定的是「用户确认过的那组参数」，
+          // 对不上即拒 —— 否则「预览 A 拿票执行 B」的越权路径成立。
+          const redeemed = confirmStore.redeem(meta.confirmToken, argsFingerprint(name, args))
           if (!redeemed.ok) {
             return rpcResult(id, {
               content: [{ type: 'text', text: redeemed.reason }],
@@ -184,7 +234,7 @@ export function createMcpRouter({
           // dev 模式：给预览响应补一张一次性票据，让自动化能继续走 execute。
           // 非 dev 下不补 —— 否则「预览」等同于「自动确认」，把风险确认闸门架空。
           if (autoIssueConfirm && res?.ok === true && res.data && res.data.preview === true) {
-            const issued = confirmStore.issue({ tool: name, dev: true })
+            const issued = confirmStore.issue({ tool: name, args, dev: true })
             res = { ...res, data: { ...res.data, ...issued } }
           }
         } catch (e) {

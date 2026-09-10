@@ -25,10 +25,17 @@ declare module '@relay/mcp-relay.mjs' {
   export const CONFIRM_TTL_MS: number
   export function safeEqual(a: string, b: string): boolean
   export function generateToken(): string
+  /**
+   * 确认票据的参数指纹（sha256）：`(tool, canonical(args))`。
+   * 票据绑定参数，执行时以同一函数算出的指纹核销（P0 越权路径封堵）。
+   */
+  export function argsFingerprint(tool: string, args?: Record<string, unknown>): string
   export class ConfirmTokenStore {
     constructor(opts?: { ttlMs?: number; now?: () => number })
+    /** meta 至少含 `tool`；含 `args` 时写入参数指纹（票据绑定该组参数） */
     issue(meta: Record<string, unknown>): { confirmToken: string; expiresAt: number }
-    redeem(token: string): { ok: boolean; reason?: string; meta?: Record<string, unknown> }
+    /** 票据带指纹时，第 2 参须传「当次执行参数」的指纹且须一致 */
+    redeem(token: string, fingerprint?: string): { ok: boolean; reason?: string; meta?: Record<string, unknown> }
     sweep(): void
   }
   export interface McpTool {

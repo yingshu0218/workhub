@@ -95,22 +95,24 @@ describe('确认流程闭环：预览 → 取票 → 执行', () => {
 
 describe('relay 侧取票与防重放（ConfirmTokenStore + preview 绑定）', () => {
   it('ConfirmTokenStore：核销即删（同 token 二次使用被拒）', async () => {
-    const { ConfirmTokenStore } = await import('@relay/mcp-relay.mjs')
+    const { ConfirmTokenStore, argsFingerprint } = await import('@relay/mcp-relay.mjs')
     const store = new ConfirmTokenStore({ ttlMs: 60_000 })
-    const { confirmToken } = store.issue({ tool: 'x' })
-    expect(store.redeem(confirmToken).ok).toBe(true)
-    const second = store.redeem(confirmToken)
+    // 票据绑定参数（P0 修复）：核销须带当次执行参数的指纹
+    const fp = argsFingerprint('x', {})
+    const { confirmToken } = store.issue({ tool: 'x', args: {} })
+    expect(store.redeem(confirmToken, fp).ok).toBe(true)
+    const second = store.redeem(confirmToken, fp)
     expect(second.ok).toBe(false)
     expect(String((second as { reason: string }).reason)).toContain('已使用')
   })
 
   it('ConfirmTokenStore：超时作废', async () => {
-    const { ConfirmTokenStore } = await import('@relay/mcp-relay.mjs')
+    const { ConfirmTokenStore, argsFingerprint } = await import('@relay/mcp-relay.mjs')
     let now = 1_000
     const store = new ConfirmTokenStore({ ttlMs: 1_000, now: () => now })
-    const { confirmToken } = store.issue({ tool: 'x' })
+    const { confirmToken } = store.issue({ tool: 'x', args: {} })
     now += 2_000
-    const r = store.redeem(confirmToken)
+    const r = store.redeem(confirmToken, argsFingerprint('x', {}))
     expect(r.ok).toBe(false)
     expect(String((r as { reason: string }).reason)).toContain('过期')
   })

@@ -15,7 +15,7 @@
  *   WORKHUB_RELAY_DEBUG=1 node relay/index.mjs      # 打印浏览器往返回包（排查「有回包但客户端收不到」）
  */
 import { createWsServer } from './ws-server.mjs'
-import { createMcpRouter, generateToken, MCP_PROTOCOL_VERSION } from './mcp-relay.mjs'
+import { createMcpRouter, generateToken, MCP_PROTOCOL_VERSION, argsFingerprint } from './mcp-relay.mjs'
 
 const DEFAULT_PORT = 8787
 const HOST = '127.0.0.1' // §四.1：只绑本机，不暴露局域网
@@ -65,11 +65,13 @@ function requestFromBrowser(payload) {
 const previewStore = new Map()
 const PREVIEW_TTL_MS = 5 * 60 * 1000
 
+/**
+ * 预览记录键 = (tool, args) 的 sha256 指纹。
+ * 复用 mcp-relay 的 `argsFingerprint`（同一实现，避免两处口径漂移）；
+ * 早前的 32 位字符滚动弱哈希存在碰撞面，用作「票据绑定参数」的安全指纹不合格。
+ */
 function argsHash(tool, args) {
-  const s = `${tool}::${JSON.stringify(args ?? {})}`
-  let h = 0
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0
-  return `p${(h >>> 0).toString(36)}`
+  return argsFingerprint(tool, args)
 }
 
 function rememberPreview(key) {
@@ -105,7 +107,9 @@ function confirmPreview(args) {
       error: `未找到工具 ${tool} 的预览记录（须先以相同参数调用一次本工具取得预览，票据绑定该组参数且 5 分钟内有效）`,
     }
   }
-  const issued = router.issueConfirm({ tool, source: 'confirm_preview' })
+  // 关键：把 args 一并交给签发方 —— 票据内部会写入 (tool,args) 的 sha256 指纹，
+  // 执行时 relay 用「当次执行参数」的指纹核销，堵死「拿票执行另一组参数」的越权路径。
+  const issued = router.issueConfirm({ tool, args: toolArgs, source: 'confirm_preview' })
   return { ok: true, data: { ...issued, tool, note: '请以同一参数重试该工具，并携带 confirmToken。' } }
 }
 

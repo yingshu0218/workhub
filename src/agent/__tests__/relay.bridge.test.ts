@@ -10,7 +10,7 @@
  */
 import { describe, it, expect, afterEach } from 'vitest'
 import { createWsServer, type WsServerHandle, type WsConnection } from '@relay/ws-server.mjs'
-import { createMcpRouter, ConfirmTokenStore } from '@relay/mcp-relay.mjs'
+import { createMcpRouter, ConfirmTokenStore, argsFingerprint } from '@relay/mcp-relay.mjs'
 
 let ws: WsServerHandle | undefined
 
@@ -203,7 +203,8 @@ describe('④ 一次性 confirmToken：防重放 + 超时作废', () => {
     const { router } = await setup({ token: 't', ttlMs: 100, now: () => t, callTool: async () => ({ ok: true, data: {} }) })
     const ctx: Record<string, unknown> = {}
     await router.handle({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { accessToken: 't' } }, ctx)
-    const { confirmToken } = router.issueConfirm({ tool: 'x' })
+    // 票据现在绑定参数：签发与执行须为同一组（此处均为空 args）
+    const { confirmToken } = router.issueConfirm({ tool: 'x', args: {} })
     t = 2000 // 超过 ttl
     const r = await router.handle({ jsonrpc: '2.0', id: 9, method: 'tools/call', params: { name: 'x', arguments: {}, confirmToken } }, ctx)
     const result = r?.result as { isError: boolean; content: { text: string }[] }
@@ -214,14 +215,23 @@ describe('④ 一次性 confirmToken：防重放 + 超时作废', () => {
   it('ConfirmTokenStore 核销即删除、sweep 清理过期项', () => {
     let t = 0
     const store = new ConfirmTokenStore({ ttlMs: 10, now: () => t })
-    const { confirmToken } = store.issue({ tool: 'a' })
+    // 票据绑定参数：issue 带 args，redeem 须传入同一组参数的指纹（P0 修复后的契约）
+    const fpA = argsFingerprint('a', {})
+    const { confirmToken } = store.issue({ tool: 'a', args: {} })
     t = 5
-    expect(store.redeem(confirmToken).ok).toBe(true)
-    expect(store.redeem(confirmToken).ok).toBe(false)
-    const b = store.issue({ tool: 'b' })
+    expect(store.redeem(confirmToken, fpA).ok).toBe(true)
+    expect(store.redeem(confirmToken, fpA).ok).toBe(false) // 核销即删 → 二次失败
+    const b = store.issue({ tool: 'b', args: {} })
     t = 100
     store.sweep()
-    expect(store.redeem(b.confirmToken).ok).toBe(false)
+    expect(store.redeem(b.confirmToken, argsFingerprint('b', {})).ok).toBe(false) // 已过期
+  })
+
+  it('票据绑定参数：指纹不匹配即拒（越权路径封堵）', () => {
+    const store = new ConfirmTokenStore()
+    const { confirmToken } = store.issue({ tool: 'crm_createCustomer', args: { name: '甲' } })
+    // 同一张票换一组参数 → 拒
+    expect(store.redeem(confirmToken, argsFingerprint('crm_createCustomer', { name: '乙' })).ok).toBe(false)
   })
 })
 
