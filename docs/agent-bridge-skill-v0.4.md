@@ -235,14 +235,16 @@ skill 文件 + MCP tools schema（同一套 zod schema 生成，杜绝双份漂�
 | 工具 | 必填 | 可缺省（带兜底） |
 |---|---|---|
 | `fin_recordTransaction` | `summary`、`amount`(>0，≤9,999,999,999，两位小数)、`ledgerId`(为空返回可操作错误「请先创建账本」，见 §9.3 D7) | `type`(默认 expense)、`occurredAt`(默认今天 00:00)、`status`(默认 **待对账**)、`channel`(**可缺省**，UI `save()` 未校验非空，见下注)、`tags`/`note`/`customerId`/`todoId`/`projectId` |
-| `crm_createCustomer` | `name` | `tier`(默认 **A**，与 `CustomerFormDrawer.tsx:33` 初值一致)、`decisionLevel`(默认 **决策人**，同 `:32`)、`healthScore`(默认 **60**，同 `:39`，钳 0-100)、`tags`(走 `normalizeTags`)、`openingLog`/`linkTransactionId` |
+| `crm_createCustomer` | `name` | `tier`(默认 **A**，与 `CustomerFormDrawer.tsx:33` 初值一致)、`decisionLevel`(默认 **决策人**，同 `:32`)、`tags`(走 `normalizeTags`)、`openingLog`/`linkTransactionId` |
 | `todo_createTodo` | `title` | `priority`(默认 P2)、`status`(默认 todo)、`dueAt`/`customerId`/`listId`/`projectId` |
 | `todo_completeTodo` | `todoId`(须 resolveEntity 产出) | 无——状态与 `completedAt` 由 `toggleTodoDone` 成对写入（§9.3 D6），**不接受**调用方传 status |
 | `crm_addInteraction` | `customerId`(须 resolveEntity 产出)、`content` | `type`(默认 电话)、`at`(默认 now)、`projectId` |
 
 **`channel` 口径注（v0.6 修正）**：`CHANNELS`（`TransactionFormDrawer.tsx:13`）确为五选一 `['微信','支付宝','银行卡','现金','对公转账']`，但 `save()`（`:140-160`）**只校验 `amount` / `ledgerId` / 附件大小，不校验 `channel` 非空**——即手工路径允许空渠道落库。故工具层 `channel` **可缺省**（缺省为空，或按 UI 现状不填），仅当显式传入时才做五选一枚举校验。**不得**把 `channel` 声明为必填。
 
-**`tier` / `decisionLevel` / `healthScore` 口径注（v0.6 复核）**：三者默认值已逐条对码 `CustomerFormDrawer.tsx`（`:32` 决策人 / `:33` A / `:39` 60），文档取值与 UI 初值一致，**维持不变**（此项为审计要求复核确认，非臆造）。
+**`tier` / `decisionLevel` 口径注（v0.8 修订）**：两者默认值已逐条对码 `CustomerFormDrawer.tsx`（`:32` 决策人 / `:33` A），文档取值与 UI 初值一致。
+
+**`healthScore` 入参已移除（v0.8，Issue #108）**：手动 0-100 健康指数已从数据模型与编辑表单整体删除，「健康分」现由 `customer.intimacy` 单一来源表达（手动 7 档优先 → 未设置走算法兜底）。工具层**不得**再声明 `healthScore` 入参，否则违背本节 §9.4「工具层口径一律对齐 UI 实际落库行为」。如需设置关系档位，请走 `intimacy`（缺省不设置 = 交由算法兜底）。
 
 > **tier 二次复核（v0.7）**：`CustomerFormDrawer` 全仓仅两处挂载——`CrmPage.tsx:269`（新建，`customer=null`）与 `CustomerDetailPage.tsx:388`（编辑）。新建入口唯一，无快速建档等覆盖默认值的其它入口，**`tier` 默认 `A` 口径成立**。
 

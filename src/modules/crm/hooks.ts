@@ -3,7 +3,16 @@ import { db } from '@/db/db'
 import { useQuery } from '@/queries/hooks'
 import { syncEngine } from '@/sync/engine'
 import { newId } from '@/repositories'
-import type { Customer, Interaction, RelationCategory, Todo, Transaction } from '@/db/types'
+import type {
+  Customer,
+  Interaction,
+  Project,
+  RelationCategory,
+  Todo,
+  Transaction,
+} from '@/db/types'
+import { isTodoOpen } from '@/modules/todo/domain'
+import type { computeIntimacyScore } from './intimacy'
 
 /**
  * CRM 模块领域查询 Hook（组件不直碰 Dexie，审计纪律 P1-5）
@@ -140,6 +149,125 @@ export function useCanvasGraph(): CanvasGraph {
     }
   }, [])
   return graph ?? EMPTY_GRAPH
+}
+
+/** 算法健康分因子投影（Issue #34）：含最后一次联系时间，客户列表页单客户场景复用 */
+export interface CustomerScoreRows {
+  transactions: { customerId?: string; amount: number }[]
+  todos: { customerId?: string; title: string; status: Todo['status'] }[]
+  projects: { id: string; customerId?: string; status: Project['status'] }[]
+  interactions: { customerId?: string; at: number }[]
+}
+
+/**
+ * 单客户算法健康分入参（Issue #108 收口）：口径与 `buildScoreInput(graph, id)` 完全一致，
+ * 差别只在数据来源——这里是单客户索引查询（列表页没有全量画布投影），
+ * 由 `crm/healthScore.ts` 统一推导展示口径，避免各页面各写一套。
+ */
+export function useCustomerScoreInput(
+  customerId: string | undefined,
+): Parameters<typeof computeIntimacyScore>[0] | null {
+  const rows = useQuery<CustomerScoreRows>(async () => {
+    if (!customerId) return { transactions: [], todos: [], projects: [], interactions: [] }
+    const [transactions, todos, projects, interactions] = await Promise.all([
+      db.transactions
+        .where('customerId')
+        .equals(customerId)
+        .filter((t) => !t.deleted)
+        .toArray(),
+      db.todos
+        .where('customerId')
+        .equals(customerId)
+        .filter((t) => !t.deleted)
+        .toArray(),
+      db.projects
+        .where('customerId')
+        .equals(customerId)
+        .filter((p) => !p.deleted)
+        .toArray(),
+      db.interactions
+        .where('customerId')
+        .equals(customerId)
+        .filter((i) => !i.deleted)
+        .toArray(),
+    ])
+    return { transactions, todos, projects, interactions }
+  }, [customerId])
+  return useMemo(
+    () => (rows ? buildScoreInputFromRows(rows, customerId ?? '', Date.now()) : null),
+    [rows, customerId],
+  )
+}
+
+/**
+ * 批量算法健康分入参（Issue #108 列表页兜底）：
+ * 未手动设置档位的客户才需要算，`ids` 为空时零查询直接返回空表。
+ * 查询走 customerId 索引，只需 4 张表各一次 in 批量查询，不做 N+1。
+ */
+export function useCustomerScoreRows(
+  ids: string[],
+): Record<string, Parameters<typeof computeIntimacyScore>[0]> {
+  const key = ids.join(',')
+  const rows = useQuery<CustomerScoreRows>(async () => {
+    if (ids.length === 0) return { transactions: [], todos: [], projects: [], interactions: [] }
+    const [transactions, todos, projects, interactions] = await Promise.all([
+      db.transactions
+        .where('customerId')
+        .anyOf(ids)
+        .filter((t) => !t.deleted)
+        .toArray(),
+      db.todos
+        .where('customerId')
+        .anyOf(ids)
+        .filter((t) => !t.deleted)
+        .toArray(),
+      db.projects
+        .where('customerId')
+        .anyOf(ids)
+        .filter((p) => !p.deleted)
+        .toArray(),
+      db.interactions
+        .where('customerId')
+        .anyOf(ids)
+        .filter((i) => !i.deleted)
+        .toArray(),
+    ])
+    return { transactions, todos, projects, interactions }
+  }, [key])
+  // 依赖用 key（ids.join(',')）而非 ids：调用方每次渲染都新建数组，直接依赖 ids 会无限重算
+  return useMemo(() => {
+    if (!rows) return {}
+    const now = Date.now()
+    return Object.fromEntries(
+      key ? key.split(',').map((id) => [id, buildScoreInputFromRows(rows, id, now)]) : [],
+    )
+  }, [rows, key])
+}
+
+/** 单客户算法健康分入参（纯函数版，供 hooks 与列表批量推导复用，口径与图谱侧一致） */
+export function buildScoreInputFromRows(
+  rows: CustomerScoreRows,
+  customerId: string,
+  now: number,
+): Parameters<typeof computeIntimacyScore>[0] {
+  const since = now - 90 * 86_400_000
+  return {
+    interactionCount90d: rows.interactions.filter(
+      (i) => i.customerId === customerId && i.at >= since,
+    ).length,
+    financeAmount: rows.transactions
+      .filter((t) => t.customerId === customerId)
+      .reduce((sum, t) => sum + t.amount, 0),
+    activeTodos: rows.todos.filter((t) => t.customerId === customerId && isTodoOpen(t)).length,
+    doneTodos: rows.todos.filter((t) => t.customerId === customerId && !isTodoOpen(t)).length,
+    projects: rows.projects.filter((p) => p.customerId === customerId).length,
+    activeProjects: rows.projects.filter(
+      (p) => p.customerId === customerId && p.status === 'active',
+    ).length,
+    lastContactAt: rows.interactions
+      .filter((i) => i.customerId === customerId)
+      .reduce((max, i) => (i.at > max ? i.at : max), 0),
+  }
 }
 
 /** 某客户的沟通日志（按时间倒序） */

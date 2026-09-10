@@ -140,10 +140,6 @@
         "type": "text"
       },
       {
-        "name": "healthScore",
-        "type": "number"
-      },
-      {
         "name": "lastContactAt",
         "type": "number"
       },
