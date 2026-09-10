@@ -5,6 +5,8 @@ import { customerRepo } from '@/repositories'
 import type { Customer, CustomerIntimacy, IntimacyLevel } from '@/db/types'
 import { INTIMACY_LEVELS, isIntimacyTrustLevel } from '@/db/types'
 import { useIntimacyConfig, intimacyLevelName } from './config'
+import { resolveHealthScoreDisplay } from '../healthScore'
+import { useCustomerScoreRows } from '../hooks'
 
 /**
  * 健康分档位选择器（Issue #108：原「亲密度」统一改名「健康分」，体系/算法/7 档结构不变）：详情头卡内嵌。
@@ -15,6 +17,9 @@ import { useIntimacyConfig, intimacyLevelName } from './config'
 export default function IntimacyPicker({ customer }: { customer: Customer }) {
   const cfg = useIntimacyConfig()
   const current = customer.intimacy ?? null
+  // 未手动设置时展示算法推断档位（括号标注来源，Issue #108 口径），与列表/鱼骨/图谱卡一致
+  const scoreRows = useCustomerScoreRows(current?.level ? [] : [customer.id])
+  const health = resolveHealthScoreDisplay(customer, cfg, scoreRows[customer.id] ?? null)
   const [saving, setSaving] = useState(false)
   const [pendingLevel, setPendingLevel] = useState<IntimacyLevel | null>(null)
   const [note, setNote] = useState('')
@@ -94,7 +99,7 @@ export default function IntimacyPicker({ customer }: { customer: Customer }) {
       <div className="mt-1.5 text-[0.7857rem] text-outline">
         {current
           ? `手动设置${current.note ? ` · ${current.note}` : ''} · 算法分不参与`
-          : '未手动设置 · 由算法按联系频率/金钱往来/事项/项目推断健康分档位'}
+          : `未手动设置 · 当前由算法推断为「${health.label}」（按联系频率/金钱往来/事项/项目计算）`}
       </div>
 
       {pending && (

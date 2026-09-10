@@ -2,7 +2,7 @@
 
 > 版本：v0.4（终稿候选）
 > 前序：v0.1（四层骨架）→ v0.2（三方裁决收敛）→ v0.3（事件声明表终稿 + 下沉三边界）→ **v0.4（意图层外包外部 Agent，执行载体定案）**
-> 状态：v0.6 架构已定稿；v0.7 增补 §十「通用性与可扩展性」（2026-09-10 小蓝确认）。动工前仍待小蓝对 §9.7 第 1 步下令。
+> 状态：v0.6 架构已定稿；v0.7 增补 §十「通用性与可扩展性」（2026-09-10 小蓝确认）；**v0.8 第二轮审计补强（§9.12，跨小节一致性收口，不动架构）**。动工前仍待小蓝对 §9.7 第 1 步下令。
 > Ref: #33
 
 ---
@@ -84,8 +84,8 @@ repositories（纯存储）→ 同步引擎 / eventBus → 奖杯、仪表盘联
 
 | 读工具 | 返回投影（白名单） | 上限 |
 |---|---|---|
+| resolveEntity(query, type) | 候选：id + label + sub（归档/已完成等标注，≤10 超出强制反问），**不含**实体全字段与 relations | 10 |
 | searchEntities(q, types?) | 复用 `searchAll` 6 实体投影（notes 已有字段裁剪先例）：id/name/title/关键摘要字段 | 20 |
-| resolveEntity(query, type) | 候选列表：id + label + 归档标记（≤10，超出强制反问） | 10 |
 | getCustomer(id) | 基本档案字段 + tier/健康分摘要，**不含** relations 全量与附件 | 1 |
 | listTransactions(filter) | 金额/日期/状态/customerId/ledgerId，不含附件 Blob | 50 |
 | listTodos / listLedgers | 同域最小投影 | 50 |
@@ -121,7 +121,7 @@ repositories（纯存储）→ 同步引擎 / eventBus → 奖杯、仪表盘联
 2. **接入凭据**：首次启用时生成随机 token，Agent 连接必须携带；token 存 settings `ai` 段（本地 singleton，不进同步队列，沿用 `sync.password` 先例），设置页可重置。
 3. **能力白名单配置页提前为 P0 前置**：设置页按域（fin/crm/todo/habit/note/读/写）开关工具；白名单外的工具对桥不可见（不仅拒绝调用，tools 清单里就不出现）。外部 Agent 形态下这不是可选项，是硬边界。
 4. **确认机制**：低风险 = 执行 + undo；中风险 = 桥返回结构化预览材料 → Agent 转述用户确认 → 用户确认后 Agent 调 execute（桥为每个 preview 签发一次性 confirmToken，超时作废）；高风险 = 二次确认 + 副作用清单（级联删除列受影响记录数）。**风险分级与二次确认语义与 v0.3 完全一致，仅交互载体改为经 Agent 转述**。
-5. **桥零特权**：桥不直接 import repositories 写函数，只能调 agentOps；agentOps 对所有来源（桥、未来内置面板、UI）执行同一套校验与事件收口。
+5. **桥零特权**：桥不直接 import repositories 写函数，只能调 agentOps；agentOps 对所有来源（桥、未来内置面板、UI）执行同一套校验与事件收口。**桥自身的读侧实现同样受约束**：桥经 `getContent` 或文件系统自读 skill/MCP schema 时，只加载 `docs/skills/` 与工具声明，**不得**因此获得任何仓库读权限旁路——桥对仓库的权限与其对工具面的权限同域，协议外的路径一律不开。
 
 ## 五、skill 文件（面向外部 Agent 的能力说明）
 
@@ -244,13 +244,16 @@ skill 文件 + MCP tools schema（同一套 zod schema 生成，杜绝双份漂�
 | 工具 | 必填 | 可缺省（带兜底） |
 |---|---|---|
 | `fin_recordTransaction` | `summary`、`amount`(>0，≤9,999,999,999，两位小数)、`ledgerId`(为空返回可操作错误「请先创建账本」，见 §9.3 D7) | `type`(默认 expense)、`occurredAt`(默认今天 00:00)、`status`(默认 **待对账**)、`channel`(**可缺省**，UI `save()` 未校验非空，见下注)、`tags`/`note`/`customerId`/`todoId`/`projectId` |
-| `crm_createCustomer` | `name` | `tier`(默认 **A**，与 `CustomerFormDrawer.tsx:33` 初值一致)、`decisionLevel`(默认 **决策人**，同 `:32`)、`healthScore`(默认 **60**，同 `:39`，钳 0-100)、`tags`(走 `normalizeTags`)、`openingLog`/`linkTransactionId` |
+| `crm_createCustomer` | `name` | `tier`(默认 **A**，与 `CustomerFormDrawer.tsx:33` 初值一致)、`decisionLevel`(默认 **决策人**，同 `:32`)、`tags`(走 `normalizeTags`)、`openingLog`/`linkTransactionId` |
 | `todo_createTodo` | `title` | `priority`(默认 P2)、`status`(默认 todo)、`dueAt`/`customerId`/`listId`/`projectId` |
+| `todo_completeTodo` | `todoId`(须 resolveEntity 产出) | 无——状态与 `completedAt` 由 `toggleTodoDone` 成对写入（§9.3 D6），**不接受**调用方传 status |
 | `crm_addInteraction` | `customerId`(须 resolveEntity 产出)、`content` | `type`(默认 电话)、`at`(默认 now)、`projectId` |
 
 **`channel` 口径注（v0.6 修正）**：`CHANNELS`（`TransactionFormDrawer.tsx:13`）确为五选一 `['微信','支付宝','银行卡','现金','对公转账']`，但 `save()`（`:140-160`）**只校验 `amount` / `ledgerId` / 附件大小，不校验 `channel` 非空**——即手工路径允许空渠道落库。故工具层 `channel` **可缺省**（缺省为空，或按 UI 现状不填），仅当显式传入时才做五选一枚举校验。**不得**把 `channel` 声明为必填。
 
-**`tier` / `decisionLevel` / `healthScore` 口径注（v0.6 复核）**：三者默认值已逐条对码 `CustomerFormDrawer.tsx`（`:32` 决策人 / `:33` A / `:39` 60），文档取值与 UI 初值一致，**维持不变**（此项为审计要求复核确认，非臆造）。
+**`tier` / `decisionLevel` 口径注（v0.8 修订）**：两者默认值已逐条对码 `CustomerFormDrawer.tsx`（`:32` 决策人 / `:33` A），文档取值与 UI 初值一致。
+
+**`healthScore` 入参已移除（v0.8，Issue #108）**：手动 0-100 健康指数已从数据模型与编辑表单整体删除，「健康分」现由 `customer.intimacy` 单一来源表达（手动 7 档优先 → 未设置走算法兜底）。工具层**不得**再声明 `healthScore` 入参，否则违背本节 §9.4「工具层口径一律对齐 UI 实际落库行为」。如需设置关系档位，请走 `intimacy`（缺省不设置 = 交由算法兜底）。
 
 > **tier 二次复核（v0.7）**：`CustomerFormDrawer` 全仓仅两处挂载——`CrmPage.tsx:269`（新建，`customer=null`）与 `CustomerDetailPage.tsx:388`（编辑）。新建入口唯一，无快速建档等覆盖默认值的其它入口，**`tier` 默认 `A` 口径成立**。
 
@@ -288,11 +291,15 @@ repositories（createRepository 工厂保持纯写）→ 同步引擎 / eventBus
 ### 9.7 P1 推进顺序（v0.6 修订）
 
 1. **agentOps 门面 + 事件对齐测试**（断点 `transaction:created`，含 §9.5 两个 bug 修复）
+
+   > **待提 PR 注（v0.8 审计补强）**：第 1 步应连带解决下面两处「声明完整但未开工」的历史欠缺，否则首轮交付即带漂移：
+   > - **归档映射全仓一致性测试**：本步已含 Project 归档态处理，而 §9.7 第 3 步的 `toArchivedFlag` 收口属另一轮改动。两轮之间需补一条对照断言——经 agentOps 消解出的归档客户/项目，与 UI 4 处手工映射（`NoteEditorPage.tsx:434/437`、`TransactionFormDrawer.tsx:351`、`TodoPage.tsx:856`）在同数据下结果一致（`ProjectsPage.tsx:28/59` 用 `select` 展示归档项目，不在 `MatchCombobox` 候选链路上，标注为**不参与该断言**）；
+   > - **能力白名单提前为 P0 前置的落点**：§四.3 裁「白名单配置页提前为 P0 前置」，但 §9.7 推进顺序只在第 4 步提「白名单」而未拆出「配置页」独立步骤。第 1 步动工时须明确：配置页壳与开关存储（settings `ai` 段）与第 4 步 relay 侧过滤分两次交付，不可因「第 4 步再说」而让白名单在第 1 步缺位。
 2. 事件下沉 repositories（三边界：create 门控 / interaction 统一 emit / 事务外硬规则）
 3. 消解器 + `resolveEntity`（id 去重 / 阈值反问 / 空输入拦截 / Project 归档沉底，含 archived 字段映射）
 
-   > **archived 映射注（v0.7 审计修正）**：`archivedLast`（`MatchCombobox.tsx:40`）只认 `archived?: boolean`，而 `Project` 归档态用的是 `status:'archived'`（`types.ts:151`）。现有调用方 `NoteEditorPage.tsx:436` 是**手工映射** `archived: p.status === 'archived'` 后才传入。消解器若直接对 repo 原始 Project 调 `archivedLast` 将**完全不生效**——候选池组装时必须先做该字段映射，再执行沉底。
-4. **本地 Relay**（Node 进程 + token + 白名单 + confirmToken）+ **CSP 补 `ws://127.0.0.1`（仅 dev/本地自用构建注入，生产构建 CSP 不含 `ws:`）**
+   > **archived 映射注（v0.7 审计修正）**：`archivedLast`（`MatchCombobox.tsx:40`）只认 `archived?: boolean`，而 `Project` 归档态用的是 `status:'archived'`（`types.ts:151`）。现行 **4 处调用方均手工映射** `archived: p.status === 'archived'`（`NoteEditorPage.tsx:436`、`NoteEditorPage.tsx:879`、`TransactionFormDrawer.tsx:352`、`TodoPage.tsx:857`）后才传入，属全仓重复的内联约定而非孤例——P1 实现该映射时应收口成 `toArchivedFlag(p)` 工具函数。消解器若直接对 repo 原始 Project 调 `archivedLast` 将**完全不生效**——候选池组装时必须先做该字段映射，再执行沉底。
+4. **本地 Relay**（Node 进程 + token + 白名单 + confirmToken）+ **CSP 补 `ws://127.0.0.1`（仅 dev/本地自用构建注入，生产构建 CSP 不含 `ws:`；注入机制：vite `transformIndexHtml` 按 mode 改写 meta，现仓 `vite.config.ts` 无任何 CSP 构建处理，需一并新增）**
 5. 读写工具集（按 §9.3/§9.4 修正版；含 `toggleTodoDone`；`checkinHabit`/`uncheckHabit` 按 §9.6.1 **一次收口 3 处调用点**）
 6. skill 文件首版（与 MCP tools schema 同源 zod 生成）
 7. 跑通 E2E 场景 = P1 主干验收
@@ -318,6 +325,47 @@ repositories（createRepository 工厂保持纯写）→ 同步引擎 / eventBus
 - 已将该文档分支与最新 `main` 合并对齐（merge commit `0f9a69b` + 交叉引用修正 `6a77b52`）。当前 `git diff --numstat origin/main <分支>` 输出**仅 1 个文件** `docs/agent-bridge-skill-v0.4.md`，与「纯文档变更」的声明一致；
 - 冲突 PR **#104**（glm 的 D4/D5 文档修订）已 `closed` 且未合并，其内容已被本文档 §9.3 D4/D5 完全覆盖，无需再合（避免与 #105 重复）。
 - **PR 自查铁律（写进流程）**：本文档类 PR 合并前必须确认 `git diff --numstat origin/main <分支>` **只含 `docs/agent-bridge-skill-v0.4.md` 一行**；出现任何 `src/`、`scripts/`、`package.json` 变更即视为分支基点过期，必须 `git fetch origin main && git merge origin/main` 后再合。
+
+### 9.12 第二轮审计补强（v0.8，2026-09-10 对码核验）
+
+> 触发：对 §9.1–§9.10 与 §十 做**二次对码**，逐条确认「结论是否已被引用」（§十 定稿审计为「无事实性错误、全部可落地」，故本轮只做一致性收口，不新增架构结论）。
+
+**A. 事实核验（全部成立，附核验证据）**
+
+| # | 结论 | 核验结果 |
+|---|---|---|
+| A1 | 浏览器无法 `listen()`，桥须反向连接 | 全仓 `grep -rn "WebSocket\|ws://\|127.0.0.1" src/` 零命中；`package.json` **零命中** `ws`/`socket.io`/`express`/`node:http`（含 `package-lock.json` 全文）→ 无任何服务端端点代码 ✓ |
+| A2 | 记一笔 vs 手工 emit 一致性（P1 验收基线） | `TransactionFormDrawer.tsx:213` emit 载荷为 `transactionId` + `customerId?: string`，与 `saveTransactionWithAttachments` 落库字段一一对应 → agentOps 可逐字段对齐 ✓ |
+| A3 | `customer:contacted` 是孤儿事件 | 全仓仅 `CustomerDetailPage.tsx:587` 一处 emit；订阅方仅奖杯引擎且**未挂该事件**（`trophyEngine.ts:39` 仅发 `trophy:unlocked`）→ §7.1「降级为 emit 调用发生级断言」口径成立 ✓ |
+| A4 | `checkinHabit` 收口范围恰 3 处 | `HabitsPage.tsx:76` / `dashboard/cards.tsx:212` / `shared/effects.ts:139` 三处 `eventBus.emit('habit:checked')`，无第四处 ✓ |
+| A5 | Project 归档手工映射 4 处 | `NoteEditorPage.tsx:436`、`NoteEditorPage.tsx:879`、`TransactionFormDrawer.tsx:352`、`TodoPage.tsx:857` 均为内联 `archived: p.status === 'archived'`；**另有** `ProjectsPage.tsx:28` 第三类用法（同判据但经 `select` 展示，不在候选链路）→ 收口函数应兼容两类消费，见 §9.7 第 1 步注 ✓ |
+| A6 | 表数口径 18/22 | `db.ts` 18 张同步表 + 4 张本地独占表（`syncQueue`/`meta`/`focusSessions`/`settings`）自 `60f6e92` 起全文统一，无 17 张残留 ✓ |
+| A7 | eventBus 9 事件 | `AppEvent` 恰 9 键（含 `moduleConfig:changed`），§9.3 D4 已对齐 ✓ |
+
+**A8. 审计自身纠偏（`fuzzyMatch/fuzzySort` 调用点口径）**
+
+§9.6／§不变式 写「`fuzzyMatch/fuzzySort` 从 MatchCombobox 提升到 shared」时未列调用点，易被误读为「有四处 UI 在 import」。对码事实：
+
+- **`fuzzyMatch` / `fuzzySort` 的全仓外部调用点只有 1 处**——`NoteEditorPage.tsx`（`:9` import，`:410` 调 `fuzzyMatch`，`:443` 调 `fuzzySort`/`archivedLast`）；
+- 其余 5 个 MatchCombobox 使用方（`CustomerFormDrawer` / `dashboard/cards` / `TransactionFormDrawer` / `TodoPage` / `ProjectFormDrawer`）在组件内部消费，**不 import 这两个函数**。
+
+→ 提升到 shared 后：`NoteEditorPage.tsx:9` 改 `@/shared/search`；`MatchCombobox.tsx` 保留 re-export 兼容（不改 5 个使用方）；`MatchCombobox.tsx:88` 内部引用改为自 `shared` 引入，**避免 shared ↔ design-system 反向依赖**。
+
+**B. 一致性修正（本轮已改入正文）**
+
+| # | 问题 | 修正 |
+|---|---|---|
+| B1 | §9.3 D6 已裁 `todo_completeTodo` 走 `toggleTodoDone`，但 §9.4 必填表**漏列该工具** | §9.4 补一行：必填 `todoId`（须 resolveEntity 产出），**不接受** status 入参 |
+| B2 | §2.3 规定「写工具入参只接受 resolveEntity 产出的 id」，但 §2.2 读工具表**未列 `resolveEntity`**，B1 的 `todoId` 遂无来源 | §2.2 表首补 `resolveEntity(query, type)`：候选 id + label + sub，**不含**全字段与 relations，上限 10 |
+| B3 | §四.5「桥零特权」只约束对 repositories 的直连 | 补：桥自身读侧（加载 skill/MCP schema）同样不得获得仓库读旁路 |
+| B4 | §四.3 裁「白名单配置页提前为 P0 前置」，§9.7 只在第 4 步提，配置页未拆独立步骤 | §9.7 第 1 步注补交付拆分口径 |
+| B5 | §9.7 第 1 步（含 Project 归档处理）与第 3 步（`toArchivedFlag` 收口）跨轮，中间态无断言 | §9.7 第 1 步注补归档映射一致性对照断言 |
+
+**C. 复核结论**
+
+- 架构、工具面、安全边界、分期、验收**无新增缺口**；§9.1 的载体纠正与 §9.2 的依赖链顺序**维持不变**；
+- 待拍板项**维持 §10.1 已关闭状态**（协议锁标准 MCP，stdio + WS 双入口），本轮无新增待拍板；
+- B1–B5 均为「跨小节一致性漏项」，不影响 P1 工作量估算。
 
 ---
 

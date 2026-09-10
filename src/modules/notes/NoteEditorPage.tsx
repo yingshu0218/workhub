@@ -15,6 +15,9 @@ import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
 import { markdown } from '@codemirror/lang-markdown'
 import { defaultHighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import { useBacklinks, useNoteRecord } from './hooks'
+import { useIntimacyConfig, resolveIntimacyLevel } from '@/modules/crm/intimacy'
+import { useCustomerScoreRows } from '@/modules/crm/hooks'
+import { resolveHealthScoreDisplay } from '@/modules/crm/healthScore'
 import { useProjects, moveNoteToProject } from '@/modules/projects/hooks'
 import {
   NOTE_PROSE_CSS,
@@ -232,6 +235,11 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
     )
   }
   const customers = useCollection<Customer>('customers')
+  // 健康分算法兜底入参（Issue #108）：只算未手动设置档位的客户，悬停摘要与详情/列表口径一致
+  const intimacyCfg = useIntimacyConfig()
+  const scoreRows = useCustomerScoreRows(
+    customers.filter((c) => !c.intimacy?.level).map((c) => c.id),
+  )
   const todos = useCollection<Todo>('todos')
   const ledgers = useCollection<Ledger>('ledgers')
   // @提及「项目」tab 候选源（须在 mentionItems useMemo 之前声明并纳入依赖）
@@ -958,6 +966,8 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
                   todos={todos}
                   ledgers={ledgers}
                   projects={mentionProjects}
+                  intimacyCfg={intimacyCfg}
+                  scoreRows={scoreRows}
                 />
               ) : (
                 (() => {
@@ -1119,6 +1129,8 @@ function MentionEntitySummary({
   todos,
   ledgers,
   projects,
+  intimacyCfg,
+  scoreRows,
 }: {
   type: MentionType
   eid: string
@@ -1126,15 +1138,20 @@ function MentionEntitySummary({
   todos: Todo[]
   ledgers: Ledger[]
   projects: Project[]
+  intimacyCfg: ReturnType<typeof useIntimacyConfig>
+  /** 未手动设置档位的客户的算法入参（批次查询结果，Issue #108 健康分兜底） */
+  scoreRows: Record<string, Parameters<typeof resolveIntimacyLevel>[2]>
 }) {
   if (type === 'customer') {
     const c = customers.find((x) => x.id === eid)
     if (!c) return <EntityMissing name="客户" />
+    // 健康分口径与详情/列表统一：未手动设置时由算法推断并用括号标注（Issue #108）
+    const health = resolveHealthScoreDisplay(c, intimacyCfg, scoreRows[c.id] ?? null)
     return (
       <>
         <CardRow label="公司" value={c.company || '—'} />
         <CardRow label="职位" value={c.title || '—'} />
-        <CardRow label="健康分" value={c.intimacy?.level ?? '未设置'} />
+        <CardRow label="健康分" value={health.label} />
       </>
     )
   }

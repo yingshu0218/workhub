@@ -20,6 +20,9 @@ import {
   type Bone,
 } from './timelineLayout'
 import { IDENTITY_VIEW, usePanZoom } from './usePanZoom'
+import { useIntimacyConfig } from './intimacy'
+import { useCustomerScoreRows } from './hooks'
+import { resolveHealthScoreDisplay } from './healthScore'
 
 /**
  * 客户时间线鱼骨视图（Issue #11 需求 2，对齐原型「鱼骨图」隐喻）
@@ -55,6 +58,12 @@ export default function CustomerTimelinePage() {
   const navigate = useNavigate()
   const customer = useRecord<Customer>('customers', id)
   const timeline = useCustomerTimeline(id)
+  const intimacyCfg = useIntimacyConfig()
+  // 健康分算法兜底入参（Issue #108）：未手动设置档位时也算出档位，不再显示「未设置」
+  const scoreRows = useCustomerScoreRows(customer && !customer.intimacy?.level ? [id!] : [])
+  const healthScore = customer
+    ? resolveHealthScoreDisplay(customer, intimacyCfg, scoreRows[customer.id] ?? null)
+    : null
 
   const [filter, setFilter] = useState<TimelineFilter>('all')
   const visible = filterTimeline(timeline, filter)
@@ -362,17 +371,22 @@ export default function CustomerTimelinePage() {
                       {customer.tier === '潜在' ? '潜在' : `${customer.tier} 层`}
                     </text>
                   </g>
-                  {/* 健康分档位（原健康指数环移除，Issue #108）：显示手动档位或「未设置」 */}
+                  {/* 健康分档位（原健康指数环移除，Issue #108）：手动档位原样，算法推断档位加括号标注 */}
                   <g transform={`translate(${HEAD_W - 66},${HEAD_H / 2 - 40})`}>
-                    <rect rx={9} width={56} height={18} fill={customer.intimacy?.level ? '#dbe1ff' : '#eceef4'} />
+                    <rect
+                      rx={9}
+                      width={56}
+                      height={18}
+                      fill={healthScore?.manual ? '#dbe1ff' : '#eceef4'}
+                    />
                     <text
                       x={28}
                       y={13}
                       textAnchor="middle"
                       style={{ fontSize: 10, fontWeight: 700 }}
-                      fill={customer.intimacy?.level ? '#004ac6' : '#434655'}
+                      fill={healthScore?.manual ? '#004ac6' : '#8a94a6'}
                     >
-                      {customer.intimacy?.level ?? '未设置'}
+                      {healthScore ? healthScore.levelName : '—'}
                     </text>
                   </g>
                   <text x={20} y={HEAD_H - 26} style={{ fontSize: 9 }} fill="#434655">

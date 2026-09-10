@@ -18,11 +18,13 @@ import {
 } from '@/design-system/ui'
 import CustomerFormDrawer from './CustomerFormDrawer'
 import { fmtRelative, normalizeTags, tierChipTone } from './shared'
-import { useIntimacyConfig, intimacyLevelName } from './intimacy'
+import { useIntimacyConfig, resolveIntimacyLevel } from './intimacy'
+import { resolveHealthScoreDisplay } from './healthScore'
 import {
   useCustomerGroups,
   useCustomerGroupCounts,
   useTagSuggestions,
+  useCustomerScoreRows,
   createCustomerGroup,
   updateCustomerGroup,
   deleteCustomerGroup,
@@ -41,6 +43,10 @@ export default function CrmPage() {
 
   const customGroups = useCustomerGroups()
   const intimacyCfg = useIntimacyConfig()
+  // 算法兜底入参只需为「未手动设置档位」的客户计算（批次查询，避免 N+1）
+  const scoreInputs = useCustomerScoreRows(
+    customers.filter((c) => !c.intimacy?.level).map((c) => c.id),
+  )
   const groupCounts = useCustomerGroupCounts(customers, customGroups)
   const selectedGroup = customGroups.find((g) => g.id === selectedGroupId) ?? null
 
@@ -261,7 +267,13 @@ export default function CrmPage() {
           ) : (
             <Card className="divide-y divide-outline-variant/30 px-5">
               {list.map((c) => (
-                <CustomerRow key={c.id} customer={c} intimacyCfg={intimacyCfg} onOpen={() => navigate(`/crm/${c.id}`)} />
+                <CustomerRow
+                  key={c.id}
+                  customer={c}
+                  intimacyCfg={intimacyCfg}
+                  scoreInputs={scoreInputs}
+                  onOpen={() => navigate(`/crm/${c.id}`)}
+                />
               ))}
             </Card>
           )}
@@ -314,20 +326,18 @@ function StatCard({
 function CustomerRow({
   customer: c,
   intimacyCfg,
+  scoreInputs,
   onOpen,
 }: {
   customer: Customer
   intimacyCfg: ReturnType<typeof useIntimacyConfig>
+  /** 未手动设置档位的客户的算法入参（批次查询结果，缺失即「未设置」文案的旧口径兜底） */
+  scoreInputs: Record<string, Parameters<typeof resolveIntimacyLevel>[2]>
   onOpen: () => void
 }) {
-  // 健康分档位（原亲密度）：手动优先 → 算法兜底（算法入参需完整投影，列表页缺投影时仅用手动档）
-  const manual = c.intimacy?.level
-  // 未手动设置时列表页不做算法兜底计算（缺全量投影），仅显示「未设置」提示
-  const healthLevel = {
-    label: manual ? intimacyLevelName(intimacyCfg, manual) : '未设置',
-    color: manual === 'I7' ? '#ba1a1a' : manual ? '#004ac6' : '#8a94a6',
-    source: manual ? ('manual' as const) : ('default' as const),
-  }
+  // 健康分档位（原亲密度，Issue #108）：手动优先 → 算法兜底。
+  // 未手动设置时不再显示「未设置」——按用户拍板，算法推断的档位用括号标出，与详情页口径统一。
+  const healthLevel = resolveHealthScoreDisplay(c, intimacyCfg, scoreInputs[c.id] ?? null)
   return (
     <div
       onClick={onOpen}
@@ -364,7 +374,7 @@ function CustomerRow({
           </span>
         </div>
         <div className="mt-1 text-right text-[0.7857rem] text-outline">
-          {healthLevel.source === 'manual' ? '手动设置' : '未手动设置'}
+          {healthLevel.manual ? '手动设置' : '算法推断'}
         </div>
       </div>
       <div className="hidden w-28 shrink-0 text-right lg:block">

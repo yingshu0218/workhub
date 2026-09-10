@@ -1,6 +1,8 @@
 import { Avatar, Button, Chip } from '@/design-system/ui'
 import { fmtRelative, tierChipTone } from '../shared'
-import { useIntimacyConfig, intimacyLevelName } from '../intimacy'
+import { useIntimacyConfig } from '../intimacy'
+import { useCustomerScoreRows } from '../hooks'
+import { resolveHealthScoreDisplay } from '../healthScore'
 import type { Customer } from '@/db/types'
 
 /**
@@ -21,15 +23,11 @@ export default function CustomerInfoCard({
   onEnter: () => void
   onClose: () => void
 }) {
-  // 亲密度手动档徽章（Issue #34）：未设置显示「未设置 · 算法兜底」口径，不误导为手动值
+  // 健康分（原亲密度，Issue #108）：手动档原样，未手动设置时也算出算法档位并用括号标注来源
   const cfg = useIntimacyConfig()
-  const intimacy = customer.intimacy?.level
-    ? {
-        name: intimacyLevelName(cfg, customer.intimacy.level),
-        note: customer.intimacy.note,
-        blacklisted: customer.intimacy.level === 'I7',
-      }
-    : null
+  const scoreRows = useCustomerScoreRows(customer.intimacy?.level ? [] : [customer.id])
+  const health = resolveHealthScoreDisplay(customer, cfg, scoreRows[customer.id] ?? null)
+  const intimacyNote = customer.intimacy?.note
   // 卡片约 240×230：贴近节点右下，靠近视口边缘时向内收（简单钳制，不做翻转）
   const left = Math.min(screen.x + 16, window.innerWidth - 268)
   const top = Math.min(screen.y + 10, window.innerHeight - 260)
@@ -50,11 +48,12 @@ export default function CustomerInfoCard({
               {customer.tier === '潜在' ? '潜在' : `${customer.tier} 层`}
             </Chip>
             {customer.decisionLevel && <Chip tone="gray">{customer.decisionLevel}</Chip>}
-            {intimacy && (
-              <Chip tone={intimacy.blacklisted ? 'red' : 'amber'} icon="favorite">
-                {intimacy.name}
-              </Chip>
-            )}
+            <Chip
+              tone={health.manual && health.levelKey === 'I7' ? 'red' : 'amber'}
+              icon="favorite"
+            >
+              {health.label}
+            </Chip>
           </div>
           <div className="mt-0.5 truncate text-[0.8571rem] text-on-surface-variant">
             {customer.company || '—'}
@@ -73,16 +72,16 @@ export default function CustomerInfoCard({
       <div className="mt-3 space-y-1.5">
         <div className="flex items-center justify-between text-[0.8571rem]">
           <span className="text-on-surface-variant">健康分</span>
-          <span className="font-bold" style={{ color: intimacy ? '#004ac6' : '#8a94a6' }}>
-            {intimacy ? intimacy.name : '未设置'}
+          <span className="font-bold" style={{ color: health.color }}>
+            {health.label}
           </span>
         </div>
         <div className="text-[0.7857rem] text-outline">
           最近联系 {fmtRelative(customer.lastContactAt)}
         </div>
-        {intimacy?.note && (
-          <div className="truncate text-[0.7857rem] text-outline" title={intimacy.note}>
-            健康分备注：{intimacy.note}
+        {intimacyNote && (
+          <div className="truncate text-[0.7857rem] text-outline" title={intimacyNote}>
+            健康分备注：{intimacyNote}
           </div>
         )}
       </div>
