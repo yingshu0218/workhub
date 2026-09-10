@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect } from 'react'
+import { type ReactNode, useEffect, useState } from 'react'
 import { Icon } from './Icon'
 
 /** 基础组件库（对齐 DESIGN.md：白卡/8px 圆角/1px 边框/柔和阴影/胶囊 Chip） */
@@ -247,6 +247,84 @@ export function ConfirmDialog({
           <Button variant={danger ? 'danger' : 'primary'} onClick={onConfirm}>
             {confirmText}
           </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/** 应用风格输入弹窗（替代浏览器原生 prompt），支持单行文本输入 */
+export function PromptDialog({
+  open,
+  title,
+  message,
+  label,
+  defaultValue = '',
+  placeholder,
+  confirmText = '确认',
+  cancelText = '取消',
+  onConfirm,
+  onCancel,
+}: {
+  open: boolean
+  title: string
+  message?: ReactNode
+  label?: string
+  defaultValue?: string
+  placeholder?: string
+  confirmText?: string
+  cancelText?: string
+  onConfirm: (value: string) => void
+  onCancel: () => void
+}) {
+  const [value, setValue] = useState(defaultValue)
+
+  // 每次打开时重置为默认值
+  useEffect(() => {
+    if (open) setValue(defaultValue)
+  }, [open, defaultValue])
+
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCancel()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open, onCancel])
+
+  if (!open) return null
+  const submit = () => onConfirm(value.trim())
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/25" onClick={onCancel} />
+      <div className="relative w-full max-w-sm rounded-xl border border-outline-variant/40 bg-surface-container-lowest p-6 shadow-[0_8px_32px_rgba(0,0,0,0.16)]">
+        <h3 className="text-[1.0714rem] font-semibold">{title}</h3>
+        {message && (
+          <div className="mt-2 text-[0.9286rem] leading-relaxed text-on-surface-variant">
+            {message}
+          </div>
+        )}
+        <div className="mt-4">
+          {label && (
+            <div className="mb-1.5 text-[0.8571rem] font-medium text-on-surface-variant">
+              {label}
+            </div>
+          )}
+          <input
+            className={inputCls}
+            value={value}
+            placeholder={placeholder}
+            autoFocus
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && submit()}
+          />
+        </div>
+        <div className="mt-5 flex justify-end gap-2">
+          <Button variant="ghost" onClick={onCancel}>
+            {cancelText}
+          </Button>
+          <Button onClick={submit}>{confirmText}</Button>
         </div>
       </div>
     </div>

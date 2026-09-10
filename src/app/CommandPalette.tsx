@@ -6,6 +6,7 @@ import { buildSearchIndex, searchAll } from '@/shared/search'
 import type { SearchItem } from '@/shared/search'
 import type { Customer, Project, Todo, Transaction, Note, Habit } from '@/db/types'
 import { noteRepo, newId } from '@/repositories'
+import { useToast } from '@/design-system/Toast'
 
 /**
  * ⌘K 全局命令面板（对齐原型 11-global-search）
@@ -17,6 +18,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
   const [active, setActive] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const [creatingNote, setCreatingNote] = useState(false)
+  const toast = useToast()
 
   const customers = useCollection<Customer>('customers')
   const projects = useCollection<Project>('projects')
@@ -77,7 +79,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
     } catch (err) {
       // 写入失败（如配额超限）不再静默穿透
       console.error('[CommandPalette] 新建笔记失败', err)
-      window.alert(`新建笔记失败：${err instanceof Error ? err.message : '请稍后重试'}`)
+      toast.error(`新建笔记失败：${err instanceof Error ? err.message : '请稍后重试'}`)
     } finally {
       setCreatingNote(false)
     }
@@ -110,6 +112,16 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
       desc: '双向链接与思维白板',
       kbd: '⌘N',
       run: () => void createNote(),
+    },
+    {
+      icon: 'tune',
+      label: '功能配置',
+      desc: '各业务模块的业务规则配置',
+      kbd: '',
+      run: () => {
+        onClose()
+        navigate('/module-config')
+      },
     },
   ]
 
@@ -218,7 +230,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
             </span>
             <span className="text-[0.7143rem] text-outline">寻鸽快速通道</span>
           </div>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-4 gap-2">
             {quickActions.map((a) => (
               <button
                 key={a.label}

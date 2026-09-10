@@ -3,7 +3,7 @@ import { Icon } from '@/design-system/Icon'
 import { useSearchParams } from 'react-router-dom'
 import { useCollection, useSettings } from '@/queries/hooks'
 import { todoRepo, newId } from '@/repositories'
-import type { Todo, TodoList, Customer, Project } from '@/db/types'
+import type { Todo, Customer, Project } from '@/db/types'
 import {
   Button,
   Card,
@@ -66,10 +66,14 @@ export default function TodoPage() {
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [dragId, setDragId] = useState<string | null>(null)
-
   // 删除二次确认（待办 / 清单），统一用应用风格弹窗替代原生 confirm
   const [confirmTodo, setConfirmTodo] = useState<Todo | null>(null)
-  const [confirmList, setConfirmList] = useState<TodoList | null>(null)
+  // 清单删除确认态：带上待解绑待办数，供弹窗展示口径
+  const [confirmList, setConfirmList] = useState<{
+    id: string
+    name: string
+    count: number
+  } | null>(null)
 
   // 全局快捷指令入口：/todo?new=1 自动打开新建抽屉，打开后立即清掉参数避免返回/刷新重复触发
   const [searchParams, setSearchParams] = useSearchParams()
@@ -224,7 +228,17 @@ export default function TodoPage() {
     setRenamingId(null)
   }
 
-  async function removeList(id: string) {
+  /** 点「删除」：先弹应用风格二次确认，不直接动数据 */
+  function removeList(id: string) {
+    const list = lists.find((l) => l.id === id)
+    if (!list) return
+    // 计数与级联行为对齐：解绑全部未删除待办（含已完成），故统计口头口径为「N 条待办」
+    const n = todos.filter((t) => t.listId === id).length
+    setConfirmList({ id, name: list.name, count: n })
+  }
+
+  /** 确认后执行删除：清空当前选中态并级联软删清单 */
+  async function doRemoveList(id: string) {
     await deleteTodoListCascade(id)
     if (selListId === id) {
       setSelListId(null)
@@ -387,7 +401,7 @@ export default function TodoPage() {
                 <button
                   title="删除清单"
                   className="text-outline hover:text-danger"
-                  onClick={() => setConfirmList(l)}
+                  onClick={() => removeList(l.id)}
                 >
                   <Icon name="delete" size={14} />
                 </button>
@@ -608,22 +622,6 @@ export default function TodoPage() {
         onCancel={() => setConfirmTodo(null)}
       />
 
-      <ConfirmDialog
-        open={confirmList !== null}
-        title={`删除清单「${confirmList?.name ?? ''}」`}
-        message={`名下 ${
-          confirmList ? todos.filter((t) => t.listId === confirmList.id).length : 0
-        } 条待办将解除归属并移入「收集箱」。此操作不可撤销。`}
-        confirmText="删除"
-        danger
-        onConfirm={() => {
-          const l = confirmList
-          setConfirmList(null)
-          if (l) void removeList(l.id)
-        }}
-        onCancel={() => setConfirmList(null)}
-      />
-
       <TodoFormDrawer
         open={creating || editing !== null}
         todo={editing}
@@ -654,6 +652,21 @@ export default function TodoPage() {
             setChipDone(false)
             setSelKind('all')
           }
+        }}
+      />
+
+      {/* 删除清单确认（应用风格弹窗，替代 window.confirm） */}
+      <ConfirmDialog
+        open={confirmList !== null}
+        title={`删除清单「${confirmList?.name ?? ''}」？`}
+        danger
+        confirmText="删除"
+        message={`名下 ${confirmList?.count ?? 0} 条待办将解除归属并移入「收集箱」。此操作不可撤销。`}
+        onCancel={() => setConfirmList(null)}
+        onConfirm={() => {
+          const target = confirmList
+          setConfirmList(null)
+          if (target) void doRemoveList(target.id)
         }}
       />
     </div>
