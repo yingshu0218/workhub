@@ -82,13 +82,25 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      <div className="mt-5 grid grid-cols-[1fr_360px] items-stretch gap-4">
-        <div className="grid grid-rows-[auto_1fr] gap-4">
+      {/*
+        主网格（Issue #134 对齐原型 01）：12 列制 = 左 7 列主战场（现在专注 + 今日待办日程）
+        + 右 5 列协同列（每日习惯闭环 + 随手速记暂存便签）。
+        分区依据是「谁与我此刻直接相关」：推进中的事项（专注/待办）在左，习惯与外置捕获在右；
+        速记是**收集箱入口**，需要常驻可见与足够书写面积，故独占右列下方整块。
+
+        行高（Issue #134 二轮）：左右两列各自「上半卡 auto + 下半卡 1fr」，
+        靠 `lg:grid-rows-[auto_minmax(0,1fr)]` 让每列的**下半张卡拉满剩余高度**——
+        这样速记的大文本框才能真正变高（而不是仅靠 rows=4 定死），
+        左列今日待办也多出可见行数；列内 min-h-0 保证内部滚动区正常收敛不撑破卡片。
+        小屏（<lg）退化为单列纵向堆叠，行高规则不生效。
+      */}
+      <div className="mt-5 grid grid-cols-1 items-stretch gap-4 lg:grid-cols-12 lg:grid-rows-[auto_minmax(0,1fr)]">
+        <div className="grid min-h-0 gap-4 lg:col-span-7 lg:row-span-2 lg:grid-rows-[auto_minmax(0,1fr)]">
           <FocusCard />
-          <HabitLoopCard />
-        </div>
-        <div className="grid grid-rows-[auto_1fr] gap-4">
           <TodayTodosCard />
+        </div>
+        <div className="grid min-h-0 gap-4 lg:col-span-5 lg:row-span-2 lg:grid-rows-[auto_minmax(0,1fr)]">
+          <HabitLoopCard />
           <QuickNoteCard />
         </div>
       </div>

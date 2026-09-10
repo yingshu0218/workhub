@@ -209,7 +209,12 @@ export interface NoteFolder extends SyncMeta {
 export interface QuickNote extends SyncMeta {
   id: string
   content: string
+  /** 处置去向：缺省 = 仍在暂存区待处置（Issue #134 起属业务字段） */
   convertedTo?: 'todo' | 'note'
+  /** 处置时间（Issue #134）：用于暂存区排序与「最近处置」回溯 */
+  convertedAt?: number
+  /** 处置通道（Issue #134）：dashboard = 工作台卡片 / sidebar = 侧栏快速便签 */
+  convertedVia?: 'dashboard' | 'sidebar'
   createdAt: number
 }
 
@@ -457,16 +462,18 @@ export const INTIMACY_LEVELS: IntimacyLevel[] = ['T1', 'T2', 'T3', 'T4', 'T5', '
 export const isIntimacyTrustLevel = (l: IntimacyLevel) => l.startsWith('T')
 
 /** 图谱圈层视觉档（Issue #34 视觉映射：内圈大/外圈小；I 档圈外弱化） */
-export const INTIMACY_VISUAL: Record<IntimacyLevel, { radius: number; color: string; ring: string }> =
-  {
-    T1: { radius: 34, color: '#004ac6', ring: '#004ac6' },
-    T2: { radius: 30, color: '#004ac6', ring: '#5a7fd6' },
-    T3: { radius: 26, color: '#0065b8', ring: '#7fa8d6' },
-    T4: { radius: 22, color: '#6f7987', ring: '#a8b0bd' },
-    T5: { radius: 18, color: '#8a94a6', ring: '#c3c9d4' },
-    I6: { radius: 14, color: '#9a9096', ring: '#c9c1c5' },
-    I7: { radius: 14, color: '#ba1a1a', ring: '#e0a9a8' },
-  }
+export const INTIMACY_VISUAL: Record<
+  IntimacyLevel,
+  { radius: number; color: string; ring: string }
+> = {
+  T1: { radius: 34, color: '#004ac6', ring: '#004ac6' },
+  T2: { radius: 30, color: '#004ac6', ring: '#5a7fd6' },
+  T3: { radius: 26, color: '#0065b8', ring: '#7fa8d6' },
+  T4: { radius: 22, color: '#6f7987', ring: '#a8b0bd' },
+  T5: { radius: 18, color: '#8a94a6', ring: '#c3c9d4' },
+  I6: { radius: 14, color: '#9a9096', ring: '#c9c1c5' },
+  I7: { radius: 14, color: '#ba1a1a', ring: '#e0a9a8' },
+}
 
 /** 亲密度等级配置行（名称/判据描述可编辑，key 固定） */
 export interface IntimacyLevelConfig {
