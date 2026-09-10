@@ -2,7 +2,7 @@
 
 > 版本：v0.4（终稿候选）
 > 前序：v0.1（四层骨架）→ v0.2（三方裁决收敛）→ v0.3（事件声明表终稿 + 下沉三边界）→ **v0.4（意图层外包外部 Agent，执行载体定案）**
-> 状态：待小蓝拍板。确认前不动工。
+> 状态：v0.6 架构已定稿；v0.7 增补 §十「通用性与可扩展性」（2026-09-10 小蓝确认）。动工前仍待小蓝对 §9.7 第 1 步下令。
 > Ref: #33
 
 ---
@@ -290,9 +290,11 @@ repositories（createRepository 工厂保持纯写）→ 同步引擎 / eventBus
 
 补强断言：① 经 relay 记一笔 vs 手工记账，`transaction:created` 载荷逐字段一致且奖杯/EXP 无差异；② 编辑该笔流水**不得**再触发 `transaction:created`；③ 读工具返回条数/字段不超白名单；④ 无 token 连接被拒；白名单关闭的域不出现在 tools 清单。
 
-### 9.9 待拍板（1 项，不阻塞前 3 步）
+### 9.9 待拍板（已由 §十 关闭）
 
-**Relay 与 Agent 之间的协议形态**：stdio（CNB CodeBuddy 等本地 CLI Agent 主流）优先，还是 WebSocket（远程/多客户端）优先？建议 **stdio 优先 + WS 同进程并存**，第 4 步动工前由小蓝指定一个先行实测的 Agent（workbuddy / hermes / codebuddy 任一）即可定。
+**Relay 与 Agent 之间的协议形态**：~~stdio 优先还是 WebSocket 优先？建议 stdio 优先 + WS 同进程并存，第 4 步动工前由小蓝指定一个先行实测的 Agent。~~
+
+**2026-09-10 裁定（见 §10.1）**：桥只暴露**标准 MCP 协议**（`tools/list` + `tools/call`），**stdio 与 WS 双入口同进程并存**，共用同一 MCP 路由。取消「指定先行 Agent」——协议锁死后，任一 MCP Agent 接入即验证。此项不再待拍板。
 
 ### 9.10 交付载体与 PR 治理（v0.6 修正）
 
@@ -303,3 +305,97 @@ repositories（createRepository 工厂保持纯写）→ 同步引擎 / eventBus
 - 已将该文档分支与最新 `main` 合并对齐（merge commit `0f9a69b` + 交叉引用修正 `6a77b52`）。当前 `git diff --numstat origin/main <分支>` 输出**仅 1 个文件** `docs/agent-bridge-skill-v0.4.md`，与「纯文档变更」的声明一致；
 - 冲突 PR **#104**（glm 的 D4/D5 文档修订）已 `closed` 且未合并，其内容已被本文档 §9.3 D4/D5 完全覆盖，无需再合（避免与 #105 重复）。
 - **PR 自查铁律（写进流程）**：本文档类 PR 合并前必须确认 `git diff --numstat origin/main <分支>` **只含 `docs/agent-bridge-skill-v0.4.md` 一行**；出现任何 `src/`、`scripts/`、`package.json` 变更即视为分支基点过期，必须 `git fetch origin main && git merge origin/main` 后再合。
+
+---
+
+## 十、通用性与可扩展性（v0.7 增补，2026-09-10 小蓝确认「可以」后撰写）
+
+> 本节回答三件事：**能不能接任意 Agent（通用）**、**以后加新功能要不要改架构（扩展）**、**这两点怎么验收（标准）**。
+> 结论先给：v0.6 定稿的「意图理解外包 + 单入口 agentOps」天然就是通用且可扩展的那一版，本节只把它显性化、写死约束，**不改架构**。
+
+### 10.1 通用性：唯一决定点是「协议用标准 MCP」
+
+对码事实（`main` 现码）：
+
+- 应用侧零 LLM：`package.json` 无任何厂商 AI SDK，无 API Key、无模型绑定，不 import 任何 LLM 库；
+- 应用只认「工具调用请求」这一种输入，**不认对面是谁**——workbuddy / hermes / codebuddy / Claude Desktop / Cursor 谁连上都一样。
+
+因此「通用」不是要额外打的补丁，是这套设计的内生属性。**它只卡在一个点上：桥暴露的协议是不是标准 MCP。**
+
+**裁决（原 §9.9 待拍板项就此关闭）**：
+
+- 桥**只暴露标准 MCP 协议**（`tools/list` + `tools/call`），不定义私有协议。这是「换 Agent 零适配」的唯一保障。
+- **stdio 与 WebSocket 双入口同进程并存**，共用同一份 MCP 路由：本地 CLI Agent（codebuddy 等）走 stdio；远程/自研 Agent（workbuddy 若走 WS）走 WS；原生支持 MCP 的（Claude Desktop / Cursor）直接连。
+- 取消 §9.9 原「指定一个先行 Agent 实测」的说法——**没有「先行 Agent」，只有「要不要标准协议」**；协议锁死后，任一 MCP Agent 接入即验证。
+
+三类 Agent 的接入形态：
+
+| Agent 形态 | 接入入口 | 说明 |
+|---|---|---|
+| 原生支持 MCP | 直接连 relay 的 MCP 端点 | Claude Desktop、Cursor |
+| 本地 CLI Agent（stdio MCP） | relay 的 stdio 入口 | codebuddy CLI 这类 |
+| 只支持 HTTP/WS 的自研 Agent | relay 的 WS / HTTP fallback | 自家脚本、workbuddy 若走 WS |
+
+**「通用」必须写死的三条纪律（否则会退化成私有协议）**：
+
+1. **工具描述与实现单源生成**：skill 文档 + MCP tools schema **都由同一份 zod 定义生成**。换任何 Agent，读到的能力说明永远与实现同步，不漂移。这条是通用的命根子。
+2. **工具面保持窄 + 域前缀 + 白名单**：`fin_*` / `crm_*` / `todo_*` / `habit_*` …… + 功能配置页按域开关。白名单关掉的域，**任何 Agent 的 tools 清单里都不出现**——安全边界与 Agent 身份无关。
+3. **能力发现走标准 `tools/list`**：Agent 靠标准接口自行发现能力，**不为任何单个 Agent 手写配置说明**。
+
+补充一条：**relay 只是通道，不是安全边界**。真正的防线是 agentOps 的 zod 校验 + 风险分级 + confirmToken + 白名单；relay 被绕过也必须打不穿库。relay 保持首版 dev/本地自用定调（生产 `https://` 下浏览器禁连 `ws://` 混合内容，走 `wss://` 需配证书，P1 不背此负担）。
+
+### 10.2 新增功能 SOP：加功能 = 加声明，不改架构
+
+仓库已有先例可直接对齐：`src/modules/moduleConfig/registry.ts` 就是「新增模块只加一条注册项、页面骨架零改动」的注册表范式。agentOps 沿用同一思路。
+
+#### A. 加「新工具」（现有模块的一个动作，如"删除待办"）
+
+1. **注册一条 action**：`{ 域前缀名, zod schema, 风险级, 落库函数, 该发的事件 }`。
+   - 落库**必须走已有 repository 函数 / 复合函数**，不允许裸写库；
+   - 若动作有跨模块联动，在事件声明表补一行（沿用现有事件，不轻易加新事件）。
+2. **生成 skill + MCP tools schema**：两者**由同一份 zod 生成**，杜绝双份漂移。
+3. **补一条事件对齐对照测试**：该动作经 Agent 走 vs 手工 UI 走，`eventBus` 事件载荷一致。
+
+加完即插即用，**relay 零改动**（relay 只转发，不认识具体工具）。
+
+#### B. 加「新模块」（如未来加"项目里程碑"整块能力）
+
+- **工具面**：按域前缀新增一组（记账 `fin_*`、CRM `crm_*`），同一套注册表登记；
+- **白名单**：功能配置页「能力白名单」按域开关，新域自动出现；未开的域对桥不可见（不出现在 `tools/list`），不改配置页代码；
+- **消解实体**：若新模块要自然语言关联，把该实体加进 `resolveEntity` 候选类型 + `searchAll` 投影（现为 6 实体）即可；
+- **高风险动作**：声明 risk 级，自动获得 preview + 一次性 confirmToken 流程。
+
+#### C. 架构已预埋的扩展位
+
+- **新调用方**：未来要「应用内 AI 面板」，复用同一 agentOps 当第二调用方，接口层无需为它预留结构；
+- **新协议载体**：Node 侧车 MCP Server 是 P3 可选形态，桥的「外部协议 ↔ agentOps 一对一转发」设计使其可替换；
+- **新模块全量动作**：本就在 P2 排期（P1 只覆盖财务 / CRM / 待办）。
+
+#### D. 一条硬纪律
+
+无论加什么，**只能经 agentOps 单一入口**——zod 校验 + 风险分级 + 事件收口 + create 门控 + 事务外 emit 五道关一个都不能绕。这也是「加功能成本低」的原因：**你要做的只是声明，约束由门面统一兜。**
+
+### 10.3 token 开销口径（供长期盯盘）
+
+- **固定开销**（每会话一次）：MCP tools schema + skill 说明 ≈ 3k token（P1 工具面十几条）。**唯一红线是工具数量**：十几条可控，一旦「全模块全动作」铺开成 60~80 条会翻几倍。
+- **变动开销**（大头，已强限幅）：读工具投影白名单 + 条数上限（`resolveEntity ≤10`、`searchEntities ≤20`、`listTransactions/listTodos ≤50`、不含附件 Blob）；强制先 `resolveEntity` 再写（只回候选 id + label）。
+- **多轮往返**是唯一确实会多花的地方：`resolveEntity → preview → 确认 → execute` 拆成数轮，每轮带累积历史。压缩手段：低风险动作免 preview（执行 + undo）、同轮多步意图合并一次确认、`resolveEntity` 结果会话内缓存复用。
+
+**两条写死的防膨胀约束**：
+
+1. **工具数上限**：超出即按域拆多组 tools、按需挂载，不给全量清单；
+2. **skill 不得写成大部头**：与 zod schema 同源，只写「参数 + 副作用 + 风险级 + 幂等 + 关联规则」，不把开发文档整篇塞进去（skill 越长，每个会话都白付一次）。
+
+### 10.4 通用性 / 可扩展性验收标准（补进 §7，P1 写死）
+
+- 换一个**从未适配过**的 MCP Agent，**不改应用代码**即可连通并跑通 §9.8 的 E2E 场景；
+- 桥**不 import 任何厂商 SDK**，`package.json` 无任何厂商依赖；
+- 关掉某域白名单后，**所有** Agent 的 `tools/list` 同步消失该域工具（不区分来源）；
+- 无 token 连接一律被拒，对所有 Agent 一视同仁；
+- 新加一个工具 / 模块后，**relay 与既有工具零改动**，且新动作通过事件对齐对照测试。
+
+### 10.5 本节对既有章节的影响（仅口径显性化，不动实现）
+
+- **§9.9 待拍板 → 关闭**：协议定为标准 MCP，stdio + WS 双入口并存；删除「指定先行 Agent」条。
+- **§9.6 架构图不变**：relay 只转发、agentOps 五道关、repositories 纯写，完全沿用。
+- **P1 交付面不变**：本节无新增开源、无新增 P1 工期项；§9.7 推进顺序照旧。
