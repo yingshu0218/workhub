@@ -74,6 +74,9 @@ export const listTodosSchema = z.object({
 /** listLedgers()：账本最小投影（§2.2） */
 export const listLedgersSchema = z.object({}).strict()
 
+/** listHabits()：无入参（习惯数量有限，整体返回） */
+export const listHabitsSchema = z.object({}).strict()
+
 /** searchEntities(q, types?)：复用 `searchAll` 6 实体投影，notes 已有字段裁剪先例（§2.2） */
 export const searchEntitiesSchema = z.object({
   q: z.string().trim().min(1, '请提供搜索关键词'),

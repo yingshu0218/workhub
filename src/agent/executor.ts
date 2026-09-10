@@ -44,6 +44,7 @@ import {
   getCustomerSchema,
   listTodosSchema,
   listLedgersSchema,
+  listHabitsSchema,
   searchEntitiesSchema,
   type ReadResult,
 } from './reads'
@@ -462,7 +463,7 @@ export const AGENT_TOOLS = {
   'listTransactions': { risk: TOOL_RISK['listTransactions'], schema: listTransactionsSchema, run: agent_listTransactions },
   'listTodos': { risk: TOOL_RISK['listTodos'], schema: listTodosSchema, run: agent_listTodos },
   'listLedgers': { risk: TOOL_RISK['listLedgers'], schema: listLedgersSchema, run: agent_listLedgers },
-  'listHabits': { risk: TOOL_RISK['listHabits'], schema: z.object({}).strict(), run: agent_listHabits },
+  'listHabits': { risk: TOOL_RISK['listHabits'], schema: listHabitsSchema, run: agent_listHabits },
 } as const
 
 /**

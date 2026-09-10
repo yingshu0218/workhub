@@ -6,7 +6,7 @@ const dirname = path.dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig({
   resolve: {
-    alias: { '@': path.resolve(dirname, 'src') },
+    alias: { '@': path.resolve(dirname, 'src'), '@relay': path.resolve(dirname, 'relay') },
   },
   test: {
     environment: 'node',

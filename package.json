@@ -11,7 +11,10 @@
     "lint": "eslint src",
     "format": "prettier --write src",
     "check:icons": "node scripts/check-icons.mjs",
-    "test": "vitest run"
+    "test": "vitest run",
+    "relay": "node relay/index.mjs",
+    "relay:stdio": "node relay/index.mjs --stdio",
+    "gen:skills": "node scripts/gen-skills.mjs"
   },
   "dependencies": {
     "@codemirror/commands": "^6.11.0",

@@ -299,8 +299,17 @@ repositories（createRepository 工厂保持纯写）→ 同步引擎 / eventBus
 > `dispatchAgentTool`），关闭的域在 tools 清单中直接不出现。
 > 第 3 步（消解器 + `resolveEntity`）已同步交付：`src/agent/resolver.ts` 落实
 > 「只取活记录 / 按 id 去重后数唯一 / 去重唯一才静默消解 / 命中超阈值反问 / 空输入前置拦截 / 归档沉底」六条纪律。
-> **尚未开工**：第 4 步（Relay + CSP + confirmToken）、第 6 步（skill 文件首版）；
-> 白名单**配置页壳**（UI）与 relay 侧过滤仍未拆出交付。
+> 第 5 步（读写工具集补全 + `checkinHabit` 三处收口）已同步交付。
+> **第 4 步（本地 Relay + CSP + confirmToken）已交付**：`relay/`（Node 进程，**零新增依赖**）——
+> `ws-server.mjs` 最小 RFC6455 服务端、`mcp-relay.mjs` 标准 MCP 路由（`initialize`/`tools/list`/`tools/call`）
+> + 接入 token 校验 + 一次性 `confirmToken` 台账（TTL 5 分钟、核销即删）、`index.mjs` 双入口（stdio `--stdio` + WS）同进程；
+> 浏览器侧 `src/agent/bridge.ts` 主动连出（Outbound WS）、`tools/list` 经白名单过滤、`tools/call` 只走 `dispatchAgentTool`、
+> 中风险无 confirmToken 只回预览；CSP 由 `vite.config.ts` 的 `cspRelayPlugin`（`apply:'serve'`）**仅 dev 注入** `ws://127.0.0.1:8787`，
+> 生产构建 CSP 不含 `ws:`；白名单**配置页壳**已随本步交付（设置页「AI Agent 桥」标签：启用 / relay 地址 / token / 按域开关）。
+> **第 6 步（skill 文件首版）已交付**：`docs/skills/` 由 `scripts/gen-skills.mjs` 从 `src/agent/skillSource.ts`
+> （agentOps zod schema）**同源生成** 15 个工具文档 + `README.md` + `mcp-tools.json`，与 MCP `tools/list` 的
+> `inputSchema` 一份定义（`skill.parity.test.ts` 断言三方一致）。
+> **P1 仅剩第 7 步 E2E 实机联调。**
 
 1. **agentOps 门面 + 事件对齐测试**（断点 `transaction:created`，含 §9.5 两个 bug 修复）
 
@@ -319,6 +328,11 @@ repositories（createRepository 工厂保持纯写）→ 同步引擎 / eventBus
 
    > **archived 映射注（v0.7 审计修正）**：`archivedLast`（`MatchCombobox.tsx:40`）只认 `archived?: boolean`，而 `Project` 归档态用的是 `status:'archived'`（`types.ts:151`）。现行 **4 处调用方均手工映射** `archived: p.status === 'archived'`（`NoteEditorPage.tsx:436`、`NoteEditorPage.tsx:879`、`TransactionFormDrawer.tsx:352`、`TodoPage.tsx:857`）后才传入，属全仓重复的内联约定而非孤例——P1 实现该映射时应收口成 `toArchivedFlag(p)` 工具函数。消解器若直接对 repo 原始 Project 调 `archivedLast` 将**完全不生效**——候选池组装时必须先做该字段映射，再执行沉底。
 4. **本地 Relay**（Node 进程 + token + 白名单 + confirmToken）+ **CSP 补 `ws://127.0.0.1`（仅 dev/本地自用构建注入，生产构建 CSP 不含 `ws:`；注入机制：vite `transformIndexHtml` 按 mode 改写 meta，现仓 `vite.config.ts` 无任何 CSP 构建处理，需一并新增）**
+
+   > **交付记录（已实现）**：`relay/ws-server.mjs`（最小 RFC6455，零新增依赖）+ `relay/mcp-relay.mjs`（标准 MCP 路由 + token 校验 + `ConfirmTokenStore` 一次性令牌）+ `relay/index.mjs`（WS `127.0.0.1:8787` + `--stdio` 同进程双入口）；
+   > 浏览器侧 `src/agent/bridge.ts`（Outbound 连出 / 白名单过滤 / `dispatchAgentTool` 唯一入口 / 中风险预览拦截）与 `src/agent/install.ts`（按 settings `ai` 段连断）；
+   > CSP 注入由 `vite.config.ts` 的 `cspRelayPlugin`（`apply:'serve'`）实现，**dev 才注入** `ws://127.0.0.1:8787`；白名单**配置页壳**为设置页「AI Agent 桥」标签（`src/modules/settings/AiBridgeSection.tsx`）。
+   > 测试：`relay.bridge.test.ts` 17 + `bridge.test.ts` 9 + `csp.test.ts` 4 + `aiSettings.test.ts` 4。
 5. 读写工具集（按 §9.3/§9.4 修正版；含 `toggleTodoDone`；`checkinHabit`/`uncheckHabit` 按 §9.6.1 **一次收口 3 处调用点**）
 
    > **交付记录（v0.8 补注）**：第 5 步已交付。
@@ -339,6 +353,9 @@ repositories（createRepository 工厂保持纯写）→ 同步引擎 / eventBus
    >   `habit_checkin` 工具与白名单闸门、读工具投影白名单与条数截断、软删过滤。
    > - 说明：`todo_*` 已于第 1 步落地（`todoCompleteTodo` 走 `toggleTodoDone`），本步补齐 `habit_*` 与读工具面。
 6. skill 文件首版（与 MCP tools schema 同源 zod 生成）
+
+   > **交付记录（已实现）**：`src/agent/skillSource.ts` 为唯一生成源，`scripts/gen-skills.mjs` 产出 `docs/skills/`
+   > （15 份工具 md + `README.md` + `mcp-tools.json`）；`skill.parity.test.ts` 断言「executor 注册表 ↔ skill 源 ↔ 生成产物」一致。
 7. 跑通 E2E 场景 = P1 主干验收
 
 ### 9.8 E2E 验收场景（沿用 v0.5，补强断言）

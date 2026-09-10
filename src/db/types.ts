@@ -364,6 +364,11 @@ export interface SettingsAi {
   /** 接入 token：桥启用时生成，Agent 连接必须携带；仅存本地，可重置 */
   bridgeToken?: string
   /**
+   * relay 地址（浏览器主动连出的 WS 端点，方案 §9.1）。
+   * 缺省 ws://127.0.0.1:8787，与 relay/index.mjs DEFAULT_PORT 对齐。
+   */
+  bridgeUrl?: string
+  /**
    * 能力白名单：按域开关。缺省 undefined = 该域未显式配置，取 DEFAULT_AI_DOMAINS 默认值。
    * 域前缀与工具命名对齐（§2.3）：fin_ / crm_ / todo_ / habit_ / note_ / read_（读工具）
    */

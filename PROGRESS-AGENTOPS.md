@@ -1,4 +1,4 @@
-# agentOps 门面 P1 第 1 步 — 交付说明
+# agentOps P1 — 交付说明（第 1~6 步）
 
 > Issue: #33 · 方案: docs/agent-bridge-skill-v0.4.md（v0.7）§9.7 第 1 步
 > 分支: feat/agentops-facade · 作者: npc/CodeBuddy(glm-5.3-flash)
@@ -152,3 +152,45 @@
 - 打卡行为对 UI **语义等价**（幂等 id、事件次数与时机不变），仅把重复实现收敛为一份；
 - 读工具为**新增能力**，不改任何既有 UI 路径；
 - 未触碰 schema / 同步引擎 / `createRepository` 工厂。
+
+
+---
+
+## P1 第 4 步 — 本地 Relay + 安全边界 + CSP 注入（2026-09-10）
+
+> 方案：`docs/agent-bridge-skill-v0.4.md` §9.1 / §9.6 / §10.1
+
+| 文件 | 内容 |
+|---|---|
+| `relay/ws-server.mjs` | 最小 RFC6455 WebSocket 服务端（node:http 升级握手 + node:crypto 算 accept key；掩码解帧、分片续帧、ping/pong、close 握手）。**零新增依赖**（§A1 对码口径维持：package.json 不引 ws/express） |
+| `relay/mcp-relay.mjs` | 标准 MCP 路由：`initialize`（token 校验）/`tools/list`/`tools/call`/`ping`；`ConfirmTokenStore`（一次性、5 分钟 TTL、核销即删、`sweep` 清过期）；`safeEqual` 时序安全比较 |
+| `relay/index.mjs` | 入口：WS 监听 `127.0.0.1:8787`（`WORKHUB_RELAY_PORT`/`WORKHUB_RELAY_TOKEN` 可覆盖）+ `--stdio` 同进程 stdio MCP 入口；浏览器角色经 `?role=browser&token=` 连出配对；**只转发**（不 import repositories/agentOps） |
+| `src/agent/bridge.ts` | 浏览器侧桥：Outbound WS 连出 + 自动重连；`tools/list` 走 `listVisibleTools(domains)`（白名单关闭的域不出现）+ `zodToJsonSchema` 生成 `inputSchema`；`tools/call` 走 `dispatchAgentTool` 唯一入口；中风险无 `confirmToken` 只回预览材料 |
+| `src/agent/jsonSchema.ts` | 最小 zod→JSON Schema（object/enum/array/optional/default/refine 包装），与 `skillSource` 生成器同口径 |
+| `src/agent/install.ts` | 按 settings `ai` 段连/断桥（缺省关，零影响）；`main.tsx` 在 Bootstrap 中装配并在卸载时断开 |
+| `vite.config.ts` | `cspRelayPlugin`（`apply:'serve'`）：dev 注入 `ws://127.0.0.1:8787` 到 `connect-src`；生产 CSP 不含 `ws:` |
+| `src/modules/settings/AiBridgeSection.tsx` + SettingsPage 新标签 | 启用开关 / relay 地址 / token 生成·复制·重置 / 按域白名单开关；全部落 settings `ai`（本地、不进同步） |
+| `package.json` | 新增 `relay` / `relay:stdio` / `gen:skills` 脚本 |
+
+**硬约束落地**：① 桥仅监听 `127.0.0.1`；② 无 token 连接/initialize 一律拒绝；③ 白名单关闭的域在 `tools/list` 不出现；④ 中风险无 confirmToken 不可执行（预览拦截）；⑤ relay 零特权、不持数据。
+
+## P1 第 6 步 — skill 文件首版（与 MCP tools schema 同源）
+
+| 文件 | 内容 |
+|---|---|
+| `src/agent/skillSource.ts` | skill/MCP schema 的**唯一生成源**：15 个工具（8 写 + 7 读）的名称/summary/副作用/幂等/实体规则/示例 + zod schema 引用；只依赖 schema 常量，不 import db |
+| `scripts/gen-skills.mjs` | 用 esbuild 打包 `skillSource.ts` 后生成 `docs/skills/<tool>.md`（参数表/副作用/事件/幂等/引用规则/示例/确认流程）+ `docs/skills/README.md`（总览+协议与安全）+ `docs/skills/mcp-tools.json`（MCP `tools/list` 静态快照） |
+| `docs/skills/` | 15 份工具文档 + README + mcp-tools.json（自动生成，勿手改） |
+
+**单源保证**：`skill.parity.test.ts` 断言「`executor.AGENT_TOOLS` ↔ `skillSource.ALL_TOOL_SKILLS` ↔ `mcp-tools.json`」三方工具集与风险/域完全一致，任何「加工具没写 skill」或反向遗漏都会测试失败。
+
+## 自测（P1 第 4 / 6 步）
+
+- `npm run lint` ✅ / `npx tsc -b` ✅ / `npm run build` ✅
+- `npm test` ✅ **97/97**（原 65 + relay 17 + bridge 9 + skill.parity 6 + csp 4 + aiSettings 4 − …）
+- `node scripts/gen-skills.mjs` ✅ 生成 15 工具
+- `node scripts/check-icons.mjs` ✅ 112 引用齐全
+
+## P1 剩余
+
+- 第 7 步：E2E 场景实机联调（加客户「深蓝科技·王五」→ 记账 → 读回 → 建待办），依赖 relay 与浏览器同机运行。

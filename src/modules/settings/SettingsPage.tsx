@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Icon } from '@/design-system/Icon'
 import { Card, PageHeader, Button, ConfirmDialog, inputCls } from '@/design-system/ui'
+import { AiBridgeSection } from './AiBridgeSection'
 import { useToast } from '@/design-system/Toast'
 import type { Settings, SettingsSync } from '@/db/types'
 import { settingsRepo, resetAndSeedLocalData, restoreFromJson } from '@/repositories'
@@ -57,6 +58,7 @@ const TABS = [
   { id: 'notifications', label: '提醒与协同', icon: 'notifications_active' },
   { id: 'sync', label: '云端同步', icon: 'cloud_sync' },
   { id: 'security', label: '数据与安全', icon: 'security' },
+  { id: 'ai', label: 'AI Agent 桥', icon: 'smart_toy' },
 ] as const
 
 type TabId = (typeof TABS)[number]['id']
@@ -1465,6 +1467,9 @@ export default function SettingsPage() {
           </Section>
         </div>
       )}
+
+      {/* ── AI Agent 桥（能力白名单 + 接入凭据） ── */}
+      {tab === 'ai' && <AiBridgeSection settings={settings} save={save} />}
 
       {/* 应用风格确认弹窗（替代 window.confirm） */}
       <ConfirmDialog

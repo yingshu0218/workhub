@@ -9,6 +9,7 @@ import { backfillTodoCompletedAt } from './modules/todo/domain'
 import { syncEngine } from './sync/engine'
 import { installKeyboardListener } from './shared/shortcuts'
 import { installModuleEffects } from './shared/effects'
+import { installAgentBridge } from './agent/install'
 
 dayjs.locale('zh-cn')
 
@@ -32,6 +33,11 @@ function Bootstrap() {
     syncEngine.start()
     installKeyboardListener()
     installModuleEffects()
+    // AI Agent 桥：按 settings `ai` 段决定是否连出本地 relay（缺省关，零影响）
+    let disposeBridge: (() => void) | undefined
+    void installAgentBridge().then((d) => {
+      disposeBridge = d
+    })
     // PWA：仅生产构建注册 Service Worker（cache-first 静态资源，API 不缓存）
     if (import.meta.env.PROD && 'serviceWorker' in navigator) {
       window.addEventListener('load', () => {
@@ -40,7 +46,10 @@ function Bootstrap() {
         })
       })
     }
-    return () => syncEngine.stop()
+    return () => {
+      syncEngine.stop()
+      disposeBridge?.()
+    }
   }, [])
 
   return <AppRouter />

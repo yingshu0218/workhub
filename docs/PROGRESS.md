@@ -169,7 +169,7 @@
 | 零影响面 | ✅ 纯展示层：数据/同步/仓储零改动；8 个表单「渲染期重置」模式与容器无耦合，仅换外壳 |
 | 未做（YAGNI） | ⏸ 全屏切换按钮、客户表单双列布局加分项（另立 commit/后续增量） |
 
-### AI Agent 调用能力（Issue #33，agentOps P1：第 1~3 步已合入 + 第 5 步读写工具集）
+### AI Agent 调用能力（Issue #33，agentOps P1：第 1~6 步已交付）
 
 方案：`docs/agent-bridge-skill-v0.4.md`（v0.8 终稿，三方审计收敛）。外部 Agent 自带意图理解，
 应用只暴露 agentOps 单一写入口，Local-First 零破坏。
@@ -187,8 +187,13 @@
 | 第 5 步 打卡收口 `checkinHabit` | ✅ 收口原 3 处内联重复（`HabitsPage` / `dashboard/cards` / `shared/effects` 专注联动）：`checkinHabit(habitId,date,{evidence})` 返回 `{created}` 且**仅实际新建才 emit** `habit:checked`（事务 commit 后），`uncheckHabit` 软删确定性 `habitLogId` 派生 id、不 emit；`dashboard` 软删入口由「按 existing.id 删」统一为确定性 id，消除两套删除语义 |
 | 第 5 步 读工具集 | ✅ `src/agent/reads.ts`：`searchEntities`（≤20，复用 `searchAll` 6 实体投影，notes 字段裁剪不含 markdown）/ `getCustomer`（投影不含 relations 全量，仅 `relationCount`）/ `listTransactions`（≤50，金额/日期/状态/customerId/ledgerId，不含附件）/ `listTodos` / `listLedgers` / `listHabits`（各 ≤50）；一律只走活记录、超限**截断并返回 `truncated`** |
 | 第 5 步 写工具 `habit_checkin` | ✅ 走收口函数，幂等（目标态语义，重试安全），`undo:true` 取消打卡不 emit，习惯不存在返回可操作错误；白名单域 `habit` |
-| 测试 | ✅ `eventSink.test.ts` 15 条、`resolver.test.ts` 8 条、`whitelist.test.ts` 5 条、`agentOps.alignment.test.ts` 21 条、**`step5.tools.test.ts` 16 条**（打卡收口幂等/事务外 emit/evidence、habit_checkin 工具与闸门、读工具投影白名单与截断、软删过滤）；agentOps 合计 **65 条全绿** |
-| 未开工（P1 剩余） | ⏳ 第 4 步 Relay + token + 一次性 confirmToken + CSP `ws:` 注入、第 6 步 skill 文件首版；另白名单**配置页 UI 壳**仍待交付 |
+| 第 4 步 本地 Relay | ✅ `relay/`（Node 进程，零新增依赖）：`ws-server.mjs` 最小 RFC6455 服务端（node:http 升级握手 + crypto 校验 + 掩码解帧/分片/ping-pong/close）、`mcp-relay.mjs` 标准 MCP 路由（`initialize`/`tools/list`/`tools/call`/`ping`）+ 接入 token 校验 + 一次性 `confirmToken` 台账（5 分钟 TTL、核销即删、防重放）、`index.mjs` 双入口同进程（stdio `--stdio` 与 WS 并存）。只绑 `127.0.0.1:8787`，**只转发、零特权**（不 import repositories） |
+| 第 4 步 浏览器侧桥 | ✅ `src/agent/bridge.ts`：浏览器**主动连出** relay（Outbound WS，浏览器无 listen 能力）；`tools/list` 经白名单过滤（关闭的域不出现）、`tools/call` 只走 `dispatchAgentTool` 唯一入口、中风险无 `confirmToken` 只回预览材料；`src/agent/install.ts` 按 settings `ai` 段决定连/断（缺省关，零影响） |
+| 第 4 步 CSP 注入 | ✅ `vite.config.ts` 新增 `cspRelayPlugin`（`apply:'serve'`）：仅 dev/本地自用构建经 `transformIndexHtml` 向 `connect-src` 追加 `ws://127.0.0.1:8787`；**生产构建 CSP 不含 `ws:`**（已断言） |
+| 第 4 步 白名单配置页 | ✅ 设置页新增「AI Agent 桥」标签（`settings/AiBridgeSection.tsx`）：启用开关 / relay 地址 / 接入 token（生成·复制·重置）/ 按域能力白名单开关（关闭即对桥不可见）；token 仅存本地 `settings.ai`，不进同步 |
+| 第 6 步 skill 文件首版 | ✅ `docs/skills/`（15 个工具各一份 + `README.md` + `mcp-tools.json`），由 `scripts/gen-skills.mjs` 从 **`src/agent/skillSource.ts`（agentOps zod schema）同一份定义**生成；含参数表（`zodToJsonSchema`）/副作用/风险级/幂等语义/实体引用规则/典型说法/确认流程 |
+| 测试 | ✅ `eventSink.test.ts` 15、`resolver.test.ts` 8、`whitelist.test.ts` 5、`agentOps.alignment.test.ts` 21、`step5.tools.test.ts` 16、**`relay.bridge.test.ts` 17**（token 拒绝/白名单/confirmToken 一次性与超时/协议完备/真实 WS 帧握手）、**`bridge.test.ts` 9**（zod→JSON Schema 单源、预览拦截、白名单闸门、真实 WS 往返）、**`skill.parity.test.ts` 6**（实现↔skill 源↔生成产物三方一致）、**`csp.test.ts` 4**、**`aiSettings.test.ts` 4**；agentOps 合计 **97 条全绿** |
+| 未开工（P1 剩余） | ⏳ 第 7 步 E2E 场景跑通（依赖第 4 步 relay 实机联调）；另「新模块全量动作」属 P2 排期 |
 
 ### 未来项（已定但不急）
 

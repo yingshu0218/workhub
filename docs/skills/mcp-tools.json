@@ -1,0 +1,587 @@
+{
+  "generatedBy": "scripts/gen-skills.mjs",
+  "source": "src/agent/skillSource.ts",
+  "protocolVersion": "2024-11-05",
+  "toolCount": 15,
+  "tools": [
+    {
+      "name": "fin_recordTransaction",
+      "description": "记一笔收支流水（财务记账）",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "ledgerId": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "income",
+              "expense"
+            ],
+            "default": "expense"
+          },
+          "occurredAt": {
+            "type": "string"
+          },
+          "channel": {
+            "type": "string",
+            "enum": [
+              "微信",
+              "支付宝",
+              "银行卡",
+              "现金",
+              "对公转账"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "已结算",
+              "待对账"
+            ],
+            "default": "待对账"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": []
+          },
+          "note": {
+            "type": "string"
+          },
+          "customerId": {
+            "type": "string"
+          },
+          "todoId": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ledgerId",
+          "summary",
+          "amount"
+        ]
+      },
+      "annotations": {
+        "risk": "medium",
+        "domain": "fin",
+        "readOnly": false
+      },
+      "events": [
+        "transaction:created"
+      ]
+    },
+    {
+      "name": "fin_createLedger",
+      "description": "新建账本",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "CNY",
+              "USD",
+              "EUR"
+            ],
+            "default": "CNY"
+          },
+          "openingBalance": {
+            "type": "number",
+            "default": 0
+          },
+          "closingCycle": {
+            "type": "string",
+            "enum": [
+              "月结",
+              "季结",
+              "年结",
+              "不封账"
+            ],
+            "default": "月结"
+          },
+          "isDefault": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "annotations": {
+        "risk": "low",
+        "domain": "fin",
+        "readOnly": false
+      },
+      "events": []
+    },
+    {
+      "name": "crm_createCustomer",
+      "description": "新建 CRM 客户（可含首联初始化）",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "company": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "decisionLevel": {
+            "type": "string",
+            "enum": [
+              "决策人",
+              "影响者",
+              "使用者",
+              "把关人"
+            ],
+            "default": "决策人"
+          },
+          "tier": {
+            "type": "string",
+            "enum": [
+              "S",
+              "A",
+              "B",
+              "潜在"
+            ],
+            "default": "A"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": []
+          },
+          "phone": {
+            "type": "string"
+          },
+          "wechat": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "openingLog": {
+            "type": "boolean",
+            "default": false
+          },
+          "linkTransactionId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "annotations": {
+        "risk": "medium",
+        "domain": "crm",
+        "readOnly": false
+      },
+      "events": []
+    },
+    {
+      "name": "crm_addInteraction",
+      "description": "记一条客户沟通日志（原子刷新最近联系时间）",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "customerId": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "电话",
+              "会议",
+              "邮件",
+              "拜访",
+              "跟进",
+              "小结",
+              "其他"
+            ],
+            "default": "电话"
+          },
+          "at": {
+            "type": "number"
+          },
+          "projectId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "customerId",
+          "content"
+        ]
+      },
+      "annotations": {
+        "risk": "medium",
+        "domain": "crm",
+        "readOnly": false
+      },
+      "events": [
+        "customer:contacted"
+      ]
+    },
+    {
+      "name": "crm_addRelation",
+      "description": "维护客户关系（双向落两侧）",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "customerId": {
+            "type": "string"
+          },
+          "targetId": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "project",
+              "event",
+              "finance",
+              "person",
+              "other"
+            ]
+          }
+        },
+        "required": [
+          "customerId",
+          "targetId",
+          "label"
+        ]
+      },
+      "annotations": {
+        "risk": "medium",
+        "domain": "crm",
+        "readOnly": false
+      },
+      "events": []
+    },
+    {
+      "name": "todo_createTodo",
+      "description": "新建待办",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "desc": {
+            "type": "string",
+            "default": ""
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "P1",
+              "P2",
+              "P3"
+            ],
+            "default": "P2"
+          },
+          "dueAt": {
+            "type": "number"
+          },
+          "customerId": {
+            "type": "string"
+          },
+          "listId": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ]
+      },
+      "annotations": {
+        "risk": "low",
+        "domain": "todo",
+        "readOnly": false
+      },
+      "events": []
+    },
+    {
+      "name": "todo_completeTodo",
+      "description": "把待办标记为完成（或取消完成）",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "todoId": {
+            "type": "string"
+          },
+          "done": {
+            "type": "boolean",
+            "default": true
+          }
+        },
+        "required": [
+          "todoId"
+        ]
+      },
+      "annotations": {
+        "risk": "low",
+        "domain": "todo",
+        "readOnly": false
+      },
+      "events": []
+    },
+    {
+      "name": "habit_checkin",
+      "description": "习惯打卡 / 取消打卡",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "habitId": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string"
+          },
+          "undo": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "required": [
+          "habitId"
+        ]
+      },
+      "annotations": {
+        "risk": "low",
+        "domain": "habit",
+        "readOnly": false
+      },
+      "events": [
+        "habit:checked"
+      ]
+    },
+    {
+      "name": "resolveEntity",
+      "description": "把自然语言里的实体名消解为真实 id（写工具的前置）",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "customer",
+              "project",
+              "todo",
+              "ledger",
+              "habit"
+            ]
+          }
+        },
+        "required": [
+          "query",
+          "type"
+        ]
+      },
+      "annotations": {
+        "risk": "low",
+        "domain": "read",
+        "readOnly": true
+      },
+      "events": []
+    },
+    {
+      "name": "searchEntities",
+      "description": "全局搜索（客户/项目/待办/笔记/账本/习惯）",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "q": {
+            "type": "string"
+          },
+          "types": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "customer",
+                "todo",
+                "transaction",
+                "note",
+                "habit",
+                "project"
+              ]
+            }
+          }
+        },
+        "required": [
+          "q"
+        ]
+      },
+      "annotations": {
+        "risk": "low",
+        "domain": "read",
+        "readOnly": true
+      },
+      "events": []
+    },
+    {
+      "name": "getCustomer",
+      "description": "读取单个客户档案摘要",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      },
+      "annotations": {
+        "risk": "low",
+        "domain": "read",
+        "readOnly": true
+      },
+      "events": []
+    },
+    {
+      "name": "listTransactions",
+      "description": "按条件列流水（金额/日期/状态/客户/账本）",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "customerId": {
+            "type": "string"
+          },
+          "ledgerId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "已结算",
+              "待对账"
+            ]
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "income",
+              "expense"
+            ]
+          },
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          }
+        }
+      },
+      "annotations": {
+        "risk": "low",
+        "domain": "read",
+        "readOnly": true
+      },
+      "events": []
+    },
+    {
+      "name": "listTodos",
+      "description": "列待办",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "todo",
+              "done"
+            ]
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "P1",
+              "P2",
+              "P3"
+            ]
+          },
+          "customerId": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          }
+        }
+      },
+      "annotations": {
+        "risk": "low",
+        "domain": "read",
+        "readOnly": true
+      },
+      "events": []
+    },
+    {
+      "name": "listLedgers",
+      "description": "列账本",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "annotations": {
+        "risk": "low",
+        "domain": "read",
+        "readOnly": true
+      },
+      "events": []
+    },
+    {
+      "name": "listHabits",
+      "description": "列习惯",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "annotations": {
+        "risk": "low",
+        "domain": "read",
+        "readOnly": true
+      },
+      "events": []
+    }
+  ]
+}
