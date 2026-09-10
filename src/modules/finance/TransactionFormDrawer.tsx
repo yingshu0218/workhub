@@ -310,7 +310,7 @@ export default function TransactionFormDrawer({
               </Chip>
             ))}
             <input
-              className="min-w-[120px] flex-1 bg-transparent text-[13px] outline-none"
+              className="min-w-[120px] flex-1 bg-transparent text-[0.9286rem] outline-none"
               value={tagInput}
               onChange={(e) => setTagInput(e.target.value)}
               onKeyDown={onTagKeyDown}
