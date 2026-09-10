@@ -6,7 +6,7 @@ import { RELATION_CATEGORIES } from '@/db/types'
 import { Button, Field, Modal, inputCls, useAutoFocus } from '@/design-system/ui'
 import { Icon } from '@/design-system/Icon'
 import { MatchCombobox } from '@/design-system/MatchCombobox'
-import ChipTagInput, { chipTagStyle } from '@/design-system/ChipTagInput'
+import ChipTagInput, { chipTagStyle, parseTagInput } from '@/design-system/ChipTagInput'
 import { createCustomerWithInit } from './hooks'
 
 /** 单条关系的稳定标识（Issue #39）：优先取条目 id，旧数据按 目标::语义 兜底（同对允许多条，可逐条删除） */
@@ -49,6 +49,8 @@ export default function CustomerFormDrawer({
   const [decisionLevel, setDecisionLevel] = useState<Customer['decisionLevel']>('决策人')
   const [tier, setTier] = useState<Customer['tier']>('A')
   const [tags, setTags] = useState<string[]>([])
+  /** 标签输入框里尚未敲下分隔符的草稿（保存时一并结算，避免「输了没回车就点保存」丢标签） */
+  const [pendingTags, setPendingTags] = useState('')
   const [phone, setPhone] = useState('')
   const [wechat, setWechat] = useState('')
   const [email, setEmail] = useState('')
@@ -85,6 +87,7 @@ export default function CustomerFormDrawer({
       setEmail(customer?.email ?? '')
       setAddress(customer?.address ?? '')
       setRelations(customer?.relations ?? [])
+      setPendingTags('')
       setRelTargets([])
       setRelLabels([])
       setRelCategory('')
@@ -105,14 +108,17 @@ export default function CustomerFormDrawer({
   const REL_LABELS = ['转介绍人', '同一公司', '上下游', '竞对参照', '其他']
 
   /**
-   * 「添加关系」的显式确认（手动输入路径）：
-   * 输入框里的客户名逐个消解到候选客户（同名多人 → 提示不猜，与消解器「消解优先」同纪律）；
-   * 客户名与语义做笛卡尔积，语义缺省落「其他」；同 目标+语义 判重（Issue #39 允许多语义并存）。
+   * 把「输入框里的客户名 × 语义」配对成关系条目（单一来源）。
+   * 两条路径共用：点「添加关系」显式提交、以及保存时结算遗留草稿。
+   * 未解析出的客户名不静默丢弃，走 hints 回显（已解析到的照常写入）。
    */
-  function commitRelations() {
+  function pairPendingRelations(
+    targetsRaw: string[],
+    labelsRaw: string[],
+  ): { added: CustomerRelation[]; hints: string[] } {
     const hints: string[] = []
     const targets: Customer[] = []
-    for (const raw of relTargets) {
+    for (const raw of targetsRaw) {
       const hit = resolveTarget(raw, relCandidates)
       if (hit.ok) {
         if (!targets.some((t) => t.id === hit.record.id)) targets.push(hit.record)
@@ -120,16 +126,14 @@ export default function CustomerFormDrawer({
     }
     if (targets.length === 0) {
       if (hints.length === 0) hints.push('请先输入关联客户')
-      setError(hints.join('；'))
-      return
+      return { added: [], hints }
     }
-    const labels = relLabels.length > 0 ? relLabels : ['其他']
-    const next = [...relations]
+    const labels = labelsRaw.length > 0 ? labelsRaw : ['其他']
+    const added: CustomerRelation[] = []
     for (const t of targets) {
       for (const l of labels) {
-        if (next.some((r) => r.targetId === t.id && r.label === l)) continue
-        next.push({
-          // 条目独立 id：支撑同对多语义并存、逐条删除与列表 key；category 可选（Issue #34）
+        // 条目独立 id：支撑同对多语义并存、逐条删除与列表 key；category 可选（Issue #34）
+        added.push({
           id: newId('rel'),
           targetId: t.id,
           label: l,
@@ -137,10 +141,48 @@ export default function CustomerFormDrawer({
         })
       }
     }
-    setRelations(next)
+    return { added, hints }
+  }
+
+  /** 把待配对条目并入现有关系（同「目标 + 语义」判重，Issue #39 允许多语义并存） */
+  function withDedup(base: CustomerRelation[], added: CustomerRelation[]): CustomerRelation[] {
+    const next = [...base]
+    for (const r of added) {
+      if (next.some((x) => x.targetId === r.targetId && x.label === r.label)) continue
+      next.push(r)
+    }
+    return next
+  }
+
+  /**
+   * 结算输入框草稿（保存路径）：
+   * 控件现在「敲分隔符即固化」，正常不会有遗留草稿；但用户可能输入完直接点保存
+   * （既不回车也不敲逗号）——此时若忽略草稿，观感依然是「保存不生效」。
+   * 故保存前显式结算一次：标签并入 tags，客户名 × 语义配对并入 relations。
+   */
+  function settleDrafts(): { tags: string[]; relations: CustomerRelation[]; error: string } {
+    const nextTags = [...tags]
+    for (const t of parseTagInput(pendingTags)) {
+      if (!nextTags.includes(t)) nextTags.push(t)
+    }
+    const pendingRelationDrafts = relTargets.map((t) => t.trim()).filter(Boolean)
+    if (pendingRelationDrafts.length === 0) {
+      return { tags: nextTags, relations, error: '' }
+    }
+    const { added, hints } = pairPendingRelations(pendingRelationDrafts, relLabels)
+    return { tags: nextTags, relations: withDedup(relations, added), error: hints.join('；') }
+  }
+
+  /** 「添加关系」的显式确认：把草稿配对写入下方列表（列表本身就是可删芯片） */
+  function commitRelations() {
+    const { added, hints } = pairPendingRelations(relTargets, relLabels)
+    if (added.length === 0) {
+      setError(hints.join('；'))
+      return
+    }
+    setRelations(withDedup(relations, added))
     setRelTargets([])
     setRelLabels([])
-    // 未匹配上的客户名不静默丢弃：提示保留（已匹配上的关系照常写入，用户可改完名再点一次）
     setError(hints.join('；'))
   }
 
@@ -149,23 +191,14 @@ export default function CustomerFormDrawer({
       setError('请填写客户姓名')
       return
     }
-    // 保存前固化「添加关系」输入框内容：手动输入后没点「添加关系」直接保存也不能丢
-    const pendingRelations = [...relations]
-    for (const raw of relTargets) {
-      const hit = resolveTarget(raw, relCandidates)
-      if (!hit.ok) continue
-      for (const l of relLabels.length > 0 ? relLabels : ['其他']) {
-        if (pendingRelations.some((r) => r.targetId === hit.record.id && r.label === l)) continue
-        pendingRelations.push({
-          id: newId('rel'),
-          targetId: hit.record.id,
-          label: l,
-          ...(relCategory ? { category: relCategory } : {}),
-        })
-      }
+    // 保存前结算草稿：手输完直接点保存也不丢（关系按 客户名 × 语义 配对，标签并入）
+    const settled = settleDrafts()
+    if (settled.error) {
+      // 未解析出的客户名回显给用户（不静默丢弃），但已解析到的关系照常保存
+      setError(settled.error)
     }
     if (customer) {
-      // 编辑：旧记录为基底，只覆盖表单字段（保留 createdAt / 关联等）
+      // 编辑：旧记录为基底，只覆盖表单字段（保留 createdAt 等）
       await customerRepo.put({
         ...customer,
         name: name.trim(),
@@ -173,13 +206,12 @@ export default function CustomerFormDrawer({
         title: title.trim(),
         decisionLevel,
         tier,
-        tags,
+        tags: settled.tags,
         phone: phone.trim(),
         wechat: wechat.trim(),
         email: email.trim(),
         address: address.trim(),
-        // relations 走下方维护区显式覆盖（含保存前刚固化的待添加项，不做静默丢失）
-        relations: pendingRelations,
+        relations: settled.relations,
       })
     } else {
       const record = {
@@ -189,7 +221,7 @@ export default function CustomerFormDrawer({
         title: title.trim(),
         decisionLevel,
         tier,
-        tags,
+        tags: settled.tags,
         phone: phone.trim(),
         wechat: wechat.trim(),
         email: email.trim(),
@@ -197,7 +229,7 @@ export default function CustomerFormDrawer({
         lastContactAt: Date.now(),
         createdAt: Date.now(),
         // 新建即关联：与编辑同一份 relations 状态，随记录一并落库（Issue #132）
-        ...(pendingRelations.length > 0 ? { relations: pendingRelations } : {}),
+        ...(settled.relations.length > 0 ? { relations: settled.relations } : {}),
       }
       // 新建走「建档 + 关联初始化」同事务数据层函数，杜绝多步写半成品
       await createCustomerWithInit(record as Customer, {
@@ -270,10 +302,11 @@ export default function CustomerFormDrawer({
             ))}
           </div>
         </Field>
-        <Field label="标签（回车或逗号确认）">
+        <Field label="标签（回车、逗号或空格即固化）">
           <ChipTagInput
             value={tags}
             onChange={setTags}
+            onDraftChange={setPendingTags}
             placeholder="输入后回车确认，如：高客单潜力"
             maxCount={20}
             onOverflow={() => setError('标签最多 20 个')}
@@ -322,18 +355,19 @@ export default function CustomerFormDrawer({
         <div className="mt-4 rounded-xl bg-surface-container-low/60 p-3">
           <StepHeader n={4} title="客户关系" />
           <div className="mb-2 text-[0.8571rem] text-on-surface-variant">
-            输入客户名与关系语义（回车或逗号即固化），点「添加关系」把两者两两配对写入下方列表。
+            输入客户名与关系语义（回车、逗号或空格即固化，无需点「添加关系」也行 ——
+            保存时会自动配对），点「添加关系」可立即把两者两两配对写入下方列表。
           </div>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <Field label="关联客户（可手输名，或点联想）">
               <ChipTagInput
                 value={relTargets}
                 onChange={setRelTargets}
-                placeholder="输入客户名，回车确认"
+                placeholder="输入客户名，回车或逗号固化"
                 onOverflow={() => setError('一次最多添加 5 位关联客户')}
               />
             </Field>
-            <Field label="关系语义（回车或逗号确认）">
+            <Field label="关系语义（回车、逗号或空格即固化）">
               <ChipTagInput
                 value={relLabels}
                 onChange={setRelLabels}
