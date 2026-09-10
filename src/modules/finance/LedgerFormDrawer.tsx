@@ -4,7 +4,7 @@ import { db } from '@/db/db'
 import { syncEngine } from '@/sync/engine'
 import { nextLedgerSortOrder } from './hooks'
 import type { Ledger } from '@/db/types'
-import { Button, Drawer, Field, inputCls } from '@/design-system/ui'
+import { Button, Field, Modal, inputCls, useAutoFocus } from '@/design-system/ui'
 
 const CURRENCIES = ['CNY', 'USD', 'EUR'] as const
 const CYCLES = ['月结', '季结', '年结', '不封账'] as const
@@ -33,6 +33,7 @@ export default function LedgerFormDrawer({
   const [isDefault, setIsDefault] = useState(false)
   const [error, setError] = useState('')
   const [seedKey, setSeedKey] = useState(0)
+  const nameRef = useAutoFocus<HTMLInputElement>()
 
   // 打开时重置（渲染期重置模式，同 TodoFormDrawer）；编辑模式回填旧值
   const openKey = `${open}-${editLedger?.id ?? ''}`
@@ -111,15 +112,15 @@ export default function LedgerFormDrawer({
   }
 
   return (
-    <Drawer open={open} title={editLedger ? '编辑财务账本' : '新建财务账本'} onClose={onClose}>
+    <Modal open={open} title={editLedger ? '编辑财务账本' : '新建财务账本'} onClose={onClose}>
       <div key={seedKey}>
         <Field label="账本名称 *">
           <input
+            ref={nameRef}
             className={inputCls}
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="如：2025 新零售业务出海专账"
-            autoFocus
           />
         </Field>
         <Field label="结算主币种">
@@ -196,6 +197,7 @@ export default function LedgerFormDrawer({
           </Button>
         </div>
       </div>
-    </Drawer>
+    </Modal>
   )
 }
+

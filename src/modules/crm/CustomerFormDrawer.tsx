@@ -3,7 +3,7 @@ import { useCollection } from '@/queries/hooks'
 import { customerRepo, newId } from '@/repositories'
 import type { Customer, CustomerRelation, RelationCategory, Transaction } from '@/db/types'
 import { RELATION_CATEGORIES } from '@/db/types'
-import { Button, Chip, Drawer, Field, inputCls } from '@/design-system/ui'
+import { Button, Chip, Field, Modal, inputCls, useAutoFocus } from '@/design-system/ui'
 import { MatchCombobox } from '@/design-system/MatchCombobox'
 import { createCustomerWithInit } from './hooks'
 import { normalizeTags } from './shared'
@@ -47,6 +47,8 @@ export default function CustomerFormDrawer({
   const [initTxnId, setInitTxnId] = useState('')
   const [error, setError] = useState('')
   const [seedKey, setSeedKey] = useState(0)
+  // 打开时聚焦姓名且不滚动页面
+  const nameRef = useAutoFocus<HTMLInputElement>()
 
   // 打开时重置（渲染期重置模式，同 TodoFormDrawer / TransactionFormDrawer）
   const openKey = `${open}-${customer?.id ?? 'new'}`
@@ -138,21 +140,20 @@ export default function CustomerFormDrawer({
   }
 
   return (
-    <Drawer
+    <Modal
       open={open}
       title={customer ? '编辑客户档案' : '新建客户档案'}
       onClose={onClose}
-      width={460}
     >
       <div key={seedKey}>
         <StepHeader n={1} title="基础信息" />
         <Field label="客户姓名 *">
           <input
+            ref={nameRef}
             className={inputCls}
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="如：陆聪明"
-            autoFocus
           />
         </Field>
         <Field label="公司 / 组织">
@@ -422,7 +423,7 @@ export default function CustomerFormDrawer({
           </Button>
         </div>
       </div>
-    </Drawer>
+    </Modal>
   )
 }
 

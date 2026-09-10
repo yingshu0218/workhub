@@ -11,7 +11,8 @@ import {
   ConfirmDialog,
   EmptyState,
   PageHeader,
-  Drawer,
+  Modal,
+  useAutoFocus,
   Field,
   inputCls,
 } from '@/design-system/ui'
@@ -695,6 +696,7 @@ export function TodoFormDrawer({
   const listOptions = useTodoListOptions()
   const [error, setError] = useState('')
   const [seedKey, setSeedKey] = useState(0)
+  const titleRef = useAutoFocus<HTMLInputElement>()
 
   // 打开时重置
   const openKey = `${open}-${todo?.id ?? 'new'}`
@@ -743,15 +745,20 @@ export function TodoFormDrawer({
   }
 
   return (
-    <Drawer open={open} title={todo ? '编辑待办' : '新建待办'} onClose={onClose}>
+    <Modal
+      open={open}
+      title={todo ? '编辑待办' : '新建待办'}
+      onClose={onClose}
+      size="md"
+    >
       <div key={seedKey}>
         <Field label="标题 *">
           <input
+            ref={titleRef}
             className={inputCls}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="要做什么？"
-            autoFocus
           />
         </Field>
         <Field label="描述">
@@ -853,6 +860,6 @@ export function TodoFormDrawer({
           <Button onClick={save}>{todo ? '保存修改' : '创建待办'}</Button>
         </div>
       </div>
-    </Drawer>
+    </Modal>
   )
 }

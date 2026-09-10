@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useState } from 'react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { Icon } from './Icon'
 
 /** 基础组件库（对齐 DESIGN.md：白卡/8px 圆角/1px 边框/柔和阴影/胶囊 Chip） */
@@ -99,6 +99,18 @@ export function Field({ label, children }: { label: string; children: ReactNode 
       {children}
     </label>
   )
+}
+
+/**
+ * 打开弹窗时聚焦首个输入框且不滚动页面（替代裸 autoFocus —— 后者会因浏览器默认
+ * focus 行为把被遮罩层后面滚动容器拉到可视区，表现为「一打开表单页面就跳滚」）。
+ */
+export function useAutoFocus<T extends HTMLElement>() {
+  const ref = useRef<T>(null)
+  useEffect(() => {
+    ref.current?.focus({ preventScroll: true })
+  }, [])
+  return ref
 }
 
 export const inputCls = 'input'

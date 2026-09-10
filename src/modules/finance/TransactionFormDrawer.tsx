@@ -5,7 +5,7 @@ import { eventBus } from '@/shared/eventBus'
 import type { PutInput } from '@/repositories/repository'
 import type { Attachment } from '@/db/db'
 import type { Customer, Ledger, Project, Todo, Transaction } from '@/db/types'
-import { Button, Chip, Drawer, Field, inputCls } from '@/design-system/ui'
+import { Button, Chip, Field, Modal, inputCls, useAutoFocus } from '@/design-system/ui'
 import { MatchCombobox, type MatchOption } from '@/design-system/MatchCombobox'
 import dayjs from 'dayjs'
 import { isTodoOpen } from '@/modules/todo/domain'
@@ -20,6 +20,7 @@ export default function TransactionFormDrawer({
   open,
   defaultLedgerId,
   editTxn,
+  elevated,
   onClose,
 }: {
   open: boolean
@@ -27,6 +28,8 @@ export default function TransactionFormDrawer({
   defaultLedgerId: string
   /** 传入则为编辑模式：以旧记录为基底展开，仅覆盖表单字段 */
   editTxn?: Transaction | null
+  /** 从凭证详情抽屉内打开时传 true，抬到更高层级 */
+  elevated?: boolean
   onClose: () => void
 }) {
   const ledgers = useCollection<Ledger>('ledgers')
@@ -50,6 +53,7 @@ export default function TransactionFormDrawer({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [error, setError] = useState('')
   const [seedKey, setSeedKey] = useState(0)
+  const summaryRef = useAutoFocus<HTMLInputElement>()
 
   // 打开时重置（渲染期重置模式，同 TodoFormDrawer）；编辑模式以旧记录回填
   const openKey = `${open}-${defaultLedgerId}-${editTxn?.id ?? ''}`
@@ -217,7 +221,12 @@ export default function TransactionFormDrawer({
   }
 
   return (
-    <Drawer open={open} title={editTxn ? '编辑流水' : '记一笔账'} onClose={onClose} width={460}>
+    <Modal
+      open={open}
+      title={editTxn ? '编辑流水' : '记一笔账'}
+      onClose={onClose}
+      elevated={elevated}
+    >
       <div key={seedKey}>
         <Field label="类型 *">
           <div className="flex gap-2">
@@ -267,11 +276,11 @@ export default function TransactionFormDrawer({
         </div>
         <Field label="交易名称 / 款项摘要 *">
           <input
+            ref={summaryRef}
             className={inputCls}
             value={summary}
             onChange={(e) => setSummary(e.target.value)}
             placeholder="如：深蓝科技二期交付结算凭据"
-            autoFocus
           />
         </Field>
         <Field label="金额 *">
@@ -427,6 +436,6 @@ export default function TransactionFormDrawer({
           </Button>
         </div>
       </div>
-    </Drawer>
+    </Modal>
   )
 }

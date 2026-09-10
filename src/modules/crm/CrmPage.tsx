@@ -9,7 +9,8 @@ import {
   Button,
   Card,
   Chip,
-  Drawer,
+  Modal,
+  useAutoFocus,
   EmptyState,
   Field,
   PageHeader,
@@ -381,6 +382,7 @@ function GroupEditorDrawer({
   const [includeRaw, setIncludeRaw] = useState('')
   const [excludeRaw, setExcludeRaw] = useState('')
   const [error, setError] = useState('')
+  const nameRef = useAutoFocus<HTMLInputElement>()
 
   const openKey = `${open}-${group?.id ?? 'new'}`
   const [lastKey, setLastKey] = useState('')
@@ -431,14 +433,14 @@ function GroupEditorDrawer({
   }
 
   return (
-    <Drawer open={open} title={group ? '编辑分组' : '新建分组'} onClose={onClose} width={420}>
+    <Modal open={open} title={group ? '编辑分组' : '新建分组'} onClose={onClose} size="md">
       <Field label="分组名称 *">
         <input
+          ref={nameRef}
           className={inputCls}
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="如：重点培育"
-          autoFocus
         />
       </Field>
       <TagRuleField
@@ -471,7 +473,7 @@ function GroupEditorDrawer({
         </Button>
         <Button onClick={() => void save()}>{group ? '保存' : '创建'}</Button>
       </div>
-    </Drawer>
+    </Modal>
   )
 }
 
