@@ -2,7 +2,7 @@
 
 > **本仓库的唯一进度事实来源。** 所有人（含 AI 开发代理）推进或变更任何开发工作，必须在**同一个 commit** 里同步更新本文件对应状态。README 底部的 Changelog 记录"发生了什么"，本文档记录"现在处于什么状态"——前者追加式流水，后者始终反映最新全貌。
 
-**最后更新**：2026-09-08（Issue #34 客户亲密度体系落地：Customer.intimacy 手动 7 档 + 算法兜底 + moduleConfigs 同步表 v9 + 设置页「数据管理」Tab + 图谱圈层/黑名单过滤；Issue #50 笔记关联体验升级：@提及浮层模糊匹配+键盘导航、编辑态关联主体/反向链接悬浮卡片；Issue #70 侧栏快速便签：左下角折叠单行捕获 → saveQuickCapture 落正式 Note，tag「速记」+ 默认目录，设置页「笔记偏好」选目录） · 维护人：yingshu0218 / cnb.cMPXRmKswEA / npc/CodeBuddy
+**最后更新**：2026-09-10（Issue #50 笔记 @提及浮层交互重构：顶部新增可见模糊匹配输入框 + 客户/待办/账本/项目四类 tab 统一交互，移除重复项目锚点；Issue #34 客户亲密度体系落地：Customer.intimacy 手动 7 档 + 算法兜底 + moduleConfigs 同步表 v9 + 设置页「数据管理」Tab + 图谱圈层/黑名单过滤；Issue #50 笔记关联体验升级：@提及浮层模糊匹配+键盘导航、编辑态关联主体/反向链接悬浮卡片；Issue #70 侧栏快速便签：左下角折叠单行捕获 → saveQuickCapture 落正式 Note，tag「速记」+ 默认目录，设置页「笔记偏好」选目录） · 维护人：yingshu0218 / cnb.cMPXRmKswEA / npc/CodeBuddy
 
 ---
 
@@ -108,6 +108,7 @@
 |---|---|
 | 关联项目（@提及浮层项目选择视图 + Tab 联动） | ✅ 已合入 main（PR #53） |
 | PR-1 @提及浮层模糊匹配 + 键盘导航 | ✅ 已落地：复用 fuzzyMatch/fuzzySort/archivedLast（sub 仅参与匹配范围不参与排序）、归档项目沉底、↑↓/Enter 键盘选择、命中片段高亮、IME 期间不误触发 |
+| 浮层交互重构（用户反馈，本轮） | ✅ 已落地：浮层顶部新增可见模糊匹配输入框（自动聚焦，筛选词迁出正文），下方客户/待办/账本/项目四类横向 tab 统一「点选即插入」交互；移除重复的 projectTab 联动锚点与 panelProject 割裂视图（所属项目选择保留右侧栏唯一入口）；保留键盘/IME/Esc/外点关闭与焦点保护，关闭自动归还 CodeMirror 焦点 |
 | PR-2 编辑态关联主体/反向链接悬浮卡片 | ✅ 已落地：编辑态点击不再 navigate 就地弹卡（客户/待办/账本/项目摘要 + 反向链接标题/更新时间），卡片内「打开详情」走 jumpTarget 深链，实体已删显示占位；查看态保持直接跳转 |
 | PR-3 账本/记账深链补全（A1） | ⏳ 待排期：jumpTarget.todo/ledger 补 focus 深链 + FinancePage ?ledger= 与 scope 双向同步 |
 | A2 transaction 提及类型 | ⏸ 缓行（审计建议单独排期，动 NoteMention.type/MENTION_RE/TYPE_META 三处需同 commit 同步） |
