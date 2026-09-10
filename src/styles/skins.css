@@ -397,3 +397,115 @@ h4,
 :root[data-skin='pixel'] .section-title {
   letter-spacing: 0.04em;
 }
+
+/* =====================================================================
+   导航 chrome 皮肤接管（Issue #54 收敛方案：侧栏/页头语义化 + 导航项形态）
+   AppLayout 侧栏容器 .app-sidebar、导航项 .app-nav-link（激活态 .is-active）、
+   页头 .app-header。皮肤只接管「形态」（圆角/描边/投影/字重），颜色仍走
+   --color-* 配色通道，保证风格与配色正交。
+   侧栏/页头为全幅常驻 chrome：容器不做玻璃化/切角大改造（防过度设计、
+   保对比度），只调右 border 与导航项形态；none 皮肤不含本段，零回归。
+   ---- pixel：导航项直角 + 硬描边，激活态右下硬投影（对齐参考图 4） ---- */
+:root[data-skin='pixel'] .app-sidebar,
+:root[data-skin='pixel'] .app-header {
+  border-right-color: var(--skin-border-color);
+}
+
+:root[data-skin='pixel'] .app-nav-link {
+  border-radius: 0;
+  border: var(--skin-border-width) solid transparent;
+}
+
+:root[data-skin='pixel'] .app-nav-link:hover {
+  border-color: var(--skin-border-color);
+}
+
+:root[data-skin='pixel'] .app-nav-link.is-active {
+  border-radius: 0;
+  border: var(--skin-border-width) solid var(--skin-border-color);
+  box-shadow: 3px 3px 0 0 var(--color-on-surface);
+}
+
+/* ---- cyber：激活态左侧霓虹标 + 等宽大写，侧栏右 border 转主色（参考图 3） ---- */
+:root[data-skin='cyber'] .app-sidebar {
+  border-right-color: color-mix(in srgb, var(--color-primary) 45%, transparent);
+}
+
+:root[data-skin='cyber'] .app-nav-link {
+  position: relative;
+  font-family: var(--skin-heading-font);
+  letter-spacing: 0.02em;
+  border-radius: var(--skin-card-radius);
+}
+
+:root[data-skin='cyber'] .app-nav-link.is-active {
+  border-radius: var(--skin-card-radius);
+  box-shadow: var(--skin-shadow-card);
+}
+
+:root[data-skin='cyber'] .app-nav-link.is-active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 20%;
+  bottom: 20%;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--color-primary);
+  box-shadow: 0 0 8px 1px var(--color-primary);
+}
+
+/* ---- cartoon：激活态胶囊 + 粗描边贴纸感（参考图 1） ---- */
+:root[data-skin='cartoon'] .app-sidebar {
+  border-right-color: var(--skin-border-color);
+}
+
+:root[data-skin='cartoon'] .app-nav-link {
+  border-radius: 9999px;
+  border: var(--skin-border-width) solid transparent;
+}
+
+:root[data-skin='cartoon'] .app-nav-link:hover {
+  border-color: var(--skin-border-color);
+}
+
+:root[data-skin='cartoon'] .app-nav-link.is-active {
+  border-radius: 9999px;
+  border: var(--skin-border-width) solid var(--skin-border-color);
+  box-shadow: var(--skin-shadow-btn);
+}
+
+/* ---- glass：导航项半透明玻璃 + 大圆角胶囊（参考图 2）；
+   侧栏容器保持不透明，大段文字压渐变底不掉对比度 ---- */
+:root[data-skin='glass'] .app-sidebar {
+  border-right-color: var(--skin-border-color);
+}
+
+:root[data-skin='glass'] .app-nav-link {
+  border-radius: calc(var(--radius-lg) * 2);
+}
+
+:root[data-skin='glass'] .app-nav-link.is-active {
+  border-radius: calc(var(--radius-lg) * 2);
+  background: color-mix(in srgb, var(--color-primary-fixed) 72%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: var(--skin-shadow-card);
+}
+
+:root[data-skin='glass'] .app-header {
+  border-bottom-color: var(--skin-border-color);
+}
+
+/* ---- 通用档：.surface-card-xl / .surface-card-low 形态与卡片同源 ----
+   工作区切换弹层、浮层信息卡等表面在四套皮肤下与内容区卡片同形态 */
+:root[data-skin]:not([data-skin='none']) .surface-card-xl,
+:root[data-skin]:not([data-skin='none']) .surface-card-low {
+  border: var(--skin-border-width) solid var(--skin-border-color);
+  border-radius: var(--skin-card-radius);
+  box-shadow: var(--skin-shadow-card);
+}
+
+:root[data-skin]:not([data-skin='none']) .surface-card-xl:hover {
+  box-shadow: var(--skin-shadow-hover);
+}

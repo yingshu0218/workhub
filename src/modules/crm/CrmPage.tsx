@@ -111,7 +111,7 @@ export default function CrmPage() {
       <div className="flex items-start gap-4">
         {/* 左栏：客户分组菜单 */}
         <Card className="w-60 shrink-0 self-start p-4">
-          <div className="mb-3 text-[12px] font-medium uppercase tracking-wide text-on-surface-variant">
+          <div className="mb-3 text-[0.8571rem] font-medium uppercase tracking-wide text-on-surface-variant">
             客户分组
           </div>
           <div className="flex flex-col gap-0.5">
@@ -122,7 +122,7 @@ export default function CrmPage() {
                   setGroup(g.key)
                   setSelectedGroupId(null)
                 }}
-                className={`flex items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[13px] transition-colors ${
+                className={`app-nav-link flex items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[0.9286rem] transition-colors ${
                   group === g.key && !selectedGroupId
                     ? 'bg-primary-fixed font-semibold text-primary'
                     : 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'
@@ -135,7 +135,7 @@ export default function CrmPage() {
                 />
                 <span className="min-w-0 flex-1 truncate">{g.label}</span>
                 <span
-                  className={`shrink-0 text-[11px] ${group === g.key && !selectedGroupId ? 'text-primary/70' : 'text-outline'}`}
+                  className={`shrink-0 text-[0.7857rem] ${group === g.key && !selectedGroupId ? 'text-primary/70' : 'text-outline'}`}
                 >
                   {groupCount(g.key)}
                 </span>
@@ -145,7 +145,7 @@ export default function CrmPage() {
 
           {/* 我的分组：自定义 tag 规则圈人，实时计数，可增/改名/改规则/删（Issue #63） */}
           <div className="mt-3 flex items-center justify-between border-t border-outline-variant/40 px-1 pt-2 pb-1">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-outline">
+            <span className="text-[0.7857rem] font-semibold uppercase tracking-wider text-outline">
               我的分组
             </span>
           </div>
@@ -153,7 +153,7 @@ export default function CrmPage() {
             {customGroups.map((g) => (
               <div
                 key={g.id}
-                className={`group/g flex items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[13px] transition-colors ${
+                className={`app-nav-link group/g flex items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[0.9286rem] transition-colors ${
                   selectedGroupId === g.id
                     ? 'bg-primary-fixed font-semibold text-primary'
                     : 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'
@@ -171,7 +171,7 @@ export default function CrmPage() {
                   <span className="min-w-0 flex-1 truncate">{g.name}</span>
                 </button>
                 <span
-                  className={`shrink-0 text-[11px] ${selectedGroupId === g.id ? 'text-primary/70' : 'text-outline'}`}
+                  className={`shrink-0 text-[0.7857rem] ${selectedGroupId === g.id ? 'text-primary/70' : 'text-outline'}`}
                 >
                   {groupCounts[g.id] ?? 0}
                 </span>
@@ -196,7 +196,7 @@ export default function CrmPage() {
           </div>
           <button
             onClick={() => setEditorGroup('new')}
-            className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-outline-variant px-2.5 py-2 text-[12.5px] text-on-surface-variant transition-colors hover:border-primary hover:text-primary"
+            className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-outline-variant px-2.5 py-2 text-[0.8929rem] text-on-surface-variant transition-colors hover:border-primary hover:text-primary"
           >
             <Icon name="add" size={15} />
             新建分组
@@ -479,12 +479,12 @@ function GroupEditorDrawer({
         placeholder="如：已流失"
         onPick={(t) => setExcludeRaw((r) => (r.trim() ? `${r.trim()}, ${t}` : t))}
       />
-      <div className="mb-4 rounded-lg bg-surface-container-low px-3 py-2.5 text-[13px]">
+      <div className="mb-4 rounded-lg bg-surface-container-low px-3 py-2.5 text-[0.9286rem]">
         <span className="text-on-surface-variant">实时预览命中：</span>
         <span className="font-bold text-primary">{previewCount}</span>
         <span className="text-on-surface-variant"> 位客户</span>
       </div>
-      {error && <div className="mb-3 text-[12.5px] text-danger">{error}</div>}
+      {error && <div className="mb-3 text-[0.8929rem] text-danger">{error}</div>}
       <div className="flex justify-end gap-2">
         <Button variant="ghost" onClick={onClose}>
           取消
@@ -532,12 +532,12 @@ function TagRuleField({
       )}
       {suggestions.length > 0 && (
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
-          <span className="text-[11px] text-outline">联想：</span>
+          <span className="text-[0.7857rem] text-outline">联想：</span>
           {suggestions.slice(0, 8).map((t) => (
             <button
               key={t}
               onClick={() => onPick(t)}
-              className="rounded-full border border-outline-variant px-2 py-0.5 text-[11.5px] text-on-surface-variant transition-colors hover:border-primary hover:text-primary"
+              className="rounded-full border border-outline-variant px-2 py-0.5 text-[0.8214rem] text-on-surface-variant transition-colors hover:border-primary hover:text-primary"
             >
               #{t}
             </button>

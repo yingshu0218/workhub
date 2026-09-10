@@ -100,7 +100,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-screen overflow-hidden">
       {/* 侧边栏 */}
-      <aside className="flex w-[232px] shrink-0 flex-col border-r border-outline-variant/40 bg-surface-container-lowest">
+      <aside className="app-sidebar flex w-[232px] shrink-0 flex-col border-r border-outline-variant/40 bg-surface-container-lowest">
         <div className="flex items-center gap-2.5 px-5 py-5">
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-on-primary">
             <Icon name="flight_takeoff" fill />
@@ -130,7 +130,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 end={isFirst}
                 className={({ isActive }) =>
                   [
-                    'flex items-center gap-3 rounded-lg px-3 py-2 text-[0.9643rem] transition-all',
+                    'app-nav-link flex items-center gap-3 rounded-lg px-3 py-2 text-[0.9643rem] transition-all',
+                    isActive ? 'is-active' : '',
                     featured === 'workbench'
                       ? isActive
                         ? 'bg-primary font-semibold text-on-primary ring-1 ring-primary shadow-[0_2px_8px_rgba(0,0,0,0.18)]'
@@ -162,10 +163,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <NavLink
             to="/settings"
             className={({ isActive }) =>
-              `mb-2 flex items-center gap-3 rounded-lg px-3 py-2 text-[0.9643rem] ${
-                isActive
-                  ? 'bg-primary-fixed font-semibold text-primary'
-                  : 'text-on-surface-variant hover:bg-surface-container'
+              `app-nav-link mb-2 flex items-center gap-3 rounded-lg px-3 py-2 text-[0.9643rem] ${
+                isActive ? 'is-active bg-primary-fixed font-semibold text-primary' : 'text-on-surface-variant hover:bg-surface-container'
               }`
             }
           >
@@ -176,8 +175,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           {/* 账号 / 工作区切换 */}
           <div className="relative" ref={wsRef}>
             <button
-              className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-surface-container ${
-                pathname === '/profile' ? 'bg-primary-fixed' : ''
+              className={`app-nav-link flex w-full items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-surface-container ${
+                pathname === '/profile' ? 'is-active bg-primary-fixed' : ''
               }`}
               onClick={() => setWsOpen((o) => !o)}
             >
@@ -247,7 +246,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       {/* 主区域 */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        <header className="flex h-14 shrink-0 items-center justify-between border-b border-outline-variant/40 bg-surface-container-lowest px-6">
+        <header className="app-header flex h-14 shrink-0 items-center justify-between border-b border-outline-variant/40 bg-surface-container-lowest px-6">
           <div className="text-[1rem] font-semibold text-on-surface-variant">{title}</div>
           <div className="flex items-center gap-3">
             <button
