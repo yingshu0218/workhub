@@ -374,7 +374,7 @@ function CustomerRow({
           </span>
         </div>
         <div className="mt-1 text-right text-[0.7857rem] text-outline">
-          {healthLevel.manual ? '手动设置' : '算法推断'}
+          {healthLevel.manual ? '手动设置' : '算法推断 · 未手动设置'}
         </div>
       </div>
       <div className="hidden w-28 shrink-0 text-right lg:block">
