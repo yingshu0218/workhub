@@ -56,7 +56,7 @@ const server = createServer((req, res) => {
   res.writeHead(426, { 'Content-Type': 'text/plain; charset=utf-8' })
   res.end('Upgrade Required: 请使用 WebSocket 连接（MCP over WS）')
 })
-server.on('upgrade', (req, socket) => relay.handleUpgrade(req, socket))
+server.on('upgrade', (req, socket, head) => relay.handleUpgrade(req, socket, head))
 
 server.once('error', (e) => {
   log(`[relay] 启动失败：${e?.message ?? e}`)

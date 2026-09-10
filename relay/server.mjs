@@ -15,7 +15,7 @@
  * 只转发「工具调用请求 / 结果」；token 鉴权、白名单、确认票据三道闸门原样保留。
  */
 import { acceptKey } from './ws-server.mjs'
-import { createMcpRouter, generateToken, MCP_PROTOCOL_VERSION, argsFingerprint } from './mcp-relay.mjs'
+import { createMcpRouter, generateToken, MCP_PROTOCOL_VERSION, argsFingerprint, safeEqual } from './mcp-relay.mjs'
 
 /** 预览记录 TTL：中风险「预览 → 确认 → 执行」的绑定窗口 */
 const PREVIEW_TTL_MS = 5 * 60 * 1000
@@ -198,8 +198,15 @@ export function createRelay({ token = generateToken(), autoIssueConfirm = false,
     }
   }
 
-  /** 协议升级：把 http server 的 upgrade 事件交进来即可 */
-  function handleUpgrade(req, socket) {
+  /**
+   * 协议升级：把 http server 的 upgrade 事件交进来即可。
+   *
+   * `head` 参数必须接住并拼进连接缓冲：Node 在 upgrade 事件触发后，客户端紧随握手
+   * 发出的首帧可能与 upgrade 事件**同批到达**，这些字节会经由 head 传出 —— 若丢弃，
+   * 客户端在握手后 0ms 立即发的第一帧（真实 Agent 的 initialize 常见此形态）会被静默吞掉，
+   * 表现为「initialize 永远无响应」。vite 插件 / serve.mjs 宿主已传 head，独立进程入口补齐。
+   */
+  function handleUpgrade(req, socket, head) {
     const url = new URL(req.url ?? '/', 'http://127.0.0.1')
     // 只接管本 relay 的挂载路径，其余路径放行给宿主（避免抢占宿主的其它 WS）
     if (url.pathname !== path && url.pathname !== `${path}/`) {
@@ -222,7 +229,7 @@ export function createRelay({ token = generateToken(), autoIssueConfirm = false,
         `Sec-WebSocket-Accept: ${acceptKey(key)}\r\n\r\n`,
     )
     socket.setNoDelay(true)
-    const conn = new WsConnection(socket)
+    const conn = new WsConnection(socket, head)
     connections.add(conn)
     conn.on('close', () => connections.delete(conn))
 
@@ -236,7 +243,9 @@ export function createRelay({ token = generateToken(), autoIssueConfirm = false,
     // 会把 browserConn 覆盖成 Agent 连接 —— 此后 relay 向「浏览器」下发的请求会打回 Agent 自己，
     // 而 Agent 只认 JSON-RPC 响应、不认 relay 内部协议，表现为「调用永久无响应」。
     if (role === 'browser') {
-      if (!router.token || provided !== token) {
+      // 与 Agent 端点（mcp-relay 的 initialize）统一用时间安全比较 safeEqual：
+      // 同一进程两套 token 口径是审计 P3-2 指出的不一致，时序侧信道防线不该因入口不同而打折。
+      if (!router.token || !safeEqual(provided ?? '', token)) {
         log('[relay] 浏览器 WS 连接 token 无效，已拒绝')
         conn.close()
         return

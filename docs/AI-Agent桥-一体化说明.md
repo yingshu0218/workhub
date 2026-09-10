@@ -73,6 +73,34 @@ PORT=9001 WORKHUB_RELAY_TOKEN="<≥16位随机串>" npm run serve
 3. **中风险确认票据**：记账等中风险操作先回预览，Agent 转述用户确认后经 `confirm_preview` 取一次性票（**票据绑定参数**，防「预览 A 执行 B」）。
 4. relay 不持有数据、不 import repositories，只转发「工具调用请求/结果」；数据始终在浏览器 IndexedDB。
 
+## 通用性验收（换任意 Agent 前先跑这个）
+
+`scripts/acceptance.mjs` 以「从未适配本项目的纯标准 MCP Agent」视角做协议级验收
+（§10.4 口径：零应用代码 import、只说标准 JSON-RPC/MCP、零第三方依赖）：
+
+```bash
+# 1. 启动站点 + relay（dev 或 serve 均可），并在浏览器里启用 AI 桥
+npm run serve        # PORT=9001 WORKHUB_RELAY_TOKEN=<token>
+
+# 2. 跑验收
+node scripts/acceptance.mjs --url ws://127.0.0.1:9001/relay --token <token>
+```
+
+覆盖条款：未鉴权/错 token 被拒 → 正确 token 握手 → tools/list schema 完整性与
+`confirm_preview` 在列 → 工具调用有响应 → 桥离线时返回**可操作错误**（而非空清单/挂起）。
+退出码 0 = 全部通过。桥离线时脚本会提示「先打开应用并启用 AI 桥」，
+此时条款 ③④（工具清单与调用探测）自动跳过，其余照常验收。
+
+## token 轮换注意（重要）
+
+token 有**两个持有方**：relay（启动时经环境变量/打印获得）与页面侧桥（设置页保存）。
+两者是**同一份值的两处副本**，不会自动同步：
+
+- **在设置页「重置 token」后，必须用新 token 重启 relay**（`npm run serve` / `npm run relay`
+  时更新 `WORKHUB_RELAY_TOKEN`），否则桥会静默重连失败，UI 只有 status error 提示；
+- 建议操作顺序：设置页重置并复制新 token → 重启 relay 携带新 token → 桥自动重连成功；
+- relay 侧不校验「旧 token 是否仍在用」——轮换后旧 token 立即失效（这正是目的）。
+
 ## 与「独立进程形态」的关系
 
 | 形态 | 命令 | 何时用 |

@@ -19,6 +19,7 @@
  */
 import { createServer } from 'node:http'
 import { createReadStream, existsSync, statSync } from 'node:fs'
+import { createHash } from 'node:crypto'
 import { join, extname, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createRelay } from '../relay/server.mjs'
@@ -63,6 +64,13 @@ const relay = createRelay({
   log: (m) => process.stderr.write(`${m}\n`),
 })
 
+/**
+ * Vite 构建产物的资源文件名自带内容 hash（assets/*.hash.js|css），内容变 → 名字变，
+ * 可安全长缓存；index.html 与 SPA 回退不带指纹，必须每次协商（ETag）。
+ */
+const IMMUTABLE_PATTERN = /\/assets\/[^/]+-[A-Za-z0-9_-]{8,}\.[a-zA-Z0-9]+$/
+const etagOf = (filePath) => `"${createHash('sha1').update(filePath).update(String(statSync(filePath).size)).digest('hex')}"`
+
 /** 静态文件：命中即返回，否则回退 index.html（SPA 路由） */
 function serveStatic(req, res) {
   let pathname
@@ -89,7 +97,22 @@ function serveStatic(req, res) {
     }
     filePath = join(dist, 'index.html')
   }
-  res.writeHead(200, { 'Content-Type': MIME[extname(filePath).toLowerCase()] || 'application/octet-stream' })
+  const headers = { 'Content-Type': MIME[extname(filePath).toLowerCase()] || 'application/octet-stream' }
+  const isImmutable = IMMUTABLE_PATTERN.test(pathname)
+  if (isImmutable) {
+    // 带内容指纹的资源：长缓存，改版靠换文件名生效
+    headers['Cache-Control'] = 'public, max-age=31536000, immutable'
+  } else {
+    // index.html / 其它：协商缓存，内容没变就 304，不重复回传
+    const etag = etagOf(filePath)
+    if (req.headers['if-none-match'] === etag) {
+      res.writeHead(304, { ETag: etag }).end()
+      return
+    }
+    headers['ETag'] = etag
+    headers['Cache-Control'] = 'no-cache'
+  }
+  res.writeHead(200, headers)
   createReadStream(filePath).pipe(res)
 }
 
