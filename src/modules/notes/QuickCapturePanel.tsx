@@ -9,7 +9,7 @@ const CONFIRM_MS = 2600
 
 /**
  * 侧栏快速便签（Issue #70 定稿）—— 底部「border-t p-3」区块顶部的轻量折叠便签：
- * 折叠时一行占位，点击展开单行输入；Enter 存、Esc/失焦收起；Shift+Enter 展开多行、
+ * 折叠时仅一行空白输入框（无提示文字），点击/聚焦即输入；Enter 存、Esc/失焦收起；Shift+Enter 展开多行、
  * mod+Enter 提交。每次保存 = saveQuickCapture 落一条正式 Note（tag「速记」+ 默认目录）。
  * 保存即走，不内联展示历史条目，仅短暂提示并提供「查看」跳转对应笔记。
  */
@@ -125,16 +125,14 @@ export default function QuickCapture() {
   if (!open) {
     return (
       <button
-        className="mb-2 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[0.9286rem] text-on-surface-variant hover:bg-surface-container"
+        className="flex w-full items-center justify-center rounded-lg py-2 hover:bg-surface-container"
         onClick={() => {
           setOpen(true)
           setMultiline(false)
         }}
-        title="快速便签：记一条笔记（Enter 保存）"
+        aria-label="快速便签"
       >
-        <Icon name="edit_note" className="text-[1.1429rem] text-primary" />
-        <span className="flex-1 truncate">灵感一闪，先记下来…</span>
-        <Icon name="add" className="text-[1.0714rem] text-outline" />
+        <Icon name="edit_note" className="text-[1.2857rem] text-primary" />
       </button>
     )
   }
@@ -145,7 +143,7 @@ export default function QuickCapture() {
       <textarea
         ref={areaRef}
         className={`${inputCls} min-h-12 resize-y`}
-        placeholder="灵感一闪，先记下来…（⌘/Ctrl+Enter 提交，Esc 收起）"
+        aria-label="快速便签"
         value={value}
         rows={2}
         onChange={(e) => setValue(e.target.value)}
@@ -159,7 +157,7 @@ export default function QuickCapture() {
       <input
         ref={inputRef}
         className={inputCls}
-        placeholder="灵感一闪，先记下来…（Enter 保存）"
+        aria-label="快速便签"
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={onKeyDownSingle}

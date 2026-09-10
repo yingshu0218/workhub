@@ -562,6 +562,13 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
     }
   }, [editing])
 
+  // 浮层打开时自动聚焦筛选输入框（键盘可直接输入模糊匹配词）
+  const mentionOpen = mention !== null
+  useEffect(() => {
+    if (!mentionOpen) return
+    mentionInputRef.current?.focus()
+  }, [mentionOpen])
+
   // 浮层打开时：点击外部 / Esc 关闭（面板内 mousedown 已阻止默认，不丢 CM 焦点）
   useEffect(() => {
     if (!mention) return
@@ -979,32 +986,44 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
           ref={panelRef}
           className="fixed z-50 w-80 overflow-hidden surface-card-xl border-outline-variant/60 shadow-[0_8px_28px_rgba(0,0,0,0.14)]"
           style={{ left: Math.min(mention.x, window.innerWidth - 340), top: mention.y }}
-          onMouseDown={(e) => e.preventDefault()}
         >
-          {/* 浮层顶部筛选输入框：@ 唤起后自动聚焦，模糊匹配词在此输入（Issue #50） */}
+          {/* 第一行：模糊匹配输入框（自动聚焦，筛选词在框内输入，不写进正文） */}
           <div className="border-b border-outline-variant/30 bg-surface-container-low/50 px-2.5 py-2">
             <input
               ref={mentionInputRef}
               value={mention.query}
               onChange={(e) => {
-                setMention({ ...mention, query: e.target.value })
+                setMention((prev) => (prev ? { ...prev, query: e.target.value } : prev))
                 setActiveIdx(0)
               }}
               onKeyDown={(e) => {
-                // 输入框内的键盘导航；IME 组合输入期间不触发选择
-                if (e.nativeEvent.isComposing) return
-                if (handleMentionNav(e.key)) e.preventDefault()
+                // IME 组合输入期间不拦截（避免打断中文/日文候选上屏）
+                if (e.nativeEvent.isComposing || e.keyCode === 229) return
+                const handled = handleMentionNav(e.key)
+                if (handled) {
+                  e.preventDefault()
+                  e.stopPropagation()
+                }
               }}
-              placeholder={`筛选${TYPE_META[mentionTab].tab}，支持模糊匹配`}
-              className="w-full rounded-md border border-outline-variant/60 bg-surface px-2.5 py-1.5 text-[0.9286rem] text-on-surface outline-none transition-colors placeholder:text-outline focus:border-primary"
+              placeholder="输入关键词模糊匹配…"
+              className="w-full rounded-md border border-outline-variant/60 bg-surface px-2.5 py-1.5 text-[0.9286rem] text-on-surface outline-none placeholder:text-outline focus:border-primary"
             />
           </div>
-          <div className="flex gap-1 border-b border-outline-variant/30 bg-surface-container-low/50 px-2 py-1.5">
+          {/* 第二行：四类实体横向 tab，交互逻辑一致（点选即插入 @提及）
+              onMouseDown preventDefault：不夺走输入框/编辑器焦点 */}
+          <div
+            className="flex items-center gap-1 border-b border-outline-variant/30 px-2 py-1.5"
+            onMouseDown={(e) => e.preventDefault()}
+          >
             {MENTIONS_TABS.map((t) => (
               <button
                 key={t}
-                onClick={() => setMentionTab(t)}
-                className={`flex-1 rounded-md px-2.5 py-1 text-[0.8571rem] transition-colors ${
+                onClick={() => {
+                  setMentionTab(t)
+                  setActiveIdx(0)
+                  mentionInputRef.current?.focus()
+                }}
+                className={`rounded-md px-2.5 py-1 text-[0.8571rem] transition-colors ${
                   mentionTab === t
                     ? 'bg-primary font-semibold text-on-primary'
                     : 'text-on-surface-variant hover:text-on-surface'
@@ -1015,36 +1034,37 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
             ))}
             <span className="ml-auto self-center pr-1 text-[0.7857rem] text-outline">Esc 关闭</span>
           </div>
-          <div className="max-h-60 overflow-y-auto p-1">
-              {sortedMentionItems.length === 0 ? (
-                <div className="px-3 py-4 text-center text-[0.8571rem] text-outline">无匹配项</div>
-              ) : (
-                sortedMentionItems.map((it, i) => (
-                  <button
-                    key={it.id}
-                    className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left transition-colors ${
-                      i === safeActiveIdx
-                        ? 'bg-primary-fixed text-primary'
-                        : 'hover:bg-surface-container-low'
-                    }`}
-                    onClick={() => selectMentionItem(it)}
-                    onMouseEnter={() => setActiveIdx(i)}
-                  >
-                    <span className={`md-mention ${TYPE_META[it.type].cls}`}>@</span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[0.9286rem] font-medium">
-                        <MentionHighlight label={it.label} query={mention?.query ?? ''} />
-                      </span>
-                      {it.sub && (
-                        <span className="block truncate text-[0.7857rem] text-outline">{it.sub}</span>
-                      )}
+          {/* 候选列表（onMouseDown preventDefault 保住输入框焦点，键盘仍可继续操作） */}
+          <div className="max-h-60 overflow-y-auto p-1" onMouseDown={(e) => e.preventDefault()}>
+            {sortedMentionItems.length === 0 ? (
+              <div className="px-3 py-4 text-center text-[0.8571rem] text-outline">无匹配项</div>
+            ) : (
+              sortedMentionItems.map((it, i) => (
+                <button
+                  key={it.id}
+                  className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left transition-colors ${
+                    i === safeActiveIdx
+                      ? 'bg-primary-fixed text-primary'
+                      : 'hover:bg-surface-container-low'
+                  }`}
+                  onClick={() => selectMentionItem(it)}
+                  onMouseEnter={() => setActiveIdx(i)}
+                >
+                  <span className={`md-mention ${TYPE_META[it.type].cls}`}>@</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[0.9286rem] font-medium">
+                      <MentionHighlight label={it.label} query={mention?.query ?? ''} />
                     </span>
-                    {i === safeActiveIdx && (
-                      <span className="shrink-0 text-[0.7143rem] text-primary">↵</span>
+                    {it.sub && (
+                      <span className="block truncate text-[0.7857rem] text-outline">{it.sub}</span>
                     )}
-                  </button>
-                ))
-              )}
+                  </span>
+                  {i === safeActiveIdx && (
+                    <span className="shrink-0 text-[0.7143rem] text-primary">↵</span>
+                  )}
+                </button>
+              ))
+            )}
           </div>
         </div>
       )}
