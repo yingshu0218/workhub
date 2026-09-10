@@ -104,3 +104,4 @@
 | 53 | 2026-09-10 | Issue #86 功能配置页收敛：路径统一取 `/module-config`（已随 #90/#91 合入主干，页面标题仍为「功能配置」），目录 `module-config/` → `moduleConfig/`；注册表由单层 `crm.intimacy` 升级为两级 `{ module, items }`（`/module-config/:moduleId/:itemId` 可书签直达），左栏模块→子菜单常显不随模块数退化；系统设置移除「数据管理」Tab 并留指路牌；⌘K 去重为单条「功能配置」入口 | npc/CodeBuddy(hy4-preview) |
 | 54 | 2026-09-10 | Issue #86 功能配置页收尾：配置片段 `Section`/`Toggle` 抽到 `moduleConfig/parts.tsx` 供后续模块配置面板复用（配置逻辑零改写，仅容器外迁） | npc/CodeBuddy(hy4-preview) |
 | 55 | 2026-09-10 | Issue #86 收尾：⌘K 快捷指令区不再为无绑定快捷键的指令渲染空 `kbd` 徽标（「功能配置」原先显示一个空边框方块），改为 `a.kbd` 非空才渲染，一处渲染层改动覆盖全部 quickActions | npc/CodeBuddy(hy4-preview) |
+| 56 | 2026-09-10 | 修复 scripts/check-icons.mjs 在中文路径下 ENOENT：改用 fileURLToPath 解码路径（new URL().pathname 会把中文转 %E5 形式导致构建前置校验失败） | cnb.cMPXRmKswEA |
