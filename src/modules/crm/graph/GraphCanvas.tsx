@@ -42,6 +42,8 @@ export interface GraphCanvasProps {
   fitAnchorId?: string
   /** 亲密度配置注入（Issue #34）：缺省内部读 moduleConfigs；customer-only 模式启用圈层与黑名单过滤 */
   intimacyCfg?: ModuleConfigIntimacy
+  /** 「我」节点（Issue #116）：锚点客户节点直显「我」字角标，用户一眼认出画布上的自己 */
+  selfNodeId?: string
 }
 
 export default function GraphCanvas({
@@ -53,6 +55,7 @@ export default function GraphCanvas({
   mode = 'mixed',
   onGraphReady,
   fitAnchorId,
+  selfNodeId,
   intimacyCfg: intimacyCfgProp,
 }: GraphCanvasProps) {
   const navigate = useNavigate()
@@ -540,6 +543,22 @@ export default function GraphCanvas({
                                 strokeDasharray="4 3"
                               />
                             )}
+                            {n.id === selfNodeId && (
+                              <g
+                                transform={`translate(${n.radius - 2},${-n.radius + 2})`}
+                                style={{ pointerEvents: 'none' }}
+                              >
+                                <circle r={8} fill={GRAPH_COLORS.customer.stroke} />
+                                <text
+                                  textAnchor="middle"
+                                  dy="3.5"
+                                  style={{ fontSize: 10, fontWeight: 700 }}
+                                  fill="#ffffff"
+                                >
+                                  我
+                                </text>
+                              </g>
+                            )}
                             <text
                               textAnchor="middle"
                               dy="4"
@@ -635,14 +654,14 @@ export default function GraphCanvas({
           </div>
         )}
 
-        {/* 亲密度图例（Issue #34，仅 customer-only + 亲密度启用）：圈层=等级，节点大小即远近 */}
+        {/* 健康分图例（原亲密度，Issue #108 改名，仅 customer-only 模式启用）：圈层=等级，节点大小即远近 */}
         {mode === 'customer-only' && intimacyCfg && (
           <div
             className="absolute right-3 top-3 z-10 flex max-w-[240px] flex-wrap items-center justify-end gap-x-2 gap-y-1"
             onPointerDown={(e) => e.stopPropagation()}
           >
             <span className="text-[0.7143rem] font-medium uppercase tracking-wide text-outline">
-              亲密度圈层
+              健康分圈层
             </span>
             {intimacyCfg.levels.map((l) => {
               const v = INTIMACY_VISUAL[l.key]

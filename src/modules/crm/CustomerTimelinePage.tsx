@@ -5,7 +5,6 @@ import type { Customer, Interaction } from '@/db/types'
 import { Button, Card, Chip, EmptyState, PageHeader } from '@/design-system/ui'
 import { Icon } from '@/design-system/Icon'
 import dayjs from 'dayjs'
-import { healthColor } from './shared'
 import {
   TIMELINE_FILTERS,
   filterTimeline,
@@ -25,7 +24,7 @@ import { IDENTITY_VIEW, usePanZoom } from './usePanZoom'
 /**
  * 客户时间线鱼骨视图（Issue #11 需求 2，对齐原型「鱼骨图」隐喻）
  *
- * 结构：鱼头（右）= 客户当前状态卡（tier 徽章 + HealthRing），
+ * 结构：鱼头（右）= 客户当前状态卡（tier 徽章 + 健康分档位），
  *       主轴 = 建档至今的水平时间轴，骨刺向上下分叉：
  *       上骨刺 = 收入流水 / 完成待办（正向），下骨刺 = 支出流水 / 逾期待办、新增待办、沟通（负向）
  * 数据源单源消费 useCustomerTimeline（与详情页共用同一投影，保证口径一致）。
@@ -87,7 +86,6 @@ export default function CustomerTimelinePage() {
     return () => ro.disconnect()
   }, [wheelRef])
 
-  const hc = healthColor(customer?.healthScore ?? 0)
 
   /** 世界布局：时间升序排到主轴（左 → 右），上下交替错开骨刺避免重叠（纯函数在 timelineLayout） */
   const layout = useMemo(() => {
@@ -364,9 +362,18 @@ export default function CustomerTimelinePage() {
                       {customer.tier === '潜在' ? '潜在' : `${customer.tier} 层`}
                     </text>
                   </g>
-                  {/* 健康指数环（与详情页 HealthRing 同构） */}
-                  <g transform={`translate(${HEAD_W - 74},${HEAD_H / 2 - 34})`}>
-                    <HealthRingSvg score={customer.healthScore} color={hc} r={22} />
+                  {/* 健康分档位（原健康指数环移除，Issue #108）：显示手动档位或「未设置」 */}
+                  <g transform={`translate(${HEAD_W - 66},${HEAD_H / 2 - 40})`}>
+                    <rect rx={9} width={56} height={18} fill={customer.intimacy?.level ? '#dbe1ff' : '#eceef4'} />
+                    <text
+                      x={28}
+                      y={13}
+                      textAnchor="middle"
+                      style={{ fontSize: 10, fontWeight: 700 }}
+                      fill={customer.intimacy?.level ? '#004ac6' : '#434655'}
+                    >
+                      {customer.intimacy?.level ?? '未设置'}
+                    </text>
                   </g>
                   <text x={20} y={HEAD_H - 26} style={{ fontSize: 9 }} fill="#434655">
                     {customer.company ? customer.company.slice(0, 12) : '独立顾问'}
@@ -393,7 +400,7 @@ export default function CustomerTimelinePage() {
                         ? 'green'
                         : 'red'
                       : hover.event.kind === 'todo'
-                        ? hover.event.event === 'done'
+                        ? hover.event.status === 'done'
                           ? 'green'
                           : 'amber'
                         : 'blue'
@@ -491,34 +498,3 @@ function fmtLastContact(ts: number): string {
   return dayjs(ts).format('YYYY-MM-DD')
 }
 
-/** 鱼头内的健康环（与详情页 HealthRing 同构，半径可调） */
-function HealthRingSvg({ score, color, r }: { score: number; color: string; r: number }) {
-  const size = r * 2 + 12
-  const c = size / 2
-  const circ = 2 * Math.PI * r
-  return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      <circle cx={c} cy={c} r={r} fill="none" stroke="#dce9ff" strokeWidth="6" />
-      <circle
-        cx={c}
-        cy={c}
-        r={r}
-        fill="none"
-        stroke={color}
-        strokeWidth="6"
-        strokeLinecap="round"
-        strokeDasharray={`${(score / 100) * circ} ${circ}`}
-        transform={`rotate(-90 ${c} ${c})`}
-      />
-      <text
-        x={c}
-        y={c + 4}
-        textAnchor="middle"
-        style={{ fontSize: 12, fontWeight: 700 }}
-        fill="#0b1c30"
-      >
-        {score}
-      </text>
-    </svg>
-  )
-}

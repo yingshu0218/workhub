@@ -59,7 +59,6 @@ export interface Customer extends SyncMeta {
   wechat: string
   email: string
   address: string
-  healthScore: number // 0-100
   lastContactAt: number
   createdAt: number
   /** 客户间语义关系（双向弱引用；编辑抽屉维护，删除级联双向解绑） */

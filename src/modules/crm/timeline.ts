@@ -31,10 +31,10 @@ export type TimelineEvent = { customerId?: string } & (
       kind: 'todo'
       id: string
       at: number
-      /** 源记录 id（todos 主键），供鱼骨穿透定位待办（同一待办的 created/done 事件点共享） */
+      /** 源记录 id（todos 主键），供鱼骨穿透定位待办 */
       recordId: string
-      /** 同一待办拆成 created / done 两个事件点（Issue #11 用户已确认接受） */
-      event: 'created' | 'done'
+      /** 同一待办只投影一条事件（Issue #108 推翻 Issue #11 拆分决议）：状态用 status 表达 */
+      status: 'open' | 'done'
       title: string
       priority: Todo['priority']
     }
@@ -47,7 +47,7 @@ const EMPTY: TimelineEvent[] = []
  * 某客户的统一时间轴（按时间倒序）
  * 并行索引查询三表（customerId 均建有索引），再按 at 倒序合成投影
  */
-/** 三源合并纯函数：interactions/transactions/todos 原始记录 → 统一时间轴事件（含 done 拆分） */
+/** 三源合并纯函数：interactions/transactions/todos 原始记录 → 统一时间轴事件（待办单事件，Issue #108） */
 export function mergeTimelineEvents(
   interactions: Interaction[],
   transactions: Transaction[],
@@ -73,26 +73,17 @@ export function mergeTimelineEvents(
     })),
   ]
   for (const t of todos) {
+    // 单事件投影（Issue #108）：锚点取「最新动态时刻」——已完成取 completedAt，进行中取 createdAt
+    const done = t.status === 'done' && !!t.completedAt
     out.push({
       kind: 'todo',
-      id: `${t.id}:created`,
-      at: t.createdAt,
+      id: t.id,
+      at: done ? t.completedAt! : t.createdAt,
       recordId: t.id,
-      event: 'created',
+      status: done ? 'done' : 'open',
       title: t.title,
       priority: t.priority,
     })
-    if (t.status === 'done' && t.completedAt) {
-      out.push({
-        kind: 'todo',
-        id: `${t.id}:done`,
-        at: t.completedAt,
-        recordId: t.id,
-        event: 'done',
-        title: t.title,
-        priority: t.priority,
-      })
-    }
   }
   return out
 }

@@ -36,7 +36,6 @@ export default function CustomerFormDrawer({
   const [wechat, setWechat] = useState('')
   const [email, setEmail] = useState('')
   const [address, setAddress] = useState('')
-  const [healthScore, setHealthScore] = useState(60)
   // 关联客户维护区（仅编辑模式）：只能从已有客户中选，杜绝自由造目标 id 产生画布悬挂边
   const [relations, setRelations] = useState<CustomerRelation[]>([])
   const [relTarget, setRelTarget] = useState('')
@@ -66,7 +65,6 @@ export default function CustomerFormDrawer({
       setWechat(customer?.wechat ?? '')
       setEmail(customer?.email ?? '')
       setAddress(customer?.address ?? '')
-      setHealthScore(customer?.healthScore ?? 60)
       setRelations(customer?.relations ?? [])
       setRelTarget('')
       setRelLabel('')
@@ -94,7 +92,6 @@ export default function CustomerFormDrawer({
       setError('请填写客户姓名')
       return
     }
-    const score = Math.max(0, Math.min(100, Math.round(healthScore) || 0))
     if (customer) {
       // 编辑：旧记录为基底，只覆盖表单字段（保留 createdAt / 关联等）
       await customerRepo.put({
@@ -109,7 +106,6 @@ export default function CustomerFormDrawer({
         wechat: wechat.trim(),
         email: email.trim(),
         address: address.trim(),
-        healthScore: score,
         // relations 走下方维护区显式覆盖（state 初始值来自旧记录，不做静默丢失）
         relations,
       })
@@ -126,7 +122,6 @@ export default function CustomerFormDrawer({
         wechat: wechat.trim(),
         email: email.trim(),
         address: address.trim(),
-        healthScore: score,
         lastContactAt: Date.now(),
         createdAt: Date.now(),
       }
@@ -256,29 +251,6 @@ export default function CustomerFormDrawer({
             onChange={(e) => setAddress(e.target.value)}
             placeholder="如：上海浦东·张江科创园"
           />
-        </Field>
-        <Field label={`健康指数：${Math.round(healthScore)} / 100`}>
-          <div className="flex items-center gap-3">
-            <input
-              type="range"
-              min={0}
-              max={100}
-              step={1}
-              className="h-1.5 flex-1 accent-primary"
-              value={healthScore}
-              onChange={(e) => setHealthScore(Number(e.target.value))}
-            />
-            <input
-              type="number"
-              min={0}
-              max={100}
-              className={`${inputCls} w-20`}
-              value={Math.round(healthScore)}
-              onChange={(e) =>
-                setHealthScore(Math.max(0, Math.min(100, Number(e.target.value) || 0)))
-              }
-            />
-          </div>
         </Field>
         {/* 关联客户维护区（仅编辑模式）：目标只能从已有客户选择，防止悬挂边 */}
         {customer && (

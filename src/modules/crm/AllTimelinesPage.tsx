@@ -361,7 +361,7 @@ export default function AllTimelinesPage() {
                         ? 'green'
                         : 'red'
                       : hover.event.kind === 'todo'
-                        ? hover.event.event === 'done'
+                        ? hover.event.status === 'done'
                           ? 'green'
                           : 'amber'
                         : 'blue'

@@ -46,7 +46,7 @@ import { moduleConfigRepo } from '@/repositories'
  * 系统设置（对齐原型 13~15/17/18/20 · 7 标签）
  * 所有改动经 settingsRepo.save 即时落库并广播 settings:changed，各消费端实时应用（无「保存更改」按钮）
  * 边界（Issue #86）：本页只管「应用长什么样 / 怎么跑」的本地偏好（settings singleton，不进同步）；
- * 业务模块的规则配置（亲密度权重等，写 moduleConfigs 同步表）已迁至 /module-config，本页仅留指路牌。
+ * 业务模块的规则配置（健康分权重等，写 moduleConfigs 同步表）已迁至 /module-config，本页仅留指路牌。
  */
 
 const TABS = [
@@ -409,16 +409,8 @@ export default function SettingsPage() {
       )
       downloadText(txnCsv, 'text/csv;charset=utf-8', `nexus-transactions-${stamp}.csv`)
       const custCsv = toCsv(
-        ['姓名', '公司', '分层', '电话', '微信', '邮箱', '健康指数'],
-        customers.map((c) => [
-          c.name,
-          c.company,
-          c.tier,
-          c.phone,
-          c.wechat,
-          c.email,
-          c.healthScore,
-        ]),
+        ['姓名', '公司', '分层', '电话', '微信', '邮箱', '健康分'],
+        customers.map((c) => [c.name, c.company, c.tier, c.phone, c.wechat, c.email, c.intimacy?.level ?? '']),
       )
       downloadText(custCsv, 'text/csv;charset=utf-8', `nexus-customers-${stamp}.csv`)
     } finally {
@@ -561,7 +553,7 @@ export default function SettingsPage() {
     <div className="mx-auto max-w-[1200px]">
       <PageHeader
         title="系统设置"
-        subtitle="界面风格、排版、快捷键、通知、同步与数据安全等应用级偏好 · 业务模块规则（亲密度权重等）见侧栏「功能配置」"
+        subtitle="界面风格、排版、快捷键、通知、同步与数据安全等应用级偏好 · 业务模块规则（健康分权重等）见侧栏「功能配置」"
       />
 
       {/* 功能配置入口（Issue #86）：业务规则配置已独立成页，这里只留指路牌，避免两类配置混用 */}
@@ -570,7 +562,7 @@ export default function SettingsPage() {
         <div className="flex-1">
           <div className="text-[0.9286rem] font-semibold">业务模块的规则配置已移到「功能配置」</div>
           <div className="mt-0.5 text-[0.8214rem] text-on-surface-variant">
-            亲密度权重、黑名单屏蔽等影响数据算出来结果的配置请到功能页设置；本页只管应用自身的界面与运行偏好
+            健康分权重、黑名单屏蔽等影响数据算出来结果的配置请到功能页设置；本页只管应用自身的界面与运行偏好
           </div>
         </div>
         <Button size="sm" variant="ghost" icon="tune" onClick={() => navigate('/module-config')}>

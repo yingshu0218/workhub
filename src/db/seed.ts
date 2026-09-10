@@ -49,7 +49,6 @@ export async function seedIfEmpty(): Promise<boolean> {
       wechat: 'yanwq_blue',
       email: 'yanwq@deepblue-tech.com',
       address: '厦门市软件园二期',
-      healthScore: 94,
       lastContactAt: now - 2 * 3600_000,
       createdAt: now - 90 * 86400_000,
       relations: [{ targetId: 'c2', label: '上下游' }],
@@ -67,7 +66,6 @@ export async function seedIfEmpty(): Promise<boolean> {
       wechat: 'xitang_lin',
       email: 'linxt@cloudcc.cn',
       address: '厦门市湖里区',
-      healthScore: 81,
       lastContactAt: now - 3 * 86400_000,
       createdAt: now - 45 * 86400_000,
       relations: [
@@ -88,7 +86,6 @@ export async function seedIfEmpty(): Promise<boolean> {
       wechat: 'qiheng_zhao',
       email: 'zhao@qiheng-consult.com',
       address: '福州市鼓楼区',
-      healthScore: 62,
       lastContactAt: now - 21 * 86400_000,
       createdAt: now - 120 * 86400_000,
       ...meta(),
