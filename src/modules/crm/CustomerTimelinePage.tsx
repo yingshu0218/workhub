@@ -122,6 +122,21 @@ export default function CustomerTimelinePage() {
     })
   }
 
+  // 首屏自动适应画布（Issue #130）：鱼骨沿时间轴等距铺开，时间跨度大时世界坐标远超视口，
+  // 固定 scale=1 只能看到主轴左端一小段（视觉表现为「点进去一片空白」）。
+  // 布局与容器尺寸就绪后自动 fit 一次，事件或尺寸变化时不打扰用户手动缩放状态。
+  const autoFitKeyRef = useRef('')
+  const customerId = customer?.id ?? ''
+  useEffect(() => {
+    if (!layout || size.w === 0 || size.h === 0) return
+    const key = `${customerId}:${layout.bones.length}:${size.w}x${size.h}`
+    if (autoFitKeyRef.current === key) return
+    autoFitKeyRef.current = key
+    fitView()
+    // fitView 依赖 layout/size（useEffect 已收敛这两个依赖），无需列入依赖数组
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [layout, size.w, size.h, customerId])
+
   if (!customer) {
     return (
       <div className="mx-auto max-w-[1200px]">

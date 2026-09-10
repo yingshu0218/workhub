@@ -2,6 +2,7 @@ import { db } from '@/db/db'
 import type { Settings } from '@/db/types'
 import { SETTINGS_KEY } from '@/db/types'
 import type { SyncAdapter } from './adapter'
+import { mergeRemoteRecord } from './mergeRemote'
 
 /**
  * PocketBase 同步适配器（Phase 7）—— 原生 fetch 实现，不引入 SDK 依赖
@@ -49,9 +50,6 @@ export const SYNC_TABLES = [
 export type SyncTable = (typeof SYNC_TABLES)[number]
 
 const SYNC_TABLE_SET: ReadonlySet<string> = new Set(SYNC_TABLES)
-
-/** 附件文件上限：与 collections.json attachments.file.maxSize 保持一致 */
-const ATTACHMENT_FILE_MAX_SIZE = 20 * 1024 * 1024
 
 interface PbRecord {
   id: string
@@ -392,22 +390,6 @@ async function pbListAll(
   return out
 }
 
-/** pull 附件：下载 pb file 字段还原本地 Blob（失败不阻塞该记录元数据落库） */
-async function downloadAttachmentFile(
-  cfg: SyncSettingsView,
-  rec: PbRecord,
-): Promise<Blob | undefined> {
-  const filename = rec.file
-  if (typeof filename !== 'string' || !filename) return undefined
-  const size = typeof rec.size === 'number' ? rec.size : 0
-  if (size > ATTACHMENT_FILE_MAX_SIZE) return undefined
-  // 安全：token 走 Authorization 头而非 URL query（避免进入历史/日志泄露凭据）
-  const url = `${baseUrl(cfg)}/api/files/attachments/${encodeURIComponent(rec.id)}/${encodeURIComponent(filename)}`
-  const res = await pbFetch(cfg, url.slice(baseUrl(cfg).length), { method: 'GET' })
-  if (!res.ok) return undefined
-  return res.blob()
-}
-
 // ─────────────────────────── 游标（每表独立，避免跨表同毫秒批量写入丢增量） ───────────────────────────
 
 function cursorKey(table: string): string {
@@ -435,66 +417,6 @@ function parseCursor(cursor: string): { receivedAt: string; lastId: string } {
   const idx = cursor.indexOf('#')
   if (idx < 0) return { receivedAt: '', lastId: '' } // 旧数值游标：重新按时间全量对账一次
   return { receivedAt: cursor.slice(0, idx), lastId: cursor.slice(idx + 1) }
-}
-
-// ─────────────────────────── LWW 合并（远端 → 本地，盖 rev 不入队） ───────────────────────────
-
-async function mergeRemote(
-  cfg: SyncSettingsView,
-  table: string,
-  remote: PbRecord,
-): Promise<'written' | 'skipped'> {
-  const table0 = bizTable(table)
-  // 由远端 localId 字段还原本地 id（服务端主键是哈希 pbId，不可直接当本地 id 用）
-  const localId = typeof remote.localId === 'string' && remote.localId ? remote.localId : ''
-  if (!localId) {
-    console.warn(`[sync] 跳过缺失 localId 的远端记录 ${table}/${remote.id}`)
-    return 'skipped'
-  }
-  const local = await table0.get(localId)
-  const remoteUpdatedAt = typeof remote.updatedAt === 'number' ? remote.updatedAt : 0
-  const localUpdatedAt = typeof local?.updatedAt === 'number' ? local.updatedAt : 0
-  // LWW：只认 updatedAt，新者胜；相等视为本端已推送的回环副本，跳过
-  if (remoteUpdatedAt <= localUpdatedAt) return 'skipped'
-
-  // 待办完成态本地优先（Issue #74）：服务端 collections 未含 completedAt 字段时，
-  // 本地「打勾完成」推送后被服务端静默丢弃该字段，随后远端记录以更新的 updatedAt 拉回，
-  // 整体覆盖会把 status 回滚成未完成（表现为「勾了又弹回去」）。
-  // 完成态以本地为准：本地已完成而远端非完成时，保留本地 status/completedAt，
-  // 仅合并远端其余字段（标题/描述等编辑仍能同步）。
-  const remoteDone = remote.status === 'done'
-  const localDone = local?.status === 'done'
-  const keepLocalDone = table === 'todos' && localDone && !remoteDone
-
-  // 剥离 pb 系统字段（collectionId/collectionName/created/updated/server_received_at）与映射字段 localId
-  const {
-    collectionId: _c,
-    collectionName: _n,
-    created: _cr,
-    updated: _u,
-    server_received_at: _s,
-    localId: _l,
-    ...mirrored
-  } = remote
-  const record: Record<string, unknown> = { ...mirrored }
-  record.id = localId
-  record.updatedAt = remoteUpdatedAt
-  record.deleted = remote.deleted ? 1 : 0
-  record.rev = Math.max(
-    typeof local?.rev === 'number' ? local.rev : 0,
-    typeof remote.rev === 'number' ? remote.rev : 0,
-  )
-  if (keepLocalDone) {
-    record.status = local!.status
-    record.completedAt = local!.completedAt
-  }
-
-  if (table === 'attachments') {
-    const blob = await downloadAttachmentFile(cfg, remote)
-    if (blob) record.blob = blob
-  }
-  await table0.put(record)
-  return 'written'
 }
 
 // ─────────────────────────── SyncAdapter 实装 ───────────────────────────
@@ -560,7 +482,7 @@ async function pullImpl(cursor: number): Promise<{ cursor: number; changes: unkn
         maxRemoteId = rid
       }
       try {
-        changes.push(await mergeRemote(cfg, table, remote))
+        changes.push(await mergeRemoteRecord(table, remote))
       } catch (err) {
         // 单条失败不阻塞整表增量（队列断点续传同款纪律）
         console.warn(`[sync] 合并失败 ${table}/${remote.id}`, err)
