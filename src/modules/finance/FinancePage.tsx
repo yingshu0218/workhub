@@ -15,6 +15,7 @@ import {
   inputCls,
 } from '@/design-system/ui'
 import dayjs from 'dayjs'
+import { todoStatusLabel } from '@/modules/todo/domain'
 import LedgerFormDrawer from './LedgerFormDrawer'
 import TransactionFormDrawer from './TransactionFormDrawer'
 import {
@@ -828,7 +829,7 @@ function TransactionDetailDrawer({
                       <div className="min-w-0">
                         <div className="truncate text-[0.9286rem] font-medium">{todo.title}</div>
                         <div className="truncate text-[0.8571rem] text-on-surface-variant">
-                          {todo.priority} · {todo.status === 'done' ? '已完成' : '进行中'}
+                          {todo.priority} · {todoStatusLabel(todo)}
                         </div>
                       </div>
                     </div>

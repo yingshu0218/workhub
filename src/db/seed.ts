@@ -188,7 +188,7 @@ export async function seedIfEmpty(): Promise<boolean> {
       desc: '重点核对交付边界条款与验收标准，17:30 前发出',
       priority: 'P1',
       dueAt: dayjs().hour(17).minute(30).valueOf(),
-      status: 'doing',
+      status: 'todo',
       customerId: 'c1',
       projectId: 'p1',
       createdAt: now - 86400_000,

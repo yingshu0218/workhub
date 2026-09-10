@@ -8,6 +8,7 @@ import type { Customer, Ledger, Todo, Project } from '@/db/types'
 import { Button, Card, Chip, ConfirmDialog, EmptyState } from '@/design-system/ui'
 import { archivedLast, fuzzyMatch, fuzzySort, MatchCombobox } from '@/design-system/MatchCombobox'
 import dayjs from 'dayjs'
+import { todoStatusLabel } from '@/modules/todo/domain'
 import { EditorState } from '@codemirror/state'
 import { EditorView, keymap, lineNumbers, placeholder } from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
@@ -418,7 +419,7 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
         type: 'todo',
         id: t.id,
         label: t.title,
-        sub: `${t.priority} · ${t.status === 'done' ? '已完成' : '进行中'}`,
+        sub: `${t.priority} · ${todoStatusLabel(t)}`,
       })),
       ...ledgers.map<MentionItem>((l) => ({
         type: 'ledger',
@@ -1144,7 +1145,7 @@ function MentionEntitySummary({
       <>
         <CardRow
           label="状态"
-          value={t.status === 'done' ? '已完成' : t.status === 'doing' ? '进行中' : '待处理'}
+          value={todoStatusLabel(t)}
         />
         <CardRow label="优先级" value={t.priority} />
         <CardRow label="截止" value={t.dueAt ? dayjs(t.dueAt).format('YYYY-MM-DD') : '无'} />

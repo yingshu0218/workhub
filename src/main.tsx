@@ -5,6 +5,7 @@ import dayjs from 'dayjs'
 import AppRouter from './app/router'
 import './styles/index.css'
 import { seedIfEmpty } from './db/seed'
+import { backfillTodoCompletedAt } from './modules/todo/domain'
 import { syncEngine } from './sync/engine'
 import { installKeyboardListener } from './shared/shortcuts'
 import { installModuleEffects } from './shared/effects'
@@ -19,9 +20,15 @@ function Bootstrap() {
         if (!granted) console.warn('[storage] 持久化存储未获批，数据可能被浏览器回收')
       })
     }
-    void seedIfEmpty().then((seeded) => {
-      if (seeded) console.info('[seed] 演示数据写入完成')
-    })
+    void seedIfEmpty()
+      .then((seeded) => {
+        if (seeded) console.info('[seed] 演示数据写入完成')
+      })
+      // 存量兜底：done 无 completedAt 的待办补盖完成时间（幂等，Issue #74 口径统一）
+      .then(() => backfillTodoCompletedAt())
+      .then((n) => {
+        if (n) console.info(`[migrate] 补齐 ${n} 条待办的 completedAt`)
+      })
     syncEngine.start()
     installKeyboardListener()
     installModuleEffects()

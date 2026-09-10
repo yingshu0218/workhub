@@ -16,6 +16,7 @@ import {
   PageHeader,
 } from '@/design-system/ui'
 import dayjs from 'dayjs'
+import { isTodoOpen } from '@/modules/todo/domain'
 import CustomerFormDrawer from './CustomerFormDrawer'
 import { useCustomerTodos, useCustomerTransactions } from './hooks'
 import { fmtRelative, healthColor, tierChipTone } from './shared'
@@ -60,7 +61,7 @@ export default function CustomerDetailPage() {
   const timeline = useCustomerTimeline(id)
   const [timelineFilter, setTimelineFilter] = useState<TimelineFilter>('all')
   // 关联待办口径：计数与列表统一只统计未完成项
-  const openTodos = todos.filter((t) => t.status !== 'done')
+  const openTodos = todos.filter(isTodoOpen)
   const visibleTimeline = filterTimeline(timeline, timelineFilter)
   const counts = {
     interaction: timeline.filter((e) => e.kind === 'interaction').length,

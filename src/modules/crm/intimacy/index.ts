@@ -4,6 +4,7 @@ import type {
   ModuleConfigIntimacy,
   RelationCategory,
 } from '@/db/types'
+import { isTodoOpen } from '@/modules/todo/domain'
 import type { CanvasGraph } from '../hooks'
 
 /**
@@ -113,9 +114,9 @@ export function buildScoreInput(
     financeAmount: graph.transactions
       .filter((t) => t.customerId === customerId)
       .reduce((sum, t) => sum + t.amount, 0),
-    activeTodos: graph.todos.filter((t) => t.customerId === customerId && t.status !== 'done')
+    activeTodos: graph.todos.filter((t) => t.customerId === customerId && isTodoOpen(t))
       .length,
-    doneTodos: graph.todos.filter((t) => t.customerId === customerId && t.status === 'done')
+    doneTodos: graph.todos.filter((t) => t.customerId === customerId && !isTodoOpen(t))
       .length,
     projects: graph.projects.filter((p) => p.customerId === customerId).length,
     activeProjects: graph.projects.filter(

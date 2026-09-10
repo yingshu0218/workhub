@@ -5,6 +5,7 @@ import { useCollection } from '@/queries/hooks'
 import type { Todo, Transaction } from '@/db/types'
 import { Button, Card, Chip, EmptyState, PageHeader } from '@/design-system/ui'
 import dayjs from 'dayjs'
+import { isTodoOpen } from '@/modules/todo/domain'
 import ProjectFormDrawer from './ProjectFormDrawer'
 import { projectStatusMeta, useProjects } from './hooks'
 
@@ -44,7 +45,7 @@ export default function ProjectsPage() {
       map.set(p.id, {
         income: txns.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0),
         expense: txns.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amount, 0),
-        openTodos: todos.filter((t) => t.projectId === p.id && t.status !== 'done').length,
+        openTodos: todos.filter((t) => t.projectId === p.id && isTodoOpen(t)).length,
       })
     }
     return map
