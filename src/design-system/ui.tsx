@@ -43,6 +43,55 @@ export function Drawer({
   )
 }
 
+/** 居中弹窗（Issue #107）：桌面居中留边、窄屏全屏，皮肤穿透 surface-card-dialog */
+export function Modal({
+  open,
+  title,
+  onClose,
+  children,
+  size = 'lg',
+  elevated,
+}: {
+  open: boolean
+  title: string
+  onClose: () => void
+  children: ReactNode
+  /** md = max-w-2xl（短表单）| lg = max-w-4xl（客户/流水）| xl = max-w-5xl（预留） */
+  size?: 'md' | 'lg' | 'xl'
+  /** 弹窗内再开弹窗时传 true，抬到 ConfirmDialog 之下的更高层 */
+  elevated?: boolean
+}) {
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open, onClose])
+
+  if (!open) return null
+  const sizes = { md: 'sm:max-w-2xl', lg: 'sm:max-w-4xl', xl: 'sm:max-w-5xl' }[size]
+  return (
+    <div
+      className={`fixed inset-0 flex items-center justify-center p-0 sm:p-6 ${
+        elevated ? 'z-[55]' : 'z-50'
+      }`}
+    >
+      <div className="absolute inset-0 bg-black/25" onClick={onClose} />
+      <div
+        className={`relative flex h-full w-full flex-col overflow-hidden rounded-none surface-card-dialog sm:h-auto sm:max-h-[90vh] sm:rounded-2xl ${sizes}`}
+      >
+        <div className="flex h-14 shrink-0 items-center justify-between border-b border-outline-variant/40 px-5">
+          <h2 className="text-[1.0714rem] font-semibold">{title}</h2>
+          <button className="text-outline hover:text-on-surface" onClick={onClose}>
+            <Icon name="close" />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-5">{children}</div>
+      </div>
+    </div>
+  )
+}
+
 export function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="mb-4 block">
@@ -231,7 +280,7 @@ export function ConfirmDialog({
 
   if (!open) return null
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/25" onClick={onCancel} />
       <div className="relative w-full max-w-sm rounded-xl border border-outline-variant/40 bg-surface-container-lowest p-6 shadow-[0_8px_32px_rgba(0,0,0,0.16)]">
         <h3 className="text-[1.0714rem] font-semibold">{title}</h3>
@@ -296,7 +345,7 @@ export function PromptDialog({
   if (!open) return null
   const submit = () => onConfirm(value.trim())
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/25" onClick={onCancel} />
       <div className="relative w-full max-w-sm rounded-xl border border-outline-variant/40 bg-surface-container-lowest p-6 shadow-[0_8px_32px_rgba(0,0,0,0.16)]">
         <h3 className="text-[1.0714rem] font-semibold">{title}</h3>
