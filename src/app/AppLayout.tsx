@@ -153,10 +153,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           })}
         </nav>
 
-        <div className="border-t border-outline-variant/40 p-3">
-          {/* 侧栏快速便签（Issue #70）：底部区块顶部一行，Enter 存一条正式 Note */}
+        <div className="p-3">
+          {/* 侧栏快速便签（Issue #70）：设置分隔线上方，Enter 存一条正式 Note */}
           <QuickCapture />
+        </div>
 
+        <div className="border-t border-outline-variant/40 p-3">
           <NavLink
             to="/settings"
             className={({ isActive }) =>
