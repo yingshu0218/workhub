@@ -452,12 +452,18 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
    * 浮层键盘导航：↑↓ 移动高亮项、Enter 插入当前高亮候选、Esc 关闭。
    * 返回是否已处理：CodeMirror keymap 据此拦截按键（防止光标移动把浮层关掉）；
    * document 级监听兜底处理焦点不在编辑器时的按键（已 preventDefault 的事件跳过防二次触发）。
+   * 仅认领 ↑↓/Enter/Esc 四键，编辑类按键一律返回 false 不拦截。
    */
   function handleMentionNav(key: string): boolean {
     if (!mentionRef.current) return false
     if (key === 'Escape') {
       closeMention()
       return true
+    }
+    // 编辑类按键（Backspace/Delete/普通字符等）不拦截：返回 false 保留浏览器默认编辑行为，
+    // 否则搜索框文字删不掉（无匹配候选时 Backspace 曾被误吞，Issue #50 用户反馈）
+    if (key !== 'ArrowDown' && key !== 'ArrowUp' && key !== 'Enter' && key !== 'Escape') {
+      return false
     }
     const len = sortedMentionItems.length
     if (len === 0) return true
@@ -581,6 +587,8 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
     const onKey = (e: KeyboardEvent) => {
       // CodeMirror keymap 已处理（preventDefault）的事件不再重复响应；IME 组合输入期间不触发选择
       if (e.defaultPrevented || e.isComposing) return
+      // 搜索框自身的按键已由 input onKeyDown 处理，document 兜底不重复介入（防止对同一按键二次响应）
+      if (mentionInputRef.current && e.target === mentionInputRef.current) return
       handleMentionNavRef.current(e.key)
     }
     document.addEventListener('mousedown', onDown)
