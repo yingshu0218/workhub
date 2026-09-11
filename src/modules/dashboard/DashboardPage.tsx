@@ -23,7 +23,8 @@ export default function DashboardPage() {
   const openToday = todos.filter((t) => isDueToday(t, todayStr)).length
   // Issue #134 四轮：指标卡把「还剩 N 项」拆成「今日到期 / 已逾期」两个读数（与今日日程卡分组同源）。
   // 逾期是唯一需要立刻处理的缺口语义，混在总数里会被稀释；两张卡分组 / 指标卡拆数必须一致。
-  const overdueToday = todos.filter((t) => isTodoOverdue(t)).length
+  // 五轮：逾期改为按天口径（截止日早于今天），故传 todayStr 而非默认值。
+  const overdueToday = todos.filter((t) => isTodoOverdue(t, todayStr)).length
   const dueTodayOnly = openToday - overdueToday
   const income = transactions.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0)
 

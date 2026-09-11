@@ -7,10 +7,17 @@ import { MatchCombobox } from '@/design-system/MatchCombobox'
 import { useToast } from '@/design-system/Toast'
 import { checkinHabit, uncheckHabit, newId, quickNoteRepo } from '@/repositories'
 import { toggleTodoDone } from '@/modules/todo/toggle'
-import { isDueToday, isTodoOpen, isTodoDone, isTodoOverdue } from '@/modules/todo/domain'
+import {
+  isDueToday,
+  isTodoOpen,
+  isTodoDone,
+  isTodoOverdue,
+  isTodoDueToday,
+  overdueDays,
+} from '@/modules/todo/domain'
 import { useCallback, useRef, useState } from 'react'
 import type { Todo, Customer, Ledger, Habit, HabitLog, QuickNote, Note } from '@/db/types'
-import dayjs, { type Dayjs } from 'dayjs'
+import dayjs from 'dayjs'
 import { convertQuickNote } from '@/modules/notes/quickCapture'
 
 function fmt(sec: number) {
@@ -238,21 +245,22 @@ function CardExitLink({ label, onClick }: { label: string; onClick: () => void }
  * 两类条目在行动语义上并不等价：今日到期是「按计划推进」，逾期是「已经欠下的账」，
  * 混在一列里按时间排序时，逾期条目会被越堆越多的「今天还没到点」条目稀释掉——
  * 而恰恰是逾期条目最需要被看见。故按两个互斥分组渲染：
- *   - 逾期在前（`isTodoOverdue`：未完成 + 已过截止时刻），红色组头 + 逾期时长；
+ *   - 逾期在前（`isTodoOverdue`：未完成 + 截止日早于今天），红色组头 + 逾期天数；
  *   - 今日到期在后（`isTodoDueToday`：未完成 + 截止落在今天），蓝色组头 + 到点时刻。
  * 两者并集 = 原「今天」口径（`isDueToday`），总览计数不变，只是从「一列」变成「两段」。
+ *
+ * Issue #134 五轮：逾期改为**按天**口径（见 domain.isTodoOverdue）。
+ * 组头提示由「已逾期 X 天 Y 小时」收敛为「已逾期 N 天」——按天口径下小时数无意义。
  */
 export function TodayTodosCard() {
   const todos = useCollection<Todo>('todos')
   const todayStr = dayjs().format('YYYY-MM-DD')
-  // 统一参考时刻：同一次渲染内两个分组用同一 now，避免跨秒时同一条待办「两边都算/两边都不算」
-  const now = dayjs()
   // 「今天」口径（Issue #74）：今日截止 ∪ 逾期未完成；isDueToday 内部已含 isTodoOpen 判定
   const todayList = todos.filter((t) => isDueToday(t, todayStr))
-  // 逾期组（已过截止时刻）在前，今日到期组在后；组内按截止时间升序，越早到期越靠前
+  // 逾期组（截止日早于今天）在前，今日到期组在后；组内按截止时间升序，越早到期越靠前
   const byDueAsc = (a: Todo, b: Todo) => (a.dueAt ?? Infinity) - (b.dueAt ?? Infinity)
-  const overdue = todayList.filter((t) => isTodoOverdue(t, now)).sort(byDueAsc)
-  const dueToday = todayList.filter((t) => !isTodoOverdue(t, now)).sort(byDueAsc)
+  const overdue = todayList.filter((t) => isTodoOverdue(t, todayStr)).sort(byDueAsc)
+  const dueToday = todayList.filter((t) => isTodoDueToday(t, todayStr)).sort(byDueAsc)
   const total = todayList.length
   // 未完成总览（进入待办中心的计数）：与待办中心「全部待办」同一口径
   const openCount = todos.filter(isTodoOpen).length
@@ -266,15 +274,9 @@ export function TodayTodosCard() {
     await toggleTodoDone(t)
   }
 
-  /** 逾期时长：「已逾期 2 天 3 小时」——给出欠账的体量感，而非只有一个红点 */
-  function overdueFor(dueAt: number, ref: Dayjs): string {
-    const mins = Math.max(1, ref.diff(dayjs(dueAt), 'minute'))
-    const d = Math.floor(mins / 1440)
-    const h = Math.floor((mins % 1440) / 60)
-    const m = mins % 60
-    if (d > 0) return `已逾期 ${d} 天${h > 0 ? ` ${h} 小时` : ''}`
-    if (h > 0) return `已逾期 ${h} 小时${m > 0 ? ` ${m} 分钟` : ''}`
-    return `已逾期 ${m} 分钟`
+  /** 逾期天数：「已逾期 2 天」——按天口径，给出欠账的体量感，而非只有一个红点 */
+  function overdueFor(t: Todo): string {
+    return `已逾期 ${Math.max(1, overdueDays(t, todayStr))} 天`
   }
 
   function renderRow(t: Todo, group: 'overdue' | 'due') {
@@ -295,7 +297,7 @@ export function TodayTodosCard() {
           {t.dueAt && (
             <div className={`text-[0.7857rem] ${isOver ? 'text-danger' : 'text-outline'}`}>
               {isOver
-                ? `${dayjs(t.dueAt).format('M月D日 HH:mm')} · ${overdueFor(t.dueAt, now)}`
+                ? `${dayjs(t.dueAt).format('M月D日 HH:mm')} · ${overdueFor(t)}`
                 : `${dayjs(t.dueAt).format('HH:mm')} 到期`}
               {t.priority === 'P1' && (
                 <span className="ml-1.5 font-medium text-danger">P1 紧急</span>
