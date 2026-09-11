@@ -99,20 +99,113 @@ describe('③ 表单布局：左侧正文独占 / 右侧「事项设置」收纳
   })
 })
 
-describe('④ 优先级四档（Issue #148 后续）：高/中/低/无 + 象限示意', () => {
-  it('优先级是可输入下拉，展开候选为四档且各带象限示意', () => {
+describe('④ 标签行（Issue #148）：# 输入 + 回车创建，彩色小标签', () => {
+  it('左栏正文下方有标签输入框，占位提示 # 回车创建', () => {
     const { container } = render(<TodoFormDrawer open={true} todo={null} onClose={() => {}} />)
-    const priorityField = Array.from(container.querySelectorAll('label')).find((l) =>
-      (l.textContent ?? '').startsWith('优先级'),
+    const field = container.querySelector('input[placeholder="# 输入标签，回车创建"]')
+    expect(field).toBeTruthy()
+  })
+
+  it('输入 #客户 回车后固化成一枚可删标签（正文不被污染）', () => {
+    const { container } = render(<TodoFormDrawer open={true} todo={null} onClose={() => {}} />)
+    const input = container.querySelector<HTMLInputElement>(
+      'input[placeholder="# 输入标签，回车创建"]',
     )!
-    // 形态是下拉（已选回显条 / 未选时为可输入文本框），不再是四连按钮组
-    expect(priorityField.querySelectorAll('button').length).toBeGreaterThan(0)
-    fireEvent.click(priorityField.querySelector('button')!)
-    const text = document.body.textContent ?? ''
+    fireEvent.change(input, { target: { value: '#客户跟进' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(container.textContent).toContain('#客户跟进')
+    // 固化后输入框清空，可以继续加
+    expect(input.value).toBe('')
+  })
+
+  it('标签可点 × 删除', () => {
+    const { container } = render(<TodoFormDrawer open={true} todo={null} onClose={() => {}} />)
+    const input = container.querySelector<HTMLInputElement>(
+      'input[placeholder="# 输入标签，回车创建"]',
+    )!
+    fireEvent.change(input, { target: { value: '速办' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    const chip = Array.from(container.querySelectorAll('span')).find((el) =>
+      el.textContent?.includes('#速办'),
+    )!
+    fireEvent.click(chip.querySelector('button')!)
+    expect(chip.isConnected).toBe(false)
+  })
+
+  it('编辑态回填已有标签', () => {
+    const withTags = {
+      id: 'td-tags',
+      title: '带标签的待办',
+      desc: '',
+      priority: 'none',
+      status: 'todo' as const,
+      tags: ['客户', 'Q3'],
+      createdAt: Date.now(),
+      updatedAt: 0,
+      deleted: 0 as const,
+      rev: 0,
+    } as unknown as Todo
+    const { container } = render(<TodoFormDrawer open={true} todo={withTags} onClose={() => {}} />)
+    expect(container.textContent).toContain('#客户')
+    expect(container.textContent).toContain('#Q3')
+  })
+})
+
+describe('⑤ 优先级四档（Issue #148 后续）：高/中/低/无 + 象限示意', () => {
+  it('优先级是四张可点选卡片（不是下拉），四档齐全', () => {
+    const { container } = render(<TodoFormDrawer open={true} todo={null} onClose={() => {}} />)
+    const group = container.querySelector('[role="radiogroup"][aria-label="优先级"]')!
+    expect(group).toBeTruthy()
+    const radios = group.querySelectorAll('[role="radio"]')
+    expect(radios).toHaveLength(4)
+    const text = group.textContent ?? ''
     for (const label of ['高', '中', '低', '无']) expect(text).toContain(label)
-    for (const q of ['重要紧急', '重要不紧急', '不重要紧急', '不重要不紧急']) {
-      expect(text).toContain(q)
-    }
+  })
+
+  it('四档卡片各有独立颜色（红/橙/蓝/白）并可点击切换选中', () => {
+    const { container } = render(<TodoFormDrawer open={true} todo={null} onClose={() => {}} />)
+    const group = container.querySelector('[role="radiogroup"][aria-label="优先级"]')!
+    const radios = Array.from(group.querySelectorAll<HTMLButtonElement>('[role="radio"]'))
+    // 四张卡片的色板互不相同（红/橙/蓝/白 = 高/中/低/无）
+    const styles = radios.map((r) => r.className)
+    expect(new Set(styles).size).toBe(4)
+
+    // 点击「高」后 aria-checked 跟着切
+    fireEvent.click(radios[0])
+    expect(
+      group.querySelectorAll<HTMLElement>('[role="radio"]')[0].getAttribute('aria-checked'),
+    ).toBe('true')
+    expect(container.textContent).toContain('立刻做：救火与关键节点，别排期')
+  })
+
+  it('默认档为「无」（白色卡片，默认选中）', () => {
+    const { container } = render(<TodoFormDrawer open={true} todo={null} onClose={() => {}} />)
+    const group = container.querySelector('[role="radiogroup"][aria-label="优先级"]')!
+    const radios = Array.from(group.querySelectorAll<HTMLElement>('[role="radio"]'))
+    // 第四张卡 = 无档；其它三档均未选中
+    expect(radios[3].getAttribute('aria-checked')).toBe('true')
+    expect(radios.slice(0, 3).every((r) => r.getAttribute('aria-checked') === 'false')).toBe(true)
+    expect(container.textContent).toContain('不重要不紧急')
+  })
+
+  it('存量 P1 数据回填为「高」档卡片选中，编辑保存即完成归一化', () => {
+    const legacy = {
+      id: 'td-legacy',
+      title: '老数据',
+      desc: '',
+      priority: 'P1',
+      status: 'todo' as const,
+      createdAt: Date.now(),
+      updatedAt: 0,
+      deleted: 0 as const,
+      rev: 0,
+    } as unknown as Todo
+    const { container } = render(<TodoFormDrawer open={true} todo={legacy} onClose={() => {}} />)
+    const group = container.querySelector('[role="radiogroup"][aria-label="优先级"]')!
+    const radios = Array.from(group.querySelectorAll<HTMLElement>('[role="radio"]'))
+    // 第一张卡（高 · 红）选中
+    expect(radios[0].getAttribute('aria-checked')).toBe('true')
+    expect(container.textContent).toContain('立刻做：救火与关键节点，别排期')
   })
 
   it('状态同样是可输入下拉（待处理/已完成/已作废）', () => {
@@ -132,26 +225,5 @@ describe('④ 优先级四档（Issue #148 后续）：高/中/低/无 + 象限�
     expect(text).not.toContain('P1')
     expect(text).not.toContain('P2')
     expect(text).not.toContain('P3')
-  })
-
-  it('存量 P1 数据回填为「高」档，编辑保存即完成归一化', () => {
-    const legacy = {
-      id: 'td-legacy',
-      title: '老数据',
-      desc: '',
-      priority: 'P1',
-      status: 'todo' as const,
-      createdAt: Date.now(),
-      updatedAt: 0,
-      deleted: 0 as const,
-      rev: 0,
-    } as unknown as Todo
-    const { container } = render(<TodoFormDrawer open={true} todo={legacy} onClose={() => {}} />)
-    // 可输入下拉的已选回显条显示「高」，且下方提示是「高」档的行动指引
-    const priorityField = Array.from(container.querySelectorAll('label')).find((l) =>
-      (l.textContent ?? '').startsWith('优先级'),
-    )
-    expect(priorityField?.textContent).toContain('高')
-    expect(container.textContent).toContain('立刻做：救火与关键节点，别排期')
   })
 })

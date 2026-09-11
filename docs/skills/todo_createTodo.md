@@ -13,11 +13,12 @@
 | `content` | string | 否 | — |  |
 | `title` | string | 否 | — |  |
 | `desc` | string | 否 | — |  |
-| `priority` | enum(high / mid / low / none / P1 / P2 / P3) | 否 | `"mid"` |  |
+| `priority` | enum(high / mid / low / none / P1 / P2 / P3) | 否 | `"none"` |  |
 | `dueAt` | number | 否 | — |  |
 | `customerId` | string | 否 | — |  |
 | `listId` | string | 否 | — |  |
 | `projectId` | string | 否 | — |  |
+| `tags` | array | 否 | — |  |
 
 ## 副作用
 
@@ -33,7 +34,7 @@
 
 ## 实体引用规则
 
-实体引用（客户/项目/待办/账本/习惯）必须先调 `resolveEntity` 消解；候选不唯一必须反问答用户，禁止猜 id。 customerId/projectId/listId 若提供必须为真实 id。dueAt 为毫秒时间戳。**正文优先用 content**（整体正文，标题 = 首行截 60 字、其余作备注）；title/desc 仍兼容但会被合并成同一正文，不要再当成两个独立字段使用。
+实体引用（客户/项目/待办/账本/习惯）必须先调 `resolveEntity` 消解；候选不唯一必须反问答用户，禁止猜 id。 customerId/projectId/listId 若提供必须为真实 id。dueAt 为毫秒时间戳。**正文优先用 content**（整体正文，标题 = 首行截 60 字、其余作备注）；title/desc 仍兼容但会被合并成同一正文，不要再当成两个独立字段使用。tags 为自由文本标签数组（与 UI 的 # 输入同款，去重保序、最多 12 个）。
 
 ## 典型说法
 
