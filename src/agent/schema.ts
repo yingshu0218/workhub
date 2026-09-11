@@ -214,6 +214,11 @@ export const createTodoSchema = z
     customerId: z.string().optional(),
     listId: z.string().optional(),
     projectId: z.string().optional(),
+    /**
+     * 标签（Issue #148）：自由文本小标签，与 UI 的 `#` 输入同款口径。
+     * 传整数组即**整体替换**（不追加），去重保序、自动去前导 `#`、单枚截断 24 字。
+     */
+    tags: z.array(z.string()).optional(),
   })
   .transform((v) => ({ ...v, ...resolveTodoSubject(v) }))
   // 非空校验看**原始正文**（不能看推导后的 title：空正文会被回退成「未命名待办」而误判为有内容）
@@ -281,6 +286,8 @@ export const updateTodoSchema = z
     customerId: z.string().nullable().optional(),
     projectId: z.string().nullable().optional(),
     listId: z.string().nullable().optional(),
+    /** 整组替换标签（传 `[]` 表示清空；不传表示不动） */
+    tags: z.array(z.string()).optional(),
   })
   .refine(
     (v) =>

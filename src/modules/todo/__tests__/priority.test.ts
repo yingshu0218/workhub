@@ -40,8 +40,8 @@ describe('① 四档档位与象限示意', () => {
     expect(todoPriorityWeight('low')).toBeGreaterThan(todoPriorityWeight('none'))
   })
 
-  it('缺省档位为「中」（对齐旧口径 P2）', () => {
-    expect(DEFAULT_TODO_PRIORITY).toBe('mid')
+  it('新建缺省档位为「无」（白色卡片，Issue #148 最新口径）', () => {
+    expect(DEFAULT_TODO_PRIORITY).toBe('none')
   })
 })
 

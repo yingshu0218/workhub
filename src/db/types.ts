@@ -145,6 +145,13 @@ export interface Todo extends SyncMeta {
   listId?: string
   /** 所属项目（可选弱引用：一次性的待办可不填；项目删除仅解绑） */
   projectId?: string
+  /**
+   * 标签（Issue #148）：自由文本小标签，表单用 `#` + 回车创建。
+   * 与 `notes.tags` / `customers.tags` 同款语义（`string[]`，去重、去首 `#`），
+   * 不是弱引用 —— 标签只是文本，不做实体级联解绑，随待办一起写入/删除。
+   * 远端 `tags` 是 json 字段，无需重导集合即可写入。
+   */
+  tags?: string[]
   completedAt?: number
   /** 作废时间（status='voided' 时成对写入，与 completedAt 同款纪律；恢复待办时显式清空） */
   voidedAt?: number

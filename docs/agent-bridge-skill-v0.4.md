@@ -245,8 +245,8 @@ skill 文件 + MCP tools schema（同一套 zod schema 生成，杜绝双份漂�
 |---|---|---|
 | `fin_recordTransaction` | `summary`、`amount`(>0，≤9,999,999,999，两位小数)、`ledgerId`(为空返回可操作错误「请先创建账本」，见 §9.3 D7) | `type`(默认 expense)、`occurredAt`(默认今天 00:00)、`status`(默认 **待对账**)、`channel`(**可缺省**，UI `save()` 未校验非空，见下注)、`tags`/`note`/`customerId`/`todoId`/`projectId` |
 | `crm_createCustomer` | `name` | `tier`(默认 **A**，与 `CustomerFormDrawer.tsx:33` 初值一致)、`decisionLevel`(默认 **决策人**，同 `:32`)、`tags`(走 `normalizeTags`)、`openingLog`/`linkTransactionId` |
-| `todo_createTodo` | `content`（推荐）——正文，标题由首行推导；也接受 `title`（兼容旧契约，与 `desc` 一起被合并成同一正文） | `priority`(默认 **中/重要不紧急**，四档口径，兼容旧 `P1/P2/P3` 别名)、`status`(默认 todo)、`dueAt`/`customerId`/`listId`/`projectId`。**`content` 与 `title` 至少给其一**，否则返回可操作错误「请填写待办内容」（对齐 UI「请先写下待办内容」） |
-| `todo_updateTodo` | `todoId`(须 resolveEntity 产出) | 正文口径与 `todo_createTodo` 同源：`content` = 整体替换正文（标题随之由首行重推）/ 只传 `title` = 只改标题 / 只传 `desc` = 只改备注；`dueAt`/`customerId`/`projectId`/`listId` 传 `null` 表示清空关联 |
+| `todo_createTodo` | `content`（推荐）——正文，标题由首行推导；也接受 `title`（兼容旧契约，与 `desc` 一起被合并成同一正文） | `priority`(默认 **无/不重要不紧急**，四档口径，兼容旧 `P1/P2/P3` 别名)、`status`(默认 todo)、`dueAt`/`customerId`/`listId`/`projectId`、`tags`(自由文本标签数组，去重保序、上限 12)。**`content` 与 `title` 至少给其一**，否则返回可操作错误「请填写待办内容」（对齐 UI「请先写下待办内容」） |
+| `todo_updateTodo` | `todoId`(须 resolveEntity 产出) | 正文口径与 `todo_createTodo` 同源：`content` = 整体替换正文（标题随之由首行重推）/ 只传 `title` = 只改标题 / 只传 `desc` = 只改备注；`dueAt`/`customerId`/`projectId`/`listId` 传 `null` 表示清空关联；`tags` 为**整组替换**（传 `[]` 清空，不传则不动） |
 | `todo_deleteTodo` | `todoId`(须 resolveEntity 产出) | 无——软删待办并在同事务内解绑流水 `transactions.todoIds` 的引用（条数经 `sideEffects.unlinked` 回传，需如实转述） |
 | `todo_completeTodo` | `todoId`(须 resolveEntity 产出) | 无——状态与 `completedAt` 由 `toggleTodoDone` 成对写入（§9.3 D6），**不接受**调用方传 status；**Issue #128 三态注**：`done:false` 只做「取消完成 → 回到待处理」，不产生 `voided` 态；作废/恢复目前仅 UI 入口（`voidTodo`/`restoreTodo`），工具层暂不暴露，避免 AI 一键终止事项 |
 | `crm_addInteraction` | `customerId`(须 resolveEntity 产出)、`content` | `type`(默认 电话)、`at`(默认 now)、`projectId` |

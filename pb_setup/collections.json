@@ -619,6 +619,12 @@
         "required": false
       },
       {
+        "name": "tags",
+        "type": "json",
+        "required": false,
+        "maxSize": 0
+      },
+      {
         "name": "sortOrder",
         "type": "number",
         "required": false
