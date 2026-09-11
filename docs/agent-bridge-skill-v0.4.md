@@ -518,8 +518,11 @@ P1 面上 AI 能建、不能改、更不能删——建错一条客户 / 待办�
 
 **I. 遗留（未做，理由写明）**
 
-- relay 启动方式仍是本地独立进程（`npm run relay` / `npm run relay:stdio`），
-  **未接 CNB 流水线**——涉及「谁来跑、跑在哪」，需用户拍板，不擅自决定；
+- ~~relay 启动方式仍是本地独立进程（`npm run relay` / `npm run relay:stdio`），**未接 CNB 流水线**~~
+  —— **已由「relay 内嵌整合」关闭**（见 §9.14）：relay 不再是需要单独安排「谁来跑、跑在哪」的进程，
+  它是一段可挂载逻辑，由站点宿主（`npm run dev` / `npm run serve`）同源托管；
+  CNB 流水线只需照常「跑测试 + 构建 + 起站点」，relay 随站点一起起来，无需额外步骤。
+  `npm run relay` / `relay:stdio` 作为独立进程形态**保留兼容**，但仅用于调试 relay 本身。
 - P3 项（Node 侧车形态、离线规则模板兜底、多步编排与跨会话）未动；
 - `--dev`（预览自动附票）保留为本地自动化便利，**真实用法走 `confirm_preview` 取票**，
   两者协议一致、不冲突。
@@ -669,3 +672,48 @@ P1 面上 AI 能建、不能改、更不能删——建错一条客户 / 待办�
 - **§9.9 待拍板 → 关闭**：协议定为标准 MCP，stdio + WS 双入口并存；删除「指定先行 Agent」条。
 - **§9.6 架构图不变**：relay 只转发、agentOps 五道关、repositories 纯写，完全沿用。
 - **P1 交付面不变**：本节无新增开源、无新增 P1 工期项；§9.7 推进顺序照旧。
+
+### 9.14 交付形态收口：relay 内嵌整合（关闭 §9.13 I 的流水线遗留）
+
+> 触发：用户明确「不要分头搞，把这些东西都整合到项目里」。此前同时存在三份互相冲突的 relay 交付形态
+> （#135 独立部署文档 / #137 Docker + 构建期 CSP / #139 内嵌整合），属重复劳动与口径分裂。
+
+**A. 形态变更（架构结论不变，只换载体）**
+
+| 维度 | 整合前 | 整合后 |
+|---|---|---|
+| relay 本体 | `relay/index.mjs` 自带 http server + `listen` | `relay/server.mjs` 导出 `createRelay()`，只暴露 `handleUpgrade`，**不自建 server** |
+| 宿主 | 独立进程 + 独立端口 8787 | Vite dev server（`npm run dev`）/ `scripts/serve.mjs`（`npm run serve`）同源挂载 `/relay` |
+| CSP | 构建期注入 `ws://127.0.0.1:8787` | 同源，被既有 `connect-src 'self'` 天然覆盖，**无需改 CSP** |
+| 部署 | Docker / Nginx / systemd 反代 + 证书 | 一条 `npm run serve`（上 TLS 即 `wss://`） |
+| 桥地址 | 必填 `ws://127.0.0.1:8787` | **留空即用当前站点 `/relay`**（`resolveBridgeBase` 推导，https 自动 `wss:`） |
+
+**B. 安全边界原样保留（零放宽）**
+
+token 鉴权 / 能力白名单按域过滤 / 中风险 `confirm_preview` 一次性票据（**票据绑定参数指纹**）/
+relay 零特权不 import repositories —— 五条一条未动，仅换宿主。
+
+**C. 流水线遗留关闭**
+
+relay 不再是「需要单独安排运行位置的进程」，因此 §9.13 I 里「未接 CNB 流水线、需用户拍板谁来跑」这条
+**自然消解**：流水线照常构建站点即可，relay 随站点宿主一起起来。独立进程形态保留供调试，
+`--public` + token ≥16 位闸门不变。
+
+**D. 实机验证（本地真跑，非单测口径）**
+
+- `npm run dev` → 控制台打印内嵌提示与接入 token；`ws://127.0.0.1:<vite端口>/relay` 完成标准 MCP
+  `initialize`（`serverInfo.name = workhub-agentops-relay`）；
+- 错误 token 的 `initialize` 被拒（`-32001`）；
+- `npm run serve`（`PORT=9101` + 固定 token）→ 站点 200、同源 `/relay` initialize 成功、错误 token 被拒；
+- **浏览器离线时 `tools/list` 返回 JSON-RPC 错误且站点持续 200**（P1 回归不复现）；
+  **变异验证**：把 `mcp-relay` 的 `tools/list` try/catch 与 WS 宿主的异常边界撤掉后，
+  Agent 一次 `tools/list` 即让**整个站点进程退出**（curl 从 200 变 ECONNREFUSED），恢复后全绿；
+- 合并最新 `main` 后：`lint` ✅ / `tsc -b` ✅ / `test` **246/246** ✅ / `build` ✅ /
+  `check:icons` ✅ / `gen-skills` 幂等 ✅。
+
+**E. 在途 PR 治理**
+
+- #139（本整合）→ 合并承载；
+- #135（独立部署文档）、#137（Docker + 构建期 CSP）→ **被本形态取代，建议关闭**（其技术判断无错，
+  但前提「relay 是独立进程」已不成立，合并会引入两套冲突的部署口径）；
+- #141（客户关系提交路径，Issue #130 第三根因）与本形态**零文件交集**，可独立合并。

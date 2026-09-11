@@ -5,17 +5,17 @@
 declare module '@relay/ws-server.mjs' {
   import type { EventEmitter } from 'node:events'
   export function acceptKey(key: string): string
-  export interface WsConnection extends EventEmitter {
-    send(text: string): void
-    ping(): void
-    close(): void
-    closed: boolean
-  }
   export interface WsServerHandle {
     server: import('node:http').Server
     connections: Set<WsConnection>
     port: number
     close(): Promise<void>
+  }
+  export class WsConnection extends EventEmitter {
+    send(text: string): void
+    ping(): void
+    close(): void
+    closed: boolean
   }
   export function createWsServer(opts: { port: number; host?: string }): Promise<WsServerHandle>
 }
@@ -60,4 +60,24 @@ declare module '@relay/mcp-relay.mjs' {
     /** dev 模式：预览响应自动附一次性 confirmToken（仅本地联调/自动化） */
     autoIssueConfirm?: boolean
   }): McpRouterHandle
+}
+
+declare module '@relay/server.mjs' {
+  export interface RelayHandle {
+    token: string
+    path: string
+    protocolVersion: string
+    /** 把宿主的 http server 'upgrade' 事件交进来即可（同源挂载） */
+    handleUpgrade(req: import('node:http').IncomingMessage, socket: import('node:stream').Duplex, head?: Buffer): void
+    attachStdio(input?: NodeJS.ReadStream, output?: NodeJS.WriteStream): void
+    close(): void
+    issueConfirm(meta: Record<string, unknown>): { confirmToken: string; expiresAt: number }
+    confirmStore: import('@relay/mcp-relay.mjs').ConfirmTokenStore
+  }
+  export function createRelay(opts?: {
+    token?: string
+    autoIssueConfirm?: boolean
+    path?: string
+    log?: (msg: string) => void
+  }): RelayHandle
 }

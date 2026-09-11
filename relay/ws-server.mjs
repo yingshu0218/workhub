@@ -20,11 +20,17 @@ export function acceptKey(key) {
 }
 
 /** 单条连接：把二进制流解成 message 事件，提供 send/close */
-class WsConnection extends EventEmitter {
-  constructor(socket) {
+export class WsConnection extends EventEmitter {
+  /**
+   * @param {import('node:net').Socket} socket
+   * @param {Buffer} [head] http server upgrade 事件附带的初始字节（客户端紧跟握手的帧）。
+   *   必须并入解帧缓冲，否则「握手后 0ms 发出的首帧」会被静默丢弃 —— 真实 Agent
+   *   连上就发 initialize 时表现为「无响应」（审计收尾轮实测复现）。
+   */
+  constructor(socket, head) {
     super()
     this.socket = socket
-    this.buffer = Buffer.alloc(0)
+    this.buffer = Buffer.isBuffer(head) && head.length > 0 ? Buffer.from(head) : Buffer.alloc(0)
     this.fragments = []
     this.fragmentOpcode = 0
     this.closed = false
