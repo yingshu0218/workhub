@@ -152,6 +152,8 @@ function projectTodo(t: Todo) {
     ...(t.dueAt ? { dueAt: t.dueAt } : {}),
     ...(t.customerId ? { customerId: t.customerId } : {}),
     ...(t.projectId ? { projectId: t.projectId } : {}),
+    /** 标签（Issue #148）：与 UI 同款口径，Agent 读回后可直接展示/筛选 */
+    ...(t.tags?.length ? { tags: t.tags } : {}),
   }
 }
 

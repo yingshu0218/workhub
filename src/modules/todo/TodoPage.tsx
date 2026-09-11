@@ -17,11 +17,13 @@ import {
   inputCls,
 } from '@/design-system/ui'
 import { MatchCombobox } from '@/design-system/MatchCombobox'
+import { chipTagStyle } from '@/design-system/ChipTagInput'
 import { toArchivedFlag } from '@/shared/search'
 import { deriveTodoTitle, toTodoText, splitTodoText } from './title'
 import {
   TODO_PRIORITY_LEVELS,
   TODO_PRIORITY_META,
+  TODO_PRIORITY_CARD_STYLE,
   DEFAULT_TODO_PRIORITY,
   normalizeTodoPriority,
   todoPriorityLabel,
@@ -30,6 +32,14 @@ import {
   matchesPriorityFilter,
   type TodoPriority,
 } from './priority'
+import {
+  TODO_TAG_MAX_COUNT,
+  TODO_TAG_MAX_LENGTH,
+  appendTodoTags,
+  normalizeTodoTags,
+  removeTodoTag,
+  settleTagsFromText,
+} from './tags'
 import dayjs from 'dayjs'
 import { useFocusStore } from '@/stores/focus'
 import { toggleTodoDone, voidTodo, restoreTodo } from './toggle'
@@ -826,7 +836,8 @@ export default function TodoPage() {
                         ? isTodoOverdue(saved, todayStr)
                         : isTodoOpen(saved) && !!savedDay && savedDay <= weekEndStr
           const chipOk =
-            !chipPriority || (isTodoOpen(saved) && matchesPriorityFilter(saved.priority, chipPriority))
+            !chipPriority ||
+            (isTodoOpen(saved) && matchesPriorityFilter(saved.priority, chipPriority))
           if (!visible || !chipOk) {
             setSelListId(null)
             setChipPriority(null)
@@ -887,9 +898,14 @@ export function TodoFormDrawer({
   const [customerId, setCustomerId] = useState('')
   const [listId, setListId] = useState('')
   const [projectId, setProjectId] = useState('')
+  // 标签（Issue #148）：`#` + 回车创建，或保存时从正文尾部的 `#词` 结算
+  const [tags, setTags] = useState<string[]>([])
+  const [tagDraft, setTagDraft] = useState('')
+  const [tagNotice, setTagNotice] = useState('')
   const listOptions = useTodoListOptions()
   const [error, setError] = useState('')
   const [seedKey, setSeedKey] = useState(0)
+  const tagInputRef = useRef<HTMLInputElement>(null)
   // 正文即标题来源，打开即聚焦正文（原先聚焦标题输入框）
   const descRef = useAutoFocus<HTMLTextAreaElement>(open)
 
@@ -900,26 +916,58 @@ export function TodoFormDrawer({
     setLastKey(openKey)
     // 编辑回填：标题与正文拼接，对齐「首行即标题」的拆分口径（拆不开时按标题拆分）
     setDesc(joinTodoText(todo))
-    // 回填归一化：存量 P1/P2/P3 数据在此转成四档，编辑保存后自然完成数据迁移
-    setPriority(normalizeTodoPriority(todo?.priority))
+    // 回填归一化：存量 P1/P2/P3 数据在此转成四档，编辑保存后自然完成数据迁移。
+    // 新建（todo 为 null）走**写侧缺省档**「无 · 白色卡片」，不走读侧脏数据兜底的「中」——
+    // 两者刻意不同源（见 priority.ts 注释）：一个是「用户没表态」，一个是「字段写坏了」。
+    setPriority(todo ? normalizeTodoPriority(todo.priority) : DEFAULT_TODO_PRIORITY)
     setStatus(todo?.status ?? 'todo')
     setDueAt(todo?.dueAt ? dayjs(todo.dueAt).format('YYYY-MM-DDTHH:mm') : '')
     setCustomerId(todo?.customerId ?? '')
     setListId(todo?.listId ?? '')
     setProjectId(todo?.projectId ?? '')
+    setTags(normalizeTodoTags(todo?.tags ?? []))
+    setTagDraft('')
+    setTagNotice('')
     setError('')
     setSeedKey((k) => k + 1)
   }
 
+  /** 追加标签（回车 / 逗号 / 失焦共用）；超上限给出提示而非静默丢弃 */
+  function commitTags(raw: string) {
+    const { tags: next, overflow } = appendTodoTags(tags, [raw])
+    setTags(next)
+    setTagDraft('')
+    setTagNotice(overflow > 0 ? `最多 ${TODO_TAG_MAX_COUNT} 个标签` : '')
+  }
+
+  function onTagKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter' || e.key === '，' || e.key === ',') {
+      e.preventDefault()
+      if (tagDraft.trim()) commitTags(tagDraft)
+      return
+    }
+    // 退格：输入框为空时删末枚（与笔记 / 客户标签同款手感）
+    if (e.key === 'Backspace' && !tagDraft && tags.length > 0) {
+      setTags(tags.slice(0, -1))
+    }
+  }
+
   async function save() {
+    // 标签结算（Issue #148）：把未按回车的草稿与正文尾部残留的 `#词` 一并收成标签，
+    // 避免「打了 # 没回车 → 标签变成备注文字」这种静默丢失。
+    const settledDraft = appendTodoTags(tags, [tagDraft])
+    const settledTail = settleTagsFromText(desc)
+    const { tags: finalTags } = appendTodoTags(settledDraft.tags, settledTail.tags)
+    const content = settledTail.text
+
     // 标题口径（Issue #148）：正文首行 trim 后作标题（截断 60 字，空正文回退「未命名待办」）。
     // 拆分走 `./title` 的 `splitTodoText` —— 与速记转待办、Agent 两条写入口共用同一实现，
     // 杜绝「同一动作多条命名规则」（本文件不再自行拼 title/desc）。
-    if (!desc.trim()) {
+    if (!content.trim()) {
       setError('请先写下待办内容')
       return
     }
-    const { title, desc: body } = splitTodoText(desc)
+    const { title, desc: body } = splitTodoText(content)
     // 以旧记录展开为基底，仅覆盖表单字段，保留 habitId/ledgerId/completedAt 等
     const base: Todo = {
       ...todo,
@@ -933,6 +981,7 @@ export function TodoFormDrawer({
       completedAt: status === 'done' ? (todo?.completedAt ?? Date.now()) : undefined,
       voidedAt: status === 'voided' ? (todo?.voidedAt ?? Date.now()) : undefined,
       dueAt: dueAt ? dayjs(dueAt).valueOf() : undefined,
+      tags: finalTags.length ? finalTags : undefined,
       customerId: customerId || undefined,
       listId: listId || undefined,
       projectId: projectId || undefined,
@@ -947,12 +996,7 @@ export function TodoFormDrawer({
   }
 
   return (
-    <Modal
-      open={open}
-      title={todo ? '编辑待办' : '新建待办'}
-      onClose={onClose}
-      size="lg"
-    >
+    <Modal open={open} title={todo ? '编辑待办' : '新建待办'} onClose={onClose} size="lg">
       <div key={seedKey}>
         {/* 左右分区（Issue #148 后续）：
             - 左栏只放正文，独占可用高度（「把更大的面积留给文本输入」）；
@@ -973,34 +1017,104 @@ export function TodoFormDrawer({
                 第一行将作为待办标题，其余内容作为备注
               </p>
             </Field>
+
+            {/* 标签行（Issue #148）：`#` 直接输入、回车成签，样式对齐笔记/客户的彩色小标签。
+                这里刻意**不用 MatchCombobox / 弹层** —— 它嵌在表单里，弹层会顶掉输入态。
+                正文下移后本行紧跟其后，视觉上属于「正文的延伸」而非右栏设置项。 */}
+            <div className="mt-1">
+              <div className="mb-1.5 text-[0.8571rem] font-medium text-on-surface-variant">
+                标签
+              </div>
+              <div
+                className="flex min-h-[38px] cursor-text flex-wrap items-center gap-1.5 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-1.5"
+                onClick={() => tagInputRef.current?.focus()}
+              >
+                {tags.map((t) => (
+                  <span
+                    key={t}
+                    className="flex items-center gap-0.5 rounded-full px-2.5 py-0.5 text-[0.8571rem] font-medium"
+                    style={chipTagStyle(t)}
+                  >
+                    #{t}
+                    <button
+                      type="button"
+                      className="ml-0.5 opacity-60 transition-opacity hover:opacity-100"
+                      title="移除标签"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setTags(removeTodoTag(tags, t))
+                      }}
+                    >
+                      <Icon name="close" size={13} />
+                    </button>
+                  </span>
+                ))}
+                <input
+                  ref={tagInputRef}
+                  className="min-w-[7rem] flex-1 bg-transparent text-[0.9286rem] outline-none"
+                  value={tagDraft}
+                  maxLength={TODO_TAG_MAX_LENGTH + 1}
+                  onChange={(e) => {
+                    setTagNotice('')
+                    setTagDraft(e.target.value)
+                  }}
+                  onKeyDown={onTagKeyDown}
+                  onBlur={() => tagDraft.trim() && commitTags(tagDraft)}
+                  placeholder={tags.length === 0 ? '# 输入标签，回车创建' : ''}
+                />
+              </div>
+              <p
+                className={`mt-1.5 text-[0.7857rem] ${tagNotice ? 'text-warning' : 'text-outline'}`}
+              >
+                {tagNotice || `输入 # 标签名后回车创建，最多 ${TODO_TAG_MAX_COUNT} 个`}
+              </p>
+            </div>
           </div>
 
           {/* 右栏：事项设置。窄屏与左栏同宽堆叠，桌面固定 280px 侧栏 */}
-          <section
-            aria-label="事项设置"
-            className="shrink-0 surface-card-low p-4 sm:w-[17.5rem]"
-          >
+          <section aria-label="事项设置" className="shrink-0 surface-card-low p-4 sm:w-[17.5rem]">
             <h3 className="mb-3 text-[0.9286rem] font-semibold text-on-surface-variant">
               事项设置
             </h3>
 
-            <Field label="优先级">
-              {/* 可输入模糊下拉（Issue #148：左侧位置全部改成文本框口径）：
-                  仍保留「档位 + 象限」双行示意，避免退化成看不懂的裸词 */}
-              <MatchCombobox
-                value={priority}
-                options={TODO_PRIORITY_LEVELS.map((p) => {
+            {/* 优先级（Issue #148 最新口径）：固定四档 → 直接点选的**彩色卡片**，
+                红 / 橙 / 蓝 / 白 分别对应 高 / 中 / 低 / 无，白色「无」是默认档。
+                不再用下拉：四张卡一屏铺开，点一下即选中，比下拉少一次交互。 */}
+            <div className="mb-4">
+              <div className="mb-1.5 text-[0.8571rem] font-medium text-on-surface-variant">
+                优先级
+              </div>
+              <div role="radiogroup" aria-label="优先级" className="grid grid-cols-4 gap-1.5">
+                {TODO_PRIORITY_LEVELS.map((p) => {
                   const meta = TODO_PRIORITY_META[p]
-                  return { id: p, label: meta.label, sub: meta.quadrant, icon: 'flag' }
+                  const style = TODO_PRIORITY_CARD_STYLE[p]
+                  const selected = priority === p
+                  return (
+                    <button
+                      key={p}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      title={`${meta.label} · ${meta.quadrant}｜${meta.hint}`}
+                      className={`flex flex-col items-center gap-1 rounded-lg border px-1 py-2 transition-all ${
+                        selected ? style.active : style.card
+                      }`}
+                      onClick={() => setPriority(p)}
+                    >
+                      <span className={`h-2.5 w-2.5 rounded-full ${style.swatch}`} />
+                      <span className="text-[0.9286rem] font-semibold leading-none">
+                        {meta.label}
+                      </span>
+                    </button>
+                  )
                 })}
-                placeholder="输入 高/中/低/无 模糊搜索"
-                emptyText="没有匹配的档位"
-                onChange={(id) => setPriority(normalizeTodoPriority(id))}
-              />
+              </div>
               <p className="mt-1.5 text-[0.7857rem] text-outline">
+                {TODO_PRIORITY_META[priority].label} · {TODO_PRIORITY_META[priority].quadrant}
+                {' — '}
                 {TODO_PRIORITY_META[priority].hint}
               </p>
-            </Field>
+            </div>
 
             {/* 三态（Issue #128）：待处理 / 已完成 / 已作废——编辑弹窗也能终止或恢复事项 */}
             <Field label="状态">
