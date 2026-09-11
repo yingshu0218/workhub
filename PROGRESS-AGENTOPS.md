@@ -377,3 +377,38 @@ P1 面上 AI 能建、不能改、更不能删——建错一条客户/待办只
 - 「保存不生效」若在**最新部署**上仍复现，剩下的可能面在服务器侧：
   `pb_setup/collections.json` 未重新导入（`customers.relations` 字段缺失）或前端仍是旧构建。
   这两项需要用户按部署指南操作，非代码可解。
+
+---
+
+# relay 交付形态收口：内嵌整合 + 在途 PR 归档（2026-09-11）
+
+> Issue: #33 · 方案: docs/agent-bridge-skill-v0.4.md §9.14
+> 分支: auto/relay-embedded-integration（沿用 PR #139，不新建）
+
+## 一句话
+
+把 relay 从「独立进程 / 独立端口 / 独立部署」收口为「站点宿主里的一段可挂载逻辑」，
+并关闭方案 §9.13 I 里「relay 未接流水线」这条遗留 —— relay 不再需要单独安排「谁来跑、跑在哪」。
+
+## 一、除内嵌本体外，本轮补齐的四件事
+
+| # | 事项 | 处置 |
+|---|---|---|
+| 1 | **合并基线** | 分支基点停在 `b94406c`，与 `main`（`68b8435`）冲突（`README.md` 变更流水双方各加一条）。已 `git merge origin/main` 解冲突：两条记录都保留，#76 客户关系芯片输入、#77 relay 内嵌，**不丢任何一方** |
+| 2 | **P1 修复复核** | `tools/list` 在浏览器离线时的异常边界（`f1b4118`）在合并后**实机复核 + 变异验证**：撤掉 try/catch → Agent 一次 `tools/list` 让整站进程退出（站点 200 → ECONNREFUSED）；恢复 → 站点持续 200 |
+| 3 | **方案文档遗留项** | §9.13 I 的「relay 未接 CNB 流水线，需用户拍板」**关闭**（形态变更后自然消解），新增 §9.14 记录形态变更 / 安全边界不变 / 实机验证 / 在途 PR 归档 |
+| 4 | **在途 PR 归档** | #135（独立部署文档）、#137（Docker + 构建期 CSP）前提「relay 是独立进程」已不成立 → 建议关闭，避免两套冲突部署口径；#141（Issue #130 第三根因）与本形态零文件交集，可独立合并 |
+
+## 二、实机验证（真跑，非单测口径）
+
+- `npm run dev`：控制台打印内嵌提示 + 接入 token；`ws://127.0.0.1:<vite端口>/relay` 标准 MCP
+  `initialize` 成功（`serverInfo.name = workhub-agentops-relay`）；错误 token 被拒（`-32001`）；
+- `npm run serve`（`PORT=9101` + 固定 token）：站点 200 / 同源 `/relay` 可用 / 错误 token 被拒；
+- 浏览器离线时 `tools/list` → JSON-RPC `-32001`「工具清单不可用：寻鸽工作台未连接 relay…」，**站点持续 200**；
+- 合并 main 后：`lint` ✅ / `tsc -b` ✅ / `test` **246/246** ✅ / `build` ✅ /
+  `check:icons` ✅（112 引用）/ `gen-skills` 幂等 ✅（27 工具）。
+
+## 三、安全边界（零放宽）
+
+token 鉴权 / 能力白名单按域过滤 / 中风险 `confirm_preview` 一次性票据（**绑定参数指纹**）/
+relay 零特权不 import repositories —— 五条一条未动，只换宿主。

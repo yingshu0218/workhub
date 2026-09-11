@@ -846,6 +846,14 @@
         "type": "text"
       },
       {
+        "name": "convertedAt",
+        "type": "number"
+      },
+      {
+        "name": "convertedVia",
+        "type": "text"
+      },
+      {
         "name": "createdAt",
         "type": "number"
       },

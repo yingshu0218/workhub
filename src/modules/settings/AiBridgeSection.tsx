@@ -56,7 +56,7 @@ export function AiBridgeSection({
     const token = ai.bridgeToken || (on ? genToken() : ai.bridgeToken)
     save({ ai: { ...ai, bridgeEnabled: on, bridgeToken: token } })
     if (on && token) {
-      agentBridge.connect({ url: ai.bridgeUrl || 'ws://127.0.0.1:8787', token })
+      agentBridge.connect({ url: ai.bridgeUrl ?? '', token })
     } else {
       agentBridge.disconnect()
     }
@@ -65,7 +65,8 @@ export function AiBridgeSection({
   const resetToken = () => {
     const token = genToken()
     save({ ai: { ...ai, bridgeToken: token } })
-    if (ai.bridgeEnabled) agentBridge.connect({ url: ai.bridgeUrl || 'ws://127.0.0.1:8787', token })
+    // 地址留空 → 桥自动用当前站点同源 /relay（内嵌形态）；显式填了地址仍按填的走。
+    if (ai.bridgeEnabled) agentBridge.connect({ url: ai.bridgeUrl ?? '', token })
   }
 
   const copyToken = async () => {
@@ -101,7 +102,8 @@ export function AiBridgeSection({
           <div className="flex-1">
             <h3 className="text-[1.0357rem] font-semibold">AI Agent 桥</h3>
             <p className="mt-0.5 text-[0.8214rem] text-on-surface-variant">
-              让外部 Agent（Claude Desktop / Cursor / CLI 等）经本地 relay 用标准 MCP 调用本应用的记账、CRM 等能力
+              让外部 Agent（Claude Desktop / Cursor / CLI 等）经 relay 用标准 MCP 调用本应用的记账、CRM 等能力。
+              relay 已内嵌在本项目（与站点同源），无需单独启动。
             </p>
           </div>
           <span className={`text-[0.8571rem] font-medium ${stateColor[status.state]}`}>{stateText[status.state]}</span>
@@ -111,7 +113,7 @@ export function AiBridgeSection({
           <div className="min-w-0">
             <div className="text-[0.9286rem] font-medium">启用 AI 桥</div>
             <div className="mt-0.5 text-[0.8214rem] text-on-surface-variant">
-              关闭时桥不启动，Agent 无法连接；开启后本页会主动连出本地 relay（不开放入站端口）
+              关闭时桥不启动，Agent 无法连接；开启后本页会主动连出 relay（不开放入站端口）
             </div>
           </div>
           <button
@@ -127,13 +129,17 @@ export function AiBridgeSection({
         {ai.bridgeEnabled && (
           <div className="mt-3 space-y-3">
             <div>
-              <div className="mb-1 text-[0.8214rem] font-medium text-on-surface-variant">relay 地址</div>
+              <div className="mb-1 text-[0.8214rem] font-medium text-on-surface-variant">relay 地址（留空即可）</div>
               <input
                 className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 font-mono text-[0.8571rem]"
-                value={ai.bridgeUrl ?? 'ws://127.0.0.1:8787'}
+                value={ai.bridgeUrl ?? ''}
                 onChange={(e) => save({ ai: { ...ai, bridgeUrl: e.target.value } })}
-                placeholder="ws://127.0.0.1:8787"
+                placeholder="留空 = 使用当前站点（同源 /relay）"
               />
+              <p className="mt-1 text-[0.7857rem] text-outline">
+                留空即用当前站点的 <code>/relay</code>（dev/生产都已内嵌，无需单独启动 relay）；
+                仅当你把 relay 跑在别处时才需要填，如 <code>ws://127.0.0.1:8787</code>。
+              </p>
             </div>
             <div>
               <div className="mb-1 text-[0.8214rem] font-medium text-on-surface-variant">
@@ -154,7 +160,8 @@ export function AiBridgeSection({
                 </Button>
               </div>
               <p className="mt-1 text-[0.7857rem] text-outline">
-                启动 relay 时把同一 token 传给 Agent（`node relay/index.mjs`，token 会打印在终端）
+                注入 token 由项目在启动时生成/指定（`npm run dev` 或 `npm run serve` 的控制台会打印；
+                也可用 <code>WORKHUB_RELAY_TOKEN</code> 固定），把同一 token 交给 Agent 即可。
               </p>
             </div>
             {status.error && <p className="text-[0.8214rem] text-error">{status.error}</p>}

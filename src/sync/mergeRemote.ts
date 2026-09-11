@@ -196,6 +196,15 @@ export async function mergeRemoteRecord(
     table === 'todos' &&
     ((localDone && !remoteDone) || (localVoided && !remoteVoided && !remoteDone))
 
+  // 速记处置态本地优先（Issue #134 三轮）：与上面的待办终态本地优先同款。
+  // 根因是**处置态是单边的**：本地「已处置」（有 convertedTo）、远端「未处置」（convertedTo 空）。
+  // 服务端 quickNotes 集合未收录 convertedAt / convertedVia，且旧版本连 convertedTo 都可能丢，
+  // 于是换设备 / 重装 / 队列清空后拉一次远端旧记录，处置态被整体抹掉——
+  // 已转入待办的速记重新回到「暂存区待处置」，再点一次「转入待办」就多出一条重复待办。
+  // 反向不保护：远端有 convertedTo 而本地没有时按 LWW 写入（可能是另一端的处置结果）。
+  const keepLocalConverted =
+    table === 'quickNotes' && !!local?.convertedTo && !remote.convertedTo
+
   // 剥离 pb 系统字段（collectionId/collectionName/created/updated/server_received_at）与映射字段 localId
   const {
     collectionId: _c,
@@ -220,6 +229,14 @@ export async function mergeRemoteRecord(
     record.status = local!.status
     record.completedAt = local!.completedAt
     record.voidedAt = local!.voidedAt
+  }
+
+  if (keepLocalConverted) {
+    // 处置态成对保留（去向 + 时间 + 通道）：单保 convertedTo 不保 convertedAt/convertedVia，
+    // 会让暂存区排序与「从哪个入口处置的」回溯同时失去依据（Issue #134 二轮刚补的来源留痕会白做）
+    record.convertedTo = local!.convertedTo
+    record.convertedAt = local!.convertedAt
+    record.convertedVia = local!.convertedVia
   }
 
   // 客户关系并集合并（Issue #130）：relations 是弱引用数组，

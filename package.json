@@ -14,7 +14,8 @@
     "test": "vitest run",
     "relay": "node relay/index.mjs",
     "relay:stdio": "node relay/index.mjs --stdio",
-    "gen:skills": "node scripts/gen-skills.mjs"
+    "gen:skills": "node scripts/gen-skills.mjs",
+    "serve": "node scripts/serve.mjs"
   },
   "dependencies": {
     "@codemirror/commands": "^6.11.0",

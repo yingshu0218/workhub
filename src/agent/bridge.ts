@@ -34,6 +34,25 @@ export interface BridgeConfig {
 
 type Listener = (s: BridgeStatus) => void
 
+/** relay 同源挂载路径（与 relay/server.mjs 默认 path、vite 插件、serve.mjs 对齐） */
+export const SAME_ORIGIN_RELAY_PATH = '/relay'
+
+/**
+ * 解析桥要连的 relay 基址。
+ *
+ * 整合形态（Issue #33「把 relay 整合进项目」）：relay 由前端同源托管（dev 由 Vite 插件、
+ * prod 由 scripts/serve.mjs），页面只需连**当前站点**的 `/relay`：
+ *   - 留空 → `ws(s)://<当前 host>/relay`（协议跟随页面：https 页面自动用 wss，规避混合内容）；
+ *   - 显式填地址 → 原样使用（兼容「relay 独立进程/独立端口」的既有用法，不破坏老配置）。
+ */
+export function resolveBridgeBase(url: string | undefined, loc: Location | undefined = typeof location !== 'undefined' ? location : undefined): string {
+  const raw = (url ?? '').trim()
+  if (raw) return raw
+  if (!loc) return `ws://127.0.0.1:8787`
+  const proto = loc.protocol === 'https:' ? 'wss:' : 'ws:'
+  return `${proto}//${loc.host}${SAME_ORIGIN_RELAY_PATH}`
+}
+
 /** 浏览器侧桥单例：只连接、只转发，不持有工具实现 */
 export class AgentBridge {
   private ws: WebSocket | null = null
@@ -57,27 +76,30 @@ export class AgentBridge {
     for (const fn of this.listeners) fn(this.getStatus())
   }
 
-  /** 启用并连接（url 形如 ws://127.0.0.1:8787） */
+  /** 启用并连接（url 形如 ws://127.0.0.1:8787，留空则用当前站点同源 /relay） */
   connect(cfg: BridgeConfig): void {
     this.disconnect()
     this.manualClose = false
-    const url = `${cfg.url.replace(/\/$/, '')}/?role=browser&token=${encodeURIComponent(cfg.token)}`
-    this.setStatus({ state: 'connecting', url: cfg.url })
+    // 整合形态（Issue #33）：relay 与站点同源，地址留空即自动推导为当前站点的 `/relay`。
+    // 这样用户**不需要记端口、不需要填地址**——打开页面、点启用即可。显式填了地址仍按填的走（兼容独立 relay）。
+    const base = resolveBridgeBase(cfg.url)
+    const url = `${base.replace(/\/$/, '')}/?role=browser&token=${encodeURIComponent(cfg.token)}`
+    this.setStatus({ state: 'connecting', url: base })
     let ws: WebSocket
     try {
       ws = new WebSocket(url)
     } catch (e) {
-      this.setStatus({ state: 'error', url: cfg.url, error: (e as Error).message })
+      this.setStatus({ state: 'error', url: base, error: (e as Error).message })
       return
     }
     this.ws = ws
-    ws.onopen = () => this.setStatus({ state: 'connected', url: cfg.url })
+    ws.onopen = () => this.setStatus({ state: 'connected', url: base })
     ws.onmessage = (ev) => void this.onMessage(String(ev.data))
-    ws.onerror = () => this.setStatus({ state: 'error', url: cfg.url, error: 'WebSocket 连接错误（请确认 relay 已启动、token 与地址正确）' })
+    ws.onerror = () => this.setStatus({ state: 'error', url: base, error: 'WebSocket 连接错误（请确认 relay 已启动、token 与地址正确）' })
     ws.onclose = () => {
       this.ws = null
       if (this.manualClose) return
-      this.setStatus({ state: 'connecting', url: cfg.url })
+      this.setStatus({ state: 'connecting', url: base })
       this.scheduleReconnect(cfg)
     }
   }
