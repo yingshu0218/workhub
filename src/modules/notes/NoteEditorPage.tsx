@@ -16,6 +16,7 @@ import { EditorView, keymap, lineNumbers, placeholder } from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
 import { markdown } from '@codemirror/lang-markdown'
 import { defaultHighlightStyle, syntaxHighlighting } from '@codemirror/language'
+import { registerShortcut } from '@/shared/shortcuts'
 import { useBacklinks, useNoteRecord } from './hooks'
 import { useIntimacyConfig, resolveIntimacyLevel } from '@/modules/crm/intimacy'
 import { useCustomerScoreRows } from '@/modules/crm/hooks'
@@ -72,6 +73,27 @@ interface MdAction {
   linePrefix?: boolean
   /** 按钮内容；缺省用 label 文本（B/I/H1 等原型同款文字符号） */
   render?: () => ReactNode
+}
+
+/** 编辑态右栏实时预览开关的本地偏好：只影响本机展示，不写库、不进同步 */
+export const PREVIEW_ON_KEY = 'nexus:notes.editor.preview'
+
+/** 读取预览开关偏好：默认开（与旧体验一致），隐私模式等异常场景退化为默认值 */
+export function readPreviewPref(): boolean {
+  try {
+    return localStorage.getItem(PREVIEW_ON_KEY) !== '0'
+  } catch {
+    return true
+  }
+}
+
+/** 写入预览开关偏好：仅本机 UI 态，失败（隐私模式）静默降级为仅内存生效 */
+export function writePreviewPref(on: boolean): void {
+  try {
+    localStorage.setItem(PREVIEW_ON_KEY, on ? '1' : '0')
+  } catch {
+    /* 隐私模式：仅内存态生效 */
+  }
 }
 
 const MD_ACTIONS: MdAction[] = [
@@ -207,6 +229,55 @@ export default function NoteEditorPage() {
   return <NoteEditor key={note.id} note={note} initialEditing={editing} />
 }
 
+/**
+ * 实时预览开关（Issue #158）
+ *
+ * 编辑态右栏头条里的「预览」开关：开=双栏实时渲染，关=右栏收起、左栏专注写作。
+ * compact 形态用于右栏收起后的窄轨（竖排），语义与外观一致：同一 role=switch。
+ */
+function PreviewSwitch({
+  on,
+  onToggle,
+  compact = false,
+}: {
+  on: boolean
+  onToggle: () => void
+  compact?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-label="实时预览"
+      title={`${on ? '关闭实时预览' : '开启实时预览'}（⌘/Ctrl+Shift+P）`}
+      onClick={onToggle}
+      className={`flex items-center rounded-md text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface ${
+        compact ? 'justify-center p-1' : 'gap-1.5 px-1.5 py-0.5'
+      }`}
+    >
+      {!compact && <span>预览</span>}
+      <span
+        className={`flex shrink-0 items-center rounded-full px-[1px] transition-colors ${
+          compact ? 'h-7 w-4 flex-col py-[1px]' : 'h-4 w-7'
+        } ${on ? 'bg-primary' : 'bg-surface-container-high'}`}
+      >
+        <span
+          className={`h-3 w-3 rounded-full bg-white shadow-sm transition-transform ${
+            compact
+              ? on
+                ? 'translate-y-3'
+                : 'translate-y-0'
+              : on
+                ? 'translate-x-3'
+                : 'translate-x-0'
+          }`}
+        />
+      </span>
+    </button>
+  )
+}
+
 function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: boolean }) {
   const navigate = useNavigate()
   const setSearchParams = useSearchParams()[1]
@@ -267,6 +338,8 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
   const [hoverCard, setHoverCard] = useState<HoverCardState>(null)
   // 删除确认弹窗（应用风格，替代 window.confirm）
   const [confirmDelete, setConfirmDelete] = useState<{ open: boolean; title: string } | null>(null)
+  // 右栏实时预览开关（Issue #158）：关=纯编辑单栏，开=双栏；从 localStorage 惰性初始化，默认开
+  const [previewOn, setPreviewOn] = useState(readPreviewPref)
 
   const noteRef = useRef(note)
   noteRef.current = note
@@ -285,6 +358,35 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   const handleMentionNavRef = useRef<(key: string) => boolean>(() => false)
   const dirtyRef = useRef(false)
+
+  // ===== 预览开关（Issue #158）：切换右栏显隐，并持久化到 localStorage =====
+  function togglePreview() {
+    setPreviewOn((prev) => {
+      const next = !prev
+      writePreviewPref(next)
+      return next
+    })
+  }
+
+  // 右栏收起/展开会改变编辑栏宽度，CodeMirror 需重算测量，否则出现行宽错位 / 光标偏移
+  useEffect(() => {
+    if (!editing) return
+    viewRef.current?.requestMeasure()
+  }, [editing, previewOn])
+
+  // 快捷键 ⌘/Ctrl+Shift+P 切换实时预览（仅编辑态生效；查看态本就只有整宽预览）
+  const togglePreviewRef = useRef<() => void>(() => {})
+  togglePreviewRef.current = () => {
+    if (editing) togglePreview()
+  }
+  useEffect(() => {
+    return registerShortcut({
+      combo: 'mod+shift+p',
+      description: '笔记编辑：切换实时预览',
+      scope: 'page',
+      handler: () => togglePreviewRef.current(),
+    })
+  }, [])
 
   // ===== 自动保存：停顿 800ms 防抖 noteRepo.put =====
   const scheduleSaveRef = useRef<() => void>(() => {})
@@ -554,11 +656,7 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
               })
               if (typed.endsWith('@')) {
                 const coords = view.coordsAtPos(pos)
-                openMention(
-                  pos - 1,
-                  coords?.left ?? 200,
-                  (coords?.bottom ?? 200) + 6,
-                )
+                openMention(pos - 1, coords?.left ?? 200, (coords?.bottom ?? 200) + 6)
                 return
               }
               // 浮层已开：删除 @ 或插入空白即关闭（正文不再承载筛选词）
@@ -822,31 +920,42 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
           </div>
         )}
 
-        {/* 预览：编辑态右栏实时渲染；查看态整宽（最终成品阅读） */}
-        <div
-          className={`flex min-w-0 flex-1 flex-col overflow-hidden ${editing ? 'border-l border-outline-variant/30' : ''}`}
-        >
-          <div className="flex items-center justify-between border-b border-outline-variant/30 bg-surface-container-low/40 px-4 py-1.5 text-[0.7857rem] font-medium tracking-wide text-outline">
-            <span>{editing ? 'LIVE PREVIEW' : 'PREVIEW'}</span>
-            {editing ? (
-              <span className="flex items-center gap-1 text-success">
-                <span className="h-1.5 w-1.5 rounded-full bg-success" />
-                实时渲染
-              </span>
-            ) : (
-              <span className="flex items-center gap-1 text-outline">
-                <Icon name="visibility" size={13} />
-                查看模式
-              </span>
-            )}
+        {!editing || previewOn ? (
+          /* 开：常规右栏（头条 + 实时渲染） */
+          <div
+            className={`flex min-w-0 flex-1 flex-col overflow-hidden ${editing ? 'border-l border-outline-variant/30' : ''}`}
+          >
+            <div className="flex items-center justify-between border-b border-outline-variant/30 bg-surface-container-low/40 px-4 py-1.5 text-[0.7857rem] font-medium tracking-wide text-outline">
+              <span>{editing ? 'LIVE PREVIEW' : 'PREVIEW'}</span>
+              {editing ? (
+                <PreviewSwitch on={previewOn} onToggle={togglePreview} />
+              ) : (
+                <span className="flex items-center gap-1 text-outline">
+                  <Icon name="visibility" size={13} />
+                  查看模式
+                </span>
+              )}
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+              <div
+                className="note-prose mx-auto max-w-[760px]"
+                dangerouslySetInnerHTML={{ __html: html }}
+              />
+            </div>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
-            <div
-              className="note-prose mx-auto max-w-[760px]"
-              dangerouslySetInnerHTML={{ __html: html }}
-            />
+        ) : (
+          /* 关（Issue #158）：右栏正文收起，仅留一条窄轨承载开关，左栏随之铺满、专注写作 */
+          <div className="flex w-11 shrink-0 flex-col items-center gap-2 border-l border-outline-variant/30 bg-surface-container-low/40 py-2 text-outline">
+            <Icon name="visibility" size={14} />
+            <PreviewSwitch on={previewOn} onToggle={togglePreview} compact />
+            <span
+              className="text-[0.7857rem] font-medium tracking-wide"
+              style={{ writingMode: 'vertical-rl' }}
+            >
+              实时预览
+            </span>
           </div>
-        </div>
+        )}
 
         {/* 详情侧栏：反向链接 + @提及实体 */}
         <div className="hidden w-60 shrink-0 flex-col overflow-y-auto border-l border-outline-variant/30 bg-surface-container-low/30 p-4 xl:flex">
@@ -1162,10 +1271,7 @@ function MentionEntitySummary({
     if (!t) return <EntityMissing name="待办" />
     return (
       <>
-        <CardRow
-          label="状态"
-          value={todoStatusLabel(t)}
-        />
+        <CardRow label="状态" value={todoStatusLabel(t)} />
         <CardRow label="优先级" value={todoPriorityFullLabel(t.priority)} />
         <CardRow label="截止" value={t.dueAt ? dayjs(t.dueAt).format('YYYY-MM-DD') : '无'} />
       </>
