@@ -256,6 +256,28 @@ function toPayload(rec: Record<string, unknown>): Record<string, unknown> {
   return rest
 }
 
+/**
+ * 剥离「仅本地使用、服务端集合未定义」的业务字段（Issue #134 三轮）。
+ *
+ * 背景：`toPayload` 是整记录直推，本地新增的业务字段会一并进入 JSON 载荷。
+ * 若目标 PocketBase 实例对**未知字段是严格拒绝**而非静默忽略，`POST/PATCH /records`
+ * 会直接 400 —— 该记录永远推不成功、只能卡在队列里靠「本地未推送编辑保护」勉强保住
+ * （换设备后即丢），且会反复触发失败重试。
+ *
+ * 现由 `pb_setup/collections.json` 同步定义 quickNotes.convertedAt / convertedVia，
+ * 服务端已具备这两个字段，推送正常。这里保留兜底过滤：老部署（未导入新 collections）
+ * 下也不会因未知字段被拒。字段一旦纳入 collections.json，即从此处移除。
+ */
+const LOCAL_ONLY_FIELDS: Record<string, readonly string[]> = {
+  // 暂无：quickNotes.convertedAt / convertedVia 已随 collections.json 同步升级
+}
+
+function stripLocalOnlyFields(table: string, payload: Record<string, unknown>): void {
+  const keys = LOCAL_ONLY_FIELDS[table]
+  if (!keys) return
+  for (const k of keys) delete payload[k]
+}
+
 /** 幂等 upsert：按 localId 查服务端判存，存在 PATCH、不存在 POST（PocketBase REST 无原生 upsert） */
 async function pbUpsert(
   cfg: SyncSettingsView,
@@ -292,6 +314,7 @@ async function pbUpsert(
 
   // 载荷 = 业务字段 + localId 映射字段（不带本地 id；仅 POST 时带派生的 pbRecordId）
   const payload = { ...toPayload(rec), localId }
+  stripLocalOnlyFields(table, payload)
 
   if (table === 'attachments' && rec.blob instanceof Blob) {
     // 附件：multipart 表单（file 字段）+ 其余元数据字段

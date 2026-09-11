@@ -3,7 +3,7 @@ import { Card, PageHeader, Button } from '@/design-system/ui'
 import type { Todo, Customer, Transaction } from '@/db/types'
 import { FocusCard, HabitLoopCard, QuickNoteCard, TodayTodosCard } from './cards'
 import dayjs from 'dayjs'
-import { isDueToday, isTodoDone } from '@/modules/todo/domain'
+import { isDueToday } from '@/modules/todo/domain'
 import { useUserName } from '@/modules/identity'
 
 /** Focus Synchronizer 仪表盘（Phase 1 实装版） */
@@ -17,11 +17,9 @@ export default function DashboardPage() {
   const todayStr = dayjs().format('YYYY-MM-DD')
   const hour = dayjs().hour()
   const greeting = hour < 6 ? '凌晨好' : hour < 12 ? '早上好' : hour < 18 ? '下午好' : '晚上好'
-  // 「今日已完成」口径（Issue #128）：只认已完成态；作废条目不算完成、也不计入分母
-  const doneToday = todos.filter(
-    (t) => isTodoDone(t) && t.completedAt && dayjs(t.completedAt).isSame(dayjs(), 'day'),
-  ).length
-  // 「今天」口径（Issue #74）：今日到期 ∪ 逾期未完成，与待办中心/今日日程卡一致
+  // 「还剩几项」口径（Issue #134 三轮）：今日到期 ∪ 逾期未完成 —— 与待办中心/今日日程卡同源。
+  // 首页已在数据源头移除了已完成项，「还剩 N 项」正是首页唯一能给出的行动读数：
+  // 打勾一条即减一，归零即收工。不再展示「完成率」（完成量已无条目承载，无从对照）。
   const openToday = todos.filter((t) => isDueToday(t, todayStr)).length
   const income = transactions.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0)
 
@@ -55,11 +53,18 @@ export default function DashboardPage() {
         </Card>
         <Card className="p-4">
           <div className="text-[0.8571rem] font-medium uppercase tracking-wide text-outline">
-            待办达成
+            今日待办
           </div>
           <div className="mt-1 text-[1.8571rem] font-bold">
-            {doneToday}
-            <span className="text-[0.9286rem] text-outline"> / {doneToday + openToday}</span>
+            {openToday <= 0 ? (
+              <span className="text-[1.0714rem] text-success">今日已清空</span>
+            ) : (
+              <>
+                <span className="text-[0.9286rem] font-normal text-outline">还剩 </span>
+                {openToday}
+                <span className="text-[0.9286rem] text-outline"> 项</span>
+              </>
+            )}
           </div>
         </Card>
         <Card className="p-4">
