@@ -18,6 +18,7 @@ import {
 } from '@/design-system/ui'
 import { MatchCombobox } from '@/design-system/MatchCombobox'
 import { toArchivedFlag } from '@/shared/search'
+import { quickCaptureTodoTitle } from '@/modules/notes/quickCapture'
 import dayjs from 'dayjs'
 import { useFocusStore } from '@/stores/focus'
 import { toggleTodoDone, voidTodo, restoreTodo } from './toggle'
@@ -829,6 +830,29 @@ export default function TodoPage() {
   )
 }
 
+/**
+ * 标题推导（Issue #148）：正文首行 → 标题。
+ * 口径复用 `quickCaptureTodoTitle`（首行 trim、截断 60 字、空文本回退「未命名待办」），
+ * 保证「新建待办」与「速记转待办」两条入口的命名规则完全一致。
+ */
+export function deriveTodoTitle(body: string): string {
+  return quickCaptureTodoTitle(body)
+}
+
+/**
+ * 编辑回填：把已落库的 title + desc 拼回单一正文，供编辑弹窗展示。
+ * 历史数据里 title 可能未出现在 desc 首行（Issue #148 之前标题是独立输入），
+ * 故仅当首行 != title 时才补上标题行，避免把标题重复写进正文。
+ */
+export function joinTodoText(todo: Pick<Todo, 'title' | 'desc'> | null): string {
+  if (!todo) return ''
+  const desc = (todo.desc ?? '').trim()
+  const title = (todo.title ?? '').trim()
+  if (!desc) return title
+  if (!title || deriveTodoTitle(desc) === title) return desc
+  return `${title}\n${desc}`
+}
+
 export function TodoFormDrawer({
   open,
   todo,
@@ -843,7 +867,7 @@ export function TodoFormDrawer({
 }) {
   const customers = useCollection<Customer>('customers')
   const projects = useCollection<Project>('projects')
-  const [title, setTitle] = useState('')
+  // 标题不再是独立输入（Issue #148）：全文入正文，标题恒由正文首行推导
   const [desc, setDesc] = useState('')
   const [priority, setPriority] = useState<Todo['priority']>('P2')
   // 状态两态（Issue #74）：仅待处理/已完成，完成时间与 status 成对写入
@@ -855,15 +879,16 @@ export function TodoFormDrawer({
   const listOptions = useTodoListOptions()
   const [error, setError] = useState('')
   const [seedKey, setSeedKey] = useState(0)
-  const titleRef = useAutoFocus<HTMLInputElement>(open)
+  // 正文即标题来源，打开即聚焦正文（原先聚焦标题输入框）
+  const descRef = useAutoFocus<HTMLTextAreaElement>(open)
 
   // 打开时重置
   const openKey = `${open}-${todo?.id ?? 'new'}`
   const [lastKey, setLastKey] = useState('')
   if (openKey !== lastKey) {
     setLastKey(openKey)
-    setTitle(todo?.title ?? '')
-    setDesc(todo?.desc ?? '')
+    // 编辑回填：标题与正文拼接，对齐「首行即标题」的拆分口径（拆不开时按标题拆分）
+    setDesc(joinTodoText(todo))
     setPriority(todo?.priority ?? 'P2')
     setStatus(todo?.status ?? 'todo')
     setDueAt(todo?.dueAt ? dayjs(todo.dueAt).format('YYYY-MM-DDTHH:mm') : '')
@@ -875,16 +900,20 @@ export function TodoFormDrawer({
   }
 
   async function save() {
-    if (!title.trim()) {
-      setError('标题不能为空')
+    // 标题口径（Issue #148）：正文首行 trim 后作标题（截断 60 字，空正文回退「未命名待办」），
+    // 与速记转待办 quickCaptureTodoTitle 同一口径，避免同一动作两条命名规则
+    const trimmed = desc.trim()
+    if (!trimmed) {
+      setError('请先写下待办内容')
       return
     }
+    const title = deriveTodoTitle(trimmed)
     // 以旧记录展开为基底，仅覆盖表单字段，保留 habitId/ledgerId/completedAt 等
     const base: Todo = {
       ...todo,
       id: todo?.id ?? newId('td'),
-      title: title.trim(),
-      desc: desc.trim(),
+      title,
+      desc: trimmed,
       priority,
       status,
       // 完成/作废时间与状态成对维护（Issue #128）：切到 done 补 completedAt、切到 voided 补 voidedAt，
@@ -908,21 +937,18 @@ export function TodoFormDrawer({
   return (
     <Modal open={open} title={todo ? '编辑待办' : '新建待办'} onClose={onClose} size="md">
       <div key={seedKey}>
-        <Field label="标题 *">
-          <input
-            ref={titleRef}
-            className={inputCls}
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="要做什么？"
-          />
-        </Field>
-        <Field label="描述">
+        {/* 单一大文本域（Issue #148）：标题取自首行，不再单独占一行输入 */}
+        <Field label="待办内容 *">
           <textarea
-            className={`${inputCls} h-20 resize-none`}
+            ref={descRef}
+            className={`${inputCls} h-44 resize-none`}
             value={desc}
             onChange={(e) => setDesc(e.target.value)}
+            placeholder={'第一行作为标题，其余行作为备注\n例如：跟进深蓝续约\n本周五前给出报价'}
           />
+          <p className="mt-1.5 text-[0.7857rem] text-outline">
+            第一行将作为待办标题，其余内容作为备注
+          </p>
         </Field>
         <Field label="优先级">
           <div className="flex gap-2">
@@ -970,51 +996,54 @@ export function TodoFormDrawer({
             </p>
           )}
         </Field>
-        <Field label="截止时间">
-          <input
-            type="datetime-local"
-            className={inputCls}
-            value={dueAt}
-            onChange={(e) => setDueAt(e.target.value)}
-          />
-        </Field>
-        <Field label="所属清单">
-          <MatchCombobox
-            value={listId}
-            options={listOptions.map((l) => ({ id: l.id, label: l.name, icon: 'folder' }))}
-            placeholder="输入清单名称模糊搜索"
-            emptyText="没有匹配的清单"
-            onChange={setListId}
-          />
-        </Field>
-        <Field label="所属项目">
-          <MatchCombobox
-            value={projectId}
-            options={projects.map((p) => ({
-              id: p.id,
-              label: p.name,
-              sub: p.status === 'archived' ? '已归档' : undefined,
-              ...toArchivedFlag(p),
-              icon: 'folder_open',
-            }))}
-            placeholder="输入项目名称模糊搜索"
-            emptyText="没有匹配的项目"
-            onChange={setProjectId}
-          />
-        </Field>
-        <Field label="关联客户">
-          <MatchCombobox
-            value={customerId}
-            options={customers.map((c) => ({
-              id: c.id,
-              label: c.company ? `${c.company} · ${c.name}` : c.name,
-              icon: 'person',
-            }))}
-            placeholder="输入公司或姓名模糊搜索，如：深蓝"
-            emptyText="没有匹配的客户"
-            onChange={setCustomerId}
-          />
-        </Field>
+        {/* 双栏区（Issue #148）：窄字段两两并排，压缩纵向高度，把面积留给上方文本域 */}
+        <div className="grid grid-cols-2 gap-x-4">
+          <Field label="截止时间">
+            <input
+              type="datetime-local"
+              className={inputCls}
+              value={dueAt}
+              onChange={(e) => setDueAt(e.target.value)}
+            />
+          </Field>
+          <Field label="所属清单">
+            <MatchCombobox
+              value={listId}
+              options={listOptions.map((l) => ({ id: l.id, label: l.name, icon: 'folder' }))}
+              placeholder="输入清单名称模糊搜索"
+              emptyText="没有匹配的清单"
+              onChange={setListId}
+            />
+          </Field>
+          <Field label="所属项目">
+            <MatchCombobox
+              value={projectId}
+              options={projects.map((p) => ({
+                id: p.id,
+                label: p.name,
+                sub: p.status === 'archived' ? '已归档' : undefined,
+                ...toArchivedFlag(p),
+                icon: 'folder_open',
+              }))}
+              placeholder="输入项目名称模糊搜索"
+              emptyText="没有匹配的项目"
+              onChange={setProjectId}
+            />
+          </Field>
+          <Field label="关联客户">
+            <MatchCombobox
+              value={customerId}
+              options={customers.map((c) => ({
+                id: c.id,
+                label: c.company ? `${c.company} · ${c.name}` : c.name,
+                icon: 'person',
+              }))}
+              placeholder="输入公司或姓名模糊搜索，如：深蓝"
+              emptyText="没有匹配的客户"
+              onChange={setCustomerId}
+            />
+          </Field>
+        </div>
         {error && <div className="mb-3 text-[0.8571rem] text-danger">{error}</div>}
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="tonal" onClick={onClose}>
