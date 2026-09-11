@@ -125,10 +125,14 @@ function projectTransaction(t: Transaction) {
     summary: t.summary,
     status: t.status,
     occurredAt: t.occurredAt,
-    // 多关联（Issue #140）：投影按数组下发；空数组不落键，保持"无关联即无字段"的既有形状
-    ...(txnCustomerIds(t).length > 0 ? { customerIds: txnCustomerIds(t) } : {}),
-    ...(txnProjectIds(t).length > 0 ? { projectIds: txnProjectIds(t) } : {}),
-    ...(txnTodoIds(t).length > 0 ? { todoIds: txnTodoIds(t) } : {}),
+    // 多关联（Issue #140）：投影按数组下发；空数组不落键，保持"无关联即无字段"的既有形状。
+    // 审计整改（读取侧向后兼容）：已分发的外部 Agent 契约是单值键（旧读回结果里有
+    // `.customerId` 等），只下数组是「输入侧宽松、输出侧收窄」的反向破口。这里补
+    // 过渡别名 = 数组首元素（只读投影，不落库、不违反「双写不双读」），待外部调用方
+    // 全部迁移到数组键后再移除（届时同步公告 breaking change）。
+    ...(txnCustomerIds(t).length > 0 ? { customerIds: txnCustomerIds(t), customerId: txnCustomerIds(t)[0] } : {}),
+    ...(txnProjectIds(t).length > 0 ? { projectIds: txnProjectIds(t), projectId: txnProjectIds(t)[0] } : {}),
+    ...(txnTodoIds(t).length > 0 ? { todoIds: txnTodoIds(t), todoId: txnTodoIds(t)[0] } : {}),
   }
 }
 

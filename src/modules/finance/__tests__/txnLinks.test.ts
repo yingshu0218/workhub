@@ -6,7 +6,7 @@
  * 2. 服务端集合未升级（无 customerIds 键）：pull 时不能把本地刚选的关联清空；
  * 3. 客户级联删除：数组里只移除该客户，其他关联保留（弱引用纪律，不删流水）。
  */
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import 'fake-indexeddb/auto'
 import { db } from '@/db/db'
 import {
@@ -19,6 +19,9 @@ import {
   txnTodoIds,
 } from '../links'
 import { deleteCustomerCascade } from '@/repositories'
+import { deleteProjectCascade } from '@/modules/projects/hooks'
+import { newId } from '@/repositories'
+import { syncEngine } from '@/sync/engine'
 import { mergeRemoteRecord } from '@/sync/mergeRemote'
 
 function txn(over: Record<string, unknown> = {}) {
@@ -150,5 +153,90 @@ describe('客户级联删除：数组关联只解绑该客户', () => {
     const row = await db.transactions.get('t1')
     expect(txnCustomerIds(row!)).toEqual([])
     expect(row).not.toHaveProperty('customerIds')
+  })
+})
+
+/* ---------------------- 项目级联删除：P0 回归（审计整改） ---------------------- */
+
+// 变异验证辅助：把修复还原成「where('projectId') 索引查询」的旧写法时，
+// 上面的冒烟用例会抛 SchemaError（KeyPath projectId … is not indexed）。
+
+function project(id: string) {
+  return {
+    id,
+    name: '项目A',
+    color: '#3b82f6',
+    status: 'active' as const,
+    createdAt: 0,
+    updatedAt: 0,
+    deleted: 0 as const,
+    rev: 0,
+  }
+}
+
+function todo(id: string, over: Record<string, unknown> = {}) {
+  return {
+    id,
+    title: '待办',
+    desc: '',
+    priority: 'P2' as const,
+    status: 'todo' as const,
+    createdAt: 0,
+    updatedAt: 0,
+    deleted: 0 as const,
+    rev: 0,
+    ...over,
+  }
+}
+
+describe('项目级联删除：transactions 数组关联同步解绑（v11 P0 回归）', () => {
+  it('useProjectTransactions / deleteProjectCascade 不再查询已删除的 projectId 索引（SchemaError 冒烟）', async () => {
+    // v11 删掉了 transactions 的 projectId/customerId 索引。若代码仍写
+    // `where('projectId')`，这里会抛 "KeyPath projectId on object store transactions
+    // is not indexed" —— 一条冒烟拦住两处（hook 查询 + 级联解绑）。
+    const pid = newId('prj')
+    await db.projects.put(project(pid) as never)
+    await db.transactions.put(txn({ id: 't1', projectIds: [pid] }) as never)
+    await deleteProjectCascade(pid)
+    const row = await db.transactions.get('t1')
+    expect(row!.deleted).toBe(0)
+    expect(txnProjectIds(row!)).toEqual([])
+    expect(row).not.toHaveProperty('projectId')
+  })
+
+  it('级联只移除被删项目，其余关联保留；其余项目关联的流水不受影响', async () => {
+    const pid = newId('prj')
+    await db.projects.put(project(pid) as never)
+    await db.transactions.put(txn({ id: 't1', projectIds: [pid, 'p2'] }) as never)
+    await db.transactions.put(txn({ id: 't2', projectIds: ['p2'] }) as never)
+    await deleteProjectCascade(pid)
+    const r1 = await db.transactions.get('t1')
+    const r2 = await db.transactions.get('t2')
+    expect(txnProjectIds(r1!)).toEqual(['p2'])
+    expect(txnProjectIds(r2!)).toEqual(['p2'])
+  })
+
+  it('单值弱引用表（todos/notes/interactions）仍按 projectId 置 undefined 解绑', async () => {
+    const pid = newId('prj')
+    await db.projects.put(project(pid) as never)
+    await db.todos.put(todo('td1', { projectId: pid }) as never)
+    await deleteProjectCascade(pid)
+    const row = await db.todos.get('td1')
+    expect(row!.projectId).toBeUndefined()
+    expect(row!.deleted).toBe(0)
+  })
+
+  it('解绑过的流水入同步队列（推送其他端）', async () => {
+    const pid = newId('prj')
+    const requestSync = vi.spyOn(syncEngine, 'requestSync').mockImplementation(() => {})
+    try {
+      await db.projects.put(project(pid) as never)
+      await db.transactions.put(txn({ id: 't1', projectIds: [pid] }) as never)
+      await deleteProjectCascade(pid)
+      const queued = await db.syncQueue.toArray()
+      expect(queued.some((q) => q.table === 'transactions' && q.recordId === 't1')).toBe(true)
+    } finally {
+      requestSync.mockRestore()
+    }
   })
 })

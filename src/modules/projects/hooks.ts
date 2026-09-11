@@ -4,6 +4,7 @@ import { useCollection, useQuery } from '@/queries/hooks'
 import { syncEngine } from '@/sync/engine'
 import type { Project, ProjectMilestone, Todo, Transaction, Note, Interaction } from '@/db/types'
 import { isTodoOpen } from '@/modules/todo/domain'
+import { toLinkFieldPatch, txnProjectIds } from '@/repositories'
 
 /**
  * 项目模块数据层（组件禁止直连 Dexie）
@@ -56,11 +57,13 @@ export function useProjectTransactions(projectId: string | undefined): Transacti
     () =>
       projectId
         ? db.transactions
-            .where('projectId')
-            .equals(projectId)
             .filter((t) => !t.deleted)
-            .reverse()
-            .sortBy('occurredAt')
+            .toArray()
+            .then((rows) =>
+              rows
+                .filter((t) => txnProjectIds(t).includes(projectId))
+                .sort((a, b) => b.occurredAt - a.occurredAt),
+            )
         : Promise.resolve([]),
     [projectId],
   )
@@ -282,8 +285,9 @@ export async function deleteProjectCascade(projectId: string): Promise<void> {
         })
       }
 
-      const unbind = async (
-        table: 'transactions' | 'todos' | 'notes' | 'interactions',
+      // 单值弱引用表（todos/notes/interactions）：projectId 置 undefined 即解绑
+      const unbindSingle = async (
+        table: 'todos' | 'notes' | 'interactions',
         records: { id: string; rev: number; deleted?: number }[],
       ) => {
         for (const r of records) {
@@ -292,16 +296,34 @@ export async function deleteProjectCascade(projectId: string): Promise<void> {
           await db.syncQueue.add({ table, recordId: r.id, op: 'upsert', createdAt: now })
         }
       }
-      const [txns, todos, notes, interactions] = await Promise.all([
-        db.transactions.where('projectId').equals(projectId).toArray(),
+      // transactions 关联已数组化（Issue #140 v11）：projectId 旧键已删，走 projectIds 数组解绑。
+      // 不能写 `projectId: undefined` —— 既解不掉 projectIds 里的项目，还按「双写不双读」留下一个
+      // 永不读取的旧键；必须走 toLinkFieldPatch('projectIds', …)（空数组不落键）。
+      const txns = (await db.transactions.filter((t) => !t.deleted).toArray()).filter((t) =>
+        txnProjectIds(t).includes(projectId),
+      )
+      for (const txn of txns) {
+        await db.transactions.update(txn.id, {
+          ...toLinkFieldPatch('projectIds', txnProjectIds(txn).filter((id) => id !== projectId)),
+          updatedAt: now,
+          rev: txn.rev + 1,
+        })
+        await db.syncQueue.add({
+          table: 'transactions',
+          recordId: txn.id,
+          op: 'upsert',
+          createdAt: now,
+        })
+      }
+
+      const [todos, notes, interactions] = await Promise.all([
         db.todos.where('projectId').equals(projectId).toArray(),
         db.notes.where('projectId').equals(projectId).toArray(),
         db.interactions.where('projectId').equals(projectId).toArray(),
       ])
-      await unbind('transactions', txns)
-      await unbind('todos', todos)
-      await unbind('notes', notes)
-      await unbind('interactions', interactions)
+      await unbindSingle('todos', todos)
+      await unbindSingle('notes', notes)
+      await unbindSingle('interactions', interactions)
     },
   )
   syncEngine.requestSync()
