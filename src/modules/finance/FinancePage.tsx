@@ -18,6 +18,7 @@ import dayjs from 'dayjs'
 import { todoStatusLabel } from '@/modules/todo/domain'
 import LedgerFormDrawer from './LedgerFormDrawer'
 import TransactionFormDrawer from './TransactionFormDrawer'
+import { txnCustomerIds, txnTodoIds } from './links'
 import {
   useAttachmentCount,
   useTransactionAttachments,
@@ -340,7 +341,7 @@ export default function FinancePage() {
                   key={t.id}
                   txn={t}
                   ledger={ledgerMap.get(t.ledgerId)}
-                  customer={customers.find((c) => c.id === t.customerId)}
+                  customers={customers.filter((c) => txnCustomerIds(t).includes(c.id))}
                   showLedger={scope === 'all'}
                   onOpen={() => setDetailId(t.id)}
                 />
@@ -535,13 +536,14 @@ function Segmented({
 function TransactionRow({
   txn,
   ledger,
-  customer,
+  customers,
   showLedger,
   onOpen,
 }: {
   txn: Transaction
   ledger: Ledger | undefined
-  customer: Customer | undefined
+  /** 多关联（Issue #140）：一笔流水可挂多个客户，逐个出芯片 */
+  customers: Customer[]
   showLedger: boolean
   onOpen: () => void
 }) {
@@ -575,11 +577,11 @@ function TransactionRow({
               #{tag}
             </Chip>
           ))}
-          {customer && (
-            <Chip tone="blue" icon="person">
-              {customer.company} · {customer.name}
+          {customers.map((c) => (
+            <Chip key={c.id} tone="blue" icon="person">
+              {c.company} · {c.name}
             </Chip>
-          )}
+          ))}
           {attCount > 0 && (
             <Chip tone="gray" icon="attach_file">
               {attCount}
@@ -632,8 +634,10 @@ function TransactionDetailDrawer({
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   const ledger = ledgers.find((l) => l.id === txn?.ledgerId)
-  const customer = customers.find((c) => c.id === txn?.customerId)
-  const todo = todos.find((t) => t.id === txn?.todoId)
+  // 多关联（Issue #140）：溯源区按数组逐个列出（失效 id 自然被 find 过滤掉）
+  const linkedCustomers = txn ? customers.filter((c) => txnCustomerIds(txn).includes(c.id)) : []
+  const linkedTodos = txn ? todos.filter((t) => txnTodoIds(txn).includes(t.id)) : []
+  const hasLinks = linkedCustomers.length > 0 || linkedTodos.length > 0
   const symbol = symbolOf(ledger?.currency)
 
   /** 状态流转：以旧记录为基底，仅覆盖 status */
@@ -725,7 +729,9 @@ function TransactionDetailDrawer({
             </DetailField>
             <DetailField label="归属账本">{ledger?.name ?? '—'}</DetailField>
             <DetailField label="关联客户">
-              {customer ? `${customer.company} · ${customer.name}` : '—'}
+              {linkedCustomers.length > 0
+                ? linkedCustomers.map((c) => `${c.company} · ${c.name}`).join('、')
+                : '—'}
             </DetailField>
             {txn.note && (
               <div className="col-span-2">
@@ -788,14 +794,15 @@ function TransactionDetailDrawer({
           </div>
 
           {/* 关联业务溯源 */}
-          {(customer || todo) && (
+          {hasLinks && (
             <div>
               <div className="mb-2 text-[0.8571rem] font-medium uppercase tracking-wide text-on-surface-variant">
                 关联业务溯源
               </div>
               <div className="space-y-2">
-                {customer && (
+                {linkedCustomers.map((customer) => (
                   <button
+                    key={customer.id}
                     onClick={() => navigate(`/crm/${customer.id}`)}
                     className="flex w-full items-center justify-between rounded-xl bg-surface-container-low/60 p-3 text-left transition-colors hover:bg-surface-container-low"
                   >
@@ -815,9 +822,10 @@ function TransactionDetailDrawer({
                       <Icon name="open_in_new" size={14} />
                     </span>
                   </button>
-                )}
-                {todo && (
+                ))}
+                {linkedTodos.map((todo) => (
                   <button
+                    key={todo.id}
                     onClick={() => navigate('/todo')}
                     className="flex w-full items-center justify-between rounded-xl bg-surface-container-low/60 p-3 text-left transition-colors hover:bg-surface-container-low"
                   >
@@ -838,7 +846,7 @@ function TransactionDetailDrawer({
                       <Icon name="open_in_new" size={14} />
                     </span>
                   </button>
-                )}
+                ))}
               </div>
             </div>
           )}

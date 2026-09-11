@@ -23,6 +23,19 @@ import { DEFAULT_SETTINGS } from '@/db/types'
 import type { SyncMeta } from '@/db/types'
 import type { Attachment, FocusSession } from '@/db/db'
 import { eventBus } from '@/shared/eventBus'
+import { txnCustomerIds, toLinkField } from '@/modules/finance/links'
+
+/**
+ * 关联字段「置空即删键」的更新补丁（Dexie update 语义：显式 undefined 才删键）。
+ * 数组化后不能直接写 `customerIds: []` —— 空数组会被序列化进库、与服务端 json 字段
+ * 形成"有键但空"的噪声态；统一走 `toLinkField`：有空键则写值，无关联则置 undefined 清键。
+ */
+function toLinkFieldPatch(
+  key: 'customerIds' | 'todoIds' | 'projectIds',
+  ids: string[],
+): Record<string, string[] | undefined> {
+  return { [key]: toLinkField(ids) }
+}
 
 /** 模块统一从这里拿仓储实例，不直接触碰 Dexie */
 export const workspaceRepo = createRepository<Workspace>('workspaces')
@@ -430,7 +443,9 @@ export async function saveTransactionWithAttachments(
   if (created) {
     eventBus.emit('transaction:created', {
       transactionId: txn.id,
-      customerId: txn.customerId,
+      // 事件载荷保持单值口径（Issue #140）：下游订阅方（灵感引擎失效、AI 事件流）按单值消费，
+      // 多关联时代取首个关联客户即可表达"这笔钱和谁有关"，不放大事件契约的破坏面。
+      customerId: txnCustomerIds(txn)[0],
     })
   }
   syncEngine.requestSync()
@@ -613,11 +628,14 @@ export async function deleteCustomerCascade(customerId: string): Promise<void> {
         })
       }
 
-      const txns = await db.transactions.where('customerId').equals(customerId).toArray()
+      // transactions 关联已数组化（Issue #140 v11）：去掉 customerId 索引，改内存过滤。
+      // 理由见 db.ts v11 注释（避开 multiEntry 与同步队列整体覆盖语义的兼容坑，本表数据量级小）。
+      const txns = (await db.transactions.filter((t) => !t.deleted).toArray()).filter((t) =>
+        txnCustomerIds(t).includes(customerId),
+      )
       for (const txn of txns) {
-        if (txn.deleted) continue
         await db.transactions.update(txn.id, {
-          customerId: undefined,
+          ...toLinkFieldPatch('customerIds', txnCustomerIds(txn).filter((id) => id !== customerId)),
           updatedAt: now,
           rev: txn.rev + 1,
         })
@@ -750,7 +768,10 @@ export async function createCustomerWithInit(
         const txn = await db.transactions.get(opts.linkTransactionId)
         if (txn && !txn.deleted) {
           await db.transactions.update(txn.id, {
-            customerId: customer.id,
+            ...toLinkFieldPatch(
+              'customerIds',
+              [...txnCustomerIds(txn), customer.id].filter((v, i, a) => a.indexOf(v) === i),
+            ),
             updatedAt: now,
             rev: txn.rev + 1,
           })

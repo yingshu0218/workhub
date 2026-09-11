@@ -2,6 +2,7 @@ import { db } from '@/db/db'
 import { useQuery } from '@/queries/hooks'
 import dayjs from 'dayjs'
 import type { Interaction, Todo, Transaction } from '@/db/types'
+import { txnCustomerIds } from '@/modules/finance/links'
 
 /**
  * 客户统一时间轴投影（Issue #11 需求 1 的底座）
@@ -136,20 +137,30 @@ export function useAllTimelines(): TimelineEvent[] {
   const events = useQuery<TimelineEvent[]>(async () => {
     const [interactions, transactions, todos] = await Promise.all([
       db.interactions.filter((i) => !i.deleted && !!i.customerId).toArray(),
-      db.transactions.filter((t) => !t.deleted && !!t.customerId).toArray(),
+      // 多关联（Issue #140）：取任一关联客户即入图，回填时逐客户展开（同一笔流水可出现在多个客户时间轴）
+      db.transactions.filter((t) => !t.deleted && txnCustomerIds(t).length > 0).toArray(),
       db.todos.filter((t) => !t.deleted && !!t.customerId).toArray(),
     ])
     const merged = mergeTimelineEvents(interactions, transactions, todos)
     // 回填 customerId：三源记录均携带该字段，按 kind 对齐源记录即可
     const byId = new Map<string, string>()
     for (const i of interactions) byId.set(i.id, i.customerId)
-    for (const t of transactions) byId.set(t.id, t.customerId!)
+    // 多关联（Issue #140）：一笔流水对每个关联客户各展开一份事件 —— 全局时间轴上
+    // 「这笔款既算 A 客户也算 B 客户」，只回填首个关联方会让另一方的鱼骨锚点整段缺失。
+    const txnCustomers = new Map<string, string[]>()
+    for (const t of transactions) txnCustomers.set(t.id, txnCustomerIds(t))
     for (const t of todos) byId.set(t.id, t.customerId!)
+    const expanded: TimelineEvent[] = []
     for (const e of merged) {
       const srcId = e.kind === 'todo' ? e.recordId : e.id
+      if (e.kind === 'transaction') {
+        for (const cid of txnCustomers.get(srcId) ?? []) expanded.push({ ...e, customerId: cid })
+        continue
+      }
       e.customerId = byId.get(srcId)
+      expanded.push(e)
     }
-    return merged.sort((a, b) => b.at - a.at)
+    return expanded.sort((a, b) => b.at - a.at)
   }, [])
   return events ?? EMPTY
 }

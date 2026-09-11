@@ -58,14 +58,47 @@
           "note": {
             "type": "string"
           },
+          "customerIds": {
+            "type": "number",
+            "enum": [
+              null,
+              null
+            ]
+          },
           "customerId": {
-            "type": "string"
+            "type": "number",
+            "enum": [
+              null,
+              null
+            ]
+          },
+          "todoIds": {
+            "type": "number",
+            "enum": [
+              null,
+              null
+            ]
           },
           "todoId": {
-            "type": "string"
+            "type": "number",
+            "enum": [
+              null,
+              null
+            ]
+          },
+          "projectIds": {
+            "type": "number",
+            "enum": [
+              null,
+              null
+            ]
           },
           "projectId": {
-            "type": "string"
+            "type": "number",
+            "enum": [
+              null,
+              null
+            ]
           }
         },
         "required": [

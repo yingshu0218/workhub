@@ -252,12 +252,13 @@ describe('P1 第 7 步 E2E 主干验收（§9.8）', () => {
 
     /* 7. 读回该客户账目 */
     const byCustomer = await mcp.callTool('listTransactions', { customerId })
-    const txnEnv = byCustomer.data as ReadEnvelope<{ id: string; amount: number; status: string; customerId?: string }>
+    // Issue #140：投影改为数组字段 customerIds（单值入参自动包数组，外部 Agent 契约零改动）
+    const txnEnv = byCustomer.data as ReadEnvelope<{ id: string; amount: number; status: string; customerIds?: string[] }>
     expect(txnEnv.items).toHaveLength(1)
     expect(txnEnv.items[0].id).toBe(transactionId)
     expect(txnEnv.items[0].amount).toBe(2000)
     expect(txnEnv.items[0].status).toBe('待对账')
-    expect(txnEnv.items[0].customerId).toBe(customerId)
+    expect(txnEnv.items[0].customerIds).toEqual([customerId])
 
     /* 8. 记一条沟通日志（中风险）并读回客户档案 + 沟通记录 */
     const logPreview = await mcp.callTool('crm_addInteraction', {
