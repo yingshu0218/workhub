@@ -19,12 +19,12 @@
 | `status` | enum(已结算 / 待对账) | 否 | `"待对账"` |  |
 | `tags` | array | 否 | `[]` |  |
 | `note` | string | 否 | — |  |
-| `customerIds` | enum( / ) | 否 | — |  |
-| `customerId` | enum( / ) | 否 | — |  |
-| `todoIds` | enum( / ) | 否 | — |  |
-| `todoId` | enum( / ) | 否 | — |  |
-| `projectIds` | enum( / ) | 否 | — |  |
-| `projectId` | enum( / ) | 否 | — |  |
+| `customerIds` | anyOf | 否 | — |  |
+| `customerId` | anyOf | 否 | — |  |
+| `todoIds` | anyOf | 否 | — |  |
+| `todoId` | anyOf | 否 | — |  |
+| `projectIds` | anyOf | 否 | — |  |
+| `projectId` | anyOf | 否 | — |  |
 
 ## 副作用
 

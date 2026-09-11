@@ -342,3 +342,14 @@ export function eventsOf(name: string): string[] {
 
 /** 直接再导出，便于生成器（esbuild inlined bundle）取用 */
 export { TOOL_RISK, TOOL_DOMAIN, TOOL_EVENTS, DEFAULT_AI_DOMAINS }
+
+/**
+ * 复用**运行期同一份** zod→JSON Schema 实现（`src/agent/jsonSchema.ts`）。
+ *
+ * 为什么不在这里内联一份：历史上生成器抄了一份简化实现，注释写着「与 jsonSchema.ts 同口径」，
+ * 但运行期修 bug 后这份拷贝没跟 —— 于是 `fin_recordTransaction` 的 6 个关联字段被生成成
+ * `{type:'number',enum:[null,null]}`（真相是 `anyOf: [string, array]`），
+ * `docs/skills/*.md` 与 `mcp-tools.json` 双双失真，而测试全绿无人发现。
+ * 单源原则不能靠「保持一致的注释」维系，必须共用同一个函数。
+ */
+export { zodToJsonSchema } from './jsonSchema'

@@ -8,8 +8,11 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync } from 'node:fs'
 import path from 'node:path'
+// bridge 经 @/repositories 拉入 Dexie；node 环境下需假实现（与 bridge.test.ts 同口径）
+import 'fake-indexeddb/auto'
 import { AGENT_TOOLS, listVisibleTools } from '../executor'
 import { ALL_TOOL_SKILLS, WRITE_TOOL_SKILLS, READ_TOOL_SKILLS, TOOL_RISK, TOOL_DOMAIN, TOOL_EVENTS } from '../skillSource'
+import { buildToolsList } from '../bridge'
 
 const docsDir = path.resolve(__dirname, '../../../docs/skills')
 
@@ -67,5 +70,37 @@ describe('生成产物与 skill 源一致（防文档漂移）', () => {
   it('运行期 tools/list（含白名单）是 skill 源的子集', () => {
     const visible = new Set(listVisibleTools().map((t) => t.name))
     for (const n of visible) expect(ALL_TOOL_SKILLS.some((t) => t.name === n)).toBe(true)
+  })
+
+  /**
+   * 下面两条是 P1-2 / P2-1 的回归锁。
+   *
+   * 背景：`gen-skills.mjs` 曾内联一份「与 jsonSchema.ts 同口径」的简化拷贝，运行期修好
+   * union 分支后它没跟，于是 `fin_recordTransaction` 的 6 个关联字段在 skill 文档与
+   * mcp-tools.json 里被生成成 `{type:'number',enum:[null,null]}`。而原有断言只比
+   * 「工具集 / 风险 / 域」，**不比 schema 内容**，所以测试全绿也发现不了 —— 这两条把它堵上。
+   */
+  it('运行期 tools/list 的 inputSchema 与 mcp-tools.json 逐字段一致', () => {
+    const snapshot = JSON.parse(readFileSync(path.join(docsDir, 'mcp-tools.json'), 'utf8')) as {
+      tools: { name: string; inputSchema: Record<string, unknown> }[]
+    }
+    const snapMap = new Map(snapshot.tools.map((t) => [t.name, t.inputSchema]))
+    // 走运行期同一个构造函数（bridge.buildToolsList），避免测试自造第二份映射
+    const live = buildToolsList()
+    expect(live.length).toBe(snapshot.tools.length)
+    for (const t of live) {
+      expect(snapMap.get(t.name), `快照缺少 ${t.name}`).toBeTruthy()
+      // JSON 往返一次消除键序差异后做深度比较
+      expect(JSON.parse(JSON.stringify(t.inputSchema)), `${t.name} 的 inputSchema 与快照不一致`).toEqual(
+        snapMap.get(t.name),
+      )
+    }
+  })
+
+  it('listTodos.priority 是可选过滤器，不得标为必填（P2-1 回归）', () => {
+    const listTodos = buildToolsList().find((t) => t.name === 'listTodos')
+    expect(listTodos, 'tools/list 里没有 listTodos').toBeTruthy()
+    const required = (listTodos?.inputSchema as { required?: string[] }).required ?? []
+    expect(required).not.toContain('priority')
   })
 })

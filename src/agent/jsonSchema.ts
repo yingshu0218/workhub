@@ -25,6 +25,29 @@ function descriptionOf(schema: z.ZodTypeAny): string | undefined {
   return d || undefined
 }
 
+/**
+ * 字段是否「可不传」—— 必须**剥掉包装**后再判。
+ *
+ * 起因（P2-1）：`listTodos.priority` 的 zod 定义是 `.optional().transform(...)`，
+ * 最外层是 `ZodEffects`；而必填判定原先只看最外层类型名
+ * （`ct !== 'ZodOptional' && ct !== 'ZodDefault'`），于是它被误标成 required。
+ * 后果不是「多传一个无害参数」：`priority` 是**过滤器**，Agent 依 schema 强行传值会
+ * 静默过滤掉本应返回的待办。全量 125 个字段里仅此 1 处，但语义后果严重。
+ *
+ * 注意 `ZodNullable` 也要剥（`z.string().nullable().optional()` 剥出 Optional 才算可选），
+ * 但**剥完仍不是 Optional/Default 就是必填** —— `z.string().nullable()` 本身必填，不能误伤。
+ */
+function isOptionalField(schema: z.ZodTypeAny): boolean {
+  const t = typeName(schema)
+  if (t === 'ZodOptional' || t === 'ZodDefault') return true
+  if (['ZodEffects', 'ZodReadonly', 'ZodBranded', 'ZodCatch', 'ZodNullable'].includes(t)) {
+    const def = (schema as unknown as { _def?: Record<string, unknown> })._def ?? {}
+    const inner = (def.schema ?? def.innerType) as z.ZodTypeAny | undefined
+    return inner ? isOptionalField(inner) : false
+  }
+  return false
+}
+
 /** 单一枚举值 → JSON Schema type */
 function literalType(value: unknown): JsonSchema {
   if (typeof value === 'string') return { type: 'string' }
@@ -67,9 +90,8 @@ export function zodToJsonSchema(schema: z.ZodTypeAny): JsonSchema {
     for (const [key, val] of Object.entries(shape)) {
       const child = zodToJsonSchema(val as z.ZodTypeAny)
       properties[key] = child
-      // 非 optional / 非 default 即必填（对齐 zod 语义）
-      const ct = typeName(val as z.ZodTypeAny)
-      if (ct !== 'ZodOptional' && ct !== 'ZodDefault') required.push(key)
+      // 非 optional / 非 default 即必填（对齐 zod 语义）—— 须先剥包装，见 isOptionalField
+      if (!isOptionalField(val as z.ZodTypeAny)) required.push(key)
     }
     const out: JsonSchema = { type: 'object', properties }
     if (required.length) out.required = required

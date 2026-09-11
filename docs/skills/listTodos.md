@@ -11,7 +11,7 @@
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---|---|---|
 | `status` | enum(todo / done) | 否 | — |  |
-| `priority` | enum(high / mid / low / none / P1 / P2 / P3) | 是 | — |  |
+| `priority` | enum(high / mid / low / none / P1 / P2 / P3) | 否 | — |  |
 | `customerId` | string | 否 | — |  |
 | `projectId` | string | 否 | — |  |
 

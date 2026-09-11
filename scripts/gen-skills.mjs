@@ -38,62 +38,15 @@ async function loadSkillSource() {
   return mod
 }
 
-/** 极简 zod → JSON Schema（与 src/agent/jsonSchema.ts 同口径；生成器内联避免二次打包） */
-function zodToJsonSchema(schema) {
-  const def = schema?._def ?? {}
-  const t = def.typeName ?? def.type ?? 'ZodUnknown'
-  if (['ZodOptional', 'ZodNullable', 'ZodReadonly', 'ZodBranded', 'ZodCatch'].includes(t)) {
-    return zodToJsonSchema(def.innerType)
-  }
-  if (t === 'ZodDefault') {
-    const inner = zodToJsonSchema(def.innerType)
-    try {
-      const dv = def.defaultValue()
-      if (dv !== undefined) return { ...inner, default: dv }
-    } catch {
-      /* ignore */
-    }
-    return inner
-  }
-  if (t === 'ZodEffects') {
-    const inner = zodToJsonSchema(def.schema)
-    return schema.description ? { ...inner, description: schema.description } : inner
-  }
-  if (t === 'ZodObject') {
-    const shape = typeof schema.shape === 'function' ? schema.shape() : schema.shape
-    const properties = {}
-    const required = []
-    for (const [key, val] of Object.entries(shape)) {
-      properties[key] = zodToJsonSchema(val)
-      const ct = val?._def?.typeName ?? val?._def?.type
-      if (ct !== 'ZodOptional' && ct !== 'ZodDefault') required.push(key)
-    }
-    const out = { type: 'object', properties }
-    if (required.length) out.required = required
-    return out
-  }
-  if (t === 'ZodArray') return { type: 'array', items: zodToJsonSchema(def.type) }
-  if (t === 'ZodEnum') return { type: 'string', enum: [...def.values] }
-  if (t === 'ZodNativeEnum') {
-    const values = Object.values(def.values)
-    const allString = values.every((v) => typeof v === 'string')
-    return { type: allString ? 'string' : 'number', enum: values }
-  }
-  if (t === 'ZodLiteral') {
-    const vt = typeof def.value === 'string' ? 'string' : typeof def.value === 'number' ? 'number' : 'boolean'
-    return { type: vt, enum: [def.value] }
-  }
-  if (t === 'ZodUnion') {
-    const values = def.options.map((o) => o._def?.value)
-    const allString = values.every((v) => typeof v === 'string')
-    return { type: allString ? 'string' : 'number', enum: values }
-  }
-  if (t === 'ZodString') return { type: 'string' }
-  if (t === 'ZodNumber' || t === 'ZodBigInt') return { type: 'number' }
-  if (t === 'ZodBoolean') return { type: 'boolean' }
-  if (t === 'ZodDate') return { type: 'string', format: 'date' }
-  return {}
-}
+/**
+ * 复用**运行期同一份**实现（`src/agent/jsonSchema.ts`），在 loadSkillSource() 后注入。
+ *
+ * 这里曾经是一份内联的简化拷贝，注释写着「与 src/agent/jsonSchema.ts 同口径」，
+ * 但运行期修好 union 分支后它没跟 —— 直接后果是 `fin_recordTransaction` 的 6 个关联字段
+ * 被生成成 `{type:'number',enum:[null,null]}`（运行期真相是 `anyOf: [string, array]`），
+ * skill 文档与 mcp-tools.json 双双失真。故改为共用同一个函数，不再维护第二份。
+ */
+let zodToJsonSchema = null
 
 /** 把 JSON Schema 渲染成 markdown 参数表 */
 function paramsTable(schema) {
@@ -199,6 +152,8 @@ ${rows}
 
 async function main() {
   const meta = await loadSkillSource()
+  // 注入运行期同一份实现（src/agent/jsonSchema.ts，随 skillSource 一起被 esbuild 打包）
+  zodToJsonSchema = meta.zodToJsonSchema
   await mkdir(outDir, { recursive: true })
   const tools = []
   for (const t of meta.ALL_TOOL_SKILLS) {

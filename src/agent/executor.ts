@@ -16,12 +16,11 @@ import { toggleTodoDone } from '@/modules/todo/toggle'
 import { splitTodoText } from '@/modules/todo/title'
 import { normalizeTodoTags, TODO_TAG_MAX_COUNT } from '@/modules/todo/tags'
 import { deleteTodoCascade } from '@/modules/todo/hooks'
-import type { Customer, Habit, Note, NoteFolder, Project, Todo } from '@/db/types'
+import type { Customer, Habit, Note, Project, Todo } from '@/db/types'
 
 /** 行类型别名（mustExist 泛型绑定用；与 db/types 定义同源，不做二次建模） */
 type ProjectRow = Project
 type NoteRow = Note
-type FolderRow = NoteFolder
 type HabitRow = Habit
 import { resolveEntity, type ResolveResult } from './resolver'
 import { createLedger, recordTransaction } from '@/domain'
@@ -297,6 +296,14 @@ export async function todo_createTodo(input: unknown): Promise<AgentOpResult> {
   if (!parsed.ok) return parsed
   const d = parsed.data
 
+  // 关联校验前置（P1-1 修复）：此前三项**全无**校验，挂到不存在的客户/项目上也静默创建成功
+  const links = await assertLinks([
+    { id: d.customerId, table: db.customers, what: '客户' },
+    { id: d.projectId, table: db.projects, what: '项目' },
+    { id: d.listId, table: db.todoLists, what: '待办清单' },
+  ])
+  if (!links.ok) return err(links.error)
+
   const id = newId('td')
   const record: Todo = {
     id,
@@ -411,6 +418,32 @@ async function mustExist<T extends { id: string; deleted?: 0 | 1 }>(
   return { ok: true, record: record as NonNullable<Awaited<ReturnType<typeof table.get>>> }
 }
 
+/**
+ * 关联字段存在性批量校验（方案 §六 P2 纪律：**关联校验前置，不产生悬挂引用**）。
+ *
+ * 为什么要有这个函数：原先「字段 → 表 → 中文名」的三元组在每个写工具里各写一遍，
+ * 于是必然漏 —— 实测 `todo_createTodo` 的 customerId/projectId/listId **三项全无校验**
+ * （挂到不存在的客户上也静默创建成功），`todo_updateTodo` 也漏了 listId，
+ * 而 note / project 两族都有。同一纪律靠「每个函数都记得写」维系，就一定会漂移。
+ *
+ * 语义：只在**确实传了 id** 时校验（缺省/null 表示不关联，直接放行）；
+ * 目标不存在或已删即返回可操作错误，由调用方 `if (!links.ok) return err(links.error)` 短路。
+ */
+type LinkCheck = {
+  id?: string | null
+  table: { get(id: string): Promise<{ id: string; deleted?: 0 | 1 } | undefined> }
+  what: string
+}
+
+async function assertLinks(links: LinkCheck[]): Promise<{ ok: true } | { ok: false; error: string }> {
+  for (const l of links) {
+    if (!l.id) continue
+    const r = await mustExist(l.table, l.id, l.what)
+    if (!r.ok) return r
+  }
+  return { ok: true }
+}
+
 /** 把 nullable 入参折算成「未传 / 传 null（清空） / 传值（设置）」三态 */
 function triState<T>(v: T | null | undefined): { touched: boolean; value: T | undefined } {
   if (v === undefined) return { touched: false, value: undefined }
@@ -467,15 +500,13 @@ export async function todo_updateTodo(input: unknown): Promise<AgentOpResult> {
   const listId = triState(d.listId)
   if (listId.touched) patch.listId = listId.value
 
-  // 弱引用校验：关联对象必须存在（拒绝挂到已删客户/项目上，避免图里出现悬挂边）
-  if (patch.customerId) {
-    const c = await mustExist<Customer>(db.customers, patch.customerId, '客户')
-    if (!c.ok) return err(c.error)
-  }
-  if (patch.projectId) {
-    const p = await mustExist<ProjectRow>(db.projects, patch.projectId, '项目')
-    if (!p.ok) return err(p.error)
-  }
+  // 弱引用校验：关联对象必须存在（拒绝挂到已删客户/项目/清单上，避免图里出现悬挂边）
+  const links = await assertLinks([
+    { id: patch.customerId, table: db.customers, what: '客户' },
+    { id: patch.projectId, table: db.projects, what: '项目' },
+    { id: patch.listId, table: db.todoLists, what: '待办清单' },
+  ])
+  if (!links.ok) return err(links.error)
 
   await todoRepo.put({ ...prev, ...patch })
   return ok({ todoId: d.todoId, updated: Object.keys(patch) })
@@ -540,10 +571,8 @@ export async function project_createProject(input: unknown): Promise<AgentOpResu
   const parsed = parseOrError(createProjectSchema, input)
   if (!parsed.ok) return parsed
   const d = parsed.data
-  if (d.customerId) {
-    const c = await mustExist<Customer>(db.customers, d.customerId, '客户')
-    if (!c.ok) return err(c.error)
-  }
+  const links = await assertLinks([{ id: d.customerId, table: db.customers, what: '客户' }])
+  if (!links.ok) return err(links.error)
   const { projectRepo, newId } = await import('@/repositories')
   const id = newId('prj')
   await projectRepo.put({
@@ -574,10 +603,8 @@ export async function project_updateProject(input: unknown): Promise<AgentOpResu
   }
   const customerId = triState(d.customerId)
   if (customerId.touched) {
-    if (customerId.value) {
-      const c = await mustExist<Customer>(db.customers, customerId.value, '客户')
-      if (!c.ok) return err(c.error)
-    }
+    const links = await assertLinks([{ id: customerId.value, table: db.customers, what: '客户' }])
+    if (!links.ok) return err(links.error)
     patch.customerId = customerId.value
   }
   const budget = triState(d.budget)
@@ -593,14 +620,11 @@ export async function note_createNote(input: unknown): Promise<AgentOpResult> {
   const parsed = parseOrError(createNoteSchema, input)
   if (!parsed.ok) return parsed
   const d = parsed.data
-  if (d.folderId) {
-    const f = await mustExist<FolderRow>(db.noteFolders, d.folderId, '笔记文件夹')
-    if (!f.ok) return err(f.error)
-  }
-  if (d.projectId) {
-    const p = await mustExist<ProjectRow>(db.projects, d.projectId, '项目')
-    if (!p.ok) return err(p.error)
-  }
+  const links = await assertLinks([
+    { id: d.folderId, table: db.noteFolders, what: '笔记文件夹' },
+    { id: d.projectId, table: db.projects, what: '项目' },
+  ])
+  if (!links.ok) return err(links.error)
   const { noteRepo, newId } = await import('@/repositories')
   const id = newId('note')
   await noteRepo.put({
@@ -633,18 +657,14 @@ export async function note_updateNote(input: unknown): Promise<AgentOpResult> {
   }
   const folderId = triState(d.folderId)
   if (folderId.touched) {
-    if (folderId.value) {
-      const f = await mustExist<FolderRow>(db.noteFolders, folderId.value, '笔记文件夹')
-      if (!f.ok) return err(f.error)
-    }
+    const links = await assertLinks([{ id: folderId.value, table: db.noteFolders, what: '笔记文件夹' }])
+    if (!links.ok) return err(links.error)
     patch.folderId = folderId.value
   }
   const projectId = triState(d.projectId)
   if (projectId.touched) {
-    if (projectId.value) {
-      const p = await mustExist<ProjectRow>(db.projects, projectId.value, '项目')
-      if (!p.ok) return err(p.error)
-    }
+    const links = await assertLinks([{ id: projectId.value, table: db.projects, what: '项目' }])
+    if (!links.ok) return err(links.error)
     patch.projectId = projectId.value
   }
 

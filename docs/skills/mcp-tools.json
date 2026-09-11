@@ -59,45 +59,81 @@
             "type": "string"
           },
           "customerIds": {
-            "type": "number",
-            "enum": [
-              null,
-              null
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
             ]
           },
           "customerId": {
-            "type": "number",
-            "enum": [
-              null,
-              null
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
             ]
           },
           "todoIds": {
-            "type": "number",
-            "enum": [
-              null,
-              null
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
             ]
           },
           "todoId": {
-            "type": "number",
-            "enum": [
-              null,
-              null
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
             ]
           },
           "projectIds": {
-            "type": "number",
-            "enum": [
-              null,
-              null
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
             ]
           },
           "projectId": {
-            "type": "number",
-            "enum": [
-              null,
-              null
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
             ]
           }
         },
@@ -957,10 +993,7 @@
           "projectId": {
             "type": "string"
           }
-        },
-        "required": [
-          "priority"
-        ]
+        }
       },
       "annotations": {
         "risk": "low",

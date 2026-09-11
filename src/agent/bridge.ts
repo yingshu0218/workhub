@@ -140,17 +140,7 @@ export class AgentBridge {
       if (msg.kind === 'tools/list') {
         const domains = await this.loadDomains()
         // 白名单关闭的域：工具在清单里直接不出现（§四.3）
-        const tools = listVisibleTools(domains).map((t) => {
-          const entry = AGENT_TOOLS[t.name as keyof typeof AGENT_TOOLS]
-          return {
-            name: t.name,
-            description: describeTool(t.name, t.risk),
-            risk: t.risk,
-            domain: t.domain,
-            inputSchema: zodToJsonSchema(entry.schema),
-          }
-        })
-        this.respond(requestId, true, { tools })
+        this.respond(requestId, true, { tools: buildToolsList(domains) })
         return
       }
       if (msg.kind === 'tools/call') {
@@ -208,6 +198,27 @@ export class AgentBridge {
 /** 工具描述（首版由域前缀 + 风险级生成；skill 文档提供完整语义，§五） */
 function describeTool(name: string, risk: string): string {
   return `${name}（域：${name.split('_')[0]}，风险：${risk}）—— 参数见 inputSchema；实体引用须先 resolveEntity，候选不唯一必须反问用户。`
+}
+
+/**
+ * 构造 MCP `tools/list` 的下发清单 —— **运行期唯一路径**。
+ *
+ * 为什么抽成导出函数：`skill.parity.test.ts` 要断言「运行期 schema 与
+ * `docs/skills/mcp-tools.json` 逐字段一致」。若测试里另写一份映射，就等于又添了一处
+ * 会漂移的实现 —— 而这轮修的正是「生成器抄了一份拷贝、运行期改它没跟」那类问题（§五 单源）。
+ * 让测试与运行期走**同一个函数**，漂移才无处可藏。
+ */
+export function buildToolsList(domains?: Partial<Record<string, boolean>>) {
+  return listVisibleTools(domains).map((t) => {
+    const entry = AGENT_TOOLS[t.name as keyof typeof AGENT_TOOLS]
+    return {
+      name: t.name,
+      description: describeTool(t.name, t.risk),
+      risk: t.risk,
+      domain: t.domain,
+      inputSchema: zodToJsonSchema(entry.schema),
+    }
+  })
 }
 
 /** 全局单例（App 启动时按 settings.ai.bridgeEnabled 决定是否 connect） */
