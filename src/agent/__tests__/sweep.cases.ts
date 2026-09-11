@@ -163,6 +163,12 @@ export async function runToolSweep(mcp: McpClient, deps: SweepDeps = {}): Promis
 
   /* ==================== ② 正向遍历（27 个工具） ==================== */
 
+  // 每次运行用**唯一的客户名**：线上/本地环境反复跑会累积同名实体，
+  // 固定名字会让 resolveEntity 从 resolved 退化成 ambiguous —— 看起来像缺陷，实际是数据累积
+  const RUN_ID = Math.random().toString(36).slice(2, 7)
+  const CUSTOMER_NAME = `王五-${RUN_ID}`
+  const CUSTOMER2_NAME = `赵六-${RUN_ID}`
+
   // —— 前置数据 ——
   await kase('note_createFolder', { name: '远山资料' }, (r) => {
     const d = r.data as { folderId?: string }
@@ -176,13 +182,14 @@ export async function runToolSweep(mcp: McpClient, deps: SweepDeps = {}): Promis
     ctx.ledgerId = d.ledgerId
   })
 
-  await kase('crm_createCustomer', { name: '王五', company: '深蓝科技' }, (r) => {
+  await kase('crm_createCustomer', { name: CUSTOMER_NAME, company: '深蓝科技' }, (r) => {
     const d = r.data as { customerId?: string }
     need(d?.customerId, '未返回 customerId')
     ctx.customerId = d.customerId
+    ctx.customerName = CUSTOMER_NAME
   })
 
-  await kase('crm_createCustomer', { name: '赵六', company: '远山设计' }, (r) => {
+  await kase('crm_createCustomer', { name: CUSTOMER2_NAME, company: '远山设计' }, (r) => {
     const d = r.data as { customerId?: string }
     need(d?.customerId, '未返回 customerId')
     ctx.customer2Id = d.customerId
@@ -264,11 +271,15 @@ export async function runToolSweep(mcp: McpClient, deps: SweepDeps = {}): Promis
 
   // 打卡（含幂等复测）—— 需要环境中存在习惯；没有则**如实标注跳过**，不伪装成通过
   if (ctx.habitId) {
-    await kase('habit_checkin', () => ({ habitId: g('habitId'), date: '2026-09-12' }), (r) => {
+    // 线上沿用的是「已有习惯」，它今天可能已经打过卡 —— 先取消，确保从「未打卡」态出发，
+    // 否则首次打卡会返回 created=false，看起来像缺陷，实际是用例前提没对齐
+    const day = new Date().toLocaleDateString('sv-SE')
+    await invoke('habit_checkin', { habitId: ctx.habitId, date: day, undo: true })
+    await kase('habit_checkin', () => ({ habitId: g('habitId'), date: day }), (r) => {
       const d = r.data as { created?: boolean }
       need(d?.created === true, `首次打卡期望 created=true，实际 ${String(d?.created)}`)
     })
-    await kase('habit_checkin', () => ({ habitId: g('habitId'), date: '2026-09-12' }), (r) => {
+    await kase('habit_checkin', () => ({ habitId: g('habitId'), date: day }), (r) => {
       const d = r.data as { created?: boolean }
       need(d?.created === false, `重复打卡期望 created=false（幂等），实际 ${String(d?.created)}`)
     })
@@ -283,13 +294,13 @@ export async function runToolSweep(mcp: McpClient, deps: SweepDeps = {}): Promis
   }
 
   // —— 读工具 ——
-  await kase('resolveEntity', { query: '王五', type: 'customer' }, (r) => {
+  await kase('resolveEntity', () => ({ query: g('customerName'), type: 'customer' }), (r) => {
     const d = r.data as { status?: string; id?: string }
     need(d?.status === 'resolved', `期望 status=resolved，实际 ${String(d?.status)}`)
     need(d?.id === ctx.customerId, `期望消解到 ${ctx.customerId}，实际 ${String(d?.id)}`)
   })
 
-  await kase('searchEntities', { q: '王五' }, (r) => {
+  await kase('searchEntities', () => ({ q: g('customerName') }), (r) => {
     const d = r.data as ReadEnvelope<{ id: string }>
     need(d.items?.some((i) => i.id === ctx.customerId), '搜索结果未包含刚建的客户')
     need(d.count <= 20, `searchEntities 超出上限 20：${d.count}`)
@@ -298,7 +309,7 @@ export async function runToolSweep(mcp: McpClient, deps: SweepDeps = {}): Promis
   await kase('getCustomer', () => ({ id: g('customerId') }), (r) => {
     const d = r.data as ReadEnvelope<Record<string, unknown>>
     need(d.items?.length === 1, `期望 1 条，实际 ${d.items?.length}`)
-    need(d.items[0].name === '王五', `name 期望王五，实际 ${String(d.items[0].name)}`)
+    need(d.items[0].name === ctx.customerName, `name 期望 ${ctx.customerName}，实际 ${String(d.items[0].name)}`)
     need(!('relations' in d.items[0]), '投影不应含 relations 全量')
   })
 

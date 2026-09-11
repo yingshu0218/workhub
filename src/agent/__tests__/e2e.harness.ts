@@ -16,6 +16,7 @@
  */
 import { createHash, randomBytes } from 'node:crypto'
 import { connect } from 'node:net'
+import { connect as tlsConnect } from 'node:tls'
 import { spawn, type ChildProcess } from 'node:child_process'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -42,6 +43,8 @@ export class NodeWebSocket {
   onerror: ((ev: unknown) => void) | null = null
   onmessage: ((ev: { data: string }) => void) | null = null
 
+  /** wss 需要 TLS —— 线上经域名接入后探针必须能连 wss，否则只会拿到 301 跳转 */
+  private tls: boolean
   private socket: ReturnType<typeof connect>
   private buffer: Buffer = Buffer.alloc(0)
   private handshaken = false
@@ -49,19 +52,26 @@ export class NodeWebSocket {
   constructor(url: string) {
     this.url = url
     const u = new URL(url)
-    const port = Number(u.port || 80)
-    this.socket = connect({ host: u.hostname, port }, () => {
+    this.tls = u.protocol === 'wss:'
+    const port = Number(u.port || (this.tls ? 443 : 80))
+    const onConnect = () => {
       // 握手请求：Sec-WebSocket-Key 每次随机（RFC6455 §4.1）
       const key = randomBytes(16).toString('base64')
       this.socket.write(
         `GET ${u.pathname}${u.search} HTTP/1.1\r\n` +
-          `Host: ${u.hostname}:${port}\r\n` +
+          `Host: ${u.hostname}\r\n` +
           'Upgrade: websocket\r\n' +
           'Connection: Upgrade\r\n' +
           `Sec-WebSocket-Key: ${key}\r\n` +
           'Sec-WebSocket-Version: 13\r\n\r\n',
       )
-    })
+    }
+    this.socket = this.tls
+      ? (tlsConnect(
+          { host: u.hostname, port, servername: u.hostname },
+          onConnect,
+        ) as unknown as ReturnType<typeof connect>)
+      : connect({ host: u.hostname, port }, onConnect)
     this.socket.on('data', (chunk: Buffer) => this.#onData(chunk))
     this.socket.on('error', (e: Error) => {
       this.readyState = NodeWebSocket.CLOSED
