@@ -46,8 +46,8 @@ describe('① 三态判定互斥', () => {
     expect(rows.filter(isTodoFinished).map((t) => t.id)).toEqual(['b', 'c'])
   })
 
-  it('状态文案三态一一对应', () => {
-    expect(todoStatusLabel({ status: 'todo' })).toBe('待处理')
+  it('状态文案三态一一对应（todo 文案为「未完成」——新建缺省态，表单不再给状态选择）', () => {
+    expect(todoStatusLabel({ status: 'todo' })).toBe('未完成')
     expect(todoStatusLabel({ status: 'done' })).toBe('已完成')
     expect(todoStatusLabel({ status: 'voided' })).toBe('已作废')
   })

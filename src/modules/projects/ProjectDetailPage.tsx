@@ -257,7 +257,7 @@ export default function ProjectDetailPage() {
             <div className="mb-3 flex items-center justify-between">
               <div className="flex items-center gap-1.5 text-[0.8571rem] font-medium uppercase tracking-wide text-on-surface-variant">
                 <Icon name="check_circle" className="text-[1.1429rem] text-primary" />
-                项目待办（{openTodos.length} 待处理）
+                项目待办（{openTodos.length} 未完成）
               </div>
               <button
                 className="text-[0.8571rem] font-semibold text-primary hover:underline"

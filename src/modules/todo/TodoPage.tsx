@@ -44,6 +44,7 @@ import {
 import dayjs from 'dayjs'
 import { useFocusStore } from '@/stores/focus'
 import { toggleTodoDone, voidTodo, restoreTodo } from './toggle'
+import { useToast } from '@/design-system/Toast'
 import { txnTodoIds, financeFocusPath } from '@/modules/finance/links'
 import {
   isTodoOpen,
@@ -663,7 +664,7 @@ export default function TodoPage() {
                     }`}
                   >
                     {/* 状态勾选框（Issue #128 三态）：
-                        未完成 → 打勾完成；已完成 → 取消完成回到待处理；
+                        未完成 → 打勾完成；已完成 → 取消完成回到未完成；
                         已作废 → 不可打勾（终止事项不得被「完成」，需先恢复），用 block 图标表达 */}
                     {isTodoVoided(t) ? (
                       <span className="shrink-0 text-outline/70" title="已作废：恢复后才可完成">
@@ -938,13 +939,25 @@ export function TodoFormDrawer({
   /** 保存成功后回调（新建场景用于视图兜底切换，保证新条目立即可见） */
   onSaved?: (todo: Todo) => void
 }) {
+  const toast = useToast()
   const customers = useCollection<Customer>('customers')
   const projects = useCollection<Project>('projects')
   // 标题不再是独立输入（Issue #148）：全文入正文，标题恒由正文首行推导
   const [desc, setDesc] = useState('')
   const [priority, setPriority] = useState<TodoPriority>(DEFAULT_TODO_PRIORITY)
-  // 状态两态（Issue #74）：仅待处理/已完成，完成时间与 status 成对写入
-  const [status, setStatus] = useState<Todo['status']>('todo')
+  /**
+   * 状态（Issue #148 后续）：**不进表单的常驻字段**。
+   *
+   * 为什么删掉：新建待办默认就是未完成，弹窗里再摆一个「未完成」下拉，等于让用户
+   * 在一个只有单一可选值的字段里做选择 —— 用户说的「状态有点多余」就是这个。
+   *
+   * 唯一例外是**已作废条目**：作废是「终止」而非「删除」（记录保留），用户很可能
+   * 正是在「这条不再推进」的语境下进来改字，或进来恢复。所以只给已作废条目一个
+   * 「恢复为未完成」开关（默认不勾=保持作废），避免为了恢复先退出表单去详情里按一下。
+   * 完成态不在这里写：它在列表勾选框 / 详情抽屉（`toggleTodoDone`，status 与 completedAt 成对写）。
+   */
+  const [restoreOnSave, setRestoreOnSave] = useState(false)
+  const isVoidedEditing = todo?.status === 'voided'
   const [dueAt, setDueAt] = useState('')
   const [customerId, setCustomerId] = useState('')
   const [listId, setListId] = useState('')
@@ -971,12 +984,12 @@ export function TodoFormDrawer({
     // 新建（todo 为 null）走**写侧缺省档**「无 · 白色卡片」，不走读侧脏数据兜底的「中」——
     // 两者刻意不同源（见 priority.ts 注释）：一个是「用户没表态」，一个是「字段写坏了」。
     setPriority(todo ? normalizeTodoPriority(todo.priority) : DEFAULT_TODO_PRIORITY)
-    setStatus(todo?.status ?? 'todo')
     setDueAt(todo?.dueAt ? dayjs(todo.dueAt).format('YYYY-MM-DDTHH:mm') : '')
     setCustomerId(todo?.customerId ?? '')
     setListId(todo?.listId ?? '')
     setProjectId(todo?.projectId ?? '')
     setTags(normalizeTodoTags(todo?.tags ?? []))
+    setRestoreOnSave(false)
     setTagDraft('')
     setTagNotice('')
     setError('')
@@ -1019,6 +1032,13 @@ export function TodoFormDrawer({
       return
     }
     const { title, desc: body } = splitTodoText(content)
+    /*
+     * 状态（Issue #148 后续）：表单已无状态字段，只有一种例外迁移 ——
+     * 「已作废 → 勾了恢复 → 未完成」。其余一律原样保留 todo.status：
+     * 未完成/已完成的条目改字保存不会改状态，也不会重盖 completedAt。
+     */
+    const reactivated = isVoidedEditing && restoreOnSave
+    const nextStatus: Todo['status'] = !todo ? 'todo' : reactivated ? 'todo' : todo.status
     // 以旧记录展开为基底，仅覆盖表单字段，保留 habitId/ledgerId/completedAt 等
     const base: Todo = {
       ...todo,
@@ -1026,11 +1046,12 @@ export function TodoFormDrawer({
       title,
       desc: body,
       priority,
-      status,
-      // 完成/作废时间与状态成对维护（Issue #128）：切到 done 补 completedAt、切到 voided 补 voidedAt，
-      // 两个时间戳互斥（作废不是完成，同时存在会污染完成率口径），切离终态时显式清空
-      completedAt: status === 'done' ? (todo?.completedAt ?? Date.now()) : undefined,
-      voidedAt: status === 'voided' ? (todo?.voidedAt ?? Date.now()) : undefined,
+      status: nextStatus,
+      // 时间戳与 status 成对（Issue #128）：表单只可能产生「作废 → 未完成」这一种状态迁移，
+      // 两个终态时间戳一并清空（与 `setTodoVoided(todo, false)` 同纪律，不留单边时间戳）；
+      // 其余情况原样保留，表单不参与完成态写入。
+      completedAt: reactivated ? undefined : todo?.completedAt,
+      voidedAt: reactivated ? undefined : todo?.voidedAt,
       dueAt: dueAt ? dayjs(dueAt).valueOf() : undefined,
       tags: finalTags.length ? finalTags : undefined,
       customerId: customerId || undefined,
@@ -1042,6 +1063,7 @@ export function TodoFormDrawer({
       rev: 0,
     }
     await todoRepo.put(base)
+    if (reactivated) toast.success(`已恢复为未完成：${title}`)
     onSaved?.(base)
     onClose()
   }
@@ -1167,25 +1189,29 @@ export function TodoFormDrawer({
               </p>
             </div>
 
-            {/* 三态（Issue #128）：待处理 / 已完成 / 已作废——编辑弹窗也能终止或恢复事项 */}
-            <Field label="状态">
-              <MatchCombobox
-                value={status}
-                options={[
-                  { id: 'todo', label: '待处理', icon: 'radio_button_unchecked' },
-                  { id: 'done', label: '已完成', icon: 'task_alt' },
-                  { id: 'voided', label: '已作废', icon: 'block' },
-                ]}
-                placeholder="输入 待处理/已完成/已作废 模糊搜索"
-                emptyText="没有匹配的状态"
-                onChange={(id) => setStatus((id || 'todo') as Todo['status'])}
-              />
-              {status === 'voided' && (
-                <p className="mt-1.5 text-[0.7857rem] text-outline">
-                  作废即终止事项：记录保留、可随时恢复，与「删除」不同。
-                </p>
-              )}
-            </Field>
+            {/* 状态（Issue #148 后续）：**表单里没有状态字段** —— 新建默认就是未完成，
+                让用户在只有一个可选值的下拉里做选择是多余的交互。
+                完成态走列表勾选框 / 详情抽屉（`toggleTodoDone`，status 与 completedAt 成对写）；
+                作废是终止而非删除，只给**已作废条目**一个原地恢复开关，其余终态写入不进表单。 */}
+            {isVoidedEditing && (
+              <Field label="状态">
+                <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-outline-variant/60 px-3 py-2 text-[0.9286rem] transition-colors hover:border-primary/60">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 accent-primary"
+                    checked={restoreOnSave}
+                    onChange={(e) => setRestoreOnSave(e.target.checked)}
+                  />
+                  <span>
+                    恢复为未完成
+                    <span className="mt-0.5 block text-[0.7857rem] text-outline">
+                      这条待办当前「已作废」。勾上并保存 = 恢复为未完成；不勾则保持作废状态，
+                      仅更新正文与设置。
+                    </span>
+                  </span>
+                </label>
+              </Field>
+            )}
 
             <Field label="截止时间">
               <input
