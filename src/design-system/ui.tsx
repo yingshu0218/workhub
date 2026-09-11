@@ -150,7 +150,8 @@ export function Button({
   variant?: 'primary' | 'ghost' | 'tonal' | 'danger'
   size?: 'sm' | 'md'
   icon?: string
-  onClick?: () => void
+  /** 事件参数可选（Issue #162：列表行点击进入详情后，行内按钮需要 stopPropagation） */
+  onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void
   className?: string
   disabled?: boolean
 }) {

@@ -15,7 +15,7 @@ import {
   inputCls,
 } from '@/design-system/ui'
 import dayjs from 'dayjs'
-import { todoStatusLabel } from '@/modules/todo/domain'
+import { todoStatusLabel, todoFocusPath } from '@/modules/todo/domain'
 import { todoPriorityLabel } from '@/modules/todo/priority'
 import LedgerFormDrawer from './LedgerFormDrawer'
 import TransactionFormDrawer from './TransactionFormDrawer'
@@ -827,7 +827,7 @@ function TransactionDetailDrawer({
                 {linkedTodos.map((todo) => (
                   <button
                     key={todo.id}
-                    onClick={() => navigate('/todo')}
+                    onClick={() => navigate(todoFocusPath(todo.id))}
                     className="flex w-full items-center justify-between rounded-xl bg-surface-container-low/60 p-3 text-left transition-colors hover:bg-surface-container-low"
                   >
                     <div className="flex min-w-0 items-center gap-3">
