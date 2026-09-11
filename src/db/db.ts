@@ -144,6 +144,53 @@ export class NexusDB extends Dexie {
     this.version(9).stores({
       moduleConfigs: 'id, updatedAt',
     })
+    /**
+     * v11（Issue #140 交易多关联）：transactions 的关联字段单值 → 数组
+     * `customerId/todoId/projectId` → `customerIds/todoIds/projectIds`。
+     *
+     * 索引策略变更（有意为之，非疏漏）：v8 起 transactions.customerId 建有索引，
+     * 级联解绑/CRM 建边均走 `where('customerId')`。数组化后若要保住"走索引"，
+     * 只能上 Dexie `multiEntry` 索引 —— 但 multiEntry 与同步队列的整体替换语义
+     * （`put` 整体覆盖记录）及 `rev` 递增存在兼容坑，且本表数据量级小（个人工作台，
+     * 千级），故**改用内存过滤** `(t.customerIds ?? []).includes(cid)`：
+     * 语义更直白、与 `deleteCustomerCascade` 的"逐条解绑"写法一致、避免 multiEntry 的坑。
+     * 代价是全表扫描 —— 数据量增长到万级时需重新评估（届时应上 multiEntry 或独立关联表）。
+     *
+     * 旧字段在 migrate 中**清掉**（双写不双读）：新数组为唯一真源。
+     * 远端拉取路径由 `sync/mergeRemote.normalizeTxnLinks` 兜底归一化（服务端未升级时旧字段仍可能回来）。
+     */
+    this.version(11)
+      .stores({
+        transactions: 'id, ledgerId, occurredAt, status, updatedAt',
+      })
+      .upgrade(async (tx) => {
+        await tx
+          .table('transactions')
+          .toCollection()
+          .modify((t: Record<string, unknown>) => {
+            const toIds = (v: unknown): string[] | undefined => {
+              if (typeof v === 'string' && v) return [v]
+              if (Array.isArray(v)) {
+                const ids = v.filter((x): x is string => typeof x === 'string' && !!x)
+                return ids.length > 0 ? [...new Set(ids)] : undefined
+              }
+              return undefined
+            }
+            const customerIds = toIds(t.customerIds ?? t.customerId)
+            const todoIds = toIds(t.todoIds ?? t.todoId)
+            const projectIds = toIds(t.projectIds ?? t.projectId)
+            if (customerIds) t.customerIds = customerIds
+            else delete t.customerIds
+            if (todoIds) t.todoIds = todoIds
+            else delete t.todoIds
+            if (projectIds) t.projectIds = projectIds
+            else delete t.projectIds
+            // 真源唯一：旧单值字段即刻清除，杜绝"双读 fallback"被写漏
+            delete t.customerId
+            delete t.todoId
+            delete t.projectId
+          })
+      })
   }
 }
 

@@ -101,10 +101,20 @@ export interface Transaction extends SyncMeta {
   tags: string[]
   invoiceNo?: string
   note?: string
-  customerId?: string
-  todoId?: string
+  /**
+   * 关联客户 / 待办 / 项目（Issue #140 数组化，方案 A）：弱引用数组，可多选。
+   *
+   * 历史沿革：v11 之前为单值 `customerId? / todoId? / projectId?` 弱引用，
+   * dexie `upgrade()` 负责把旧单值包成数组并清掉旧字段（真源唯一致数组）。
+   * 另一条必须处理的路径是**远端拉取**：服务端集合若尚未升级到数组字段（或老客户端推来旧字段），
+   * 合并层 `normalizeTxnLinks` 会把旧字段就地归一化进数组，避免「本地看着对、同步后丢关联」。
+   *
+   * 纪律：弱引用（实体删除仅解绑，不删流水）；写入前去重 + 过滤已删实体 id。
+   */
+  customerIds?: string[]
+  todoIds?: string[]
   /** 所属项目（可选弱引用：项目删除仅解绑，不删流水） */
-  projectId?: string
+  projectIds?: string[]
   status: '已结算' | '待对账'
 }
 

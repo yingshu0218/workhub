@@ -1,6 +1,7 @@
 import dayjs from 'dayjs'
 import type { Customer, Todo, Transaction, Note } from '@/db/types'
 import { isTodoOpen } from '@/modules/todo/domain'
+import { txnCustomerIds } from '@/modules/finance/links'
 
 /**
  * 灵感闪现规则引擎（Phase 6 · 戒点①：权重一律从源记录推导，不存快照）
@@ -123,12 +124,15 @@ function buildCandidates(input: EngineInput): InspirationCandidate[] {
         value: `¥${txn.amount.toLocaleString('zh-CN')} · ${txn.channel}`,
       },
     ]
-    const customer = txn.customerId ? customersById.get(txn.customerId) : undefined
-    if (customer)
+    // 多关联（Issue #140）：一笔款可能同时挂多个客户，往来客户一行汇总展示（弱引用失效的直接跳过）
+    const linkedCustomers = txnCustomerIds(txn)
+      .map((id) => customersById.get(id))
+      .filter((c): c is Customer => !!c)
+    if (linkedCustomers.length > 0)
       context.push({
         icon: 'group',
         label: '往来客户',
-        value: `${customer.name} · ${customer.company}`,
+        value: linkedCustomers.map((c) => `${c.name} · ${c.company}`).join('、'),
       })
     candidates.push({
       id: `cand-txn-${txn.id}`,
@@ -137,7 +141,8 @@ function buildCandidates(input: EngineInput): InspirationCandidate[] {
       reason: `待对账 ¥${txn.amount.toLocaleString('zh-CN')} · 挂账 ${Math.max(0, hangDays)} 天，账实待核对`,
       score,
       match: 0,
-      customerId: txn.customerId,
+      // 候选动作挂点保留单值（跳转目标只有一个）：取首个关联客户
+      customerId: linkedCustomers[0]?.id,
       context,
     })
   }

@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { db } from '@/db/db'
+import { txnCustomerIds, txnProjectIds } from '@/modules/finance/links'
 import { useQuery } from '@/queries/hooks'
 import { syncEngine } from '@/sync/engine'
 import { newId } from '@/repositories'
@@ -77,11 +78,9 @@ export function useCanvasGraph(): CanvasGraph {
     const [customers, projects, txns, todos, itxs] = await Promise.all([
       db.customers.filter((c) => !c.deleted).toArray(),
       db.projects.filter((p) => !p.deleted).toArray(),
-      // customerId 建有索引：直接走索引取关联流水，跳过无关联的记录
+      // transactions 关联已数组化（Issue #140 v11）：去掉 customerId 索引，改内存过滤（理由见 db.ts v11 注释）
       db.transactions
-        .where('customerId')
-        .notEqual('')
-        .filter((t) => !t.deleted)
+        .filter((t) => !t.deleted && txnCustomerIds(t).length > 0)
         .toArray(),
       db.todos
         .where('customerId')
@@ -119,15 +118,19 @@ export function useCanvasGraph(): CanvasGraph {
       })),
       projects: projects.map((p) => ({ id: p.id, name: p.name, customerId: p.customerId ?? '' })),
       projectStatuses: Object.fromEntries(projects.map((p) => [p.id, p.status])),
-      transactions: txns.map((t) => ({
-        id: t.id,
-        customerId: t.customerId ?? '',
-        type: t.type,
-        amount: t.amount,
-        summary: t.summary,
-        projectId: t.projectId ?? undefined,
-        ledgerId: t.ledgerId ?? undefined,
-      })),
+      // 建边投影保持单值口径（Issue #140）：多关联的一笔流水对每个关联客户各出一份投影，
+      // 画布/亲密度/时间轴按客户维度展开才能正确计数（总数由节点去重，不重复计数）。
+      transactions: txns.flatMap((t) =>
+        txnCustomerIds(t).map((cid) => ({
+          id: t.id,
+          customerId: cid,
+          type: t.type,
+          amount: t.amount,
+          summary: t.summary,
+          projectId: txnProjectIds(t)[0],
+          ledgerId: t.ledgerId ?? undefined,
+        })),
+      ),
       todos: todos.map((t) => ({
         id: t.id,
         customerId: t.customerId ?? '',
@@ -210,12 +213,20 @@ export function useCustomerScoreRows(
   const key = ids.join(',')
   const rows = useQuery<CustomerScoreRows>(async () => {
     if (ids.length === 0) return { transactions: [], todos: [], projects: [], interactions: [] }
+    // 内存过滤用的 id 集合（数组字段无索引，见 db.ts v11 索引策略说明）
+    const idSet = new Set(ids)
     const [transactions, todos, projects, interactions] = await Promise.all([
+      // 多关联（Issue #140）：一笔流水对每个关联客户各展开一份因子投影（与 CanvasGraph 同口径）
       db.transactions
-        .where('customerId')
-        .anyOf(ids)
-        .filter((t) => !t.deleted)
-        .toArray(),
+        .filter((t) => !t.deleted && txnCustomerIds(t).some((id) => idSet.has(id)))
+        .toArray()
+        .then((rows) =>
+          rows.flatMap((t) =>
+            txnCustomerIds(t)
+              .filter((id) => idSet.has(id))
+              .map((id) => ({ customerId: id, amount: t.amount })),
+          ),
+        ),
       db.todos
         .where('customerId')
         .anyOf(ids)
@@ -293,10 +304,9 @@ export function useCustomerTransactions(customerId: string | undefined): Transac
   const list = useQuery<Transaction[]>(
     () =>
       customerId
-        ? db.transactions
-            .where('customerId')
-            .equals(customerId)
-            .filter((t) => !t.deleted)
+        ? // 多关联（Issue #140）：按「数组包含」匹配，一笔款分摊多客户时各方都能看到（无索引，内存过滤）
+          db.transactions
+            .filter((t) => !t.deleted && txnCustomerIds(t).includes(customerId))
             .reverse()
             .sortBy('occurredAt')
         : Promise.resolve([]),

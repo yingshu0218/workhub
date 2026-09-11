@@ -88,10 +88,27 @@ export const recordTransactionSchema = z.object({
   status: z.enum(['已结算', '待对账']).default('待对账'),
   tags: z.array(z.string()).default([]),
   note: z.string().optional(),
-  customerId: z.string().optional(),
-  todoId: z.string().optional(),
-  projectId: z.string().optional(),
+  ...txnLinkField('customerIds', 'customerId'),
+  ...txnLinkField('todoIds', 'todoId'),
+  ...txnLinkField('projectIds', 'projectId'),
 })
+
+/**
+ * 交易关联字段（Issue #140 多值化）的 zod 兼容层：
+ * 接受「单值字符串」或「字符串数组」，统一归一为去重后的数组。
+ *
+ * 为什么必须兼容单值：agentOps 的工具契约是**已分发给外部 Agent** 的（prompt / skill 里
+ * 写着 `customerId: "c1"`）。直接改成只收数组会让存量调用在 zod 校验层直接失败，
+ * 表现为"AI 说记好了，实际没落库"。故按 §9.4「工具层口径对齐 UI」的原则做宽松升级：
+ * 单值照收（自动包数组），数组照收；同时把旧键名（customerId…）作为别名一并接受。
+ */
+function txnLinkField(arrKey: string, legacyKey: string) {
+  const value = z.union([z.string(), z.array(z.string())]).optional()
+  return {
+    [arrKey]: value,
+    [legacyKey]: value,
+  }
+}
 
 /** crm_createCustomer —— 落库 createCustomerWithInit（下沉后的 repositories 版本） */
 export const createCustomerSchema = z.object({

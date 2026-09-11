@@ -140,10 +140,22 @@ export function emitDeclared(tool: string, payloads: Record<string, AgentEventDe
  * 事件 `transaction:created` 仍由 `saveTransactionWithAttachments` 在事务 commit 后、仅新建时发出。
  * agentOps 首版不含 Blob 附件通道（外部 Agent 无法构造 Blob），附件走 UI 路径。
  */
+/** 关联字段归一：单值 + 数组 + 旧键别名 → 去重非空数组（Issue #140） */
+function linkIds(arr: unknown, legacy: unknown): string[] {
+  const norm = (v: unknown): string[] => {
+    if (typeof v === 'string') return v ? [v] : []
+    if (Array.isArray(v)) return v.filter((x): x is string => typeof x === 'string' && !!x)
+    return []
+  }
+  return [...new Set([...norm(arr), ...norm(legacy)])]
+}
+
 export async function fin_recordTransaction(input: unknown): Promise<AgentOpResult> {
   const parsed = parseOrError(recordTransactionSchema, input)
   if (!parsed.ok) return parsed
   const d = parsed.data
+  // schema 的兼容别名（旧键名 customerId…）不在 z.infer 的显式类型里，单独取原始对象读
+  const rec = d as unknown as Record<string, unknown>
 
   const r = await recordTransaction({
     summary: d.summary,
@@ -155,9 +167,10 @@ export async function fin_recordTransaction(input: unknown): Promise<AgentOpResu
     status: d.status,
     tags: d.tags,
     note: d.note,
-    customerId: d.customerId,
-    todoId: d.todoId,
-    projectId: d.projectId,
+    // 多关联归一（Issue #140）：单值/数组/旧键别名都收，去重后落库
+    customerIds: linkIds(rec.customerIds, rec.customerId),
+    todoIds: linkIds(rec.todoIds, rec.todoId),
+    projectIds: linkIds(rec.projectIds, rec.projectId),
   })
   if (!r.ok) return err(r.error)
   return ok({

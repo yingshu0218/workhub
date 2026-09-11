@@ -8,6 +8,7 @@ import { Icon } from '@/design-system/Icon'
 import { MatchCombobox } from '@/design-system/MatchCombobox'
 import ChipTagInput, { chipTagStyle } from '@/design-system/ChipTagInput'
 import { createCustomerWithInit } from './hooks'
+import { txnCustomerIds } from '@/modules/finance/links'
 
 /** 单条关系的稳定标识（Issue #39）：优先取条目 id，旧数据按 目标::语义 兜底（同对允许多条，可逐条删除） */
 const relKey = (r: { id?: string; targetId: string; label: string }) =>
@@ -97,7 +98,8 @@ export default function CustomerFormDrawer({
 
   // 第 4 步可关联的交易：仅列出尚未归属任何客户的流水（已关联的可通过财务侧改）
   const transactions = useCollection<Transaction>('transactions')
-  const linkableTxns = transactions.filter((t) => !t.customerId)
+  // 多关联（Issue #140）：已关联任一客户的流水不再出现在候选（避免重复挂靠）
+  const linkableTxns = transactions.filter((t) => txnCustomerIds(t).length === 0)
 
   // 关联客户候选：所有未删除客户（排除自己），只能从这里选目标
   const customers = useCollection<Customer>('customers')
