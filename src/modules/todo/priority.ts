@@ -73,17 +73,32 @@ export const TODO_PRIORITY_META: Record<TodoPriority, PriorityMeta> = {
   },
 }
 
-/** 新建待办缺省档位（与旧口径 P2 对齐：仍默认「中/重要不紧急」） */
-export const DEFAULT_TODO_PRIORITY: TodoPriority = 'mid'
+/**
+ * 新建待办缺省档位（Issue #148 最新口径：**白色卡片「无」为默认**）。
+ *
+ * 四档卡片里「无 / 不重要不紧急」是白色，也是表单的初始选中档 —— 用户没表态就按
+ * 「不催办、不占今日日程」处理，需要强调时再显式升到 高/中/低，
+ * 避免默认给「中」把一堆随手记的事项都排进计划。
+ */
+export const DEFAULT_TODO_PRIORITY: TodoPriority = 'none'
 
-/** 读侧归一化：兼容存量 P1/P2/P3 与未知值（未知一律兜底 mid，绝不抛错、绝不留空） */
+/**
+ * 读侧归一化：兼容存量 P1/P2/P3 与未知值。
+ *
+ * ⚠️ 未知值仍兜底「中」而不是缺省档「无」：读侧兜的是**脏数据**，
+ * 语义上应保持「中性、需关注」，不能因为某个字段写坏了就把历史事项降级成「有空再说」。
+ * 缺省档只作用于**新建**（写侧），两者刻意不同源。
+ */
+const UNKNOWN_PRIORITY_FALLBACK: TodoPriority = 'mid'
+
+/** 读侧归一化实现（写侧缺省用 `DEFAULT_TODO_PRIORITY`，读侧兜底用 UNKNOWN_PRIORITY_FALLBACK） */
 export function normalizeTodoPriority(raw: unknown): TodoPriority {
   if (typeof raw === 'string') {
     if ((TODO_PRIORITY_LEVELS as readonly string[]).includes(raw)) return raw as TodoPriority
     const alias = LEGACY_PRIORITY_ALIAS[raw]
     if (alias) return alias
   }
-  return DEFAULT_TODO_PRIORITY
+  return UNKNOWN_PRIORITY_FALLBACK
 }
 
 /** 写侧归一化：Agent 入参 `P1` → `high`，已是新档位则原样返回 */
@@ -124,4 +139,44 @@ export function isHighPriority(t: Pick<Todo, 'priority'>): boolean {
 export function matchesPriorityFilter(raw: unknown, filter: TodoPriority | null): boolean {
   if (!filter) return true
   return normalizeTodoPriority(raw) === filter
+}
+
+/**
+ * 卡片式档位色板（Issue #148：优先级改「直接选择」的卡片样式）。
+ *
+ * 与行内 Chip 的 `tone`（Material 容器色）不同，卡片需要**明确边界 + 可辨识块面**，
+ * 因此单独给一套卡片色：红 = 高、橙 = 中、蓝 = 低、白 = 无（默认档）。
+ *
+ * - `card`：未选中态（淡边框 + 淡底，悬停加深）；
+ * - `active`：选中态（同色实描边 + 外环，块面更实）；
+ * - `swatch`：卡片左上角色块（小圆点），保证浅色底上四档一眼可分。
+ *
+ * 「无」档用 `surface-container-lowest`（浅色下即白色）而非 `bg-white`：
+ * 深色模式必须跟着翻转，写死白色会在深色下刺眼。
+ * `swatch` 用 `outline` 而非 `gray`，深色下仍可见。
+ */
+export const TODO_PRIORITY_CARD_STYLE: Record<
+  TodoPriority,
+  { card: string; active: string; swatch: string }
+> = {
+  high: {
+    card: 'border-danger/25 bg-danger-container/40 hover:border-danger/50',
+    active: 'border-danger bg-danger-container/70 ring-2 ring-danger/25',
+    swatch: 'bg-danger',
+  },
+  mid: {
+    card: 'border-warning/25 bg-warning-container/45 hover:border-warning/50',
+    active: 'border-warning bg-warning-container/70 ring-2 ring-warning/25',
+    swatch: 'bg-warning',
+  },
+  low: {
+    card: 'border-primary/20 bg-primary-fixed/45 hover:border-primary/45',
+    active: 'border-primary bg-primary-fixed/70 ring-2 ring-primary/20',
+    swatch: 'bg-primary',
+  },
+  none: {
+    card: 'border-outline-variant/60 bg-surface-container-lowest hover:border-outline/70',
+    active: 'border-outline bg-surface-container-lowest ring-2 ring-outline/20',
+    swatch: 'bg-outline',
+  },
 }

@@ -14,6 +14,7 @@ import {
   isTodoOverdue,
   isTodoDueToday,
   overdueDays,
+  todoFocusPath,
 } from '@/modules/todo/domain'
 import { isHighPriority, todoPriorityFullLabel } from '@/modules/todo/priority'
 import { useCallback, useRef, useState } from 'react'
@@ -626,7 +627,7 @@ export function QuickNoteCard() {
       setDraft('')
       if (to === 'todo') {
         toast.success('已转入待办收集箱，可在待办中心归类')
-        navigate('/todo?focus=' + targetId)
+        navigate(todoFocusPath(targetId))
       } else {
         toast.success('已归入团队笔记')
         navigate('/notes/' + targetId)
@@ -647,7 +648,7 @@ export function QuickNoteCard() {
       const targetId = await convertQuickNote(n, to, 'dashboard')
       toast.success(to === 'todo' ? '已转入待办收集箱' : '已归入团队笔记')
       // 转待办后不等于完成处置：仍需在待办中心补归属/截止，故跳转待办中心定位该条
-      if (to === 'todo') navigate('/todo?focus=' + targetId)
+      if (to === 'todo') navigate(todoFocusPath(targetId))
     } catch (err) {
       console.error('[dashboard] 速记处置失败', err)
       toast.error('处置速记失败，请稍后重试')

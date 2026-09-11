@@ -14,6 +14,7 @@ import {
 } from '@/repositories'
 import { toggleTodoDone } from '@/modules/todo/toggle'
 import { splitTodoText } from '@/modules/todo/title'
+import { normalizeTodoTags, TODO_TAG_MAX_COUNT } from '@/modules/todo/tags'
 import { deleteTodoCascade } from '@/modules/todo/hooks'
 import type { Customer, Habit, Note, NoteFolder, Project, Todo } from '@/db/types'
 
@@ -307,6 +308,7 @@ export async function todo_createTodo(input: unknown): Promise<AgentOpResult> {
     customerId: d.customerId,
     listId: d.listId,
     projectId: d.projectId,
+    tags: d.tags?.length ? normalizeTodoTags(d.tags) : undefined,
     createdAt: Date.now(),
     updatedAt: 0,
     deleted: 0,
@@ -454,6 +456,8 @@ export async function todo_updateTodo(input: unknown): Promise<AgentOpResult> {
     if (subject.desc !== undefined) patch.desc = subject.desc
   }
   if (d.priority !== undefined) patch.priority = d.priority
+  // 标签（Issue #148）：整组替换；与 UI 的表单保存同款口径（去 `#` / 去重保序 / 限长）
+  if (d.tags !== undefined) patch.tags = normalizeTodoTags(d.tags).slice(0, TODO_TAG_MAX_COUNT) || undefined
   const dueAt = triState(d.dueAt)
   if (dueAt.touched) patch.dueAt = dueAt.value
   const customerId = triState(d.customerId)

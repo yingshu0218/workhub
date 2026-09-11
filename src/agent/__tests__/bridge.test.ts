@@ -51,9 +51,9 @@ describe('zod → JSON Schema（单源生成）', () => {
     expect(s.required).toEqual(expect.arrayContaining(['query', 'type']))
 
     const t = zodToJsonSchema(createTodoSchema) as { properties: Record<string, Record<string, unknown>> }
-    // 四档优先级 + 旧档位别名（Issue #148 后续）：枚举含别名，缺省为「中」
+    // 四档优先级 + 旧档位别名（Issue #148 后续）：枚举含别名，缺省为「无」（白色卡片，默认档）
     expect(t.properties.priority.enum).toEqual(['high', 'mid', 'low', 'none', 'P1', 'P2', 'P3'])
-    expect(t.properties.priority.default).toBe('mid')
+    expect(t.properties.priority.default).toBe('none')
   })
 
   it('未识别构造保守降级为空 schema，不臆造约束', () => {

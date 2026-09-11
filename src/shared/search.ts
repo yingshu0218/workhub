@@ -1,5 +1,6 @@
 import type { Customer, Todo, Transaction, Note, Habit, Project } from '@/db/types'
 import { financeFocusPath } from '@/modules/finance/links'
+import { todoFocusPath } from '@/modules/todo/domain'
 
 /**
  * ⌘K 全局搜索检索层（Phase 6 · 戒点②：选择性投影，不拉整字段）
@@ -84,8 +85,8 @@ export function buildSearchIndex(inputs: {
       title: t.title,
       subtitle: statusTag ? `${statusTag} · ${t.desc}` : t.desc,
       // 深链定位（与时间线骨刺穿透同款口径）：/todo?focus=<id>，避免「点了结果只落到列表、
-      // 目标条目在默认视图外 → 观感等同没反应」。TodoPage 消费 focus 后切视图 + 滚动高亮。
-      path: `/todo?focus=${encodeURIComponent(t.id)}`,
+      // 目标条目在默认视图外 → 观感等同没反应」。TodoPage 消费 focus 后切视图 + 打开详情抽屉。
+      path: todoFocusPath(t.id),
     })
   }
   for (const t of inputs.transactions) {
