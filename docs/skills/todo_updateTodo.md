@@ -13,7 +13,7 @@
 | `todoId` | string | 是 | — |  |
 | `title` | string | 否 | — |  |
 | `desc` | string | 否 | — |  |
-| `priority` | enum(P1 / P2 / P3) | 否 | — |  |
+| `priority` | enum(high / mid / low / none / P1 / P2 / P3) | 否 | — |  |
 | `dueAt` | number | 否 | — |  |
 | `customerId` | string | 否 | — |  |
 | `projectId` | string | 否 | — |  |
@@ -37,7 +37,7 @@
 
 ## 典型说法
 
-- 「把「出方案」改成 P1，截止到周五」
+- 「把「出方案」改成高优先级，截止到周五」
 - 「取消这条待办的项目关联」
 
 ## 确认流程

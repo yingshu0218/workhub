@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { db } from '@/db/db'
 import { txnCustomerIds, txnProjectIds, txnTodoIds } from '@/modules/finance/links'
 import { buildSearchIndex, searchAll, type SearchEntityType } from '@/shared/search'
+import { normalizeTodoPriority, todoPriorityFullLabel } from '@/modules/todo/priority'
 import type { Customer, Habit, Ledger, Note, Project, Todo, Transaction } from '@/db/types'
 
 /**
@@ -77,7 +78,11 @@ export const getCustomerSchema = z.object({
 /** listTodos(filter)：同域最小投影（§2.2） */
 export const listTodosSchema = z.object({
   status: z.enum(['todo', 'done']).optional(),
-  priority: z.enum(['P1', 'P2', 'P3']).optional(),
+  /** 四档优先级（含旧档位别名 P1/P2/P3，归一化后统一筛选） */
+  priority: z
+    .enum(['high', 'mid', 'low', 'none', 'P1', 'P2', 'P3'])
+    .optional()
+    .transform((v) => (v === undefined ? undefined : normalizeTodoPriority(v))),
   customerId: z.string().optional(),
   projectId: z.string().optional(),
 })
@@ -141,6 +146,8 @@ function projectTodo(t: Todo) {
     id: t.id,
     title: t.title,
     priority: t.priority,
+    /** 四档中文档位说明（Agent 读回后无需自己映射 P1/P2/P3 语义） */
+    priorityLabel: todoPriorityFullLabel(t.priority),
     status: t.status,
     ...(t.dueAt ? { dueAt: t.dueAt } : {}),
     ...(t.customerId ? { customerId: t.customerId } : {}),
@@ -232,7 +239,8 @@ export async function listTodos(input: unknown): Promise<ReadResult> {
   const d = listTodosSchema.parse(input ?? {})
   const rows = alive(await db.todos.toArray())
     .filter((t) => (d.status ? t.status === d.status : true))
-    .filter((t) => (d.priority ? t.priority === d.priority : true))
+    // 存量数据仍是 P1/P2/P3，比较前先归一化（normalizeTodoPriority 读侧收口）
+    .filter((t) => (d.priority ? normalizeTodoPriority(t.priority) === d.priority : true))
     .filter((t) => (d.customerId ? t.customerId === d.customerId : true))
     .filter((t) => (d.projectId ? t.projectId === d.projectId : true))
     .sort((a, b) => (a.dueAt ?? Infinity) - (b.dueAt ?? Infinity))

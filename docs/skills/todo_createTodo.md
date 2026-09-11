@@ -12,7 +12,7 @@
 |---|---|---|---|---|
 | `title` | string | 是 | — |  |
 | `desc` | string | 否 | `""` |  |
-| `priority` | enum(P1 / P2 / P3) | 否 | `"P2"` |  |
+| `priority` | enum(high / mid / low / none / P1 / P2 / P3) | 否 | `"mid"` |  |
 | `dueAt` | number | 否 | — |  |
 | `customerId` | string | 否 | — |  |
 | `listId` | string | 否 | — |  |
@@ -36,7 +36,7 @@
 
 ## 典型说法
 
-- 「周五前给深蓝出方案，P1 优先级」
+- 「周五前给深蓝出方案，高优先级」
 
 ## 确认流程
 

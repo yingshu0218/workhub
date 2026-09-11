@@ -19,6 +19,17 @@ import {
 import { MatchCombobox } from '@/design-system/MatchCombobox'
 import { toArchivedFlag } from '@/shared/search'
 import { quickCaptureTodoTitle } from '@/modules/notes/quickCapture'
+import {
+  TODO_PRIORITY_LEVELS,
+  TODO_PRIORITY_META,
+  DEFAULT_TODO_PRIORITY,
+  normalizeTodoPriority,
+  todoPriorityLabel,
+  todoPriorityTone,
+  isHighPriority,
+  matchesPriorityFilter,
+  type TodoPriority,
+} from './priority'
 import dayjs from 'dayjs'
 import { useFocusStore } from '@/stores/focus'
 import { toggleTodoDone, voidTodo, restoreTodo } from './toggle'
@@ -65,7 +76,8 @@ export default function TodoPage() {
   )
   const listName = useMemo(() => new Map(lists.map((l) => [l.id, l.name])), [lists])
   const [selKind, setSelKind] = useState<Filter>('all')
-  const [chipP1, setChipP1] = useState(false)
+  // 优先级筛选（原 P1 紧急开关升级为四档任一，Issue #148 后续）
+  const [chipPriority, setChipPriority] = useState<TodoPriority | null>(null)
   const [selListId, setSelListId] = useState<string | null>(null)
   const [editing, setEditing] = useState<Todo | null>(null)
   const [creating, setCreating] = useState(false)
@@ -114,7 +126,7 @@ export default function TodoPage() {
     // 目标自然落在范围内；不给终态条目开并集口子，避免与「全部待办=只看未完成」口径打架。
     setSelListId(null)
     setSelKind(resolveFocusViewKind(todos, focusId))
-    setChipP1(false)
+    setChipPriority(null)
     // 等过滤切换生效、列表重渲染后再滚动定位
     const t = window.setTimeout(() => {
       const el = rowRefs.current.get(focusId)
@@ -188,17 +200,17 @@ export default function TodoPage() {
   const baseScope = selListId
     ? sortedTodos.filter((t) => t.listId === selListId || inFocusScope(t))
     : sortedTodos.filter((t) => matchesSmart(t) || inFocusScope(t))
-  // P1 降级为右侧筛选 Chip，作用于当前左栏视图/清单之内；全部未命中时兜底展示空态
+  // 优先级筛选 Chip（原 P1 紧急开关四档化），作用于当前左栏视图/清单之内；全部未命中时兜底展示空态
   const filtered = baseScope.filter((t) => {
-    if (chipP1 && !(isTodoOpen(t) && t.priority === 'P1')) return false
-    return true
+    if (!isTodoOpen(t) && chipPriority) return false
+    return matchesPriorityFilter(t.priority, chipPriority)
   })
   // 当前视图是否为终态视图（已完成/已作废）：决定空态文案与行内可用操作
   const isDoneView = selKind === 'done' && !selListId
   const isVoidedView = selKind === 'voided' && !selListId
   const isTerminalView = isDoneView || isVoidedView
   // Chip 仅在未完成视图有意义（终态视图本身已按状态过滤）
-  const showP1Chip = !isTerminalView
+  const showPriorityChip = !isTerminalView
 
   // 打勾完成/取消完成统一走领域函数（status 与 completedAt 成对写入，Issue #74）
   // 写库失败（配额超限/隐私模式等）不再静默：catch 后给出可见提示
@@ -282,13 +294,13 @@ export default function TodoPage() {
 
   function selectSmart(key: Filter) {
     setSelListId(null)
-    setChipP1(false)
+    setChipPriority(null)
     setSelKind(key)
   }
   function selectList(id: string) {
     setSelListId(id)
     // 切换清单时同步重置筛选 Chip，与切换固定视图一致
-    setChipP1(false)
+    setChipPriority(null)
   }
 
   async function submitCreateList() {
@@ -322,7 +334,7 @@ export default function TodoPage() {
     if (selListId === id) {
       setSelListId(null)
       setSelKind('all')
-      setChipP1(false)
+      setChipPriority(null)
     }
   }
 
@@ -362,7 +374,7 @@ export default function TodoPage() {
             className="font-semibold underline underline-offset-2 hover:opacity-80"
             onClick={() => {
               setSelListId(null)
-              setChipP1(false)
+              setChipPriority(null)
               setSelKind('today')
             }}
           >
@@ -527,19 +539,30 @@ export default function TodoPage() {
                   已作废
                 </Chip>
               )}
-              {/* P1 筛选 Chip：作用于当前左栏视图/清单之内，点击切换、再点清除。
-                  终态视图（已完成/已作废）本身已按状态过滤，不再重复给 P1 入口 */}
-              {showP1Chip && (
-                <button
-                  onClick={() => setChipP1((v) => !v)}
-                  className={`rounded-full px-2.5 py-0.5 text-[0.8571rem] font-medium transition-colors ${
-                    chipP1
-                      ? 'bg-danger-container text-danger'
-                      : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
-                  }`}
-                >
-                  P1{chipP1 && ' ✕'}
-                </button>
+              {/* 优先级筛选（Issue #148 后续）：四档平铺，点选过滤、再点取消。
+                  作用域仍是「当前左栏视图/清单之内」；终态视图本身已按状态过滤，不给该入口 */}
+              {showPriorityChip && (
+                <div className="flex items-center gap-1">
+                  {TODO_PRIORITY_LEVELS.map((p) => {
+                    const on = chipPriority === p
+                    const meta = TODO_PRIORITY_META[p]
+                    return (
+                      <button
+                        key={p}
+                        title={`${meta.label} · ${meta.quadrant}（${meta.hint}）`}
+                        onClick={() => setChipPriority((v) => (v === p ? null : p))}
+                        className={`rounded-full px-2.5 py-0.5 text-[0.8571rem] font-medium transition-colors ${
+                          on
+                            ? 'bg-primary-fixed text-primary'
+                            : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
+                        }`}
+                      >
+                        {meta.label}
+                        {on && ' ✕'}
+                      </button>
+                    )
+                  })}
+                </div>
               )}
             </div>
             <div className="flex items-center gap-2">
@@ -573,7 +596,7 @@ export default function TodoPage() {
           </Card>
           {filtered.length === 0 ? (
             <Card className="p-6">
-              {chipP1 && baseScope.length > 0 ? (
+              {chipPriority && baseScope.length > 0 ? (
                 <EmptyState
                   icon="filter_alt_off"
                   title="当前筛选没有命中"
@@ -627,7 +650,7 @@ export default function TodoPage() {
                           size={20}
                           fill={isTodoDone(t)}
                           className={
-                            isTodoOpen(t) && t.priority === 'P1'
+                            isTodoOpen(t) && isHighPriority(t)
                               ? 'text-danger'
                               : isTodoOpen(t)
                                 ? 'text-outline'
@@ -704,11 +727,8 @@ export default function TodoPage() {
                         )
                       })()}
                     </div>
-                    <Chip
-                      tone={t.priority === 'P1' ? 'red' : t.priority === 'P2' ? 'amber' : 'gray'}
-                    >
-                      {t.priority}
-                    </Chip>
+                    {/* 四档优先级：展示中文档位名，色板走 priority 收口（不高亮「无」以降低噪音） */}
+                    <Chip tone={todoPriorityTone(t.priority)}>{todoPriorityLabel(t.priority)}</Chip>
                     {isTodoOpen(t) && (
                       <Button
                         size="sm"
@@ -803,10 +823,11 @@ export default function TodoPage() {
                       : selKind === 'overdue'
                         ? isTodoOverdue(saved, todayStr)
                         : isTodoOpen(saved) && !!savedDay && savedDay <= weekEndStr
-          const chipOk = !chipP1 || (isTodoOpen(saved) && saved.priority === 'P1')
+          const chipOk =
+            !chipPriority || (isTodoOpen(saved) && matchesPriorityFilter(saved.priority, chipPriority))
           if (!visible || !chipOk) {
             setSelListId(null)
-            setChipP1(false)
+            setChipPriority(null)
             setSelKind(isTodoDone(saved) ? 'done' : isTodoVoided(saved) ? 'voided' : 'all')
           }
         }}
@@ -869,7 +890,7 @@ export function TodoFormDrawer({
   const projects = useCollection<Project>('projects')
   // 标题不再是独立输入（Issue #148）：全文入正文，标题恒由正文首行推导
   const [desc, setDesc] = useState('')
-  const [priority, setPriority] = useState<Todo['priority']>('P2')
+  const [priority, setPriority] = useState<TodoPriority>(DEFAULT_TODO_PRIORITY)
   // 状态两态（Issue #74）：仅待处理/已完成，完成时间与 status 成对写入
   const [status, setStatus] = useState<Todo['status']>('todo')
   const [dueAt, setDueAt] = useState('')
@@ -889,7 +910,8 @@ export function TodoFormDrawer({
     setLastKey(openKey)
     // 编辑回填：标题与正文拼接，对齐「首行即标题」的拆分口径（拆不开时按标题拆分）
     setDesc(joinTodoText(todo))
-    setPriority(todo?.priority ?? 'P2')
+    // 回填归一化：存量 P1/P2/P3 数据在此转成四档，编辑保存后自然完成数据迁移
+    setPriority(normalizeTodoPriority(todo?.priority))
     setStatus(todo?.status ?? 'todo')
     setDueAt(todo?.dueAt ? dayjs(todo.dueAt).format('YYYY-MM-DDTHH:mm') : '')
     setCustomerId(todo?.customerId ?? '')
@@ -951,21 +973,33 @@ export function TodoFormDrawer({
           </p>
         </Field>
         <Field label="优先级">
-          <div className="flex gap-2">
-            {(['P1', 'P2', 'P3'] as const).map((p) => (
-              <button
-                key={p}
-                onClick={() => setPriority(p)}
-                className={`rounded-lg border px-4 py-1.5 text-[0.9286rem] ${
-                  priority === p
-                    ? 'border-primary bg-primary-fixed font-semibold text-primary'
-                    : 'border-outline-variant text-on-surface-variant'
-                }`}
-              >
-                {p}
-              </button>
-            ))}
+          <div className="flex flex-wrap gap-2">
+            {TODO_PRIORITY_LEVELS.map((p) => {
+              const meta = TODO_PRIORITY_META[p]
+              const on = priority === p
+              return (
+                <button
+                  key={p}
+                  type="button"
+                  title={meta.hint}
+                  onClick={() => setPriority(p)}
+                  className={`rounded-lg border px-3 py-1.5 text-left text-[0.9286rem] transition-colors ${
+                    on
+                      ? 'border-primary bg-primary-fixed font-semibold text-primary'
+                      : 'border-outline-variant text-on-surface-variant hover:border-outline'
+                  }`}
+                >
+                  <span className="block">{meta.label}</span>
+                  <span className="block text-[0.7143rem] font-normal opacity-70">
+                    {meta.quadrant}
+                  </span>
+                </button>
+              )
+            })}
           </div>
+          <p className="mt-1.5 text-[0.7857rem] text-outline">
+            {TODO_PRIORITY_META[priority].hint}
+          </p>
         </Field>
         {/* 三态（Issue #128）：待处理 / 已完成 / 已作废——编辑弹窗也能终止或恢复事项 */}
         <Field label="状态">

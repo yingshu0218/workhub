@@ -4,6 +4,7 @@ import type { Note, QuickNote, Todo } from '@/db/types'
 import { eventBus } from '@/shared/eventBus'
 import { syncEngine } from '@/sync/engine'
 import { extractMentions } from './shared'
+import { DEFAULT_TODO_PRIORITY } from '@/modules/todo/priority'
 
 /**
  * 「随手速记」领域收口（Issue #70 创立，Issue #134 扩为速记的**唯一**处置入口）。
@@ -27,7 +28,7 @@ export const QUICK_CAPTURE_TAG = '速记'
 /** 「归入团队笔记」专用标签：与侧栏速记的「速记」区分，两个入口可检索区分 */
 export const QUICK_CAPTURE_ARCHIVE_TAG = '速记归档'
 /** 速记转待办的默认优先级：速记不是紧急事项，进收集箱待后续排期 */
-export const QUICK_CAPTURE_TODO_PRIORITY: Todo['priority'] = 'P2'
+export const QUICK_CAPTURE_TODO_PRIORITY: Todo['priority'] = DEFAULT_TODO_PRIORITY
 /** 速记转待办的 desc：标明来源，便于在待办中心回溯（无通道信息时的默认值） */
 export const QUICK_CAPTURE_TODO_DESC = '由随手速记转入收集箱'
 /** 速记转笔记时追加的 desc 行：正式笔记模型暂无来源字段，用 markdown 末行留痕 */

@@ -7,6 +7,7 @@ import { useCollection } from '@/queries/hooks'
 import { useNavigate } from 'react-router-dom'
 import { useProjects } from '@/modules/projects/hooks'
 import { todoStatusLabel } from '@/modules/todo/domain'
+import { todoPriorityFullLabel } from '@/modules/todo/priority'
 import { useIntimacyConfig } from '@/modules/crm/intimacy'
 import { useCustomerScoreRows } from '@/modules/crm/hooks'
 import { resolveHealthScoreDisplay } from '@/modules/crm/healthScore'
@@ -108,7 +109,7 @@ export function EntitySummary({ type, id }: HoverTarget) {
     return (
       <>
         <CardRow label="状态" value={todoStatusLabel(t)} />
-        <CardRow label="优先级" value={t.priority} />
+        <CardRow label="优先级" value={todoPriorityFullLabel(t.priority)} />
         <CardRow label="截止" value={t.dueAt ? dayjs(t.dueAt).format('YYYY-MM-DD') : '无'} />
       </>
     )

@@ -18,6 +18,7 @@ import {
 } from '@/design-system/ui'
 import dayjs from 'dayjs'
 import { isTodoOpen, isTodoDone, isTodoVoided, isTodoFinished } from '@/modules/todo/domain'
+import { todoPriorityLabel, todoPriorityTone } from '@/modules/todo/priority'
 import ProjectFormDrawer from './ProjectFormDrawer'
 import { financeFocusPath } from '@/modules/finance/links'
 import {
@@ -283,14 +284,14 @@ export default function ProjectDetailPage() {
                           ? 'green'
                           : isTodoVoided(t)
                             ? 'gray'
-                            : t.priority === 'P1'
-                              ? 'red'
-                              : t.priority === 'P2'
-                                ? 'amber'
-                                : 'gray'
+                            : todoPriorityTone(t.priority)
                       }
                     >
-                      {isTodoDone(t) ? '完成' : isTodoVoided(t) ? '已作废' : t.priority}
+                      {isTodoDone(t)
+                        ? '完成'
+                        : isTodoVoided(t)
+                          ? '已作废'
+                          : todoPriorityLabel(t.priority)}
                     </Chip>
                     <span
                       className={`min-w-0 truncate ${isTodoFinished(t) ? 'text-outline line-through' : ''}`}

@@ -1,6 +1,24 @@
 import dayjs from 'dayjs'
 import { z } from 'zod'
 import type { AiDomain } from '@/db/types'
+import {
+  DEFAULT_TODO_PRIORITY,
+  TODO_PRIORITY_LEVELS,
+  LEGACY_PRIORITY_ALIAS,
+  normalizeTodoPriority,
+} from '@/modules/todo/priority'
+
+/**
+ * 优先级入参 schema（Issue #148 后续）：四档新值 + 旧档位别名 P1/P2/P3 双向兼容。
+ * 归一化在**校验期**完成（transform），落库路径拿到的恒为新档位（high/mid/low/none），
+ * 下游 executor 无需再判「是不是旧档」；已分发的 Agent 工具契约不破。
+ */
+export const todoPrioritySchema = z
+  .enum([...TODO_PRIORITY_LEVELS, ...Object.keys(LEGACY_PRIORITY_ALIAS)] as [
+    string,
+    ...string[],
+  ])
+  .transform((v) => normalizeTodoPriority(v))
 
 /**
  * agentOps 工具 schema —— P1 第 1 步（方案 §9.7 / §2.1 事件声明表）
@@ -142,7 +160,8 @@ export const addInteractionSchema = z.object({
 export const createTodoSchema = z.object({
   title: z.string().trim().min(1, '请填写待办标题'),
   desc: z.string().default(''),
-  priority: z.enum(['P1', 'P2', 'P3']).default('P2'),
+  /** 四档优先级：high 高（重要紧急）/ mid 中（重要不紧急）/ low 低（不重要紧急）/ none 无（不重要不紧急） */
+  priority: todoPrioritySchema.default(DEFAULT_TODO_PRIORITY),
   dueAt: z.number().int().positive().optional(),
   customerId: z.string().optional(),
   listId: z.string().optional(),
@@ -203,7 +222,7 @@ export const updateTodoSchema = z
     todoId: z.string().min(1, 'todoId 必须由 resolveEntity 消解产出'),
     title: z.string().trim().min(1).optional(),
     desc: z.string().optional(),
-    priority: z.enum(['P1', 'P2', 'P3']).optional(),
+    priority: todoPrioritySchema.optional(),
     /** 传 null 表示清空（对齐 UI「不关联」语义） */
     dueAt: z.number().int().positive().nullable().optional(),
     customerId: z.string().nullable().optional(),

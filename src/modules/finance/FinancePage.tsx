@@ -16,6 +16,7 @@ import {
 } from '@/design-system/ui'
 import dayjs from 'dayjs'
 import { todoStatusLabel } from '@/modules/todo/domain'
+import { todoPriorityLabel } from '@/modules/todo/priority'
 import LedgerFormDrawer from './LedgerFormDrawer'
 import TransactionFormDrawer from './TransactionFormDrawer'
 import { txnCustomerIds, txnTodoIds } from './links'
@@ -837,7 +838,7 @@ function TransactionDetailDrawer({
                       <div className="min-w-0">
                         <div className="truncate text-[0.9286rem] font-medium">{todo.title}</div>
                         <div className="truncate text-[0.8571rem] text-on-surface-variant">
-                          {todo.priority} · {todoStatusLabel(todo)}
+                          {todoPriorityLabel(todo.priority)} · {todoStatusLabel(todo)}
                         </div>
                       </div>
                     </div>

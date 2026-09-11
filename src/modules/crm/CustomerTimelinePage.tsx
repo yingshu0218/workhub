@@ -22,6 +22,7 @@ import {
 import { IDENTITY_VIEW, usePanZoom } from './usePanZoom'
 import { useIntimacyConfig } from './intimacy'
 import { useCustomerScoreRows } from './hooks'
+import { todoPriorityLabel, todoPriorityTone } from '@/modules/todo/priority'
 import { resolveHealthScoreDisplay } from './healthScore'
 
 /**
@@ -461,14 +462,10 @@ export default function CustomerTimelinePage() {
                 {hover.event.kind === 'todo' && (
                   <Chip
                     tone={
-                      hover.event.priority === 'P1'
-                        ? 'red'
-                        : hover.event.priority === 'P2'
-                          ? 'amber'
-                          : 'gray'
+                      todoPriorityTone(hover.event.priority)
                     }
                   >
-                    {hover.event.priority}
+                    {todoPriorityLabel(hover.event.priority)}
                   </Chip>
                 )}
                 {hover.event.kind === 'transaction' && hover.event.status === '待对账' && (
