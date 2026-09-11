@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import 'fake-indexeddb/auto'
 /**
  * 「正文首行即标题」口径回归（Issue #148）
  *
@@ -9,6 +10,7 @@
  */
 import { describe, it, expect } from 'vitest'
 import { render, fireEvent } from '@testing-library/react'
+import { waitFor } from '@testing-library/dom'
 import { deriveTodoTitle, joinTodoText, TodoFormDrawer } from '../TodoPage'
 import { quickCaptureTodoTitle } from '@/modules/notes/quickCapture'
 import type { Todo } from '@/db/types'
@@ -72,12 +74,12 @@ describe('③ 表单布局：左侧正文独占 / 右侧「事项设置」收纳
     expect(container.textContent).not.toContain('标题 *')
   })
 
-  it('存在右栏「事项设置」，且六项设置全在其中', () => {
+  it('存在右栏「事项设置」，且五项设置全在其中（状态已移出表单）', () => {
     const { container } = render(<TodoFormDrawer open={true} todo={null} onClose={() => {}} />)
     const aside = container.querySelector('[aria-label="事项设置"]')
     expect(aside).toBeTruthy()
     const text = aside!.textContent ?? ''
-    for (const label of ['优先级', '状态', '截止时间', '所属清单', '所属项目', '关联客户']) {
+    for (const label of ['优先级', '截止时间', '所属清单', '所属项目', '关联客户']) {
       expect(text).toContain(label)
     }
   })
@@ -208,15 +210,64 @@ describe('⑤ 优先级四档（Issue #148 后续）：高/中/低/无 + 象限�
     expect(container.textContent).toContain('立刻做：救火与关键节点，别排期')
   })
 
-  it('状态同样是可输入下拉（待处理/已完成/已作废）', () => {
-    const { container } = render(<TodoFormDrawer open={true} todo={null} onClose={() => {}} />)
-    const statusField = Array.from(container.querySelectorAll('label')).find((l) =>
-      (l.textContent ?? '').startsWith('状态'),
-    )!
-    expect(statusField.querySelectorAll('button').length).toBeGreaterThan(0)
-    fireEvent.click(statusField.querySelector('button')!)
-    const text = document.body.textContent ?? ''
-    for (const label of ['待处理', '已完成', '已作废']) expect(text).toContain(label)
+  it('新建/编辑未完成态表单里不再有「状态」字段（默认就是未完成，无需选择）', () => {
+    const openTodo = {
+      id: 'td-open',
+      title: '未完成的待办',
+      desc: '',
+      priority: 'none' as const,
+      status: 'todo' as const,
+      createdAt: Date.now(),
+      updatedAt: 0,
+      deleted: 0 as const,
+      rev: 0,
+    } as unknown as Todo
+    for (const target of [null, openTodo]) {
+      const { container } = render(<TodoFormDrawer open={true} todo={target} onClose={() => {}} />)
+      const text = container.textContent ?? ''
+      expect(text).not.toContain('待处理')
+      expect(text).not.toContain('已完成')
+      expect(text).not.toContain('已作废')
+      expect(container.querySelector('input[type="checkbox"]')).toBeNull()
+    }
+  })
+
+  it('已作废条目编辑时只给一个「恢复为未完成」开关，默认不勾（保持作废）', () => {
+    const voided = {
+      id: 'td-void',
+      title: '已作废的待办',
+      desc: '',
+      priority: 'none' as const,
+      status: 'voided' as const,
+      voidedAt: Date.now(),
+      createdAt: Date.now(),
+      updatedAt: 0,
+      deleted: 0 as const,
+      rev: 0,
+    } as unknown as Todo
+    const { container } = render(<TodoFormDrawer open={true} todo={voided} onClose={() => {}} />)
+    expect(container.textContent).toContain('恢复为未完成')
+    const box = container.querySelector<HTMLInputElement>('input[type="checkbox"]')!
+    expect(box.checked).toBe(false)
+    fireEvent.click(box)
+    expect(box.checked).toBe(true)
+  })
+
+  it('已完成条目编辑时也不给状态开关（完成态不在表单里改）', () => {
+    const done = {
+      id: 'td-done',
+      title: '已完成的待办',
+      desc: '',
+      priority: 'none' as const,
+      status: 'done' as const,
+      completedAt: Date.now(),
+      createdAt: Date.now(),
+      updatedAt: 0,
+      deleted: 0 as const,
+      rev: 0,
+    } as unknown as Todo
+    const { container } = render(<TodoFormDrawer open={true} todo={done} onClose={() => {}} />)
+    expect(container.querySelector('input[type="checkbox"]')).toBeNull()
   })
 
   it('不再出现 P1/P2/P3 字样（旧档位不进 UI）', () => {
@@ -225,5 +276,132 @@ describe('⑤ 优先级四档（Issue #148 后续）：高/中/低/无 + 象限�
     expect(text).not.toContain('P1')
     expect(text).not.toContain('P2')
     expect(text).not.toContain('P3')
+  })
+})
+
+describe('⑥ 保存时的状态纪律（Issue #148 后续）：表单不参与完成态写入', () => {
+  const base = {
+    priority: 'none' as const,
+    desc: '',
+    updatedAt: 0,
+    deleted: 0 as const,
+    rev: 0,
+    createdAt: Date.now(),
+  }
+
+  it('新建：status 恒为 todo（唯一缺省态），两个终态时间戳都缺省', async () => {
+    const saved: Todo[] = []
+    const { container } = render(
+      <TodoFormDrawer open={true} todo={null} onClose={() => {}} onSaved={(t) => saved.push(t)} />,
+    )
+    const textarea = container.querySelector('textarea')!
+    fireEvent.change(textarea, { target: { value: '新建的待办' } })
+    fireEvent.click(
+      Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '创建待办')!,
+    )
+    await waitFor(() => expect(saved).toHaveLength(1))
+    expect(saved[0].status).toBe('todo')
+    expect(saved[0].completedAt).toBeUndefined()
+    expect(saved[0].voidedAt).toBeUndefined()
+  })
+
+  it('编辑未完成：改字保存不改状态、不盖完成时间', async () => {
+    const open = {
+      ...base,
+      id: 'td-open',
+      title: '未完成的待办',
+      status: 'todo' as const,
+    } as unknown as Todo
+    const saved: Todo[] = []
+    const { container } = render(
+      <TodoFormDrawer open={true} todo={open} onClose={() => {}} onSaved={(t) => saved.push(t)} />,
+    )
+    fireEvent.change(container.querySelector('textarea')!, {
+      target: { value: '未完成的待办（改过）' },
+    })
+    fireEvent.click(
+      Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '保存修改')!,
+    )
+    await waitFor(() => expect(saved).toHaveLength(1))
+    expect(saved[0].status).toBe('todo')
+    expect(saved[0].completedAt).toBeUndefined()
+  })
+
+  it('编辑已完成：改字保存不会「复活」成未完成，completedAt 原样保留', async () => {
+    const done = {
+      ...base,
+      id: 'td-done',
+      title: '已完成的待办',
+      status: 'done' as const,
+      completedAt: 1_700_000_000_000,
+    } as unknown as Todo
+    const saved: Todo[] = []
+    const { container } = render(
+      <TodoFormDrawer open={true} todo={done} onClose={() => {}} onSaved={(t) => saved.push(t)} />,
+    )
+    fireEvent.change(container.querySelector('textarea')!, {
+      target: { value: '已完成的待办（改过）' },
+    })
+    fireEvent.click(
+      Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '保存修改')!,
+    )
+    await waitFor(() => expect(saved).toHaveLength(1))
+    expect(saved[0].status).toBe('done')
+    expect(saved[0].completedAt).toBe(1_700_000_000_000)
+  })
+
+  it('编辑已作废：不勾恢复 → 保持 voided（voidedAt 保留）', async () => {
+    const voided = {
+      ...base,
+      id: 'td-void',
+      title: '已作废的待办',
+      status: 'voided' as const,
+      voidedAt: 1_700_000_000_500,
+    } as unknown as Todo
+    const saved: Todo[] = []
+    const { container } = render(
+      <TodoFormDrawer
+        open={true}
+        todo={voided}
+        onClose={() => {}}
+        onSaved={(t) => saved.push(t)}
+      />,
+    )
+    fireEvent.change(container.querySelector('textarea')!, {
+      target: { value: '已作废的待办（改过）' },
+    })
+    fireEvent.click(
+      Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '保存修改')!,
+    )
+    await waitFor(() => expect(saved).toHaveLength(1))
+    expect(saved[0].status).toBe('voided')
+    expect(saved[0].voidedAt).toBe(1_700_000_000_500)
+  })
+
+  it('编辑已作废 + 勾选恢复：回到未完成，voidedAt / completedAt 一并清空（不留单边时间戳）', async () => {
+    const voided = {
+      ...base,
+      id: 'td-void2',
+      title: '已作废的待办',
+      status: 'voided' as const,
+      voidedAt: 1_700_000_000_500,
+    } as unknown as Todo
+    const saved: Todo[] = []
+    const { container } = render(
+      <TodoFormDrawer
+        open={true}
+        todo={voided}
+        onClose={() => {}}
+        onSaved={(t) => saved.push(t)}
+      />,
+    )
+    fireEvent.click(container.querySelector<HTMLInputElement>('input[type="checkbox"]')!)
+    fireEvent.click(
+      Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '保存修改')!,
+    )
+    await waitFor(() => expect(saved).toHaveLength(1))
+    expect(saved[0].status).toBe('todo')
+    expect(saved[0].voidedAt).toBeUndefined()
+    expect(saved[0].completedAt).toBeUndefined()
   })
 })

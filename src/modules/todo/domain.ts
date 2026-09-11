@@ -20,7 +20,7 @@ import { normalizeTodoPriority } from './priority'
 
 export type TodoStatus = Todo['status']
 
-/** 未完成（待处理）判定：所有「未完成」口径的唯一入口 */
+/** 未完成判定：所有「未完成」口径的唯一入口（界面上就是「未完成」，无额外状态位） */
 export function isTodoOpen(t: Pick<Todo, 'status'>): boolean {
   return t.status === 'todo'
 }
@@ -43,9 +43,16 @@ export function isTodoFinished(t: Pick<Todo, 'status'>): boolean {
   return t.status !== 'todo'
 }
 
-/** 状态文案：todo → 待处理 / done → 已完成 / voided → 已作废 */
+/**
+ * 状态文案：todo → 未完成 / done → 已完成 / voided → 已作废（Issue #148 后续）
+ *
+ * 为什么把 'todo' 的文案从「待处理」改成「未完成」：
+ * 新建待办默认就是未完成，弹窗里再给一个「待处理」下拉，等于让用户在一个
+ * 只有一个可选值的字段里做选择（Issue #148 反馈）。文案随之对齐界面用语：
+ * 未完成 → 打勾完成 → 已完成，是一条动作链；「待处理」是状态位口吻，已弃用。
+ */
 export function todoStatusLabel(t: Pick<Todo, 'status'>): string {
-  return t.status === 'done' ? '已完成' : t.status === 'voided' ? '已作废' : '待处理'
+  return t.status === 'done' ? '已完成' : t.status === 'voided' ? '已作废' : '未完成'
 }
 
 /**

@@ -134,7 +134,7 @@ export interface Todo extends SyncMeta {
   dueAt?: number
   /**
    * 三态（Issue #74 收窄为两态，Issue #128 扩入 'voided'「已作废」）：
-   * - 'todo' 待处理 / 'done' 已完成 / 'voided' 已作废（事项终止，记录保留可恢复，区别于软删）
+   * - 'todo' 未完成（新建缺省态，弹窗不给状态选择）/ 'done' 已完成 / 'voided' 已作废（事项终止，记录保留可恢复，区别于软删）
    * - 原 'doing' 为死枚举已移除，「专注中」是 focus store 运行时状态不落库
    */
   status: 'todo' | 'done' | 'voided'
