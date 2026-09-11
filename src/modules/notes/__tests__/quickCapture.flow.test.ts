@@ -21,6 +21,7 @@ import {
   quickCaptureTitle,
   CONVERTED_VIA,
   QUICK_CAPTURE_ARCHIVE_TAG,
+  QUICK_CAPTURE_TODO_DESC,
 } from '../quickCapture'
 import { isTodoOpen } from '@/modules/todo/domain'
 import { mergeRemoteRecord as mergeRemote } from '@/sync/mergeRemote'
@@ -58,11 +59,13 @@ describe('① 速记 → 待办：归属收集箱', () => {
     expect(todo.desc).toBe('标题行\n第二行细节\n第三行细节\n\n— 由随手速记转入收集箱')
   })
 
-  it('单行速记的 desc 标明来源（便于待办中心回溯）', async () => {
+  it('单行速记的 desc 与多行同形：正文全文 + 来源留痕（Issue #148 后续口径统一）', async () => {
     const id = await captureToTodo('单行灵感')
     const todo = (await db.todos.get(id))!
     expect(todo.title).toBe('单行灵感')
-    expect(todo.desc).toBe('由随手速记转入收集箱')
+    // 原实现单行只写来源文案，导致「速记转待办」与表单新建的 desc 形态不同、
+    // 编辑回填往返结果不一致；现统一为「正文全文 + 来源行」。
+    expect(todo.desc).toBe('单行灵感\n\n— 由随手速记转入收集箱')
   })
 
   it('超长单行标题截 60 字（标题不膨胀撑破列表行）', () => {
@@ -120,20 +123,26 @@ describe('③ convertQuickNote：处置后速记离开暂存区', () => {
 })
 
 describe('④ 通道留痕：转入的待办/笔记能回答「从哪来」', () => {
-  it('dashboard 通道：单行速记 desc 记为「由工作台速记转入收集箱」', async () => {
+  it('dashboard 通道：desc = 正文全文 + 「由工作台速记转入收集箱」来源行', async () => {
     const id = await captureToTodo('工作台记的一条', 'dashboard')
-    expect((await db.todos.get(id))!.desc).toBe(CONVERTED_VIA.dashboard.todoDesc)
+    expect((await db.todos.get(id))!.desc).toBe(
+      `工作台记的一条\n\n— ${CONVERTED_VIA.dashboard.todoDesc}`,
+    )
   })
 
   it('sidebar 通道：同一正文留痕与 dashboard 不同（可区分入口）', async () => {
     const id = await captureToTodo('侧栏记的一条', 'sidebar')
-    expect((await db.todos.get(id))!.desc).toBe(CONVERTED_VIA.sidebar.todoDesc)
+    expect((await db.todos.get(id))!.desc).toBe(
+      `侧栏记的一条\n\n— ${CONVERTED_VIA.sidebar.todoDesc}`,
+    )
     expect(CONVERTED_VIA.sidebar.todoDesc).not.toBe(CONVERTED_VIA.dashboard.todoDesc)
   })
 
   it('通道缺省（旧调用）：退回通用文案，签名向后兼容', async () => {
     const id = await captureToTodo('老入口记的')
-    expect((await db.todos.get(id))!.desc).toBe('由随手速记转入收集箱')
+    expect((await db.todos.get(id))!.desc).toBe(
+      `老入口记的\n\n— ${QUICK_CAPTURE_TODO_DESC}`,
+    )
   })
 
   it('归笔记同样按通道留痕，且重复处置不叠加第二行来源', async () => {

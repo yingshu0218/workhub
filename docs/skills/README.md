@@ -25,11 +25,11 @@
 | [`crm_createCustomer`](./crm_createCustomer.md) | crm | medium | 新建 CRM 客户（可含首联初始化） |
 | [`crm_addInteraction`](./crm_addInteraction.md) | crm | medium | 记一条客户沟通日志（原子刷新最近联系时间） |
 | [`crm_addRelation`](./crm_addRelation.md) | crm | medium | 维护客户关系（双向落两侧） |
-| [`todo_createTodo`](./todo_createTodo.md) | todo | low | 新建待办 |
+| [`todo_createTodo`](./todo_createTodo.md) | todo | low | 新建待办（正文首行即标题） |
 | [`todo_completeTodo`](./todo_completeTodo.md) | todo | low | 把待办标记为完成（或取消完成） |
 | [`habit_checkin`](./habit_checkin.md) | habit | low | 习惯打卡 / 取消打卡 |
-| [`todo_updateTodo`](./todo_updateTodo.md) | todo | low | 编辑待办（标题/描述/优先级/截止时间/关联） |
-| [`todo_deleteTodo`](./todo_deleteTodo.md) | todo | high | 删除待办（不可逆） |
+| [`todo_updateTodo`](./todo_updateTodo.md) | todo | low | 编辑待办（正文/优先级/截止时间/关联） |
+| [`todo_deleteTodo`](./todo_deleteTodo.md) | todo | high | 删除待办（不可逆，顺带解绑流水关联） |
 | [`crm_updateCustomer`](./crm_updateCustomer.md) | crm | medium | 编辑客户档案（姓名/公司/职位/tier/健康分档位/联系方式） |
 | [`project_createProject`](./project_createProject.md) | project | low | 新建项目 |
 | [`project_updateProject`](./project_updateProject.md) | project | medium | 编辑项目（改名/归档/搁置/挂靠客户/预算） |

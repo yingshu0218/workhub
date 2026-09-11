@@ -7,6 +7,7 @@ import {
   LEGACY_PRIORITY_ALIAS,
   normalizeTodoPriority,
 } from '@/modules/todo/priority'
+import { splitTodoText, toTodoText } from '@/modules/todo/title'
 
 /**
  * 优先级入参 schema（Issue #148 后续）：四档新值 + 旧档位别名 P1/P2/P3 双向兼容。
@@ -156,17 +157,67 @@ export const addInteractionSchema = z.object({
   projectId: z.string().optional(),
 })
 
-/** todo_createTodo —— 落库 todoRepo.put（priority/status 默认与 UI 一致） */
-export const createTodoSchema = z.object({
-  title: z.string().trim().min(1, '请填写待办标题'),
-  desc: z.string().default(''),
-  /** 四档优先级：high 高（重要紧急）/ mid 中（重要不紧急）/ low 低（不重要紧急）/ none 无（不重要不紧急） */
-  priority: todoPrioritySchema.default(DEFAULT_TODO_PRIORITY),
-  dueAt: z.number().int().positive().optional(),
-  customerId: z.string().optional(),
-  listId: z.string().optional(),
-  projectId: z.string().optional(),
-})
+/**
+ * 待办「正文字段」schema（Issue #148 后续 · 写入口径收口）
+ *
+ * 背景：UI 已改为「正文首行即标题」（Issue #148），而 Agent 侧此前独立写 title/desc。
+ * 于是 Agent 建的 `{title:'季度复盘会', desc:'准备 Q3 数据'}` 在 UI 打开→保存后，
+ * `desc` 会被编辑回填归一化成 `季度复盘会\n准备 Q3 数据`（静默改写既有数据）。
+ *
+ * 收口方案（**向后兼容，不破已分发契约**）：
+ * - 新增 `content`：单一正文，标题由首行推导（与 UI 同口径 `splitTodoText`）；
+ * - `title` / `desc` 仍接受（老 Agent 调用不能校验失败），但落库前统一折进 `content`；
+ * - 三者同时给出时口径唯一：`content` 优先 → 其次 `title + desc` 合并 → 最后 `desc`。
+ *
+ * 归一化在**校验期**完成，executor 拿到的恒为 `{ content }`（+ 可选关联字段）。
+ */
+export const todoSubjectFields = {
+  /** 单一正文（推荐）：标题 = 正文首行（60 字），其余为备注 */
+  content: z.string().optional(),
+  title: z.string().trim().min(1).optional(),
+  desc: z.string().optional(),
+}
+
+/**
+ * 把 title/desc/content 三态折成单一正文。
+ *
+ * - `content` 显式给出（含空串）→ 以它为准（空串会在 refine 阶段被拒）；
+ * - 否则 `title + desc` 按 UI 编辑回填同款规则合并（首行已是 title 时不重复补行）；
+ * - 只有 `desc` 时以 `desc` 为正文。
+ */
+export function mergeTodoSubject(v: { content?: string; title?: string; desc?: string }): string {
+  if (v.content !== undefined) return v.content
+  return toTodoText({ title: v.title ?? '', desc: v.desc ?? '' })
+}
+
+/** 落库形态：`{ title, desc }`（唯一拆分实现见 `modules/todo/title.splitTodoText`） */
+export function resolveTodoSubject(v: {
+  content?: string
+  title?: string
+  desc?: string
+}): { title: string; desc: string } {
+  return splitTodoText(mergeTodoSubject(v))
+}
+
+/**
+ * todo_createTodo —— 落库 todoRepo.put（priority/status 默认与 UI 一致）
+ *
+ * 正文口径（Issue #148 后续）：`content` 优先，`title`/`desc` 兼容保留；
+ * 三者都缺省时按「正文为空」拒绝（UI 侧同款校验：「请先写下待办内容」）。
+ */
+export const createTodoSchema = z
+  .object({
+    ...todoSubjectFields,
+    /** 四档优先级：high 高（重要紧急）/ mid 中（重要不紧急）/ low 低（不重要紧急）/ none 无（不重要不紧急） */
+    priority: todoPrioritySchema.default(DEFAULT_TODO_PRIORITY),
+    dueAt: z.number().int().positive().optional(),
+    customerId: z.string().optional(),
+    listId: z.string().optional(),
+    projectId: z.string().optional(),
+  })
+  .transform((v) => ({ ...v, ...resolveTodoSubject(v) }))
+  // 非空校验看**原始正文**（不能看推导后的 title：空正文会被回退成「未命名待办」而误判为有内容）
+  .refine((v) => mergeTodoSubject(v).trim().length > 0, '请填写待办内容（content 或 title）')
 
 /** todo_completeTodo —— 唯一入口 toggleTodoDone（§9.3 D6：status+completedAt 成对写） */
 export const completeTodoSchema = z.object({
@@ -217,11 +268,13 @@ export const checkinHabitSchema = z.object({
  * ------------------------------------------------------------------- */
 
 /** todo_updateTodo —— 编辑待办（不含完成态：完成态一律走 todo_completeTodo，避免两处写 status/completedAt） */
+/** todo_updateTodo —— 正文只能整体替换（`content`），或兼容传 `title`/`desc` */
 export const updateTodoSchema = z
   .object({
     todoId: z.string().min(1, 'todoId 必须由 resolveEntity 消解产出'),
-    title: z.string().trim().min(1).optional(),
-    desc: z.string().optional(),
+    // 正文三态（Issue #148 后续）：content 整体替换优先；title 单独传 = 只改标题（正文保持），
+    // desc 单独传 = 只改备注（标题保持）。两者同时传 = 整体替换（与 create 同口径）。
+    ...todoSubjectFields,
     priority: todoPrioritySchema.optional(),
     /** 传 null 表示清空（对齐 UI「不关联」语义） */
     dueAt: z.number().int().positive().nullable().optional(),

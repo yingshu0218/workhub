@@ -48,6 +48,18 @@ const PRIORITY_BASE: Record<Todo['priority'], number> = {
   low: 55,
   none: 30,
 }
+/**
+ * 降级原因文案（Issue #148 后续 · 上轮审计建议 8）：
+ * 原文案里的「商业影响最高」只在「高（重要紧急）」档才成立，低/无档照样输出这句话
+ * 会与档位语义打架。改为按档位取一句**与象限自洽**的影响描述，档位本身仍由
+ * `todoPriorityFullLabel` 单独展示，两者不互相替代。
+ */
+const PRIORITY_IMPACT_HINT: Record<Todo['priority'], string> = {
+  high: '影响最直接，别排期',
+  mid: '长期价值最高，排进计划即可',
+  low: '催得急但价值有限，能交就交',
+  none: '不催办，有空再处理即可',
+}
 /** 客户分层权重：S > A > B（潜在不计入） */
 const TIER_WEIGHT: Record<string, number> = { S: 6, A: 4, B: 2.5 }
 
@@ -97,7 +109,7 @@ function buildCandidates(input: EngineInput): InspirationCandidate[] {
         title: t.title,
         reason:
           overdueDays >= 1
-            ? `已逾期 ${overdueDays} 天 · ${todoPriorityFullLabel(t.priority)}，商业影响最高`
+            ? `已逾期 ${overdueDays} 天 · ${todoPriorityFullLabel(t.priority)} · ${PRIORITY_IMPACT_HINT[normalizeTodoPriority(t.priority)]}`
             : `今天 ${dayjs(t.dueAt).format('HH:mm')} 截止已过 · ${todoPriorityFullLabel(t.priority)}`,
         score,
         match: 0,

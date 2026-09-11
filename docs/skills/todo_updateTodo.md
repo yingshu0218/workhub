@@ -4,13 +4,14 @@
 
 ## 能力
 
-编辑待办（标题/描述/优先级/截止时间/关联）
+编辑待办（正文/优先级/截止时间/关联）
 
 ## 参数
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---|---|---|
 | `todoId` | string | 是 | — |  |
+| `content` | string | 否 | — |  |
 | `title` | string | 否 | — |  |
 | `desc` | string | 否 | — |  |
 | `priority` | enum(high / mid / low / none / P1 / P2 / P3) | 否 | — |  |
@@ -33,7 +34,7 @@
 
 ## 实体引用规则
 
-实体引用（客户/项目/待办/账本/习惯）必须先调 `resolveEntity` 消解；候选不唯一必须反问答用户，禁止猜 id。 todoId 必填；更换 customerId/projectId 时目标须为真实 id。完成态请改用 todo_completeTodo。
+实体引用（客户/项目/待办/账本/习惯）必须先调 `resolveEntity` 消解；候选不唯一必须反问答用户，禁止猜 id。 todoId 必填；更换 customerId/projectId 时目标须为真实 id。完成态请改用 todo_completeTodo。**正文口径**：传 content = 整体替换正文（标题随之由首行重推）；只传 title = 只改标题；只传 desc = 只改备注；title+desc 同传 = 整体替换。
 
 ## 典型说法
 

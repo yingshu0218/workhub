@@ -278,6 +278,21 @@ describe('C. 读工具：投影白名单 + 条数上限（§2.2 / §10.4）', ()
     expect(note).not.toHaveProperty('markdown')
   })
 
+  it('searchEntities 的待办结果带档位语义（与 listTodos 同源，Issue #148 后续）', async () => {
+    await db.todos.put({
+      id: 'td:p1', title: '深蓝续约', desc: '', priority: 'P1', status: 'todo',
+      createdAt: 1, updatedAt: 0, deleted: 0, rev: 0,
+    } as never)
+    const r = await dispatchAgentTool('searchEntities', { q: '深蓝', types: ['todo'] })
+    const todo = (r.data!.items as Record<string, unknown>[])[0] as {
+      priority: string
+      priorityLabel: string
+    }
+    // 存量 P1 归一化为 high，并给出四档全称 —— 老 Agent 不再把档位当 P1/P2/P3 解释
+    expect(todo.priority).toBe('high')
+    expect(todo.priorityLabel).toBe('高 · 重要紧急')
+  })
+
   it('searchEntities 支持 types 过滤', async () => {
     await db.customers.put(newCustomer('c1'))
     await db.notes.put({

@@ -323,16 +323,18 @@
     },
     {
       "name": "todo_createTodo",
-      "description": "新建待办",
+      "description": "新建待办（正文首行即标题）",
       "inputSchema": {
         "type": "object",
         "properties": {
+          "content": {
+            "type": "string"
+          },
           "title": {
             "type": "string"
           },
           "desc": {
-            "type": "string",
-            "default": ""
+            "type": "string"
           },
           "priority": {
             "type": "string",
@@ -359,10 +361,7 @@
           "projectId": {
             "type": "string"
           }
-        },
-        "required": [
-          "title"
-        ]
+        }
       },
       "annotations": {
         "risk": "low",
@@ -428,11 +427,14 @@
     },
     {
       "name": "todo_updateTodo",
-      "description": "编辑待办（标题/描述/优先级/截止时间/关联）",
+      "description": "编辑待办（正文/优先级/截止时间/关联）",
       "inputSchema": {
         "type": "object",
         "properties": {
           "todoId": {
+            "type": "string"
+          },
+          "content": {
             "type": "string"
           },
           "title": {
@@ -479,7 +481,7 @@
     },
     {
       "name": "todo_deleteTodo",
-      "description": "删除待办（不可逆）",
+      "description": "删除待办（不可逆，顺带解绑流水关联）",
       "inputSchema": {
         "type": "object",
         "properties": {
