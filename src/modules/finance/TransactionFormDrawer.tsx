@@ -335,8 +335,14 @@ export default function TransactionFormDrawer({
           {/* 辅助信息区（Issue #151）：业务标签与关联三件套改 2 列分栏
               —— 原为 4 个整行，窄字段半列足够且能大幅压缩表单高度。
               业务标签与关联客户成对（首行），关联项目与关联待办成对（次行）；
-              行内高度不一致时各自顶部对齐（items-start），避免被邻居拉高。 */}
-          <div className="col-span-2 grid grid-cols-1 items-start gap-x-4 gap-y-3 sm:grid-cols-2">
+              行内高度不一致时各自顶部对齐（items-start），避免被邻居拉高。
+              列间距取 gap-2，与同级「col-span-2 内再分栏」口径一致
+              （TodoPage 双栏区 / CustomerFormDrawer 客户关系区），
+              避免叠加外层 gap-x-4 后比同级栅格窄一档。 */}
+          <div
+            data-testid="txn-aux-links"
+            className="col-span-2 grid grid-cols-1 items-start gap-2 sm:grid-cols-2"
+          >
             <Field label="业务标签">
               <div
                 className={`${inputCls} flex min-h-[38px] cursor-text flex-wrap items-center gap-1.5`}
