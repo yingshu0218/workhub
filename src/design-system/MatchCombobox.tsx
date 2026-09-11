@@ -60,14 +60,20 @@ export function MatchCombobox({
   const listItems: MatchOption[] = selected ? filtered : [{ id: '', label: '不关联' }, ...filtered]
   const safeIdx = Math.min(activeIdx, Math.max(0, listItems.length - 1))
 
-  // 点外部关闭
+  // 点外关闭（Issue #151）：浮层 portal 到 body，**不在** `boxRef` 子树内，
+  // 所以「内部/外部」不能再用 `boxRef.contains()` 判定 —— 改用 `data-dropdown-root`
+  // 语义标记：触发器与浮层都打上它，被点节点祖先链上带这个标记即算「下拉内部」。
+  // 监听挂在 window 冒泡阶段（而非具体节点）：事件必然经过 window，
+  // 且浮层与触发器分处两棵 DOM 子树时仍然只跑一份判定。
   useEffect(() => {
     if (!open) return
+    const isInside = (target: Node | null) =>
+      target instanceof Element ? !!target.closest('[data-dropdown-root]') : false
     const onDown = (e: MouseEvent) => {
-      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false)
+      if (!isInside(e.target as Node)) setOpen(false)
     }
-    document.addEventListener('mousedown', onDown)
-    return () => document.removeEventListener('mousedown', onDown)
+    window.addEventListener('mousedown', onDown)
+    return () => window.removeEventListener('mousedown', onDown)
   }, [open])
 
   function commit(id: string) {
@@ -101,7 +107,7 @@ export function MatchCombobox({
   }
 
   return (
-    <div ref={boxRef} className="relative">
+    <div ref={boxRef} data-dropdown-root className="relative">
       {/* 已选回显条：可清除，点击主体重新展开候选 */}
       {selected ? (
         <div className="flex items-center justify-between surface-card-low px-3 py-2">
@@ -147,7 +153,9 @@ export function MatchCombobox({
                       className="shrink-0 text-outline"
                     />
                     <span className="min-w-0 flex-1 truncate">{o.label}</span>
-                    {o.sub && <span className="shrink-0 text-[0.7857rem] text-outline">{o.sub}</span>}
+                    {o.sub && (
+                      <span className="shrink-0 text-[0.7857rem] text-outline">{o.sub}</span>
+                    )}
                   </button>
                 ))
               )}
@@ -202,6 +210,12 @@ export function MatchCombobox({
  * 候选浮层 portal 容器：渲染到 body 并对齐触发框，避免被居中弹窗的 overflow 裁切；
  * 层级 z-[70] 高于 Modal（z-50 / z-[55]）与 ConfirmDialog（z-[60]）。
  * 浮层内点击不冒泡到 document，防止误触 Modal 遮罩关闭。
+ *
+ * ⚠️ 不要再给浮层加 `mousedown` / `pointerdown` 的 `stopPropagation`（Issue #151 的 bug 根因）：
+ * 点外关闭挂在 window 的 `mousedown` 上，而浮层自己是 portal 到 body 的独立子树。
+ * 一旦浮层把这些事件吃掉，窗口级监听就收不到「点在了外部」这个事实，
+ * `setOpen(false)` 永不执行 → 表现为**下拉菜单收不回去**。
+ * 浮层只保留 `click` 阻断，用于防止点选冒泡到 Modal 遮罩把整张表单关掉。
  */
 function DropdownPortal({
   anchorRef,
@@ -216,6 +230,8 @@ function DropdownPortal({
   // 视口下方空间不足时向上翻转弹出（审计：触发框贴近视口底部时固定向下会溢出）
   const [flipUp, setFlipUp] = useState(false)
 
+  // 只量**锚点**即可：portal 挂到 body 后浮层位置完全由锚点推导，
+  // 不需要读浮层自身的 DOM（那是 portal 子树，首帧尚未挂载）。
   useLayoutEffect(() => {
     const update = () => {
       const r = anchorRef.current?.getBoundingClientRect() ?? null
@@ -238,14 +254,15 @@ function DropdownPortal({
   if (!rect) return null
   return createPortal(
     <div
+      data-dropdown-root
       className="fixed z-[70] max-h-56 overflow-y-auto surface-card py-1 shadow-lg"
       style={
         flipUp
           ? { left: rect.left, bottom: window.innerHeight - rect.top + 4, width: rect.width }
           : { left: rect.left, top: rect.bottom + 4, width: rect.width }
       }
-      onMouseDown={(e) => e.stopPropagation()}
-      onPointerDown={(e) => e.stopPropagation()}
+      // 只阻断 click：防止浮层内点选冒泡到 Modal 遮罩把整个弹窗关掉。
+      // 不再阻断 mousedown / pointerdown —— 见上方注释（阻断它们会让点外关闭失效）。
       onClick={(e) => e.stopPropagation()}
       onKeyDown={(e) => e.key === 'Escape' && onClose()}
     >

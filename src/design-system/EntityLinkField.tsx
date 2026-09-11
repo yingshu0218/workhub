@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Icon } from '@/design-system/Icon'
 import { inputCls } from '@/design-system/ui'
@@ -24,7 +24,15 @@ import type { CSSProperties } from 'react'
  * 层级：候选项浮层与悬浮卡都用 portal（z-70 / z-80），不会被抽屉 Modal 的 overflow 裁切。
  */
 
-/** 候选浮层样式与 MatchCombobox.DropdownPortal 同口径（此组件不弹"不关联"项，故独立实现） */
+/**
+ * 候选浮层容器：portal 到 body（不被抽屉 Modal 的 overflow 裁切）、样式与
+ * `MatchCombobox.DropdownPortal` 同口径（此组件不弹「不关联」项，故独立实现）。
+ *
+ * ⚠️ 与 `MatchCombobox` 同一条纪律（Issue #151）：浮层**不注册** `mousedown` /
+ * `pointerdown` 阻断，只阻断 `click`（防误触 Modal 遮罩）。点外关闭挂在 window 的
+ * `mousedown` 上，浮层若吃掉这些事件，关闭路径就永远收不到事件 → 菜单收不回去。
+ * 「内部/外部」的判定靠 `data-dropdown-root` 语义标记（触发器与浮层各带一份）。
+ */
 function DropdownPortal({
   rect,
   onClose,
@@ -38,14 +46,13 @@ function DropdownPortal({
   const flipUp = spaceBelow < 224 && rect.top > spaceBelow
   return createPortal(
     <div
+      data-dropdown-root
       className="fixed z-[70] max-h-56 overflow-y-auto surface-card py-1 shadow-lg"
       style={
         flipUp
           ? { left: rect.left, bottom: window.innerHeight - rect.top + 4, width: rect.width }
           : { left: rect.left, top: rect.bottom + 4, width: rect.width }
       }
-      onMouseDown={(e) => e.stopPropagation()}
-      onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
       onKeyDown={(e) => e.key === 'Escape' && onClose()}
     >
@@ -112,6 +119,21 @@ export default function EntityLinkField({
     setQuery('')
   }
 
+  // 点外部关闭（Issue #151）：候选浮层 portal 到 body、不在 `boxRef` 子树内，
+  // 故按 `data-dropdown-root` 标记判断「内部/外部」（`closest` 看被点节点的祖先链）；
+  // 监听挂 window 冒泡阶段。此前本组件**只有键盘 Esc 关候选、没有点外关闭**，
+  // 鼠标用户点别处时候选会一直挂着 —— 一并补上。
+  useEffect(() => {
+    if (!open) return
+    const insideRoot = (node: Node | null) =>
+      node instanceof Element ? !!node.closest('[data-dropdown-root]') : false
+    const onDown = (e: MouseEvent) => {
+      if (!insideRoot(e.target as Node)) closeList()
+    }
+    window.addEventListener('mousedown', onDown)
+    return () => window.removeEventListener('mousedown', onDown)
+  }, [open])
+
   function pick(option: MatchOption | undefined) {
     if (!option) return
     if (!value.includes(option.id)) onChange([...value, option.id])
@@ -154,7 +176,7 @@ export default function EntityLinkField({
   }
 
   return (
-    <div ref={boxRef} className="relative">
+    <div ref={boxRef} data-dropdown-root className="relative">
       <div
         className={`${inputCls} flex min-h-[38px] cursor-text flex-wrap items-center gap-1.5`}
         onClick={() => inputRef.current?.focus()}
@@ -201,28 +223,26 @@ export default function EntityLinkField({
 
       {open && rect && (
         <DropdownPortal rect={rect} onClose={closeList}>
-            {filtered.length === 0 ? (
-              <div className="px-3 py-2 text-[0.8571rem] text-outline">
-                {candidates.length === 0 && !query ? emptyText : '没有匹配的候选'}
-              </div>
-            ) : (
-              filtered.map((o, i) => (
-                <button
-                  key={o.id}
-                  onClick={() => pick(o)}
-                  onMouseEnter={() => setActiveIdx(i)}
-                  className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[0.9286rem] transition-colors ${
-                    i === safeIdx ? 'bg-primary-fixed text-primary' : 'hover:bg-surface-container'
-                  }`}
-                >
-                  <Icon name={o.icon ?? icon} size={15} className="shrink-0 text-outline" />
-                  <span className="min-w-0 flex-1 truncate">{o.label}</span>
-                  {o.sub && (
-                    <span className="shrink-0 text-[0.7857rem] text-outline">{o.sub}</span>
-                  )}
-                </button>
-              ))
-            )}
+          {filtered.length === 0 ? (
+            <div className="px-3 py-2 text-[0.8571rem] text-outline">
+              {candidates.length === 0 && !query ? emptyText : '没有匹配的候选'}
+            </div>
+          ) : (
+            filtered.map((o, i) => (
+              <button
+                key={o.id}
+                onClick={() => pick(o)}
+                onMouseEnter={() => setActiveIdx(i)}
+                className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[0.9286rem] transition-colors ${
+                  i === safeIdx ? 'bg-primary-fixed text-primary' : 'hover:bg-surface-container'
+                }`}
+              >
+                <Icon name={o.icon ?? icon} size={15} className="shrink-0 text-outline" />
+                <span className="min-w-0 flex-1 truncate">{o.label}</span>
+                {o.sub && <span className="shrink-0 text-[0.7857rem] text-outline">{o.sub}</span>}
+              </button>
+            ))
+          )}
         </DropdownPortal>
       )}
 
@@ -239,4 +259,3 @@ export default function EntityLinkField({
     </div>
   )
 }
-

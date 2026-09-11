@@ -8,6 +8,7 @@ import type { Customer, Ledger, Project, Todo, Transaction } from '@/db/types'
 import { Button, Chip, Field, Modal, inputCls, useAutoFocus } from '@/design-system/ui'
 import { toArchivedFlag } from '@/shared/search'
 import EntityLinkField from '@/design-system/EntityLinkField'
+import ChannelSelect from '@/design-system/ChannelSelect'
 import {
   aliveIdSet,
   pruneTxnLinkIds,
@@ -20,7 +21,22 @@ import dayjs from 'dayjs'
 import { isTodoOpen } from '@/modules/todo/domain'
 import { todoPriorityFullLabel } from '@/modules/todo/priority'
 
-const CHANNELS = ['微信', '支付宝', '银行卡', '现金', '对公转账'] as const
+/**
+ * 结算渠道候选（Issue #151）。
+ *
+ * 记账**不强制**归因到某个渠道：用户常常先记一笔、对账时才知道走的哪个渠道/哪张卡，
+ * 所以新建表单默认「未指定」（空值），并且该字段非必填 —— 空值落库为 `''`
+ * （与 §9.4 口径一致：`agent/schema.ts` 里 `channel` 本就是 optional）。
+ * 空值项「未指定」由 `ChannelSelect` 内置，这里只列真实渠道。
+ */
+const CHANNEL_OPTIONS = [
+  { value: '微信', label: '微信 / 微信支付', icon: 'qr_code' },
+  { value: '支付宝', label: '支付宝', icon: 'qr_code' },
+  { value: '银行卡', label: '银行卡 / 转账', icon: 'credit_card' },
+  { value: '现金', label: '现金', icon: 'payments' },
+  { value: '对公转账', label: '对公转账', icon: 'account_balance_wallet' },
+]
+
 const MAX_ATTACHMENT_SIZE = 5 * 1024 * 1024
 /** 金额上限（元）：10 位数封顶 */
 const MAX_AMOUNT = 9999999999
@@ -285,18 +301,12 @@ export default function TransactionFormDrawer({
               ))}
             </select>
           </Field>
-          <Field label="结算渠道 *">
-            <select
-              className={inputCls}
-              value={channel}
-              onChange={(e) => setChannel(e.target.value as (typeof CHANNELS)[number])}
-            >
-              {CHANNELS.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
+          {/* 结算渠道（Issue #151）：非必填、默认「未指定」。
+              换成 ChannelSelect（受控单选浮层）而不是原生 select / MatchCombobox：
+              原生 select 的展开态由系统绘制、与皮肤层脱节，且展开后点外部不触发 mousedown；
+              MatchCombobox 空值文案是「不关联」（语义是解除关联）且可输入，不适合固定枚举单选。 */}
+          <Field label="结算渠道">
+            <ChannelSelect value={channel} options={CHANNEL_OPTIONS} onChange={setChannel} />
           </Field>
 
           {/* 交易名称：整行（摘要文案长，半列会截断） */}
