@@ -3,7 +3,7 @@ import { Card, PageHeader, Button } from '@/design-system/ui'
 import type { Todo, Customer, Transaction } from '@/db/types'
 import { FocusCard, HabitLoopCard, QuickNoteCard, TodayTodosCard } from './cards'
 import dayjs from 'dayjs'
-import { isDueToday } from '@/modules/todo/domain'
+import { isDueToday, isTodoOverdue } from '@/modules/todo/domain'
 import { useUserName } from '@/modules/identity'
 
 /** Focus Synchronizer 仪表盘（Phase 1 实装版） */
@@ -21,6 +21,10 @@ export default function DashboardPage() {
   // 首页已在数据源头移除了已完成项，「还剩 N 项」正是首页唯一能给出的行动读数：
   // 打勾一条即减一，归零即收工。不再展示「完成率」（完成量已无条目承载，无从对照）。
   const openToday = todos.filter((t) => isDueToday(t, todayStr)).length
+  // Issue #134 四轮：指标卡把「还剩 N 项」拆成「今日到期 / 已逾期」两个读数（与今日日程卡分组同源）。
+  // 逾期是唯一需要立刻处理的缺口语义，混在总数里会被稀释；两张卡分组 / 指标卡拆数必须一致。
+  const overdueToday = todos.filter((t) => isTodoOverdue(t)).length
+  const dueTodayOnly = openToday - overdueToday
   const income = transactions.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0)
 
   // 今日专注分钟（本地推导）
@@ -66,6 +70,15 @@ export default function DashboardPage() {
               </>
             )}
           </div>
+          {/* 拆分读数：逾期用 danger 色单独提示（0 时不显示，避免制造噪声） */}
+          {openToday > 0 && (
+            <div className="mt-0.5 text-[0.7857rem] text-outline">
+              今日到期 {dueTodayOnly}
+              {overdueToday > 0 && (
+                <span className="ml-1.5 font-medium text-danger">· 逾期 {overdueToday}</span>
+              )}
+            </div>
+          )}
         </Card>
         <Card className="p-4">
           <div className="text-[0.8571rem] font-medium uppercase tracking-wide text-outline">

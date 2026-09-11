@@ -78,6 +78,38 @@ export function isDueToday(t: Pick<Todo, 'status' | 'dueAt'>, todayStr: string):
 }
 
 /**
+ * 「逾期」判定（Issue #134 四轮：今日到期与逾期分开展示）。
+ *
+ * 逾期 = 未完成 **且** 截止时刻早于此刻。按**时刻**而非自然日判定：
+ * 今天 09:00 到期的待办过了 09:00 就是逾期，不能等明天——否则「逾期」这一列
+ * 在当天永远为空，「今日到期 vs 逾期」的分组就失去行动意义（催办）价值。
+ */
+export function isTodoOverdue(
+  t: Pick<Todo, 'status' | 'dueAt'>,
+  now: dayjs.Dayjs = dayjs(),
+): boolean {
+  if (!isTodoOpen(t) || !t.dueAt) return false
+  return dayjs(t.dueAt).isBefore(now)
+}
+
+/**
+ * 「今日到期」判定：未完成 + 截止落在今天这一自然日（含已过时刻的今天到期条目）。
+ *
+ * 与 isDueToday（今日到期 ∪ 逾期）的关系：`isDueToday = isTodoDueToday || isTodoOverdue`。
+ * 故 isTodoDueToday 不含逾期条目 —— 这正是「今日到期 / 逾期」两个分组互斥的基础，
+ * 同一待办不会同时出现在两列（今日到期列展示的是**今日尚未到点**的条目）。
+ */
+export function isTodoDueToday(
+  t: Pick<Todo, 'status' | 'dueAt'>,
+  todayStr: string,
+  now: dayjs.Dayjs = dayjs(),
+): boolean {
+  if (!isTodoOpen(t) || !t.dueAt) return false
+  // 已过时刻的今日条目归「逾期」组（两列互斥），故此处滤掉 isTodoOverdue
+  return dayjs(t.dueAt).format('YYYY-MM-DD') === todayStr && !isTodoOverdue(t, now)
+}
+
+/**
  * 存量数据兜底（一次性，幂等）：凡 status='done' 但缺 completedAt 的待办，
  * 以 updatedAt 补盖完成时间。没有这条兜底，「今日已完成」统计、CRM 时间轴、
  * 工作台完成数（均要求 completedAt）会静默漏计这些记录。

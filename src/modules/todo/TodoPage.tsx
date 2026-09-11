@@ -21,7 +21,14 @@ import { toArchivedFlag } from '@/shared/search'
 import dayjs from 'dayjs'
 import { useFocusStore } from '@/stores/focus'
 import { toggleTodoDone, voidTodo, restoreTodo } from './toggle'
-import { isTodoOpen, isTodoDone, isTodoVoided, isDueToday, resolveFocusViewKind } from './domain'
+import {
+  isTodoOpen,
+  isTodoDone,
+  isTodoVoided,
+  isDueToday,
+  isTodoOverdue,
+  resolveFocusViewKind,
+} from './domain'
 import {
   useTodoLists,
   useTodoListCounts,
@@ -37,7 +44,7 @@ import {
  * - all/inbox/today/week：未完成口径（「全部待办」= 只看未完成，已完成/已作废不再混入）
  * - done/voided：新增的两个终态视图，分别只列已完成 / 已作废
  */
-type Filter = 'all' | 'today' | 'week' | 'inbox' | 'done' | 'voided'
+type Filter = 'all' | 'today' | 'overdue' | 'week' | 'inbox' | 'done' | 'voided'
 
 export default function TodoPage() {
   const todos = useCollection<Todo>('todos')
@@ -136,10 +143,7 @@ export default function TodoPage() {
   const voidedTodos = sortedTodos.filter(isTodoVoided)
   // 逾期提醒（P1-2 死开关接通）：全局未完成且已过截止时间，按设置开关决定是否提示；
   // 已作废条目（Issue #128）不进逾期口径——事项已终止，不再催办
-  const overdueTodos = useMemo(
-    () => openTodos.filter((t) => t.dueAt && dayjs(t.dueAt).isBefore(dayjs())),
-    [openTodos],
-  )
+  const overdueTodos = useMemo(() => openTodos.filter((t) => isTodoOverdue(t)), [openTodos])
 
   // 日历日边界：今天 = 今日截止 ∪ 逾期未完成；最近七天 = [今天, +7天] ∪ 逾期未完成
   const weekEndStr = dayjs().add(7, 'day').format('YYYY-MM-DD')
@@ -159,6 +163,9 @@ export default function TodoPage() {
     if (!t.dueAt) return false
     const d = dayjs(t.dueAt).format('YYYY-MM-DD')
     if (selKind === 'today') return isDueToday(t, todayStr)
+    // 「逾期」与「今天」的关系（Issue #134 四轮）：今天 = 今日到期 ∪ 逾期（含集，不变）；
+    // 逾期 = 其中已过截止时刻的那部分，作为「今天」的收窄子视图独立成入口
+    if (selKind === 'overdue') return isTodoOverdue(t)
     if (selKind === 'week') return d <= weekEndStr
     return false
   }
@@ -245,6 +252,12 @@ export default function TodoPage() {
       icon: 'today',
       label: '今天',
       count: openTodos.filter((t) => isDueToday(t, todayStr)).length,
+    },
+    {
+      key: 'overdue',
+      icon: 'warning',
+      label: '逾期',
+      count: overdueTodos.length,
     },
     {
       key: 'week',
@@ -780,7 +793,9 @@ export default function TodoPage() {
                     ? isTodoOpen(saved) && !saved.listId
                     : selKind === 'today'
                       ? isTodoOpen(saved) && !!savedDay && savedDay <= todayStr
-                      : isTodoOpen(saved) && !!savedDay && savedDay <= weekEndStr
+                      : selKind === 'overdue'
+                        ? isTodoOverdue(saved)
+                        : isTodoOpen(saved) && !!savedDay && savedDay <= weekEndStr
           const chipOk = !chipP1 || (isTodoOpen(saved) && saved.priority === 'P1')
           if (!visible || !chipOk) {
             setSelListId(null)
