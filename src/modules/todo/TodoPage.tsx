@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Icon } from '@/design-system/Icon'
-import { useSearchParams } from 'react-router-dom'
-import { useCollection, useSettings } from '@/queries/hooks'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useCollection, useRecordState, resolveRecordDisplay, useSettings } from '@/queries/hooks'
 import { todoRepo, newId } from '@/repositories'
-import type { Todo, Customer, Project } from '@/db/types'
+import type { Todo, Customer, Project, Transaction } from '@/db/types'
 import {
   Button,
   Card,
   Chip,
   ConfirmDialog,
+  Drawer,
   EmptyState,
   PageHeader,
   Modal,
@@ -33,6 +34,7 @@ import {
 import dayjs from 'dayjs'
 import { useFocusStore } from '@/stores/focus'
 import { toggleTodoDone, voidTodo, restoreTodo } from './toggle'
+import { txnTodoIds, financeFocusPath } from '@/modules/finance/links'
 import {
   isTodoOpen,
   isTodoDone,
@@ -41,6 +43,7 @@ import {
   isTodoOverdue,
   overdueDays,
   resolveFocusViewKind,
+  todoStatusLabel,
 } from './domain'
 import {
   useTodoLists,
@@ -82,6 +85,8 @@ export default function TodoPage() {
   const [selListId, setSelListId] = useState<string | null>(null)
   const [editing, setEditing] = useState<Todo | null>(null)
   const [creating, setCreating] = useState(false)
+  // 单条详情（Issue #162）：列表行点击打开只读详情抽屉，完整呈现内容/归属/关联业务/时间线
+  const [detailId, setDetailId] = useState<string | null>(null)
   // 列表排序方向：按创建时间升序 / 降序
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const focus = useFocusStore()
@@ -631,7 +636,8 @@ export default function TodoPage() {
                       if (el) rowRefs.current.set(t.id, el)
                       else rowRefs.current.delete(t.id)
                     }}
-                    className={`group flex items-center gap-3 rounded-lg py-3.5 transition-all duration-300 ${
+                    onClick={() => setDetailId(t.id)}
+                    className={`group flex cursor-pointer items-center gap-3 rounded-lg py-3.5 transition-all duration-300 hover:bg-surface-container-low/40 ${
                       isFocusRing
                         ? 'focus:outline-2 focus:outline-primary bg-primary-fixed/60 -mx-2 px-2'
                         : ''
@@ -645,7 +651,14 @@ export default function TodoPage() {
                         <Icon name="block" size={20} />
                       </span>
                     ) : (
-                      <button onClick={() => toggle(t)} className="shrink-0">
+                      <button
+                        onClick={(e) => {
+                          // 行内动作不穿透到「打开详情」（Issue #162 行点击）
+                          e.stopPropagation()
+                          void toggle(t)
+                        }}
+                        className="shrink-0"
+                      >
                         <Icon
                           name={isTodoDone(t) ? 'check_circle' : 'radio_button_unchecked'}
                           size={20}
@@ -735,7 +748,10 @@ export default function TodoPage() {
                         size="sm"
                         variant="tonal"
                         icon="timer"
-                        onClick={() => focus.start(t.id, t.title)}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          focus.start(t.id, t.title)
+                        }}
                       >
                         专注
                       </Button>
@@ -746,7 +762,10 @@ export default function TodoPage() {
                         size="sm"
                         variant="tonal"
                         icon="restart_alt"
-                        onClick={() => void handleRestore(t)}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          void handleRestore(t)
+                        }}
                       >
                         恢复
                       </Button>
@@ -754,7 +773,10 @@ export default function TodoPage() {
                       <button
                         title="作废（终止事项，记录保留，可恢复）"
                         className="flex shrink-0 items-center gap-1 rounded-lg border border-outline-variant/60 px-2.5 py-1 text-[0.8571rem] text-on-surface-variant transition-colors hover:border-warning hover:text-warning"
-                        onClick={() => void handleVoid(t)}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          void handleVoid(t)
+                        }}
                       >
                         <Icon name="block" size={16} />
                         作废
@@ -763,14 +785,20 @@ export default function TodoPage() {
                     <button
                       title="编辑待办"
                       className="text-outline opacity-0 transition-opacity hover:text-primary group-hover:opacity-100"
-                      onClick={() => setEditing(t)}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setEditing(t)
+                      }}
                     >
                       <Icon name="edit" size={18} />
                     </button>
                     <button
                       title="删除待办"
                       className="text-outline opacity-0 transition-opacity hover:text-danger group-hover:opacity-100"
-                      onClick={() => setConfirmTodo(t)}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setConfirmTodo(t)
+                      }}
                     >
                       <Icon name="delete" size={18} />
                     </button>
@@ -781,6 +809,20 @@ export default function TodoPage() {
           )}
         </div>
       </div>
+
+      {/* 单条详情抽屉（Issue #162）：列表行点击进入；抽屉内可打勾/专注/作废恢复/编辑/删除 */}
+      <TodoDetailDrawer
+        todoId={detailId}
+        onClose={() => setDetailId(null)}
+        onEdit={(t) => {
+          setDetailId(null)
+          setEditing(t)
+        }}
+        onDelete={(t) => {
+          setDetailId(null)
+          setConfirmTodo(t)
+        }}
+      />
 
       <ConfirmDialog
         open={confirmTodo !== null}
@@ -1082,4 +1124,269 @@ export function TodoFormDrawer({
       </div>
     </Modal>
   )
+}
+
+
+/**
+ * 待办详情抽屉（Issue #162）—— 列表行点击进入的单条详情。
+ *
+ * 用户反馈「待办列表不能进去查看单条详情」：此前列表行只能就地打勾 / 作废 / 编辑，
+ * 想看一条待办的完整内容（正文备注全文、截止时间、归属、关联账目）没有入口。
+ *
+ * 实现口径对齐财务「凭证详情抽屉」（`FinancePage.TransactionDetailDrawer`）：
+ * - 只读呈现 + 抽屉内行动作（打勾完成 / 开始专注 / 作废恢复 / 编辑 / 删除）；
+ * - 状态变更统一走 `./toggle` 领域函数，不在详情里另写一套 status 写入；
+ * - 关联账目反查 `transactions.todoIds`（数组弱引用，走 `txnTodoIds` 收口），
+ *   点击穿透 `/finance?focus=<txnId>` 打开对应凭证详情；
+ * - 归属展示用实时映射，弱引用被级联解绑后自然显示「已删除」。
+ */
+export function TodoDetailDrawer({
+  todoId,
+  onClose,
+  onEdit,
+  onDelete,
+}: {
+  todoId: string | null
+  onClose: () => void
+  onEdit: (todo: Todo) => void
+  onDelete: (todo: Todo) => void
+}) {
+  // 「未回填」与「查无此记录」必须分开（Issue #162）：useLiveQuery 首帧恒 undefined，
+  // 直接当「不存在」会在打开抽屉的瞬间闪一帧误导性的空态提示
+  const { record: todo, checked } = useRecordState<Todo>('todos', todoId ?? undefined)
+  const display = resolveRecordDisplay(todoId ?? undefined, checked)
+  const lists = useTodoLists()
+  const customers = useCollection<Customer>('customers')
+  const projects = useCollection<Project>('projects')
+  const transactions = useCollection<Transaction>('transactions')
+  const navigate = useNavigate()
+  const focus = useFocusStore()
+  const todayStr = dayjs().format('YYYY-MM-DD')
+  // 状态流转失败提示（与列表行同款：不静默失败）
+  const [busy, setBusy] = useState(false)
+
+  // 关联账目：`transactions.todoIds` 数组弱引用反查（links.ts 收口，兼容旧单值字段）
+  const linkedTxns = todo
+    ? transactions.filter((t) => txnTodoIds(t).includes(todo.id))
+    : []
+
+  /** 详情内动作统一包一层：执行期禁用按钮 + 失败可见提示（不静默吞错） */
+  async function run(action: (t: Todo) => Promise<unknown>) {
+    if (!todo || busy) return
+    setBusy(true)
+    try {
+      await action(todo)
+    } catch (err) {
+      console.error('[todo] 详情内更新失败', err)
+      window.alert('更新待办失败，请稍后重试。')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Drawer open={todoId !== null} title="待办详情" onClose={onClose} width={460}>
+      {display !== 'ready' || !todo ? (
+        // 加载中（首帧未回填）渲染空白，避免闪一帧「不存在」；
+        // 真正查无此记录（checked=true 但 record 为空）才给空态
+        display === 'ready' ? (
+          <EmptyState
+            icon="task_alt"
+            title="待办不存在或已删除"
+            description="可能已被移除，关闭后回列表查看其他待办"
+          />
+        ) : null
+      ) : (
+        <div className="space-y-5">
+          {/* 主卡：状态 + 标题 + 正文全文（列表行只截断展示标题，详情给完整内容） */}
+          <div
+            className={`rounded-xl p-4 ${
+              isTodoDone(todo)
+                ? 'bg-success-container/30'
+                : isTodoVoided(todo)
+                  ? 'bg-surface-container-low'
+                  : 'bg-primary-fixed/40'
+            }`}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <Chip
+                tone={isTodoDone(todo) ? 'green' : isTodoVoided(todo) ? 'gray' : 'blue'}
+                icon={isTodoDone(todo) ? 'task_alt' : isTodoVoided(todo) ? 'block' : 'schedule'}
+              >
+                {todoStatusLabel(todo)}
+              </Chip>
+              <Chip tone={todoPriorityTone(todo.priority)}>
+                {todoPriorityLabel(todo.priority)}
+              </Chip>
+            </div>
+            <h3
+              className={`mt-2 text-[1.2143rem] font-bold leading-snug ${
+                isTodoOpen(todo) ? '' : 'text-outline line-through'
+              }`}
+            >
+              {todo.title}
+            </h3>
+            {/* 正文即备注全文（Issue #148：标题由首行推导，desc 承载完整内容） */}
+            {todo.desc.trim() ? (
+              <p className="mt-2 whitespace-pre-wrap break-words text-[0.9286rem] text-on-surface-variant">
+                {todo.desc}
+              </p>
+            ) : (
+              <p className="mt-2 text-[0.8571rem] text-outline">无备注</p>
+            )}
+          </div>
+
+          {/* 抽屉内行动作：与列表行口径一致（打勾 / 专注 / 作废恢复 / 编辑 / 删除） */}
+          <div className="flex flex-wrap gap-2">
+            {!isTodoVoided(todo) && (
+              <Button
+                variant={isTodoDone(todo) ? 'tonal' : 'primary'}
+                icon={isTodoDone(todo) ? 'undo' : 'check_circle'}
+                disabled={busy}
+                onClick={() => void run((t) => toggleTodoDone(t))}
+              >
+                {isTodoDone(todo) ? '取消完成' : '标记完成'}
+              </Button>
+            )}
+            {isTodoOpen(todo) && (
+              <Button
+                variant="tonal"
+                icon="timer"
+                disabled={busy}
+                onClick={() => focus.start(todo.id, todo.title)}
+              >
+                开始专注
+              </Button>
+            )}
+            {isTodoVoided(todo) ? (
+              <Button
+                variant="tonal"
+                icon="restart_alt"
+                disabled={busy}
+                onClick={() => void run((t) => restoreTodo(t))}
+              >
+                恢复
+              </Button>
+            ) : (
+              <Button
+                variant="tonal"
+                icon="block"
+                disabled={busy}
+                onClick={() => void run((t) => voidTodo(t))}
+              >
+                作废
+              </Button>
+            )}
+            <Button variant="ghost" icon="edit" onClick={() => onEdit(todo)}>
+              编辑
+            </Button>
+            <Button
+              variant="danger"
+              icon="delete"
+              className="ml-auto"
+              onClick={() => onDelete(todo)}
+            >
+              删除
+            </Button>
+          </div>
+
+          {/* 基础明细：截止 / 创建 / 完成 / 作废时间与归属（归属走实时映射，失效 id 显式占位） */}
+          <div className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-xl bg-surface-container-low/50 p-4">
+            <TodoDetailField label="截止时间">
+              {todo.dueAt ? dayjs(todo.dueAt).format('YYYY-MM-DD HH:mm') : '未设置'}
+            </TodoDetailField>
+            <TodoDetailField label="创建时间">
+              {dayjs(todo.createdAt).format('YYYY-MM-DD HH:mm')}
+            </TodoDetailField>
+            {isTodoDone(todo) && (
+              <TodoDetailField label="完成时间">
+                {todo.completedAt ? dayjs(todo.completedAt).format('YYYY-MM-DD HH:mm') : '—'}
+              </TodoDetailField>
+            )}
+            {isTodoVoided(todo) && (
+              <TodoDetailField label="作废时间">
+                {todo.voidedAt ? dayjs(todo.voidedAt).format('YYYY-MM-DD HH:mm') : '—'}
+              </TodoDetailField>
+            )}
+            <TodoDetailField label="所属清单">
+              {todo.listId ? (listNameOf(lists, todo.listId) ?? '已删除') : '未归入清单'}
+            </TodoDetailField>
+            <TodoDetailField label="关联客户">
+              {todo.customerId
+                ? (customerLabelOf(customers, todo.customerId) ?? '已删除')
+                : '未关联'}
+            </TodoDetailField>
+            <TodoDetailField label="所属项目">
+              {todo.projectId
+                ? (projectLabelOf(projects, todo.projectId) ?? '已删除')
+                : '未关联'}
+            </TodoDetailField>
+            {isTodoOpen(todo) && todo.dueAt && isTodoOverdue(todo, todayStr) && (
+              <TodoDetailField label="逾期">
+                <span className="text-danger">已逾期 {overdueDays(todo, todayStr)} 天</span>
+              </TodoDetailField>
+            )}
+          </div>
+
+          {/* 关联账目：从 transactions.todoIds 反查，点击穿透财务凭证详情（Issue #147 同款深链） */}
+          <div>
+            <div className="mb-2 text-[0.8571rem] font-medium uppercase tracking-wide text-on-surface-variant">
+              关联账目（{linkedTxns.length}）
+            </div>
+            {linkedTxns.length === 0 ? (
+              <div className="text-[0.8571rem] text-outline">暂无关联账目</div>
+            ) : (
+              <div className="space-y-1.5">
+                {linkedTxns.map((txn) => (
+                  <button
+                    key={txn.id}
+                    onClick={() => navigate(financeFocusPath(txn.id))}
+                    className="flex w-full items-center justify-between rounded-xl bg-surface-container-low/60 p-3 text-left transition-colors hover:bg-surface-container-low"
+                  >
+                    <div className="min-w-0">
+                      <div className="truncate text-[0.9286rem] font-medium">{txn.summary}</div>
+                      <div className="text-[0.8571rem] text-outline">
+                        {dayjs(txn.occurredAt).format('YYYY-MM-DD')} ·{' '}
+                        {txn.type === 'income' ? '收入' : '支出'} ¥
+                        {txn.amount.toLocaleString('zh-CN')}
+                      </div>
+                    </div>
+                    <span className="flex shrink-0 items-center gap-0.5 pl-2 text-[0.8571rem] font-semibold text-primary">
+                      查看凭证
+                      <Icon name="open_in_new" size={14} />
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </Drawer>
+  )
+}
+
+/** 详情字段（标签在上、值在下；长文本允许换行） */
+function TodoDetailField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="text-[0.7857rem] font-medium text-on-surface-variant">{label}</span>
+      <span className="break-all text-[0.9286rem]">{children}</span>
+    </div>
+  )
+}
+
+/** 清单名解析（导出给详情用，保持选择器稳定） */
+function listNameOf(lists: { id: string; name: string }[], id: string): string | undefined {
+  return lists.find((l) => l.id === id)?.name
+}
+
+function customerLabelOf(customers: Customer[], id: string): string | undefined {
+  const c = customers.find((x) => x.id === id)
+  if (!c) return undefined
+  return c.company ? `${c.company} · ${c.name}` : c.name
+}
+
+function projectLabelOf(projects: Project[], id: string): string | undefined {
+  return projects.find((p) => p.id === id)?.name
 }
