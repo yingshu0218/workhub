@@ -230,20 +230,13 @@ export default function NoteEditorPage() {
 }
 
 /**
- * 实时预览开关（Issue #158）
+ * 实时预览开关（Issue #158 / #158 二轮）
  *
- * 编辑态右栏头条里的「预览」开关：开=双栏实时渲染，关=右栏收起、左栏专注写作。
- * compact 形态用于右栏收起后的窄轨（竖排），语义与外观一致：同一 role=switch。
+ * 落位在**顶部工具条**，紧跟「N 字」胶囊、在眼睛图标（完成）左侧：编辑态全程可见，
+ * 不受右栏显隐影响。开=右栏双栏实时渲染；关=右栏整条不渲染，左栏专注写作并居中。
+ * 语义与外观一致：`role=switch` + `aria-checked`，键盘 Space/Enter 可切。
  */
-function PreviewSwitch({
-  on,
-  onToggle,
-  compact = false,
-}: {
-  on: boolean
-  onToggle: () => void
-  compact?: boolean
-}) {
+function PreviewSwitch({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   return (
     <button
       type="button"
@@ -252,25 +245,17 @@ function PreviewSwitch({
       aria-label="实时预览"
       title={`${on ? '关闭实时预览' : '开启实时预览'}（⌘/Ctrl+Shift+P）`}
       onClick={onToggle}
-      className={`flex items-center rounded-md text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface ${
-        compact ? 'justify-center p-1' : 'gap-1.5 px-1.5 py-0.5'
-      }`}
+      className="flex shrink-0 items-center gap-1.5 rounded-md px-1.5 py-0.5 text-[0.8571rem] text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface"
     >
-      {!compact && <span>预览</span>}
+      <span>预览</span>
       <span
-        className={`flex shrink-0 items-center rounded-full px-[1px] transition-colors ${
-          compact ? 'h-7 w-4 flex-col py-[1px]' : 'h-4 w-7'
-        } ${on ? 'bg-primary' : 'bg-surface-container-high'}`}
+        className={`flex h-4 w-7 shrink-0 items-center rounded-full px-[1px] transition-colors ${
+          on ? 'bg-primary' : 'bg-surface-container-high'
+        }`}
       >
         <span
           className={`h-3 w-3 rounded-full bg-white shadow-sm transition-transform ${
-            compact
-              ? on
-                ? 'translate-y-3'
-                : 'translate-y-0'
-              : on
-                ? 'translate-x-3'
-                : 'translate-x-0'
+            on ? 'translate-x-3' : 'translate-x-0'
           }`}
         />
       </span>
@@ -338,7 +323,8 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
   const [hoverCard, setHoverCard] = useState<HoverCardState>(null)
   // 删除确认弹窗（应用风格，替代 window.confirm）
   const [confirmDelete, setConfirmDelete] = useState<{ open: boolean; title: string } | null>(null)
-  // 右栏实时预览开关（Issue #158）：关=纯编辑单栏，开=双栏；从 localStorage 惰性初始化，默认开
+  // 右栏实时预览开关（Issue #158 二轮）：开关在顶部工具条；关=右栏不渲染、编辑栏居中，开=双栏
+  // 从 localStorage 惰性初始化，默认开
   const [previewOn, setPreviewOn] = useState(readPreviewPref)
 
   const noteRef = useRef(note)
@@ -368,7 +354,7 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
     })
   }
 
-  // 右栏收起/展开会改变编辑栏宽度，CodeMirror 需重算测量，否则出现行宽错位 / 光标偏移
+  // 右栏收起/展开（含编辑栏居中收窄）会改变编辑栏宽度，CodeMirror 需重算测量，否则行宽错位 / 光标偏移
   useEffect(() => {
     if (!editing) return
     viewRef.current?.requestMeasure()
@@ -819,6 +805,8 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
         </span>
         {editing ? (
           <>
+            {/* 预览开关（Issue #158 二轮）：移到顶部工具条，眼睛图标（完成）左侧，编辑态全程可见 */}
+            <PreviewSwitch on={previewOn} onToggle={togglePreview} />
             <Button size="sm" variant="ghost" icon="visibility" onClick={exitEdit}>
               完成
             </Button>
@@ -889,10 +877,24 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
         )}
       </div>
 
-      {/* 编辑态：双栏源码 + 实时预览；查看态：整宽最终渲染 */}
-      <div className="flex min-h-0 flex-1 overflow-hidden surface-card-xl shadow-sm">
+      {/* 编辑态：双栏源码 + 实时预览；查看态：整宽最终渲染
+          关预览（Issue #158 四轮，方案 3）：外层容器去卡片装饰（白底/边框/圆角/阴影），
+          卡片视觉随「居中的编辑栏」走 —— 否则横条只收窄到 56rem、卡片边框仍铺满整宽，
+          右端会出现一段灰底横条的硬边断层（三轮复核实测：卡片右边 1412 vs 头条右边 1228）。 */}
+      <div
+        data-testid="note-editor-shell"
+        className={`flex min-h-0 flex-1 overflow-hidden ${
+          editing && !previewOn ? '' : 'surface-card-xl shadow-sm'
+        }`}
+      >
         {editing && (
-          <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          /* 关闭预览：编辑栏居中收窄到可读行宽（不是「展开」），并自身成卡片 */
+          <div
+            data-testid="note-editor-pane"
+            className={`flex min-w-0 flex-1 flex-col overflow-hidden ${
+              previewOn ? '' : 'mx-auto w-full max-w-[56rem] surface-card-xl shadow-sm'
+            }`}
+          >
             <div className="flex items-center justify-between border-b border-outline-variant/30 bg-surface-container-low/40 px-4 py-1.5 text-[0.7857rem] font-medium tracking-wide text-outline">
               <span>MARKDOWN SOURCE EDITOR</span>
               <span>键入 @ 提及实体</span>
@@ -920,16 +922,15 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
           </div>
         )}
 
-        {!editing || previewOn ? (
-          /* 开：常规右栏（头条 + 实时渲染） */
+        {/* 关（Issue #158 二轮）：右栏正文**整条不渲染**（不留窄轨、不占位），开关在顶部工具条常驻 */}
+        {(!editing || previewOn) && (
+          /* 开：常规右栏（头条 + 实时渲染）；查看态为整宽最终渲染 */
           <div
             className={`flex min-w-0 flex-1 flex-col overflow-hidden ${editing ? 'border-l border-outline-variant/30' : ''}`}
           >
             <div className="flex items-center justify-between border-b border-outline-variant/30 bg-surface-container-low/40 px-4 py-1.5 text-[0.7857rem] font-medium tracking-wide text-outline">
               <span>{editing ? 'LIVE PREVIEW' : 'PREVIEW'}</span>
-              {editing ? (
-                <PreviewSwitch on={previewOn} onToggle={togglePreview} />
-              ) : (
+              {!editing && (
                 <span className="flex items-center gap-1 text-outline">
                   <Icon name="visibility" size={13} />
                   查看模式
@@ -943,22 +944,15 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
               />
             </div>
           </div>
-        ) : (
-          /* 关（Issue #158）：右栏正文收起，仅留一条窄轨承载开关，左栏随之铺满、专注写作 */
-          <div className="flex w-11 shrink-0 flex-col items-center gap-2 border-l border-outline-variant/30 bg-surface-container-low/40 py-2 text-outline">
-            <Icon name="visibility" size={14} />
-            <PreviewSwitch on={previewOn} onToggle={togglePreview} compact />
-            <span
-              className="text-[0.7857rem] font-medium tracking-wide"
-              style={{ writingMode: 'vertical-rl' }}
-            >
-              实时预览
-            </span>
-          </div>
         )}
 
-        {/* 详情侧栏：反向链接 + @提及实体 */}
-        <div className="hidden w-60 shrink-0 flex-col overflow-y-auto border-l border-outline-variant/30 bg-surface-container-low/30 p-4 xl:flex">
+        {/* 详情侧栏：反向链接 + @提及实体（编辑态关预览时整条收起，编辑栏才真正居中） */}
+        <div
+          data-testid="note-detail-aside"
+          className={`w-60 shrink-0 flex-col overflow-y-auto border-l border-outline-variant/30 bg-surface-container-low/30 p-4 ${
+            editing && !previewOn ? 'hidden' : 'hidden xl:flex'
+          }`}
+        >
           <div className="mb-2 text-[0.7857rem] font-medium uppercase tracking-wide text-on-surface-variant">
             反向链接（{backlinks.length}）
           </div>
