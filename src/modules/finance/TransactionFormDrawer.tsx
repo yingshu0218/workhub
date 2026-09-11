@@ -29,6 +29,8 @@ const MAX_AMOUNT = 9999999999
  *
  * Issue #140 改版：
  * - **整体 2 列分栏**（「能塞的塞 2 列、长字段整行」）：类型/备注/附件整行，其余两两成对；
+ *   业务标签 / 关联客户 / 关联项目 / 关联待办 归入「辅助信息区」两两成对（Issue #151，
+ *   原 4 个整行，窄字段半列足够）；
  * - **关联客户 / 项目 / 待办改多值芯片**（`EntityLinkField`），芯片 hover 弹 `EntityHoverCard` 摘要；
  * - 数据层走 Issue #140 方案 A（`customerIds/todoIds/projectIds` 数组）。
  */
@@ -329,8 +331,11 @@ export default function TransactionFormDrawer({
             />
           </Field>
 
-          {/* 业务标签：整行（多标签换行，半列撑不开） */}
-          <div className="col-span-2">
+          {/* 辅助信息区（Issue #151）：业务标签与关联三件套改 2 列分栏
+              —— 原为 4 个整行，窄字段半列足够且能大幅压缩表单高度。
+              业务标签与关联客户成对（首行），关联项目与关联待办成对（次行）；
+              行内高度不一致时各自顶部对齐（items-start），避免被邻居拉高。 */}
+          <div className="col-span-2 grid grid-cols-1 items-start gap-x-4 gap-y-3 sm:grid-cols-2">
             <Field label="业务标签">
               <div
                 className={`${inputCls} flex min-h-[38px] cursor-text flex-wrap items-center gap-1.5`}
@@ -360,10 +365,7 @@ export default function TransactionFormDrawer({
                 />
               </div>
             </Field>
-          </div>
 
-          {/* 关联三件套：整行（多芯片可变高度，半列会很难看）；内部再排 2 列 */}
-          <div className="col-span-2">
             <Field label="关联客户">
               <EntityLinkField
                 type="customer"
@@ -379,8 +381,7 @@ export default function TransactionFormDrawer({
                 onChange={setCustomerIds}
               />
             </Field>
-          </div>
-          <div className="col-span-2">
+
             <Field label="关联项目">
               <EntityLinkField
                 type="project"
@@ -398,8 +399,7 @@ export default function TransactionFormDrawer({
                 onChange={setProjectIds}
               />
             </Field>
-          </div>
-          <div className="col-span-2">
+
             <Field label="关联待办">
               <EntityLinkField
                 type="todo"
