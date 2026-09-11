@@ -1,5 +1,6 @@
 import dayjs from 'dayjs'
 import { fmtMoney, type TimelineEvent } from './timeline'
+import { financeFocusPath } from '@/modules/finance/links'
 
 /**
  * 鱼骨「事件 → 骨刺坐标」纯函数（Issue #22 抽取纪律：先抽纯函数，再包组件壳）
@@ -70,7 +71,7 @@ export function boneSub(e: TimelineEvent): string {
 
 /** 骨刺穿透目标：点击跳转并定位对应记录 */
 export function boneTarget(e: TimelineEvent): string | undefined {
-  if (e.kind === 'transaction') return `/finance?focus=${encodeURIComponent(e.recordId)}`
+  if (e.kind === 'transaction') return financeFocusPath(e.recordId)
   if (e.kind === 'todo') return `/todo?focus=${encodeURIComponent(e.recordId)}`
   return undefined
 }

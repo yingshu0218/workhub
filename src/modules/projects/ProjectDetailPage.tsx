@@ -19,6 +19,7 @@ import {
 import dayjs from 'dayjs'
 import { isTodoOpen, isTodoDone, isTodoVoided, isTodoFinished } from '@/modules/todo/domain'
 import ProjectFormDrawer from './ProjectFormDrawer'
+import { financeFocusPath } from '@/modules/finance/links'
 import {
   deleteMilestone,
   deleteProjectCascade,
@@ -223,9 +224,12 @@ export default function ProjectDetailPage() {
             ) : (
               <div className="space-y-1.5">
                 {transactions.slice(0, 6).map((t) => (
-                  <div
+                  <button
                     key={t.id}
-                    className="flex items-center justify-between rounded-lg bg-surface-container-low/50 px-3 py-2 text-[0.8929rem]"
+                    type="button"
+                    title="点击查看凭证详情"
+                    className="flex w-full cursor-pointer items-center justify-between rounded-lg bg-surface-container-low/50 px-3 py-2 text-left text-[0.8929rem] transition-colors hover:bg-surface-container-low"
+                    onClick={() => navigate(financeFocusPath(t.id))}
                   >
                     <span className="min-w-0 truncate">
                       <span className="text-outline">{dayjs(t.occurredAt).format('MM-DD')}</span>{' '}
@@ -237,7 +241,7 @@ export default function ProjectDetailPage() {
                       {t.type === 'income' ? '+' : '-'}
                       {fmtMoney(t.amount)}
                     </span>
-                  </div>
+                  </button>
                 ))}
                 {transactions.length > 6 && (
                   <div className="text-center text-[0.7857rem] text-outline">

@@ -1,4 +1,5 @@
 import type { Customer, Todo, Transaction, Note, Habit, Project } from '@/db/types'
+import { financeFocusPath } from '@/modules/finance/links'
 
 /**
  * ⌘K 全局搜索检索层（Phase 6 · 戒点②：选择性投影，不拉整字段）
@@ -95,7 +96,7 @@ export function buildSearchIndex(inputs: {
       subtitle: `${t.type === 'income' ? '收入' : '支出'} ${fmtAmount(t.amount)} · ${t.status}`,
       // 深链定位（与时间线骨刺穿透同款口径）：/finance?focus=<id>，FinancePage 消费后直接
       // 打开该笔凭证详情抽屉。不带 focus 只会落到财务中心列表，观感上「点详情没反应」。
-      path: `/finance?focus=${encodeURIComponent(t.id)}`,
+      path: financeFocusPath(t.id),
     })
   }
   for (const n of inputs.notes) {
