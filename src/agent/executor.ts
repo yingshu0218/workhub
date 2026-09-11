@@ -140,10 +140,22 @@ export function emitDeclared(tool: string, payloads: Record<string, AgentEventDe
  * 事件 `transaction:created` 仍由 `saveTransactionWithAttachments` 在事务 commit 后、仅新建时发出。
  * agentOps 首版不含 Blob 附件通道（外部 Agent 无法构造 Blob），附件走 UI 路径。
  */
+/** 关联字段归一：单值 + 数组 + 旧键别名 → 去重非空数组（Issue #140） */
+function linkIds(arr: unknown, legacy: unknown): string[] {
+  const norm = (v: unknown): string[] => {
+    if (typeof v === 'string') return v ? [v] : []
+    if (Array.isArray(v)) return v.filter((x): x is string => typeof x === 'string' && !!x)
+    return []
+  }
+  return [...new Set([...norm(arr), ...norm(legacy)])]
+}
+
 export async function fin_recordTransaction(input: unknown): Promise<AgentOpResult> {
   const parsed = parseOrError(recordTransactionSchema, input)
   if (!parsed.ok) return parsed
   const d = parsed.data
+  // schema 的兼容别名（旧键名 customerId…）不在 z.infer 的显式类型里，单独取原始对象读
+  const rec = d as unknown as Record<string, unknown>
 
   const r = await recordTransaction({
     summary: d.summary,
@@ -155,10 +167,10 @@ export async function fin_recordTransaction(input: unknown): Promise<AgentOpResu
     status: d.status,
     tags: d.tags,
     note: d.note,
-    // 多关联（Issue #140）：schema 已兼容单值/数组，领域层 normalizeLinkIds 统一包数组去重
-    customerId: d.customerId,
-    todoId: d.todoId,
-    projectId: d.projectId,
+    // 多关联归一（Issue #140）：单值/数组/旧键别名都收，去重后落库
+    customerIds: linkIds(rec.customerIds, rec.customerId),
+    todoIds: linkIds(rec.todoIds, rec.todoId),
+    projectIds: linkIds(rec.projectIds, rec.projectId),
   })
   if (!r.ok) return err(r.error)
   return ok({
@@ -284,8 +296,7 @@ export async function todo_createTodo(input: unknown): Promise<AgentOpResult> {
     priority: d.priority,
     status: 'todo',
     dueAt: d.dueAt,
-    // 多关联（Issue #140）：单值入参包数组（待办表同步多关联化）
-    customerIds: d.customerId ? [d.customerId] : [],
+    customerId: d.customerId,
     listId: d.listId,
     projectId: d.projectId,
     createdAt: Date.now(),
@@ -412,17 +423,15 @@ export async function todo_updateTodo(input: unknown): Promise<AgentOpResult> {
   const dueAt = triState(d.dueAt)
   if (dueAt.touched) patch.dueAt = dueAt.value
   const customerId = triState(d.customerId)
-  if (customerId.touched)
-    // 多关联（Issue #140）：待办 customerIds 数组化；null 清空、单值包数组
-    patch.customerIds = customerId.value ? [customerId.value] : []
+  if (customerId.touched) patch.customerId = customerId.value
   const projectId = triState(d.projectId)
   if (projectId.touched) patch.projectId = projectId.value
   const listId = triState(d.listId)
   if (listId.touched) patch.listId = listId.value
 
   // 弱引用校验：关联对象必须存在（拒绝挂到已删客户/项目上，避免图里出现悬挂边）
-  if (patch.customerIds?.length) {
-    const c = await mustExist<Customer>(db.customers, patch.customerIds[0]!, '客户')
+  if (patch.customerId) {
+    const c = await mustExist<Customer>(db.customers, patch.customerId, '客户')
     if (!c.ok) return err(c.error)
   }
   if (patch.projectId) {

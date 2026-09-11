@@ -23,6 +23,19 @@ import { DEFAULT_SETTINGS } from '@/db/types'
 import type { SyncMeta } from '@/db/types'
 import type { Attachment, FocusSession } from '@/db/db'
 import { eventBus } from '@/shared/eventBus'
+import { txnCustomerIds, toLinkField } from '@/modules/finance/links'
+
+/**
+ * 关联字段「置空即删键」的更新补丁（Dexie update 语义：显式 undefined 才删键）。
+ * 数组化后不能直接写 `customerIds: []` —— 空数组会被序列化进库、与服务端 json 字段
+ * 形成"有键但空"的噪声态；统一走 `toLinkField`：有空键则写值，无关联则置 undefined 清键。
+ */
+function toLinkFieldPatch(
+  key: 'customerIds' | 'todoIds' | 'projectIds',
+  ids: string[],
+): Record<string, string[] | undefined> {
+  return { [key]: toLinkField(ids) }
+}
 
 /** 模块统一从这里拿仓储实例，不直接触碰 Dexie */
 export const workspaceRepo = createRepository<Workspace>('workspaces')
@@ -430,8 +443,9 @@ export async function saveTransactionWithAttachments(
   if (created) {
     eventBus.emit('transaction:created', {
       transactionId: txn.id,
-      // 多关联（Issue #140）：载荷口径保持单客户，取第一个关联（其余关联不进事件）
-      customerId: txn.customerIds?.[0],
+      // 事件载荷保持单值口径（Issue #140）：下游订阅方（灵感引擎失效、AI 事件流）按单值消费，
+      // 多关联时代取首个关联客户即可表达"这笔钱和谁有关"，不放大事件契约的破坏面。
+      customerId: txnCustomerIds(txn)[0],
     })
   }
   syncEngine.requestSync()
@@ -614,14 +628,14 @@ export async function deleteCustomerCascade(customerId: string): Promise<void> {
         })
       }
 
-      // v11 多关联（Issue #140）：customerIds 不再建索引，级联解绑走全表内存过滤
-      //（取舍理由见 db.ts v11 注释）；从数组移除该客户 id，数组为空则清字段
-      const txns = await db.transactions.toArray()
+      // transactions 关联已数组化（Issue #140 v11）：去掉 customerId 索引，改内存过滤。
+      // 理由见 db.ts v11 注释（避开 multiEntry 与同步队列整体覆盖语义的兼容坑，本表数据量级小）。
+      const txns = (await db.transactions.filter((t) => !t.deleted).toArray()).filter((t) =>
+        txnCustomerIds(t).includes(customerId),
+      )
       for (const txn of txns) {
-        if (txn.deleted || !(txn.customerIds ?? []).includes(customerId)) continue
-        const customerIds = (txn.customerIds ?? []).filter((id) => id !== customerId)
         await db.transactions.update(txn.id, {
-          customerIds,
+          ...toLinkFieldPatch('customerIds', txnCustomerIds(txn).filter((id) => id !== customerId)),
           updatedAt: now,
           rev: txn.rev + 1,
         })
@@ -633,13 +647,11 @@ export async function deleteCustomerCascade(customerId: string): Promise<void> {
         })
       }
 
-      // v11 多关联（Issue #140）：待办同交易，内存过滤 + 数组移除
-      const todos = await db.todos.toArray()
+      const todos = await db.todos.where('customerId').equals(customerId).toArray()
       for (const todo of todos) {
-        if (todo.deleted || !(todo.customerIds ?? []).includes(customerId)) continue
-        const customerIds = (todo.customerIds ?? []).filter((id) => id !== customerId)
+        if (todo.deleted) continue
         await db.todos.update(todo.id, {
-          customerIds,
+          customerId: undefined,
           updatedAt: now,
           rev: todo.rev + 1,
         })
@@ -755,9 +767,11 @@ export async function createCustomerWithInit(
       if (opts.linkTransactionId) {
         const txn = await db.transactions.get(opts.linkTransactionId)
         if (txn && !txn.deleted) {
-          // v11 多关联（Issue #140）：追加而非覆盖既有关联（去重由 dedupeTxnLinks 保证）
           await db.transactions.update(txn.id, {
-            customerIds: [...new Set([...(txn.customerIds ?? []), customer.id])],
+            ...toLinkFieldPatch(
+              'customerIds',
+              [...txnCustomerIds(txn), customer.id].filter((v, i, a) => a.indexOf(v) === i),
+            ),
             updatedAt: now,
             rev: txn.rev + 1,
           })

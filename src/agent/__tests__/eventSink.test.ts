@@ -251,7 +251,8 @@ describe('createCustomerWithInit 下沉 repositories 且不新增事件', () => 
     await createCustomerWithInit(newCustomer('c8'), { linkTransactionId: txnId })
     cap.restore()
     expect(cap.events).toHaveLength(0)
-    expect((await db.transactions.get(txnId))!.customerIds).toContain('c8')
+    // Issue #140：关联改为数组（linkTransactionId 追加进 customerIds）
+    expect((await db.transactions.get(txnId))!.customerIds).toEqual(['c8'])
   })
 })
 

@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { db } from '@/db/db'
+import { txnCustomerIds, txnProjectIds } from '@/modules/finance/links'
 import { useQuery } from '@/queries/hooks'
 import { syncEngine } from '@/sync/engine'
 import { newId } from '@/repositories'
@@ -40,19 +41,16 @@ export interface CanvasGraph {
   projects: { id: string; name: string; customerId: string }[]
   transactions: {
     id: string
-    /** 多关联（Issue #140）：一条流水可挂多个客户；投影为去重后的数组 */
-    customerIds: string[]
+    customerId: string
     type: 'income' | 'expense'
     amount: number
     summary: string
-    /** 多关联（Issue #140）：一条流水可挂多个项目 */
-    projectIds: string[]
+    projectId?: string
     ledgerId?: string
   }[]
   todos: {
     id: string
-    /** 多关联（Issue #140）：一条待办可挂多个客户 */
-    customerIds: string[]
+    customerId: string
     title: string
     priority: 'P1' | 'P2' | 'P3'
     status: Todo['status']
@@ -80,10 +78,15 @@ export function useCanvasGraph(): CanvasGraph {
     const [customers, projects, txns, todos, itxs] = await Promise.all([
       db.customers.filter((c) => !c.deleted).toArray(),
       db.projects.filter((p) => !p.deleted).toArray(),
-      // customerId 建有索引：直接走索引取关联流水，跳过无关联的记录
-      // v11 多关联（Issue #140）：customerIds 不再建索引，走全表内存过滤（取舍见 db.ts v11 注释）
-      db.transactions.filter((t) => !t.deleted).toArray(),
-      db.todos.filter((t) => !t.deleted).toArray(),
+      // transactions 关联已数组化（Issue #140 v11）：去掉 customerId 索引，改内存过滤（理由见 db.ts v11 注释）
+      db.transactions
+        .filter((t) => !t.deleted && txnCustomerIds(t).length > 0)
+        .toArray(),
+      db.todos
+        .where('customerId')
+        .notEqual('')
+        .filter((t) => !t.deleted)
+        .toArray(),
       // customerId 建有索引（v1 起），与 transactions 同款索引查询（Issue #34 桥接推导前置）
       db.interactions
         .where('customerId')
@@ -115,18 +118,22 @@ export function useCanvasGraph(): CanvasGraph {
       })),
       projects: projects.map((p) => ({ id: p.id, name: p.name, customerId: p.customerId ?? '' })),
       projectStatuses: Object.fromEntries(projects.map((p) => [p.id, p.status])),
-      transactions: txns.map((t) => ({
-        id: t.id,
-        customerIds: t.customerIds ?? [],
-        type: t.type,
-        amount: t.amount,
-        summary: t.summary,
-        projectIds: t.projectIds ?? [],
-        ledgerId: t.ledgerId ?? undefined,
-      })),
+      // 建边投影保持单值口径（Issue #140）：多关联的一笔流水对每个关联客户各出一份投影，
+      // 画布/亲密度/时间轴按客户维度展开才能正确计数（总数由节点去重，不重复计数）。
+      transactions: txns.flatMap((t) =>
+        txnCustomerIds(t).map((cid) => ({
+          id: t.id,
+          customerId: cid,
+          type: t.type,
+          amount: t.amount,
+          summary: t.summary,
+          projectId: txnProjectIds(t)[0],
+          ledgerId: t.ledgerId ?? undefined,
+        })),
+      ),
       todos: todos.map((t) => ({
         id: t.id,
-        customerIds: t.customerIds ?? [],
+        customerId: t.customerId ?? '',
         title: t.title,
         priority: t.priority,
         status: t.status,
@@ -149,9 +156,8 @@ export function useCanvasGraph(): CanvasGraph {
 
 /** 算法健康分因子投影（Issue #34）：含最后一次联系时间，客户列表页单客户场景复用 */
 export interface CustomerScoreRows {
-  /** 多关联（Issue #140）：交易/待办投影为 customerIds 数组（可选：直传原始记录时靠调用方归一） */
-  transactions: { customerIds?: string[]; amount: number }[]
-  todos: { customerIds?: string[]; title: string; status: Todo['status'] }[]
+  transactions: { customerId?: string; amount: number }[]
+  todos: { customerId?: string; title: string; status: Todo['status'] }[]
   projects: { id: string; customerId?: string; status: Project['status'] }[]
   interactions: { customerId?: string; at: number }[]
 }
@@ -167,9 +173,16 @@ export function useCustomerScoreInput(
   const rows = useQuery<CustomerScoreRows>(async () => {
     if (!customerId) return { transactions: [], todos: [], projects: [], interactions: [] }
     const [transactions, todos, projects, interactions] = await Promise.all([
-      // v11 多关联（Issue #140）：交易/待办走内存过滤（customerIds 无索引，取舍见 db.ts v11 注释）
-      db.transactions.filter((t) => !t.deleted && (t.customerIds ?? []).includes(customerId)).toArray(),
-      db.todos.filter((t) => !t.deleted && (t.customerIds ?? []).includes(customerId)).toArray(),
+      db.transactions
+        .where('customerId')
+        .equals(customerId)
+        .filter((t) => !t.deleted)
+        .toArray(),
+      db.todos
+        .where('customerId')
+        .equals(customerId)
+        .filter((t) => !t.deleted)
+        .toArray(),
       db.projects
         .where('customerId')
         .equals(customerId)
@@ -200,11 +213,25 @@ export function useCustomerScoreRows(
   const key = ids.join(',')
   const rows = useQuery<CustomerScoreRows>(async () => {
     if (ids.length === 0) return { transactions: [], todos: [], projects: [], interactions: [] }
+    // 内存过滤用的 id 集合（数组字段无索引，见 db.ts v11 索引策略说明）
     const idSet = new Set(ids)
     const [transactions, todos, projects, interactions] = await Promise.all([
-      // v11 多关联（Issue #140）：内存过滤取「数组与 ids 有交集」的记录
-      db.transactions.filter((t) => !t.deleted && (t.customerIds ?? []).some((id) => idSet.has(id))).toArray(),
-      db.todos.filter((t) => !t.deleted && (t.customerIds ?? []).some((id) => idSet.has(id))).toArray(),
+      // 多关联（Issue #140）：一笔流水对每个关联客户各展开一份因子投影（与 CanvasGraph 同口径）
+      db.transactions
+        .filter((t) => !t.deleted && txnCustomerIds(t).some((id) => idSet.has(id)))
+        .toArray()
+        .then((rows) =>
+          rows.flatMap((t) =>
+            txnCustomerIds(t)
+              .filter((id) => idSet.has(id))
+              .map((id) => ({ customerId: id, amount: t.amount })),
+          ),
+        ),
+      db.todos
+        .where('customerId')
+        .anyOf(ids)
+        .filter((t) => !t.deleted)
+        .toArray(),
       db.projects
         .where('customerId')
         .anyOf(ids)
@@ -240,15 +267,11 @@ export function buildScoreInputFromRows(
       (i) => i.customerId === customerId && i.at >= since,
     ).length,
     financeAmount: rows.transactions
-      .filter((t) => (t.customerIds ?? []).includes(customerId))
+      .filter((t) => t.customerId === customerId)
       .reduce((sum, t) => sum + t.amount, 0),
-    activeTodos: rows.todos.filter(
-      (t) => (t.customerIds ?? []).includes(customerId) && isTodoOpen(t),
-    ).length,
+    activeTodos: rows.todos.filter((t) => t.customerId === customerId && isTodoOpen(t)).length,
     // 已完成口径（Issue #128）：只数 done；作废条目（终止）不计入完成数
-    doneTodos: rows.todos.filter(
-      (t) => (t.customerIds ?? []).includes(customerId) && isTodoDone(t),
-    ).length,
+    doneTodos: rows.todos.filter((t) => t.customerId === customerId && isTodoDone(t)).length,
     projects: rows.projects.filter((p) => p.customerId === customerId).length,
     activeProjects: rows.projects.filter(
       (p) => p.customerId === customerId && p.status === 'active',
@@ -281,9 +304,9 @@ export function useCustomerTransactions(customerId: string | undefined): Transac
   const list = useQuery<Transaction[]>(
     () =>
       customerId
-        ? // v11 多关联（Issue #140）：customerIds 无索引，内存过滤（取舍见 db.ts v11 注释）
+        ? // 多关联（Issue #140）：按「数组包含」匹配，一笔款分摊多客户时各方都能看到（无索引，内存过滤）
           db.transactions
-            .filter((t) => !t.deleted && (t.customerIds ?? []).includes(customerId))
+            .filter((t) => !t.deleted && txnCustomerIds(t).includes(customerId))
             .reverse()
             .sortBy('occurredAt')
         : Promise.resolve([]),
@@ -297,9 +320,10 @@ export function useCustomerTodos(customerId: string | undefined): Todo[] {
   const list = useQuery<Todo[]>(
     () =>
       customerId
-        ? // v11 多关联（Issue #140）：同交易，内存过滤
-          db.todos
-            .filter((t) => !t.deleted && (t.customerIds ?? []).includes(customerId))
+        ? db.todos
+            .where('customerId')
+            .equals(customerId)
+            .filter((t) => !t.deleted)
             .toArray()
         : Promise.resolve([]),
     [customerId],

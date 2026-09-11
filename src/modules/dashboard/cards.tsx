@@ -7,7 +7,14 @@ import { MatchCombobox } from '@/design-system/MatchCombobox'
 import { useToast } from '@/design-system/Toast'
 import { checkinHabit, uncheckHabit, newId, quickNoteRepo } from '@/repositories'
 import { toggleTodoDone } from '@/modules/todo/toggle'
-import { isDueToday, isTodoOpen, isTodoDone } from '@/modules/todo/domain'
+import {
+  isDueToday,
+  isTodoOpen,
+  isTodoDone,
+  isTodoOverdue,
+  isTodoDueToday,
+  overdueDays,
+} from '@/modules/todo/domain'
 import { useCallback, useRef, useState } from 'react'
 import type { Todo, Customer, Ledger, Habit, HabitLog, QuickNote, Note } from '@/db/types'
 import dayjs from 'dayjs'
@@ -234,15 +241,28 @@ function CardExitLink({ label, onClick }: { label: string; onClick: () => void }
  * Issue #134 口径修正：**已完成项不再出现在首页**。
  * 首页是「此刻要做什么」的行动面板，不是归档视图——一条待办打勾后应立即消失，
  * 完成后的去向是待办中心的「已完成」视图（左栏一级入口），首页不承担回看职责。
- * 达成情况由顶部「待办达成 N/M」指标卡承载，故此处不做「已完成划线区」（两者会互相矛盾）。
+ *
+ * Issue #134 四轮：**「今日到期」与「逾期」分开展示**。
+ * 两类条目在行动语义上并不等价：今日到期是「按计划推进」，逾期是「已经欠下的账」，
+ * 混在一列里按时间排序时，逾期条目会被越堆越多的「今天还没到点」条目稀释掉——
+ * 而恰恰是逾期条目最需要被看见。故按两个互斥分组渲染：
+ *   - 逾期在前（`isTodoOverdue`：未完成 + 截止日早于今天），红色组头 + 逾期天数；
+ *   - 今日到期在后（`isTodoDueToday`：未完成 + 截止落在今天），蓝色组头 + 到点时刻。
+ * 两者并集 = 原「今天」口径（`isDueToday`），总览计数不变，只是从「一列」变成「两段」。
+ *
+ * Issue #134 五轮：逾期改为**按天**口径（见 domain.isTodoOverdue）。
+ * 组头提示由「已逾期 X 天 Y 小时」收敛为「已逾期 N 天」——按天口径下小时数无意义。
  */
 export function TodayTodosCard() {
   const todos = useCollection<Todo>('todos')
   const todayStr = dayjs().format('YYYY-MM-DD')
-  const list = todos
-    // 「今天」口径（Issue #74）：今日截止 ∪ 逾期未完成；isDueToday 内部已含 isTodoOpen 判定
-    .filter((t) => isDueToday(t, todayStr))
-    .sort((a, b) => (a.dueAt ?? Infinity) - (b.dueAt ?? Infinity))
+  // 「今天」口径（Issue #74）：今日截止 ∪ 逾期未完成；isDueToday 内部已含 isTodoOpen 判定
+  const todayList = todos.filter((t) => isDueToday(t, todayStr))
+  // 逾期组（截止日早于今天）在前，今日到期组在后；组内按截止时间升序，越早到期越靠前
+  const byDueAsc = (a: Todo, b: Todo) => (a.dueAt ?? Infinity) - (b.dueAt ?? Infinity)
+  const overdue = todayList.filter((t) => isTodoOverdue(t, todayStr)).sort(byDueAsc)
+  const dueToday = todayList.filter((t) => isTodoDueToday(t, todayStr)).sort(byDueAsc)
+  const total = todayList.length
   // 未完成总览（进入待办中心的计数）：与待办中心「全部待办」同一口径
   const openCount = todos.filter(isTodoOpen).length
   // 今日已完成数：仅用于空态文案（「今日 N 项已达成」），不渲染成列表条目
@@ -255,12 +275,82 @@ export function TodayTodosCard() {
     await toggleTodoDone(t)
   }
 
+  /** 逾期天数：「已逾期 2 天」——按天口径，给出欠账的体量感，而非只有一个红点 */
+  function overdueFor(t: Todo): string {
+    return `已逾期 ${Math.max(1, overdueDays(t, todayStr))} 天`
+  }
+
+  function renderRow(t: Todo, group: 'overdue' | 'due') {
+    const isOver = group === 'overdue'
+    return (
+      <li
+        key={t.id}
+        className={`flex items-start gap-3 rounded-lg px-2 py-2 transition-colors ${
+          isOver ? 'border-l-2 border-danger/60 bg-danger/5' : 'hover:bg-surface-container-low'
+        }`}
+      >
+        <button onClick={() => void toggle(t)} className="mt-0.5 shrink-0" title="标记完成">
+          <Icon name="radio_button_unchecked" size={20} className="text-outline" />
+        </button>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[0.9643rem] font-medium">{t.title}</div>
+          {t.desc && <div className="truncate text-[0.7857rem] text-outline">{t.desc}</div>}
+          {t.dueAt && (
+            <div className={`text-[0.7857rem] ${isOver ? 'text-danger' : 'text-outline'}`}>
+              {isOver
+                ? `${dayjs(t.dueAt).format('M月D日 HH:mm')} · ${overdueFor(t)}`
+                : `${dayjs(t.dueAt).format('HH:mm')} 到期`}
+              {t.priority === 'P1' && (
+                <span className="ml-1.5 font-medium text-danger">P1 紧急</span>
+              )}
+            </div>
+          )}
+        </div>
+        <button
+          className="shrink-0 text-[0.7857rem] text-primary hover:underline"
+          onClick={() => void toggle(t)}
+        >
+          完成
+        </button>
+      </li>
+    )
+  }
+
+  /** 分组标题：数量 + 行动提示；逾期组用 danger 色，与今日到期组拉开层级 */
+  function GroupHeader({
+    tone,
+    icon,
+    label,
+    count,
+    hint,
+  }: {
+    tone: 'danger' | 'primary'
+    icon: string
+    label: string
+    count: number
+    hint: string
+  }) {
+    return (
+      <div
+        className={`flex items-center gap-1.5 px-2 pt-1 pb-0.5 text-[0.7857rem] font-semibold ${
+          tone === 'danger' ? 'text-danger' : 'text-primary'
+        }`}
+      >
+        <Icon name={icon} size={14} />
+        {label}
+        <span className="font-bold tabular-nums">{count}</span>
+        <span className="ml-auto font-normal text-outline">{hint}</span>
+      </div>
+    )
+  }
+
   return (
     <Card className="flex min-h-[280px] flex-col p-5">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="flex items-center gap-2 text-[1.0714rem] font-semibold">
           今日待办日程
-          <Chip tone="blue">{list.length} 待完成</Chip>
+          <Chip tone="blue">{total} 待完成</Chip>
+          {overdue.length > 0 && <Chip tone="red">{overdue.length} 逾期</Chip>}
         </h2>
         <button
           className="text-outline hover:text-primary"
@@ -271,7 +361,7 @@ export function TodayTodosCard() {
         </button>
       </div>
 
-      {list.length === 0 ? (
+      {total === 0 ? (
         <EmptyState
           icon="task_alt"
           title="今日暂无待完成事项"
@@ -282,36 +372,34 @@ export function TodayTodosCard() {
           }
         />
       ) : (
-        <ul className="min-h-0 flex-1 space-y-1 overflow-y-auto">
-          {list.map((t) => (
-            <li
-              key={t.id}
-              className="flex items-start gap-3 rounded-lg px-2 py-2 hover:bg-surface-container-low"
-            >
-              <button onClick={() => void toggle(t)} className="mt-0.5 shrink-0">
-                <Icon name="radio_button_unchecked" size={20} className="text-outline" />
-              </button>
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-[0.9643rem] font-medium">{t.title}</div>
-                {t.desc && <div className="truncate text-[0.7857rem] text-outline">{t.desc}</div>}
-                {t.dueAt && (
-                  <div
-                    className={`text-[0.7857rem] ${dayjs(t.dueAt).isBefore(dayjs()) ? 'text-danger' : 'text-outline'}`}
-                  >
-                    {dayjs(t.dueAt).format('HH:mm')}
-                    {t.priority === 'P1' && <span className="ml-1.5 font-medium">P1 紧急</span>}
-                  </div>
-                )}
-              </div>
-              <button
-                className="shrink-0 text-[0.7857rem] text-primary hover:underline"
-                onClick={() => void toggle(t)}
-              >
-                完成
-              </button>
-            </li>
-          ))}
-        </ul>
+        <div className="min-h-0 flex-1 space-y-2 overflow-y-auto">
+          {/* 逾期组：已欠下的账，置顶催办 */}
+          {overdue.length > 0 && (
+            <div>
+              <GroupHeader
+                tone="danger"
+                icon="warning"
+                label="已逾期"
+                count={overdue.length}
+                hint="先补这些"
+              />
+              <ul className="space-y-1">{overdue.map((t) => renderRow(t, 'overdue'))}</ul>
+            </div>
+          )}
+          {/* 今日到期组：今日尚未到点（或刚到期）的按计划事项 */}
+          {dueToday.length > 0 && (
+            <div>
+              <GroupHeader
+                tone="primary"
+                icon="today"
+                label="今日到期"
+                count={dueToday.length}
+                hint="按计划推进"
+              />
+              <ul className="space-y-1">{dueToday.map((t) => renderRow(t, 'due'))}</ul>
+            </div>
+          )}
+        </div>
       )}
 
       <CardExitLink

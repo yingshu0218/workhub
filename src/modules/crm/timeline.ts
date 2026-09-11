@@ -2,6 +2,7 @@ import { db } from '@/db/db'
 import { useQuery } from '@/queries/hooks'
 import dayjs from 'dayjs'
 import type { Interaction, Todo, Transaction } from '@/db/types'
+import { txnCustomerIds } from '@/modules/finance/links'
 
 /**
  * 客户统一时间轴投影（Issue #11 需求 1 的底座）
@@ -102,7 +103,6 @@ export function mergeTimelineEvents(
 export function useCustomerTimeline(customerId: string | undefined): TimelineEvent[] {
   const events = useQuery<TimelineEvent[]>(async () => {
     if (!customerId) return EMPTY
-    // v11 多关联（Issue #140）：customerIds 不再建索引，交易/待办走内存过滤（取舍见 db.ts v11 注释）
     const [interactions, transactions, todos] = await Promise.all([
       db.interactions
         .where('customerId')
@@ -110,10 +110,14 @@ export function useCustomerTimeline(customerId: string | undefined): TimelineEve
         .filter((i) => !i.deleted)
         .toArray(),
       db.transactions
-        .filter((t) => !t.deleted && (t.customerIds ?? []).includes(customerId))
+        .where('customerId')
+        .equals(customerId)
+        .filter((t) => !t.deleted)
         .toArray(),
       db.todos
-        .filter((t) => !t.deleted && (t.customerIds ?? []).includes(customerId))
+        .where('customerId')
+        .equals(customerId)
+        .filter((t) => !t.deleted)
         .toArray(),
     ])
     const merged = mergeTimelineEvents(interactions, transactions, todos)
@@ -133,21 +137,30 @@ export function useAllTimelines(): TimelineEvent[] {
   const events = useQuery<TimelineEvent[]>(async () => {
     const [interactions, transactions, todos] = await Promise.all([
       db.interactions.filter((i) => !i.deleted && !!i.customerId).toArray(),
-      // 多关联（Issue #140）：数组首客户作为时间轴归属展示口径
-      db.transactions.filter((t) => !t.deleted && (t.customerIds ?? []).length > 0).toArray(),
-      db.todos.filter((t) => !t.deleted && (t.customerIds ?? []).length > 0).toArray(),
+      // 多关联（Issue #140）：取任一关联客户即入图，回填时逐客户展开（同一笔流水可出现在多个客户时间轴）
+      db.transactions.filter((t) => !t.deleted && txnCustomerIds(t).length > 0).toArray(),
+      db.todos.filter((t) => !t.deleted && !!t.customerId).toArray(),
     ])
     const merged = mergeTimelineEvents(interactions, transactions, todos)
-    // 回填 customerId：三源记录均携带该字段，按 kind 对齐源记录即可（多关联取首个）
+    // 回填 customerId：三源记录均携带该字段，按 kind 对齐源记录即可
     const byId = new Map<string, string>()
     for (const i of interactions) byId.set(i.id, i.customerId)
-    for (const t of transactions) byId.set(t.id, (t.customerIds ?? [])[0]!)
-    for (const t of todos) byId.set(t.id, (t.customerIds ?? [])[0]!)
+    // 多关联（Issue #140）：一笔流水对每个关联客户各展开一份事件 —— 全局时间轴上
+    // 「这笔款既算 A 客户也算 B 客户」，只回填首个关联方会让另一方的鱼骨锚点整段缺失。
+    const txnCustomers = new Map<string, string[]>()
+    for (const t of transactions) txnCustomers.set(t.id, txnCustomerIds(t))
+    for (const t of todos) byId.set(t.id, t.customerId!)
+    const expanded: TimelineEvent[] = []
     for (const e of merged) {
       const srcId = e.kind === 'todo' ? e.recordId : e.id
+      if (e.kind === 'transaction') {
+        for (const cid of txnCustomers.get(srcId) ?? []) expanded.push({ ...e, customerId: cid })
+        continue
+      }
       e.customerId = byId.get(srcId)
+      expanded.push(e)
     }
-    return merged.sort((a, b) => b.at - a.at)
+    return expanded.sort((a, b) => b.at - a.at)
   }, [])
   return events ?? EMPTY
 }

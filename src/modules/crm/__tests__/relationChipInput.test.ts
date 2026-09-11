@@ -83,3 +83,54 @@ describe('客户关系手动输入：输入即写入 relations，不丢在中间
     expect(hints).toEqual(['未找到客户「查无此人」'])
   })
 })
+
+/**
+ * Issue #130 三分之三：保存路径的草稿结算（"输入即固化" 的兜底）
+ *
+ * 场景：用户手输客户名后没回车、没点「添加关系」，直接点「保存修改」。
+ * 提交路径不再依赖失焦事件后，唯一剩下的丢输入通道就是「草稿未结算」。
+ * 这里以组件同款纯逻辑复算 settleDrafts 的净效果并锁死。
+ */
+describe('保存路径草稿结算：草稿也必须落库（不丢输入）', () => {
+  function settle(
+    tags: string[],
+    pendingTags: string,
+    relations: { targetId: string; label: string }[],
+    pendingTargets: string[],
+    pendingLabels: string[],
+  ) {
+    const idByName: Record<string, string> = { 王五: 'c2', 李四: 'c3' }
+    const nextTags = [...tags]
+    for (const t of parseTagInput(pendingTags)) if (!nextTags.includes(t)) nextTags.push(t)
+    const next = [...relations]
+    for (const raw of pendingTargets) {
+      const id = idByName[raw.trim()]
+      if (!id) continue
+      for (const l of pendingLabels.length > 0 ? pendingLabels : ['其他']) {
+        if (next.some((r) => r.targetId === id && r.label === l)) continue
+        next.push({ targetId: id, label: l })
+      }
+    }
+    return { tags: nextTags, relations: next }
+  }
+
+  it('关系草稿：客户名 + 语义未点「添加关系」，保存时照常配对落库', () => {
+    const out = settle([], '', [], ['王五'], ['转介绍人'])
+    expect(out.relations).toEqual([{ targetId: 'c2', label: '转介绍人' }])
+  })
+
+  it('标签草稿：输了标签没敲分隔符，保存时并入 tags', () => {
+    const out = settle(['老朋友'], '高客单潜力', [], [], [])
+    expect(out.tags).toEqual(['老朋友', '高客单潜力'])
+  })
+
+  it('草稿与已有条目重复时不产生重复关系条目', () => {
+    const out = settle([], '', [{ targetId: 'c2', label: '转介绍人' }], ['王五'], ['转介绍人'])
+    expect(out.relations).toEqual([{ targetId: 'c2', label: '转介绍人' }])
+  })
+
+  it('草稿里的客户名解析不到 → 不写悬挂边（交由调用方回显提示）', () => {
+    const out = settle([], '', [], ['查无此人'], ['转介绍人'])
+    expect(out.relations).toEqual([])
+  })
+})

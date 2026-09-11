@@ -487,17 +487,20 @@
       {
         "name": "customerIds",
         "type": "json",
-        "required": false
+        "required": false,
+        "help": "Issue #140 多关联：关联客户 id 数组（json，照抄 tags 先例）。旧字段 customerId 仅老客户端降级写首个关联时使用"
       },
       {
         "name": "todoIds",
         "type": "json",
-        "required": false
+        "required": false,
+        "help": "Issue #140 多关联：关联待办 id 数组（json）。旧字段 todoId 同上"
       },
       {
         "name": "projectIds",
         "type": "json",
-        "required": false
+        "required": false,
+        "help": "Issue #140 多关联：关联项目 id 数组（json）。旧字段 projectId 同上"
       },
       {
         "name": "tombstonePushed",
@@ -840,6 +843,14 @@
       },
       {
         "name": "convertedTo",
+        "type": "text"
+      },
+      {
+        "name": "convertedAt",
+        "type": "number"
+      },
+      {
+        "name": "convertedVia",
         "type": "text"
       },
       {
@@ -1607,154 +1618,154 @@
       "CREATE INDEX idx_projectMilestones_projectId ON projectMilestones (projectId)"
     ]
   },
- {
-  "name": "module_configs",
-  "type": "base",
-  "system": false,
-  "listRule": "@request.auth.id != ''",
-  "viewRule": "@request.auth.id != ''",
-  "createRule": "@request.auth.id != ''",
-  "updateRule": "@request.auth.id != ''",
-  "deleteRule": "@request.auth.id != ''",
-  "fields": [
-   {
-    "name": "id",
-    "type": "text",
-    "primaryKey": true,
-    "required": true,
-    "autogeneratePattern": ""
-   },
-   {
-    "name": "localId",
-    "type": "text",
-    "required": true
-   },
-   {
-    "name": "payload",
-    "type": "json"
-   },
-   {
-    "name": "updatedAt",
-    "type": "number",
-    "required": true
-   },
-   {
-    "name": "deleted",
-    "type": "number"
-   },
-   {
-    "name": "rev",
-    "type": "number"
-   },
-   {
-    "name": "created",
-    "type": "autodate",
-    "onCreate": true,
-    "onUpdate": false
-   },
-   {
-    "name": "updated",
-    "type": "autodate",
-    "onCreate": true,
-    "onUpdate": true
-   },
-   {
-    "name": "server_received_at",
-    "type": "autodate",
-    "onCreate": true,
-    "onUpdate": true
-   },
-   {
-    "name": "tombstonePushed",
-    "type": "number",
-    "required": false,
-    "presentable": false
-   }
-  ],
-  "indexes": [
-   "CREATE UNIQUE INDEX idx_module_configs_localId ON module_configs (localId)",
-   "CREATE INDEX idx_module_configs_updatedAt ON module_configs (updatedAt)",
-   "CREATE INDEX idx_module_configs_tombstonePushed ON module_configs (tombstonePushed)"
-  ]
- },
- {
-   "name": "customerGroups",
-   "type": "base",
-   "system": false,
-   "listRule": "@request.auth.id != ''",
-   "viewRule": "@request.auth.id != ''",
-   "createRule": "@request.auth.id != ''",
-   "updateRule": "@request.auth.id != ''",
-   "deleteRule": "@request.auth.id != ''",
-   "fields": [
-     {
-       "name": "id",
-       "type": "text",
-       "primaryKey": true,
-       "required": true,
-       "autogeneratePattern": ""
-     },
-     {
-       "name": "localId",
-       "type": "text",
-       "required": true
-     },
-     {
-       "name": "createdAt",
-       "type": "number"
-     },
-     {
-       "name": "updatedAt",
-       "type": "number"
-     },
-     {
-       "name": "deleted",
-       "type": "bool"
-     },
-     {
-       "name": "rev",
-       "type": "number"
-     },
-     {
-       "name": "name",
-       "type": "text",
-       "required": true
-     },
-     {
-       "name": "sortOrder",
-       "type": "number"
-     },
-     {
-       "name": "server_received_at",
-       "type": "autodate",
-       "onCreate": true,
-       "onUpdate": false
-     },
-     {
-       "name": "tombstonePushed",
-       "type": "number",
-       "required": false,
-       "presentable": false
-     },
-     {
-       "name": "includeTags",
-       "type": "json",
-       "maxSize": 2000000
-     },
-     {
-       "name": "excludeTags",
-       "type": "json",
-       "maxSize": 2000000
-     },
-     {
-       "name": "rules",
-       "type": "json",
-       "maxSize": 2000000
-     }
-   ],
-   "indexes": [
-     "CREATE UNIQUE INDEX idx_customerGroups_localId ON customerGroups (localId)",
-     "CREATE INDEX idx_customerGroups_tombstonePushed ON customerGroups (tombstonePushed)"
-   ]
- }
+  {
+    "name": "module_configs",
+    "type": "base",
+    "system": false,
+    "listRule": "@request.auth.id != ''",
+    "viewRule": "@request.auth.id != ''",
+    "createRule": "@request.auth.id != ''",
+    "updateRule": "@request.auth.id != ''",
+    "deleteRule": "@request.auth.id != ''",
+    "fields": [
+      {
+        "name": "id",
+        "type": "text",
+        "primaryKey": true,
+        "required": true,
+        "autogeneratePattern": ""
+      },
+      {
+        "name": "localId",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "payload",
+        "type": "json"
+      },
+      {
+        "name": "updatedAt",
+        "type": "number",
+        "required": true
+      },
+      {
+        "name": "deleted",
+        "type": "number"
+      },
+      {
+        "name": "rev",
+        "type": "number"
+      },
+      {
+        "name": "created",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": false
+      },
+      {
+        "name": "updated",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "server_received_at",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "tombstonePushed",
+        "type": "number",
+        "required": false,
+        "presentable": false
+      }
+    ],
+    "indexes": [
+      "CREATE UNIQUE INDEX idx_module_configs_localId ON module_configs (localId)",
+      "CREATE INDEX idx_module_configs_updatedAt ON module_configs (updatedAt)",
+      "CREATE INDEX idx_module_configs_tombstonePushed ON module_configs (tombstonePushed)"
+    ]
+  },
+  {
+    "name": "customerGroups",
+    "type": "base",
+    "system": false,
+    "listRule": "@request.auth.id != ''",
+    "viewRule": "@request.auth.id != ''",
+    "createRule": "@request.auth.id != ''",
+    "updateRule": "@request.auth.id != ''",
+    "deleteRule": "@request.auth.id != ''",
+    "fields": [
+      {
+        "name": "id",
+        "type": "text",
+        "primaryKey": true,
+        "required": true,
+        "autogeneratePattern": ""
+      },
+      {
+        "name": "localId",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "createdAt",
+        "type": "number"
+      },
+      {
+        "name": "updatedAt",
+        "type": "number"
+      },
+      {
+        "name": "deleted",
+        "type": "bool"
+      },
+      {
+        "name": "rev",
+        "type": "number"
+      },
+      {
+        "name": "name",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "sortOrder",
+        "type": "number"
+      },
+      {
+        "name": "server_received_at",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": false
+      },
+      {
+        "name": "tombstonePushed",
+        "type": "number",
+        "required": false,
+        "presentable": false
+      },
+      {
+        "name": "includeTags",
+        "type": "json",
+        "maxSize": 2000000
+      },
+      {
+        "name": "excludeTags",
+        "type": "json",
+        "maxSize": 2000000
+      },
+      {
+        "name": "rules",
+        "type": "json",
+        "maxSize": 2000000
+      }
+    ],
+    "indexes": [
+      "CREATE UNIQUE INDEX idx_customerGroups_localId ON customerGroups (localId)",
+      "CREATE INDEX idx_customerGroups_tombstonePushed ON customerGroups (tombstonePushed)"
+    ]
+  }
 ]

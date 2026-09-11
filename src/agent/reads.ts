@@ -1,6 +1,7 @@
 import dayjs from 'dayjs'
 import { z } from 'zod'
 import { db } from '@/db/db'
+import { txnCustomerIds, txnProjectIds, txnTodoIds } from '@/modules/finance/links'
 import { buildSearchIndex, searchAll, type SearchEntityType } from '@/shared/search'
 import type { Customer, Habit, Ledger, Note, Project, Todo, Transaction } from '@/db/types'
 
@@ -51,7 +52,13 @@ function alive<T extends { deleted: 0 | 1 }>(rows: T[]): T[] {
 
 /* ----------------------------- 读工具入参 schema ----------------------------- */
 
-/** listTransactions(filter)：金额/日期/状态/customerId/ledgerId，不含附件 Blob（§2.2） */
+/**
+ * listTransactions(filter)：金额/日期/状态/customerId/ledgerId，不含附件 Blob（§2.2）
+ *
+ * customerId 过滤语义（Issue #140）：多关联后按「数组包含」匹配 ——
+ * 传 c1 时命中「只关联 c1」与「c1+c2 都关联」两种流水（真实业务里一笔款分摊多客户时，
+ * 任一关联方视角都应能看到这笔流水）；入参保持单值不变，已分发的 AI 工具调用零改动。
+ */
 export const listTransactionsSchema = z.object({
   customerId: z.string().optional(),
   ledgerId: z.string().optional(),
@@ -118,10 +125,10 @@ function projectTransaction(t: Transaction) {
     summary: t.summary,
     status: t.status,
     occurredAt: t.occurredAt,
-    // 多关联（Issue #140）：数组投影（空数组省略）
-    ...(t.customerIds?.length ? { customerIds: t.customerIds } : {}),
-    ...(t.projectIds?.length ? { projectIds: t.projectIds } : {}),
-    ...(t.todoIds?.length ? { todoIds: t.todoIds } : {}),
+    // 多关联（Issue #140）：投影按数组下发；空数组不落键，保持"无关联即无字段"的既有形状
+    ...(txnCustomerIds(t).length > 0 ? { customerIds: txnCustomerIds(t) } : {}),
+    ...(txnProjectIds(t).length > 0 ? { projectIds: txnProjectIds(t) } : {}),
+    ...(txnTodoIds(t).length > 0 ? { todoIds: txnTodoIds(t) } : {}),
   }
 }
 
@@ -132,7 +139,7 @@ function projectTodo(t: Todo) {
     priority: t.priority,
     status: t.status,
     ...(t.dueAt ? { dueAt: t.dueAt } : {}),
-    ...(t.customerIds?.length ? { customerIds: t.customerIds } : {}),
+    ...(t.customerId ? { customerId: t.customerId } : {}),
     ...(t.projectId ? { projectId: t.projectId } : {}),
   }
 }
@@ -198,8 +205,7 @@ export async function listTransactions(input: unknown): Promise<ReadResult> {
   const fromMs = d.from ? dayjs(d.from).startOf('day').valueOf() : undefined
   const toMs = d.to ? dayjs(d.to).endOf('day').valueOf() : undefined
   const rows = alive(await db.transactions.toArray())
-    // 多关联（Issue #140）：customerId 过滤改为「数组包含」语义
-    .filter((t) => (d.customerId ? (t.customerIds ?? []).includes(d.customerId) : true))
+    .filter((t) => (d.customerId ? txnCustomerIds(t).includes(d.customerId) : true))
     .filter((t) => (d.ledgerId ? t.ledgerId === d.ledgerId : true))
     .filter((t) => (d.status ? t.status === d.status : true))
     .filter((t) => (d.type ? t.type === d.type : true))
@@ -223,7 +229,7 @@ export async function listTodos(input: unknown): Promise<ReadResult> {
   const rows = alive(await db.todos.toArray())
     .filter((t) => (d.status ? t.status === d.status : true))
     .filter((t) => (d.priority ? t.priority === d.priority : true))
-    .filter((t) => (d.customerId ? (t.customerIds ?? []).includes(d.customerId) : true))
+    .filter((t) => (d.customerId ? t.customerId === d.customerId : true))
     .filter((t) => (d.projectId ? t.projectId === d.projectId : true))
     .sort((a, b) => (a.dueAt ?? Infinity) - (b.dueAt ?? Infinity))
   return envelope(rows.map(projectTodo), READ_LIMITS.listTodos)

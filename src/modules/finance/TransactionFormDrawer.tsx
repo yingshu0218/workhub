@@ -6,9 +6,16 @@ import type { PutInput } from '@/repositories/repository'
 import type { Attachment } from '@/db/db'
 import type { Customer, Ledger, Project, Todo, Transaction } from '@/db/types'
 import { Button, Chip, Field, Modal, inputCls, useAutoFocus } from '@/design-system/ui'
-import type { MatchOption } from '@/design-system/MatchCombobox'
-import EntityLinkField from '@/design-system/EntityLinkField'
 import { toArchivedFlag } from '@/shared/search'
+import EntityLinkField from '@/design-system/EntityLinkField'
+import {
+  aliveIdSet,
+  pruneTxnLinkIds,
+  toLinkField,
+  txnCustomerIds,
+  txnProjectIds,
+  txnTodoIds,
+} from './links'
 import dayjs from 'dayjs'
 import { isTodoOpen } from '@/modules/todo/domain'
 
@@ -17,7 +24,14 @@ const MAX_ATTACHMENT_SIZE = 5 * 1024 * 1024
 /** 金额上限（元）：10 位数封顶 */
 const MAX_AMOUNT = 9999999999
 
-/** 记一笔账 / 编辑流水抽屉（对齐原型 04-finance-new-transaction） */
+/**
+ * 记一笔账 / 编辑流水抽屉（对齐原型 04-finance-new-transaction）
+ *
+ * Issue #140 改版：
+ * - **整体 2 列分栏**（「能塞的塞 2 列、长字段整行」）：类型/备注/附件整行，其余两两成对；
+ * - **关联客户 / 项目 / 待办改多值芯片**（`EntityLinkField`），芯片 hover 弹 `EntityHoverCard` 摘要；
+ * - 数据层走 Issue #140 方案 A（`customerIds/todoIds/projectIds` 数组）。
+ */
 export default function TransactionFormDrawer({
   open,
   defaultLedgerId,
@@ -47,7 +61,6 @@ export default function TransactionFormDrawer({
   const [occurredAt, setOccurredAt] = useState('')
   const [tags, setTags] = useState<string[]>([])
   const [tagInput, setTagInput] = useState('')
-  // 多关联（Issue #140）：关联客户/项目/待办改为多选芯片（数组，保存前去重）
   const [customerIds, setCustomerIds] = useState<string[]>([])
   const [todoIds, setTodoIds] = useState<string[]>([])
   const [projectIds, setProjectIds] = useState<string[]>([])
@@ -73,9 +86,10 @@ export default function TransactionFormDrawer({
         setOccurredAt(dayjs(editTxn.occurredAt).format('YYYY-MM-DD'))
         setTags(editTxn.tags)
         setTagInput('')
-        setCustomerIds(editTxn.customerIds ?? [])
-        setTodoIds(editTxn.todoIds ?? [])
-        setProjectIds(editTxn.projectIds ?? [])
+        // 多关联回填（Issue #140）：兼容旧单值记录（迁移前/远端未升级）由 links 读取器统一兜底
+        setCustomerIds(txnCustomerIds(editTxn))
+        setTodoIds(txnTodoIds(editTxn))
+        setProjectIds(txnProjectIds(editTxn))
         setNote(editTxn.note ?? '')
       } else {
         // 归属账本默认值：左侧选中具体账本直接用；「全部账本」优先默认账本，再回落第一个
@@ -103,19 +117,18 @@ export default function TransactionFormDrawer({
   }
 
   // 待办候选：新建态=未完成待办；编辑态若已选待办已完成，单独并入 + sub 标注「已完成」，保证回显不丢
-  // 多关联（Issue #140）：已完结回填分支按数组逐个并入
-  const todoOptions: MatchOption[] = openTodos.map((t) => ({
+  const todoOptions: { id: string; label: string; sub?: string; icon?: string }[] = openTodos.map((t) => ({
     id: t.id,
     label: t.title,
     sub: t.priority,
     icon: 'task_alt',
   }))
-  for (const tid of editTxn?.todoIds ?? []) {
-    if (openTodos.some((t) => t.id === tid)) continue
-    const done = todos.find((t) => t.id === tid)
+  // 多值版「已完结待办回填」：任一已选待办不在未完成列表时，把它的已完成记录补进候选
+  for (const id of todoIds) {
+    if (openTodos.some((t) => t.id === id)) continue
+    const done = todos.find((t) => t.id === id)
     if (done) todoOptions.push({ id: done.id, label: done.title, sub: '已完成', icon: 'task_alt' })
   }
-
 
   /** 回车 / 逗号 / 失焦 → 将输入固化为标签：去 #、去重、去空 */
   function commitTag(raw?: string) {
@@ -167,21 +180,18 @@ export default function TransactionFormDrawer({
       setError(`附件「${oversized.name}」超过单文件 5MB 限制`)
       return
     }
-    // 多关联（Issue #140）：保存前去重；已删除/不存在的实体 id 过滤（弱引用纪律：解绑不报错）
-    const aliveCustomerIds = [
-      ...new Set(customerIds.filter((id) => customers.some((c) => c.id === id && !c.deleted))),
-    ]
-    const aliveTodoIds = [
-      ...new Set(todoIds.filter((id) => todos.some((t) => t.id === id && !t.deleted))),
-    ]
-    const aliveProjectIds = [
-      ...new Set(projectIds.filter((id) => projects.some((p) => p.id === id && !p.deleted))),
-    ]
     const txnId = editTxn?.id ?? newId('txn')
     // 记账时间口径走领域层 `normalizeOccurredAt`（仅日期录入 → 落当天 00:00）。
     // 该口径与 agentOps 的 fin_recordTransaction 同源一份实现（P1 补强：消除 UI/AI 两份内联拼接）。
     const occurredAtMs = normalizeOccurredAt(occurredAt)
-    // 编辑模式以旧记录展开为基底，保留 status/todoId 等表单外字段
+    // 关联写入纪律（Issue #140）：去重 + 过滤已删实体（弱引用：实体不存在仅解绑，不报错），
+    // 空数组不落键（与服务端 json 字段「无关联即无字段」口径一致）。
+    const linkPatch = {
+      customerIds: toLinkField(pruneTxnLinkIds(customerIds, aliveIdSet(customers))),
+      todoIds: toLinkField(pruneTxnLinkIds(todoIds, aliveIdSet(todos))),
+      projectIds: toLinkField(pruneTxnLinkIds(projectIds, aliveIdSet(projects))),
+    }
+    // 编辑模式以旧记录展开为基底，保留 status 等表单外字段
     const record: PutInput<Transaction> = editTxn
       ? {
           ...editTxn,
@@ -193,9 +203,7 @@ export default function TransactionFormDrawer({
           occurredAt: occurredAtMs,
           tags,
           note: note.trim() || undefined,
-          customerIds: aliveCustomerIds,
-          todoIds: aliveTodoIds,
-          projectIds: aliveProjectIds,
+          ...linkPatch,
         }
       : {
           id: txnId,
@@ -207,9 +215,7 @@ export default function TransactionFormDrawer({
           occurredAt: occurredAtMs,
           tags,
           note: note.trim() || undefined,
-          customerIds: aliveCustomerIds,
-          todoIds: aliveTodoIds,
-          projectIds: aliveProjectIds,
+          ...linkPatch,
           status: '待对账',
         }
     // 附件存根：Blob 入 attachments 表，refId 指向交易；与交易同事务原子落库
@@ -241,6 +247,7 @@ export default function TransactionFormDrawer({
       elevated={elevated}
     >
       <div key={seedKey}>
+        {/* 类型：整行（按钮组，塞半列会挤） */}
         <Field label="类型 *">
           <div className="flex gap-2">
             {(['income', 'expense'] as const).map((t) => (
@@ -258,7 +265,9 @@ export default function TransactionFormDrawer({
             ))}
           </div>
         </Field>
-        <div className="grid grid-cols-2 gap-3">
+
+        {/* 以下字段 2 列分栏（Issue #140）：能塞的成对占位，长字段 col-span-2 整行 */}
+        <div className="grid grid-cols-2 gap-x-4 gap-y-3">
           <Field label="归属账本 *">
             <select
               className={inputCls}
@@ -286,167 +295,196 @@ export default function TransactionFormDrawer({
               ))}
             </select>
           </Field>
-        </div>
-        {/* 2 列分栏（Issue #140）：能塞的塞 2 列，长字段整行 */}
-        <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-        <Field label="交易名称 / 款项摘要 *">
-          <input
-            ref={summaryRef}
-            className={inputCls}
-            value={summary}
-            onChange={(e) => setSummary(e.target.value)}
-            placeholder="如：深蓝科技二期交付结算凭据"
-          />
-        </Field>
-        <Field label="金额 *">
-          <input
-            type="number"
-            min={0}
-            step="0.01"
-            className={inputCls}
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            placeholder="0.00"
-          />
-        </Field>
-        <Field label="记账时间">
-          <input
-            type="date"
-            className={inputCls}
-            value={occurredAt}
-            onChange={(e) => setOccurredAt(e.target.value)}
-          />
-        </Field>
-        <Field label="业务标签">
-          <div
-            className={`${inputCls} flex min-h-[38px] cursor-text flex-wrap items-center gap-1.5`}
-            onClick={(e) => (e.currentTarget.querySelector('input') as HTMLInputElement)?.focus()}
-          >
-            {tags.map((t) => (
-              <Chip key={t} tone="gray">
-                #{t}
-                <button
-                  className="ml-0.5 text-outline hover:text-danger"
-                  title="删除标签"
-                  onClick={() => setTags(tags.filter((x) => x !== t))}
-                >
-                  ×
-                </button>
-              </Chip>
-            ))}
-            <input
-              className="min-w-[120px] flex-1 bg-transparent text-[0.9286rem] outline-none"
-              value={tagInput}
-              onChange={(e) => setTagInput(e.target.value)}
-              onKeyDown={onTagKeyDown}
-              onBlur={() => commitTag()}
-              placeholder={tags.length === 0 ? '输入后回车确认，如：大客户回款' : ''}
-            />
+
+          {/* 交易名称：整行（摘要文案长，半列会截断） */}
+          <div className="col-span-2">
+            <Field label="交易名称 / 款项摘要 *">
+              <input
+                ref={summaryRef}
+                className={inputCls}
+                value={summary}
+                onChange={(e) => setSummary(e.target.value)}
+                placeholder="如：深蓝科技二期交付结算凭据"
+              />
+            </Field>
           </div>
-        </Field>
-        <Field label="关联客户">
-          <EntityLinkField
-            value={customerIds}
-            options={customers.map((c) => ({
-              id: c.id,
-              label: `${c.company} · ${c.name}`,
-              icon: 'person',
-            }))}
-            placeholder="输入公司或姓名模糊搜索，如：深蓝"
-            emptyText="没有匹配的客户"
-            entityType="customer"
-            onChange={setCustomerIds}
-          />
-        </Field>
-        <Field label="关联项目">
-          <EntityLinkField
-            value={projectIds}
-            options={projects.map((p) => ({
-              id: p.id,
-              label: p.name,
-              sub: p.status === 'archived' ? '已归档' : undefined,
-              ...toArchivedFlag(p),
-              icon: 'folder_open',
-            }))}
-            placeholder="输入项目名称模糊搜索"
-            emptyText="没有匹配的项目"
-            entityType="project"
-            onChange={setProjectIds}
-          />
-        </Field>
-        <div className="col-span-2">
-          <Field label="关联待办">
-            <EntityLinkField
-              value={todoIds}
-              options={todoOptions}
-              placeholder="输入待办标题模糊搜索"
-              emptyText={openTodos.length === 0 ? '暂无未完成待办' : '没有匹配的待办'}
-              entityType="todo"
-              onChange={setTodoIds}
+
+          <Field label="金额 *">
+            <input
+              type="number"
+              min={0}
+              step="0.01"
+              className={inputCls}
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="0.00"
             />
           </Field>
-        </div>
-        </div>
-        <Field label="备注">
-          <textarea
-            className={`${inputCls} h-20 resize-none`}
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-          />
-        </Field>
-        <Field label={`附件（${files.length} 个，单文件 ≤ 5MB）`}>
-          <div>
+          <Field label="记账时间">
             <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              className="hidden"
-              onChange={(e) => {
-                // 多选追加，不覆盖已选；同名文件跳过
-                const picked = Array.from(e.target.files ?? [])
-                setFiles((prev) => {
-                  const merged = [...prev]
-                  for (const f of picked) {
-                    if (!merged.some((x) => x.name === f.name && x.size === f.size)) merged.push(f)
-                  }
-                  return merged
-                })
-                e.target.value = ''
-              }}
+              type="date"
+              className={inputCls}
+              value={occurredAt}
+              onChange={(e) => setOccurredAt(e.target.value)}
             />
-            <Button variant="tonal" icon="upload_file" onClick={() => fileInputRef.current?.click()}>
-              上传附件
-            </Button>
+          </Field>
+
+          {/* 业务标签：整行（多标签换行，半列撑不开） */}
+          <div className="col-span-2">
+            <Field label="业务标签">
+              <div
+                className={`${inputCls} flex min-h-[38px] cursor-text flex-wrap items-center gap-1.5`}
+                onClick={(e) =>
+                  (e.currentTarget.querySelector('input') as HTMLInputElement)?.focus()
+                }
+              >
+                {tags.map((t) => (
+                  <Chip key={t} tone="gray">
+                    #{t}
+                    <button
+                      className="ml-0.5 text-outline hover:text-danger"
+                      title="删除标签"
+                      onClick={() => setTags(tags.filter((x) => x !== t))}
+                    >
+                      ×
+                    </button>
+                  </Chip>
+                ))}
+                <input
+                  className="min-w-[120px] flex-1 bg-transparent text-[0.9286rem] outline-none"
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  onKeyDown={onTagKeyDown}
+                  onBlur={() => commitTag()}
+                  placeholder={tags.length === 0 ? '输入后回车确认，如：大客户回款' : ''}
+                />
+              </div>
+            </Field>
           </div>
-          {files.length > 0 && (
-            <div className="mt-2 space-y-1.5">
-              {files.map((f, i) => (
-                <div
-                  key={`${f.name}-${i}`}
-                  className={`flex items-center justify-between rounded-lg border px-2.5 py-1.5 text-[0.8571rem] ${
-                    f.size > MAX_ATTACHMENT_SIZE
-                      ? 'border-danger/50 text-danger'
-                      : 'border-outline-variant/40'
-                  }`}
+
+          {/* 关联三件套：整行（多芯片可变高度，半列会很难看）；内部再排 2 列 */}
+          <div className="col-span-2">
+            <Field label="关联客户">
+              <EntityLinkField
+                type="customer"
+                icon="person"
+                value={customerIds}
+                options={customers.map((c) => ({
+                  id: c.id,
+                  label: `${c.company} · ${c.name}`,
+                  icon: 'person',
+                }))}
+                placeholder="输入公司或姓名模糊搜索，可多选"
+                emptyText="没有可关联的客户"
+                onChange={setCustomerIds}
+              />
+            </Field>
+          </div>
+          <div className="col-span-2">
+            <Field label="关联项目">
+              <EntityLinkField
+                type="project"
+                icon="folder_open"
+                value={projectIds}
+                options={projects.map((p) => ({
+                  id: p.id,
+                  label: p.name,
+                  sub: p.status === 'archived' ? '已归档' : undefined,
+                  ...toArchivedFlag(p),
+                  icon: 'folder_open',
+                }))}
+                placeholder="输入项目名称模糊搜索，可多选"
+                emptyText="没有可关联的项目"
+                onChange={setProjectIds}
+              />
+            </Field>
+          </div>
+          <div className="col-span-2">
+            <Field label="关联待办">
+              <EntityLinkField
+                type="todo"
+                icon="task_alt"
+                value={todoIds}
+                options={todoOptions}
+                placeholder="输入待办标题模糊搜索，可多选"
+                emptyText={openTodos.length === 0 ? '暂无未完成待办' : '没有可关联的待办'}
+                onChange={setTodoIds}
+              />
+            </Field>
+          </div>
+
+          {/* 备注 / 附件：整行 */}
+          <div className="col-span-2">
+            <Field label="备注">
+              <textarea
+                className={`${inputCls} h-20 resize-none`}
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+              />
+            </Field>
+          </div>
+          <div className="col-span-2">
+            <Field label={`附件（${files.length} 个，单文件 ≤ 5MB）`}>
+              <div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    // 多选追加，不覆盖已选；同名文件跳过
+                    const picked = Array.from(e.target.files ?? [])
+                    setFiles((prev) => {
+                      const merged = [...prev]
+                      for (const f of picked) {
+                        if (!merged.some((x) => x.name === f.name && x.size === f.size))
+                          merged.push(f)
+                      }
+                      return merged
+                    })
+                    e.target.value = ''
+                  }}
+                />
+                <Button
+                  variant="tonal"
+                  icon="upload_file"
+                  onClick={() => fileInputRef.current?.click()}
                 >
-                  <span className="truncate">
-                    {f.name}
-                    <span className="ml-2 shrink-0 text-outline">
-                      {(f.size / 1024).toFixed(0)} KB
-                    </span>
-                  </span>
-                  <button
-                    className="ml-2 shrink-0 text-outline hover:text-danger"
-                    title="移除附件"
-                    onClick={() => setFiles(files.filter((_, idx) => idx !== i))}
-                  >
-                    ×
-                  </button>
+                  上传附件
+                </Button>
+              </div>
+              {files.length > 0 && (
+                <div className="mt-2 space-y-1.5">
+                  {files.map((f, i) => (
+                    <div
+                      key={`${f.name}-${i}`}
+                      className={`flex items-center justify-between rounded-lg border px-2.5 py-1.5 text-[0.8571rem] ${
+                        f.size > MAX_ATTACHMENT_SIZE
+                          ? 'border-danger/50 text-danger'
+                          : 'border-outline-variant/40'
+                      }`}
+                    >
+                      <span className="truncate">
+                        {f.name}
+                        <span className="ml-2 shrink-0 text-outline">
+                          {(f.size / 1024).toFixed(0)} KB
+                        </span>
+                      </span>
+                      <button
+                        className="ml-2 shrink-0 text-outline hover:text-danger"
+                        title="移除附件"
+                        onClick={() => setFiles(files.filter((_, idx) => idx !== i))}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          )}
-        </Field>
+              )}
+            </Field>
+          </div>
+        </div>
+
         {error && <div className="mb-3 text-[0.8571rem] text-danger">{error}</div>}
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="tonal" onClick={onClose}>

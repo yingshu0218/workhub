@@ -23,6 +23,7 @@ import {
   QUICK_CAPTURE_ARCHIVE_TAG,
 } from '../quickCapture'
 import { isTodoOpen } from '@/modules/todo/domain'
+import { mergeRemoteRecord as mergeRemote } from '@/sync/mergeRemote'
 
 function mkQuickNote(id: string, content: string): QuickNote {
   return { id, content, createdAt: 1, updatedAt: 0, deleted: 0, rev: 0 }
@@ -154,5 +155,102 @@ describe('④ 通道留痕：转入的待办/笔记能回答「从哪来」', ()
     expect(saved.convertedTo).toBe('todo')
     expect(saved.convertedVia).toBe('dashboard')
     expect(typeof saved.convertedAt).toBe('number')
+  })
+})
+
+/**
+ * ⑤ 处置态同步合并（Issue #134 三轮）
+ *
+ * 回归场景（跨设备「复活」）：换设备 / 重装 / 同步队列清空后，pull 拉回服务端旧记录，
+ * 而本机已把该速记处置掉。原实现走通用整体覆盖分支 → `convertedTo` 被抹成空 →
+ * 速记重新出现在「暂存区待处置」，再点一次「转入待办」就多出一条**重复待办**。
+ * 修复口径：与 todos 终态本地优先同款 ——「本地已处置 + 远端未处置」时保留本地处置态。
+ */
+describe('⑤ 速记处置态本地优先（同步合并）', () => {
+  it('本地已处置、远端未处置：拉回远端旧记录后处置态仍在（不复活）', async () => {
+    const qn: QuickNote = {
+      id: 'qn-sync1',
+      content: '已转成待办的一条',
+      convertedTo: 'todo',
+      convertedAt: 111,
+      convertedVia: 'dashboard',
+      createdAt: 1,
+      updatedAt: 100,
+      deleted: 0,
+      rev: 1,
+    }
+    await db.quickNotes.put(qn)
+
+    const res = await mergeRemote('quickNotes', {
+      id: 'pbh_qn1',
+      localId: 'qn-sync1',
+      content: '已转成待办的一条',
+      convertedTo: '',
+      createdAt: 1,
+      updatedAt: 200, // 服务端 updatedAt 更新（LWW 单看时间戳本会让远端赢）
+      deleted: 0,
+      rev: 2,
+    })
+
+    expect(res).toBe('write')
+    const after = (await db.quickNotes.get('qn-sync1'))!
+    // 核心断言：处置态不复活
+    expect(after.convertedTo).toBe('todo')
+    // 去向 + 时间 + 通道成对保留（单保 convertedTo 会让暂存区排序与来源回溯失去依据）
+    expect(after.convertedAt).toBe(111)
+    expect(after.convertedVia).toBe('dashboard')
+  })
+
+  it('本地未处置、远端已处置：按 LWW 采纳远端处置（可能是另一端的处置结果）', async () => {
+    await db.quickNotes.put({
+      id: 'qn-sync2',
+      content: '另一端处置掉的',
+      createdAt: 1,
+      updatedAt: 100,
+      deleted: 0,
+      rev: 1,
+    } as QuickNote)
+
+    await mergeRemote('quickNotes', {
+      id: 'pbh_qn2',
+      localId: 'qn-sync2',
+      content: '另一端处置掉的',
+      convertedTo: 'note',
+      convertedAt: 300,
+      convertedVia: 'sidebar',
+      createdAt: 1,
+      updatedAt: 200,
+      deleted: 0,
+      rev: 2,
+    })
+
+    const after = (await db.quickNotes.get('qn-sync2'))!
+    expect(after.convertedTo).toBe('note')
+    expect(after.convertedVia).toBe('sidebar')
+  })
+
+  it('两端都未处置：正常写入远端内容，不被处置态分支干扰', async () => {
+    await db.quickNotes.put({
+      id: 'qn-sync3',
+      content: '旧内容',
+      createdAt: 1,
+      updatedAt: 100,
+      deleted: 0,
+      rev: 1,
+    } as QuickNote)
+
+    await mergeRemote('quickNotes', {
+      id: 'pbh_qn3',
+      localId: 'qn-sync3',
+      content: '新内容',
+      createdAt: 1,
+      updatedAt: 200,
+      deleted: 0,
+      rev: 2,
+    })
+
+    const after = (await db.quickNotes.get('qn-sync3'))!
+    expect(after.content).toBe('新内容')
+    expect(after.convertedTo).toBeUndefined()
   })
 })

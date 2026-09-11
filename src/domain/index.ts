@@ -19,6 +19,7 @@
  */
 import dayjs from 'dayjs'
 import { db } from '@/db/db'
+import { toLinkField } from '@/modules/finance/links'
 import { ledgerRepo, newId, saveTransactionWithAttachments } from '@/repositories'
 import type { PutInput } from '@/repositories/repository'
 import type { Transaction } from '@/db/types'
@@ -66,17 +67,10 @@ export interface RecordTransactionInput {
   status?: '已结算' | '待对账'
   tags?: string[]
   note?: string
-  /** 多关联（Issue #140）：单值入参自动包数组（向后兼容既有 UI/Agent 调用方），去重收口 */
-  customerId?: string | string[]
-  todoId?: string | string[]
-  projectId?: string | string[]
-}
-
-/** 关联入参归一化：string | string[] → 去重后的 string[]（弱引用去脏：去空串） */
-function normalizeLinkIds(v: string | string[] | undefined): string[] {
-  if (v === undefined) return []
-  const arr = Array.isArray(v) ? v : [v]
-  return [...new Set(arr.filter((x): x is string => typeof x === 'string' && x !== ''))]
+  /** 关联客户 / 待办 / 项目（Issue #140 多值）：数组口径，空数组不落键 */
+  customerIds?: string[]
+  todoIds?: string[]
+  projectIds?: string[]
 }
 
 /** 记账产物 */
@@ -116,9 +110,9 @@ export async function recordTransaction(
     occurredAt,
     tags: input.tags ?? [],
     note: input.note,
-    customerIds: normalizeLinkIds(input.customerId),
-    todoIds: normalizeLinkIds(input.todoId),
-    projectIds: normalizeLinkIds(input.projectId),
+    customerIds: toLinkField(input.customerIds ?? []),
+    todoIds: toLinkField(input.todoIds ?? []),
+    projectIds: toLinkField(input.projectIds ?? []),
     status: input.status ?? '待对账',
   }
   const { created } = await saveTransactionWithAttachments(record, [])

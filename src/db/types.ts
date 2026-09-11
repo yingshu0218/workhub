@@ -102,14 +102,18 @@ export interface Transaction extends SyncMeta {
   invoiceNo?: string
   note?: string
   /**
-   * 多关联（Issue #140，方案 A 数组化）：客户/待办/项目关联由单值弱引用扩为多值数组。
-   * - 弱引用纪律不变：实体删除仅解绑（deleteCustomerCascade 从数组移除该 id），不删流水
-   * - Dexie v11 migrate：旧单值 customerId/todoId/projectId 包成 `[值]`，空 → `[]`，旧字段清除（双写不双读，新字段为真源）
-   * - 写入前必须去重（同实体重复芯片是脏数据），并过滤已删除/不存在实体 id
+   * 关联客户 / 待办 / 项目（Issue #140 数组化，方案 A）：弱引用数组，可多选。
+   *
+   * 历史沿革：v11 之前为单值 `customerId? / todoId? / projectId?` 弱引用，
+   * dexie `upgrade()` 负责把旧单值包成数组并清掉旧字段（真源唯一致数组）。
+   * 另一条必须处理的路径是**远端拉取**：服务端集合若尚未升级到数组字段（或老客户端推来旧字段），
+   * 合并层 `normalizeTxnLinks` 会把旧字段就地归一化进数组，避免「本地看着对、同步后丢关联」。
+   *
+   * 纪律：弱引用（实体删除仅解绑，不删流水）；写入前去重 + 过滤已删实体 id。
    */
   customerIds?: string[]
   todoIds?: string[]
-  /** 所属项目（可选弱引用多值：项目删除仅解绑，不删流水） */
+  /** 所属项目（可选弱引用：项目删除仅解绑，不删流水） */
   projectIds?: string[]
   status: '已结算' | '待对账'
 }
@@ -126,8 +130,7 @@ export interface Todo extends SyncMeta {
    * - 原 'doing' 为死枚举已移除，「专注中」是 focus store 运行时状态不落库
    */
   status: 'todo' | 'done' | 'voided'
-  /** 多关联（Issue #140）：待办可挂多个客户（v11 migrate 同交易：单值包数组、旧字段清除） */
-  customerIds?: string[]
+  customerId?: string
   ledgerId?: string
   habitId?: string
   /** 所属自定义清单（智能清单不落此字段） */

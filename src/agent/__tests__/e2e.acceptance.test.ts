@@ -252,6 +252,7 @@ describe('P1 第 7 步 E2E 主干验收（§9.8）', () => {
 
     /* 7. 读回该客户账目 */
     const byCustomer = await mcp.callTool('listTransactions', { customerId })
+    // Issue #140：投影改为数组字段 customerIds（单值入参自动包数组，外部 Agent 契约零改动）
     const txnEnv = byCustomer.data as ReadEnvelope<{ id: string; amount: number; status: string; customerIds?: string[] }>
     expect(txnEnv.items).toHaveLength(1)
     expect(txnEnv.items[0].id).toBe(transactionId)

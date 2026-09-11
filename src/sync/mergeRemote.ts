@@ -1,4 +1,5 @@
 import { db } from '@/db/db'
+import { normalizeTxnLinks } from '@/modules/finance/links'
 
 /**
  * 远端记录 → 本地 LWW 合并（从 pocketbaseAdapter 抽出，Issue #130）
@@ -45,60 +46,85 @@ async function hasPendingUpsert(table: string, recordId: string): Promise<boolea
   return pending > 0
 }
 
-/** 需要按数组归一化落库的 json 字段（服务端可能返回 JSON 字符串） */
-const JSON_ARRAY_FIELDS = ['tags', 'relations'] as const
+/**
+ * 需要落库为数组的 json 字段（服务端可能返回 JSON 字符串）。
+ * 只用于「远端缺该字段时是否兜底」的判断，不再承担反序列化职责 —— 见 rawJsonFromRemote。
+ *
+ * Issue #140 补充：transactions 的 `customerIds/todoIds/projectIds` 同为 json 数组字段 ——
+ * 服务端集合未升级时这些键根本不会回来，本地数组会被整体覆盖丢掉（与 relations 同源的静默丢数据），
+ * 故必须并入本表走「远端可解析才覆盖、否则保留本地」的收口逻辑。
+ */
+const JSON_ARRAY_FIELDS = ['tags', 'relations', 'customerIds', 'todoIds', 'projectIds'] as const
 
 /**
- * 交易多关联数组字段（Issue #140）：customerIds/todoIds/projectIds。
- * 归一化语义与 JSON_ARRAY_FIELDS 一致，但叠加**旧单值兜底**：
- * 服务端缺数组字段（Schema 未升级）或值为空时，回落旧单值 customerId/todoId/projectId 包数组，
- * 保证「旧客户端写入的单值关联」拉回后不丢。
+ * json 字段（customers.tags / customers.relations / customers.intimacy 等）归一化为数组，
+ * 兼容服务端返回字符串或对象；空字符串 / null / 解析失败一律视为「无值」（null）。
  */
-const TXN_LINK_ARRAY_FIELDS = ['customerIds', 'todoIds', 'projectIds'] as const
-const TXN_LINK_LEGACY_FIELD: Record<(typeof TXN_LINK_ARRAY_FIELDS)[number], string> = {
-  customerIds: 'customerId',
-  todoIds: 'todoId',
-  projectIds: 'projectId',
-}
-
-/** 交易关联数组归一化：数组 / JSON 字符串 → 数组；空值回落旧单值字段 */
-function normalizeTxnLinks(
-  record: Record<string, unknown>,
-  localVal: Record<string, unknown> | undefined,
-): void {
-  for (const key of TXN_LINK_ARRAY_FIELDS) {
-    const legacyKey = TXN_LINK_LEGACY_FIELD[key]
-    const parsed = toArrayField(record[key])
-    if (parsed) {
-      record[key] = parsed
-      continue
-    }
-    const legacy =
-      typeof record[legacyKey] === 'string' && record[legacyKey]
-        ? [record[legacyKey] as string]
-        : []
-    if (legacy.length > 0) {
-      record[key] = legacy
-    } else if (localVal?.[key] !== undefined) {
-      // 远端字段全空（Schema 未升级会静默丢 json 字段）：保留本地数组
-      record[key] = localVal[key]
-    } else {
-      delete record[key]
-    }
-    delete record[legacyKey]
-  }
-}
-
-/** json 字段（customers.tags / customers.relations 等）归一化为数组，兼容服务端返回字符串或对象 */
 function toArrayField(v: unknown): unknown[] | null {
-  if (Array.isArray(v)) return v
-  if (typeof v !== 'string' || !v) return null
+  const parsed = rawJsonFromRemote(v)
+  return Array.isArray(parsed) ? parsed : null
+}
+
+/** 值是否「有内容」：null/undefined/空串视为无值（服务端空 json 字段即此形态） */
+function hasJsonValue(v: unknown): boolean {
+  return v !== undefined && v !== null && v !== ''
+}
+
+/** 反序列化一层：字符串且本身是合法 JSON 时取解析结果，其余原样返回 */
+function parseOnce(v: unknown): { ok: boolean; value: unknown } {
+  if (typeof v !== 'string') return { ok: true, value: v }
+  const text = v.trim()
+  if (!text) return { ok: true, value: undefined }
   try {
-    const parsed = JSON.parse(v)
-    return Array.isArray(parsed) ? parsed : null
+    return { ok: true, value: JSON.parse(text) }
   } catch {
-    return null
+    // 服务端确实存了一个普通字符串（如某字段误写成纯文本）：保持原值，不当作解析失败
+    return { ok: false, value: v }
   }
+}
+
+/**
+ * 反序列化「远端 json 字段」到本地该有的类型（Issue #130 根因修复）。
+ *
+ * 根因：本地「保存 → push」时仅把非基本类型做 `JSON.stringify`，但 PB 的 json 字段吃字符串
+ * 会**再包一层引号**原样存回（两次编码），于是同一字段在不同情况下可能是三种形态：
+ *   ① 真数组/对象（PB 正常返回的 json 值）
+ *   ② JSON 字符串（PB 原样返回被双重编码的字符串）
+ *   ③ 普通字符串（字段被误写成纯文本，如某客户的 tags = "重点客户"）
+ * 而 pull 合并此前只在「有本地未推送编辑」那一条分支里做数组归一化，**正常分支直接整体落库**：
+ *   - `tags` 落成字符串 → CRM 列表/详情 `c.tags.map` / `c.tags.join` 抛 TypeError → 页面白屏（功能全废）
+ *   - `relations` 落成字符串 → 客户关系被静默回滚成空（打开编辑再保存即丢失）
+ *   - `intimacy` 落成字符串 → 亲密度档位显示丢失
+ * 故这里在**落库前统一反序列化**，一次覆盖所有分支（含正常 LWW 分支）。
+ */
+export function rawJsonFromRemote(v: unknown): unknown {
+  const first = parseOnce(v)
+  if (!first.ok) return first.value
+  if (typeof first.value !== 'string') return first.value
+  // 双层编码（JSON 字符串里又是 JSON 字符串）：最多再剥一层，足够覆盖本地 stringify + PB 再包一层
+  const second = parseOnce(first.value)
+  return second.ok ? second.value : first.value
+}
+
+/**
+ * 数组型 json 字段（tags 等）的安全兜底：反序列化后仍不是数组时，
+ * 说明服务端存的既不是数组也不是数组的 JSON 文本 —— 若原样落库，前端 `tags.map` 直接抛错白屏。
+ * 此时不猜结构也不静默丢弃，按「单元素数组」降级保留原始文本。
+ */
+function toSafeArrayField(v: unknown): unknown {
+  const revived = rawJsonFromRemote(v)
+  if (Array.isArray(revived)) return revived
+  if (typeof revived === 'string' && revived) return [revived]
+  return []
+}
+
+/** 落库前把服务端的 json 字段反序列化回本地形态（customers.tags / relations / intimacy） */
+function reviveRemoteJsonFields(table: string, record: Record<string, unknown>): void {
+  if (table !== 'customers') return
+  for (const key of ['tags', 'relations'] as const) {
+    if (key in record) record[key] = toSafeArrayField(record[key])
+  }
+  if ('intimacy' in record) record.intimacy = rawJsonFromRemote(record.intimacy)
 }
 
 /** 关系条目稳定标识：优先条目 id，旧数据按 目标::语义 兜底（与 CustomerFormDrawer.relKey 同口径） */
@@ -136,7 +162,11 @@ export async function mergeRemoteRecord(
     return 'skip'
   }
   const local = await table0.get(localId)
-  const remoteUpdatedAt = typeof remote.updatedAt === 'number' ? remote.updatedAt : 0
+  // 反序列化远端 json 字段（Issue #130 根因）：不先还原，正常 LWW 分支会把字符串整体落库，
+  // 前端 `customer.tags.map` / `relations.map` 抛 TypeError（页面白屏、关系被静默回滚成空）
+  const revived: Record<string, unknown> = { ...remote }
+  reviveRemoteJsonFields(table, revived)
+  const remoteUpdatedAt = typeof revived.updatedAt === 'number' ? revived.updatedAt : 0
   const localUpdatedAt = typeof local?.updatedAt === 'number' ? local.updatedAt : 0
   // LWW：只认 updatedAt，新者胜；相等视为本端已推送的回环副本，跳过
   if (remoteUpdatedAt <= localUpdatedAt) return 'skip'
@@ -155,7 +185,7 @@ export async function mergeRemoteRecord(
       server_received_at: _ps,
       localId: _pl,
       ...mirroredPending
-    } = remote
+    } = revived
     const merged: Record<string, unknown> = {
       ...local,
       ...mirroredPending,
@@ -177,22 +207,38 @@ export async function mergeRemoteRecord(
       for (const key of JSON_ARRAY_FIELDS as readonly string[]) {
         const localVal = (local as Record<string, unknown>)[key]
         if (key === 'relations') {
-          const remoteRels = remote[key]
+          const remoteRels = revived[key]
           if (remoteRels !== undefined) {
             merged[key] = unionRelations(localVal, remoteRels)
-          } else if (localVal !== undefined) {
+          } else if (hasJsonValue(localVal)) {
             merged[key] = localVal
           } else {
             delete merged[key]
           }
           continue
         }
-        // 其余数组字段：远端能解析成数组才并入，否则保留本地（本地未推送编辑优先）
-        const parsed = toArrayField(remote[key])
+        // 其余数组字段：远端取值「有内容」才并入，否则保留本地（本地未推送编辑优先）
+        const remoteVal = revived[key]
+        if (hasJsonValue(remoteVal)) merged[key] = remoteVal
+        else if (!hasJsonValue(localVal)) delete merged[key]
+        else merged[key] = localVal
+      }
+    }
+    // transactions 多关联（Issue #140）：数组字段同款收口 + 旧单值字段归一化。
+    // 两条真实路径都要挡：
+    // ① 服务端集合未升级（collections.json 未导入）→ 远端没有 customerIds 键，
+    //    直接展开 = 本地刚选的关联被静默清空；
+    // ② 老客户端仍推来旧键 customerId（多端混装期）→ 需折进数组，不能另存一份。
+    // normalizeTxnLinks 同时做这两件事，并把旧键删掉（双写不双读）。
+    if (table === 'transactions') {
+      for (const key of ['customerIds', 'todoIds', 'projectIds'] as const) {
+        const localVal = merged[key]
+        const parsed = toArrayField(merged[key])
         if (parsed) merged[key] = parsed
         else if (localVal === undefined) delete merged[key]
         else merged[key] = localVal
       }
+      normalizeTxnLinks(merged)
     }
     await attachBlobIfNeeded(table, remote, merged, loadAttachmentBlob)
     await table0.put(merged)
@@ -206,13 +252,22 @@ export async function mergeRemoteRecord(
   // 仅合并远端其余字段（标题/描述等编辑仍能同步）。
   // Issue #128 补充（main 合入时同步）：终态（完成/作废）同款本地优先——作废同理不应被远端旧值回滚。
   // 只认「本地是终态、远端不是」的情形：远端也是终态时按 LWW 让远端赢（可能是另一端的更新操作）
-  const remoteDone = remote.status === 'done'
+  const remoteDone = revived.status === 'done'
   const localDone = local?.status === 'done'
-  const remoteVoided = remote.status === 'voided'
+  const remoteVoided = revived.status === 'voided'
   const localVoided = local?.status === 'voided'
   const keepLocalDone =
     table === 'todos' &&
     ((localDone && !remoteDone) || (localVoided && !remoteVoided && !remoteDone))
+
+  // 速记处置态本地优先（Issue #134 三轮）：与上面的待办终态本地优先同款。
+  // 根因是**处置态是单边的**：本地「已处置」（有 convertedTo）、远端「未处置」（convertedTo 空）。
+  // 服务端 quickNotes 集合未收录 convertedAt / convertedVia，且旧版本连 convertedTo 都可能丢，
+  // 于是换设备 / 重装 / 队列清空后拉一次远端旧记录，处置态被整体抹掉——
+  // 已转入待办的速记重新回到「暂存区待处置」，再点一次「转入待办」就多出一条重复待办。
+  // 反向不保护：远端有 convertedTo 而本地没有时按 LWW 写入（可能是另一端的处置结果）。
+  const keepLocalConverted =
+    table === 'quickNotes' && !!local?.convertedTo && !remote.convertedTo
 
   // 剥离 pb 系统字段（collectionId/collectionName/created/updated/server_received_at）与映射字段 localId
   const {
@@ -223,13 +278,11 @@ export async function mergeRemoteRecord(
     server_received_at: _s,
     localId: _l,
     ...mirrored
-  } = remote
+  } = revived
   const record: Record<string, unknown> = { ...mirrored }
   record.id = localId
   record.updatedAt = remoteUpdatedAt
   record.deleted = remote.deleted ? 1 : 0
-  // 交易多关联数组归一化（Issue #140）：兼收远端数组 / 旧单值，空值回落本地
-  if (table === 'transactions') normalizeTxnLinks(record, local)
   record.rev = Math.max(
     typeof local?.rev === 'number' ? local.rev : 0,
     typeof remote.rev === 'number' ? remote.rev : 0,
@@ -242,19 +295,40 @@ export async function mergeRemoteRecord(
     record.voidedAt = local!.voidedAt
   }
 
+  if (keepLocalConverted) {
+    // 处置态成对保留（去向 + 时间 + 通道）：单保 convertedTo 不保 convertedAt/convertedVia，
+    // 会让暂存区排序与「从哪个入口处置的」回溯同时失去依据（Issue #134 二轮刚补的来源留痕会白做）
+    record.convertedTo = local!.convertedTo
+    record.convertedAt = local!.convertedAt
+    record.convertedVia = local!.convertedVia
+  }
+
   // 客户关系并集合并（Issue #130）：relations 是弱引用数组，
   // 远端先到 + 本地编辑未推送成功时整体覆盖会丢新增关系；
   // 服务端集合也可能没有 relations 字段（Schema 未升级），此时同样不能丢本地关系。
   if (table === 'customers') {
     const localRels = (local as { relations?: unknown } | undefined)?.relations
-    const remoteRels = (remote as { relations?: unknown }).relations
-    if (remoteRels !== undefined) {
+    const remoteRels = (revived as { relations?: unknown }).relations
+    if (hasJsonValue(remoteRels)) {
       const merged = unionRelations(localRels, remoteRels)
       record.relations = merged
-    } else if (localRels !== undefined) {
-      // 服务端 Schema 缺 relations 字段（collections.json 未导入/未升级）：保留本地
+    } else if (hasJsonValue(localRels)) {
+      // 服务端 Schema 缺 relations 字段（collections.json 未导入/未升级）或返回空值：保留本地
       record.relations = localRels
     }
+  }
+
+  // transactions 多关联（Issue #140）：同上，LWW 分支同样要收口 —— 远端没带的数组字段
+  // 不能因为「远端更新」就被清掉（远端 updatedAt 更新只代表记录被改过，不代表关联被清空）。
+  if (table === 'transactions') {
+    for (const key of ['customerIds', 'todoIds', 'projectIds'] as const) {
+      const localVal = local?.[key]
+      const parsed = toArrayField(record[key])
+      if (parsed) record[key] = parsed
+      else if (localVal === undefined) delete record[key]
+      else record[key] = localVal
+    }
+    normalizeTxnLinks(record)
   }
 
   await attachBlobIfNeeded(table, remote, record, loadAttachmentBlob)
