@@ -232,11 +232,12 @@ export async function mergeRemoteRecord(
     // normalizeTxnLinks 同时做这两件事，并把旧键删掉（双写不双读）。
     if (table === 'transactions') {
       for (const key of ['customerIds', 'todoIds', 'projectIds'] as const) {
-        const localVal = merged[key]
-        const parsed = toArrayField(merged[key])
+        // 与下方 LWW 分支同款写法：先反序列化（revived 已由 rawJsonFromRemote 还原，
+        // 但展开 `...mirroredPending` 时 JSON 字符串形态仍可能透传到这里），可解析才覆盖。
+        const parsed = toArrayField(revived[key])
         if (parsed) merged[key] = parsed
-        else if (localVal === undefined) delete merged[key]
-        else merged[key] = localVal
+        else if (!hasJsonValue(merged[key])) delete merged[key]
+        // else：保留本地值（本地编辑优先）
       }
       normalizeTxnLinks(merged)
     }

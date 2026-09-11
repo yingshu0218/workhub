@@ -76,6 +76,8 @@ export const focusSessionRepo = {
 }
 
 export { newId }
+export { txnCustomerIds, txnProjectIds } from '@/modules/finance/links'
+export { toLinkFieldPatch }
 
 /**
  * 设置 singleton 仓储（Phase 6）—— 本地偏好，不进同步队列

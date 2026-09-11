@@ -178,6 +178,20 @@ describe('C. 读工具：投影白名单 + 条数上限（§2.2 / §10.4）', ()
     expect(r.data!.truncated).toBe(false)
   })
 
+  it('投影输出侧保留 customerId 等单值过渡别名（向后兼容已分发的 Agent 契约）', async () => {
+    await db.transactions.put(newTxn('t1', { customerIds: ['c1', 'c2'], todoIds: ['td1'], projectIds: ['p1'] }))
+    const r = await dispatchAgentTool('listTransactions', {})
+    expect(r.ok).toBe(true)
+    const items = r.data!.items as Record<string, unknown>[]
+    // 数组是真源；单值键 = 数组首元素的只读别名（不落库）
+    expect(items[0].customerIds).toEqual(['c1', 'c2'])
+    expect(items[0].customerId).toBe('c1')
+    expect(items[0].projectIds).toEqual(['p1'])
+    expect(items[0].projectId).toBe('p1')
+    expect(items[0].todoIds).toEqual(['td1'])
+    expect(items[0].todoId).toBe('td1')
+  })
+
   it('listTransactions 支持 customerId/status/日期范围过滤', async () => {
     // Issue #140：关联字段数组化，且一笔流水可挂多个客户（按数组包含匹配）
     await db.transactions.put(
