@@ -115,3 +115,14 @@ export interface TxnLinkEntities {
   todos: Todo[]
   projects: Project[]
 }
+
+/**
+ * 财务凭证详情深链：`/finance?focus=<txnId>`（Issue #147）
+ *
+ * FinancePage 消费 focus 参数后直接打开对应流水的凭证详情抽屉。此前该深链
+ * 在客户时间线骨刺、⌘K 搜索、客户详情资金表三处各写一遍 `encodeURIComponent`，
+ * 本次收口到一处，并补齐「项目流水 / 待对账 / 时间轴关联记账」等仍不可点的列表行。
+ */
+export function financeFocusPath(txnId: string): string {
+  return `/finance?focus=${encodeURIComponent(txnId)}`
+}

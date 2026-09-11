@@ -750,7 +750,7 @@ export function QuickNoteCard() {
             onClick={toggleCollapsed}
             aria-expanded={!collapsed}
           >
-            <Icon name={collapsed ? 'expand_more' : 'expand_less'} size={18} />
+            <Icon name={collapsed ? 'keyboard_arrow_down' : 'keyboard_arrow_up'} size={18} />
             暂存区（{pending.length}）
           </button>
           <span className="flex items-center gap-3">

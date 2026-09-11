@@ -18,6 +18,7 @@ import dayjs from 'dayjs'
 import { isTodoOpen } from '@/modules/todo/domain'
 import CustomerFormDrawer from './CustomerFormDrawer'
 import { useCustomerTodos, useCustomerTransactions } from './hooks'
+import { financeFocusPath } from '@/modules/finance/links'
 import { fmtRelative, tierChipTone } from './shared'
 import IntimacyPicker from './intimacy/IntimacyPicker'
 import {
@@ -255,9 +256,12 @@ export default function CustomerDetailPage() {
             {pendingReconcile.length > 0 ? (
               <div className="mt-2 space-y-1.5">
                 {pendingReconcile.slice(0, 4).map((t) => (
-                  <div
+                  <button
                     key={t.id}
-                    className="flex items-center justify-between gap-2 text-[0.8571rem]"
+                    type="button"
+                    title="点击查看凭证详情"
+                    className="flex w-full cursor-pointer items-center justify-between gap-2 rounded-md px-1 py-0.5 text-left text-[0.8571rem] transition-colors hover:bg-surface-container-low"
+                    onClick={() => navigate(financeFocusPath(t.id))}
                   >
                     <span className="truncate text-on-surface-variant">{t.summary}</span>
                     <span
@@ -266,7 +270,7 @@ export default function CustomerDetailPage() {
                       {t.type === 'income' ? '+' : '-'}
                       {fmtMoney(t.amount)}
                     </span>
-                  </div>
+                  </button>
                 ))}
                 {pendingReconcile.length > 4 && (
                   <div className="text-[0.7857rem] text-outline">
@@ -387,7 +391,7 @@ export default function CustomerDetailPage() {
             ) : (
               <div className="relative space-y-4 border-l border-outline-variant/40 pl-4">
                 {visibleTimeline.map((e) => (
-                  <TimelineItem key={e.id} event={e} />
+                  <TimelineItem key={e.id} event={e} onOpenTxn={(id) => navigate(financeFocusPath(id))} />
                 ))}
               </div>
             )}
@@ -397,7 +401,7 @@ export default function CustomerDetailPage() {
         {tab === 'finance' && (
           <FinanceTable
             transactions={transactions}
-            onFocusTxn={(txnId) => navigate(`/finance?focus=${encodeURIComponent(txnId)}`)}
+            onFocusTxn={(txnId) => navigate(financeFocusPath(txnId))}
           />
         )}
 
@@ -664,7 +668,14 @@ function ProfileTab({
 }
 
 /** 时间轴单条：手写沟通保持原蓝 Chip；关联财务/事件渲染为系统样式（金额色 / 优先级色） */
-function TimelineItem({ event }: { event: TimelineEvent }) {
+function TimelineItem({
+  event,
+  onOpenTxn,
+}: {
+  event: TimelineEvent
+  /** 关联记账行点击穿透：打开 /finance?focus=<txnId> 凭证详情（Issue #147） */
+  onOpenTxn: (txnId: string) => void
+}) {
   if (event.kind === 'transaction') {
     const income = event.direction === 'income'
     return (
@@ -683,13 +694,18 @@ function TimelineItem({ event }: { event: TimelineEvent }) {
           {event.status === '待对账' && <Chip tone="gray">待对账</Chip>}
           <span className="text-[0.8571rem] text-outline">{fmtTimelineTime(event.at)}</span>
         </div>
-        <p className="mt-1 flex flex-wrap items-center gap-2 rounded-lg bg-surface-container-low/50 px-3 py-2 text-[0.9286rem] leading-relaxed">
+        <button
+          type="button"
+          title="点击查看凭证详情"
+          className="mt-1 flex w-full cursor-pointer flex-wrap items-center gap-2 rounded-lg bg-surface-container-low/50 px-3 py-2 text-left text-[0.9286rem] leading-relaxed transition-colors hover:bg-surface-container-low"
+          onClick={() => onOpenTxn(event.recordId)}
+        >
           <span className="truncate">{event.summary}</span>
           <span className={`ml-auto shrink-0 font-bold ${income ? 'text-success' : 'text-danger'}`}>
             {income ? '+' : '-'}
             {fmtMoney(event.amount)}
           </span>
-        </p>
+        </button>
       </div>
     )
   }

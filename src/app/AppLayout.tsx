@@ -245,7 +245,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
                 </div>
               </div>
               <Icon
-                name={wsOpen ? 'expand_less' : 'expand_more'}
+                name={wsOpen ? 'keyboard_arrow_up' : 'keyboard_arrow_down'}
                 className="text-[1.2857rem] text-outline"
               />
             </button>
