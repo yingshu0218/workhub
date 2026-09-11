@@ -13,6 +13,8 @@ import {
   todoRepo,
 } from '@/repositories'
 import { toggleTodoDone } from '@/modules/todo/toggle'
+import { splitTodoText } from '@/modules/todo/title'
+import { deleteTodoCascade } from '@/modules/todo/hooks'
 import type { Customer, Habit, Note, NoteFolder, Project, Todo } from '@/db/types'
 
 /** 行类型别名（mustExist 泛型绑定用；与 db/types 定义同源，不做二次建模） */
@@ -282,7 +284,13 @@ export async function crm_addRelation(input: unknown): Promise<AgentOpResult> {
   }
 }
 
-/** todo_createTodo：建待办 */
+/**
+ * todo_createTodo：建待办。
+ *
+ * 正文口径（Issue #148 后续）：schema 已把 `content` / `title` / `desc` 折成单一正文并
+ * 走 `splitTodoText` 推导标题 —— 与 UI 表单、速记转待办共用同一实现，
+ * 保证「谁建的待办」都满足 `title = 正文首行` 这条隐含约束（消除 UI 打开保存被静默归一化）。
+ */
 export async function todo_createTodo(input: unknown): Promise<AgentOpResult> {
   const parsed = parseOrError(createTodoSchema, input)
   if (!parsed.ok) return parsed
@@ -407,6 +415,24 @@ function triState<T>(v: T | null | undefined): { touched: boolean; value: T | un
   return { touched: true, value: v === null ? undefined : v }
 }
 
+/**
+ * todo_updateTodo 的正文补丁计算（Issue #148 后续 · 标题/正文口径收口）。
+ *
+ * 返回 `undefined` 表示本次不动正文；返回对象里的字段才会进 patch
+ * （`title` 单独传时不动 `desc`，`desc` 单独传时不动 `title`）。
+ */
+function subjectPatch(d: {
+  content?: string
+  title?: string
+  desc?: string
+}): { title?: string; desc?: string } | undefined {
+  if (d.content !== undefined) return splitTodoText(d.content)
+  if (d.title !== undefined && d.desc !== undefined) return splitTodoText(`${d.title}\n${d.desc}`)
+  if (d.title !== undefined) return { title: d.title }
+  if (d.desc !== undefined) return { desc: d.desc }
+  return undefined
+}
+
 /** todo_updateTodo：编辑待办（不含完成态，完成态唯一入口仍是 todo_completeTodo） */
 export async function todo_updateTodo(input: unknown): Promise<AgentOpResult> {
   const parsed = parseOrError(updateTodoSchema, input)
@@ -417,8 +443,16 @@ export async function todo_updateTodo(input: unknown): Promise<AgentOpResult> {
   const prev = found.record
 
   const patch: Partial<Todo> = {}
-  if (d.title !== undefined) patch.title = d.title
-  if (d.desc !== undefined) patch.desc = d.desc
+  // 正文口径（Issue #148 后续）：与 UI 表单同源。
+  // - 传 `content` = 整体替换正文，标题由首行推导（把旧 title/desc 都覆盖掉）；
+  // - 只传 `title` = 只改标题（备注保持）；
+  // - 只传 `desc` = 只改备注（标题保持）；
+  // - `title` + `desc` 同时传 = 整体替换（合并后重新推导，与 create 同口径）。
+  const subject = subjectPatch(d)
+  if (subject) {
+    if (subject.title !== undefined) patch.title = subject.title
+    if (subject.desc !== undefined) patch.desc = subject.desc
+  }
   if (d.priority !== undefined) patch.priority = d.priority
   const dueAt = triState(d.dueAt)
   if (dueAt.touched) patch.dueAt = dueAt.value
@@ -443,18 +477,26 @@ export async function todo_updateTodo(input: unknown): Promise<AgentOpResult> {
   return ok({ todoId: d.todoId, updated: Object.keys(patch) })
 }
 
-/** todo_deleteTodo：删除待办（软删；对齐 UI 删除入口的软删 + 入队语义） */
+/**
+ * todo_deleteTodo：删除待办。
+ *
+ * 级联口径（Issue #148 后续 · #140 审计留档项收口）：走 `deleteTodoCascade`
+ * （= UI 删除入口同一实现），软删待办的同时解绑 `transactions.todoIds` 的悬挂引用。
+ * 此前只软删待办、悬挂 id 靠读取端过滤兜底 —— 界面不炸，但按 todoIds 直查的路径
+ * （导出/统计/Agent 读投影）会命中幽灵引用。解绑条数经 `sideEffects.unlinked` 回传，
+ * 供 Agent 向用户如实转述副作用。
+ */
 export async function todo_deleteTodo(input: unknown): Promise<AgentOpResult> {
   const parsed = parseOrError(deleteTodoSchema, input)
   if (!parsed.ok) return parsed
   const found = await mustExist<Todo>(db.todos, parsed.data.todoId, '待办')
   if (!found.ok) return err(found.error)
-  await todoRepo.softDelete(parsed.data.todoId)
+  const unlinked = await deleteTodoCascade(parsed.data.todoId)
   return ok({
     todoId: parsed.data.todoId,
     deleted: true,
-    // 待办是叶子记录：删除不级联（对齐 UI），副作用清单为空
-    sideEffects: { cascaded: 0, unlinked: 0 },
+    // 待办本身不级联删除别的实体（不做软删扩散），只解绑流水上的弱引用
+    sideEffects: { cascaded: 0, unlinked },
   })
 }
 

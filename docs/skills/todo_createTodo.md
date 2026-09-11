@@ -4,14 +4,15 @@
 
 ## 能力
 
-新建待办
+新建待办（正文首行即标题）
 
 ## 参数
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---|---|---|
-| `title` | string | 是 | — |  |
-| `desc` | string | 否 | `""` |  |
+| `content` | string | 否 | — |  |
+| `title` | string | 否 | — |  |
+| `desc` | string | 否 | — |  |
 | `priority` | enum(high / mid / low / none / P1 / P2 / P3) | 否 | `"mid"` |  |
 | `dueAt` | number | 否 | — |  |
 | `customerId` | string | 否 | — |  |
@@ -32,11 +33,13 @@
 
 ## 实体引用规则
 
-实体引用（客户/项目/待办/账本/习惯）必须先调 `resolveEntity` 消解；候选不唯一必须反问答用户，禁止猜 id。 customerId/projectId/listId 若提供必须为真实 id。dueAt 为毫秒时间戳。
+实体引用（客户/项目/待办/账本/习惯）必须先调 `resolveEntity` 消解；候选不唯一必须反问答用户，禁止猜 id。 customerId/projectId/listId 若提供必须为真实 id。dueAt 为毫秒时间戳。**正文优先用 content**（整体正文，标题 = 首行截 60 字、其余作备注）；title/desc 仍兼容但会被合并成同一正文，不要再当成两个独立字段使用。
 
 ## 典型说法
 
 - 「周五前给深蓝出方案，高优先级」
+- 「新建待办：季度复盘会
+准备 Q3 数据」
 
 ## 确认流程
 

@@ -290,9 +290,25 @@ export async function searchEntities(input: unknown): Promise<ReadResult> {
   })
   const groups = searchAll(index, d.q)
   const allowed = d.types ? new Set<SearchEntityType>(d.types) : undefined
+  // 待办结果补档位语义（Issue #148 后续 · 上轮审计建议 5）：
+  // `searchAll` 的投影只有 {title, subtitle, path}，Agent 拿到的待办**不带档位**，
+  // 与 `listTodos` 的 `priorityLabel` 口径不一致（同一实体两处读回形状不同）。
+  // 这里按 id 回填四档档位全称（如「高 · 重要紧急」），让 AI 侧与 UI / listTodos 同源。
+  const priorityById = new Map(
+    alive(todos).map((t) => [t.id, { priority: normalizeTodoPriority(t.priority), priorityLabel: todoPriorityFullLabel(t.priority) }]),
+  )
   const items = groups
     .filter((g) => (allowed ? allowed.has(g.type) : true))
-    .flatMap((g) => g.items.map((it) => ({ id: it.id, type: it.type, title: it.title, subtitle: it.subtitle, path: it.path })))
+    .flatMap((g) =>
+      g.items.map((it) => ({
+        id: it.id,
+        type: it.type,
+        title: it.title,
+        subtitle: it.subtitle,
+        path: it.path,
+        ...(it.type === 'todo' ? (priorityById.get(it.id) ?? {}) : {}),
+      })),
+    )
   return envelope(items, READ_LIMITS.searchEntities)
 }
 

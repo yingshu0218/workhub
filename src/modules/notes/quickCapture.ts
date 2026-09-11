@@ -77,7 +77,13 @@ export function quickCaptureTitle(content: string): string {
   return (firstLine || '未命名笔记').slice(0, 30)
 }
 
-/** 从正文取待办标题：首行 trim，截断 60 字；空正文回退「未命名待办」 */
+/**
+ * 从正文取待办标题：首行 trim，截断 60 字；空正文回退「未命名待办」。
+ *
+ * 收口说明（Issue #148 后续）：本函数是「正文首行 → 标题」的**唯一实现**，
+ * 待办领域层 `modules/todo/title.deriveTodoTitle` 直接转发本函数，
+ * 表单 / 速记转待办 / Agent 两条写入口全部经它取名，不再各写一份首行解析。
+ */
 export function quickCaptureTodoTitle(content: string): string {
   const firstLine = content.split('\n')[0]?.trim() ?? ''
   return (firstLine || '未命名待办').slice(0, 60)
@@ -110,19 +116,24 @@ export async function saveQuickCapture({
 /**
  * 正文 → 待办（进「收集箱」）。返回新建待办 id。
  *
- * 口径（Issue #134）：
+ * 口径（Issue #134，Issue #148 后续修订）：
  * - `listId` 恒为 undefined —— 新建即收集箱成员，与待办中心「收集箱 = 无归属未完成」一致；
  * - `status='todo'`、不带 `dueAt` —— 收集箱不催办，截止时间留给用户在待办中心补；
  * - 正文首行作标题（60 字），全文入 `desc`，长文速记不丢信息；
- * - 多行正文末尾追加一行通道留痕（`由<通道>转入收集箱`），单行正文直接以通道文案作 desc。
+ * - 末尾追加一行通道留痕（`— 由<通道>转入收集箱`），**单行与多行同一写法**。
+ *
+ * 单行口径修订（Issue #148 后续）：原实现对单行正文写「desc = 来源文案」，
+ * 使得同一条速记转出的待办与表单新建的待办在 `desc` 上**形态不同**（一个只有来源、
+ * 一个含正文全文），进而在编辑表单回填时产生两种往返结果。现统一为
+ * 「正文全文 + 来源行」，与表单「正文即 desc」的落库形态对齐，往返幂等。
  */
 export async function captureToTodo(content: string, channel?: ConvertChannel): Promise<string> {
   const text = content.trim()
   const id = newId('td')
   const title = quickCaptureTodoTitle(text)
   const { todoDesc } = viaText(channel)
-  // 单行速记：标题已承载全文，desc 用来源说明；多行速记：全文保真，末尾补来源行
-  const desc = text === title ? todoDesc : `${text}\n\n— ${todoDesc}`
+  // 正文全文保真 + 来源留痕（单行/多行同一写法的唯一实现）
+  const desc = `${text}\n\n— ${todoDesc}`
   await todoRepo.put({
     id,
     title,

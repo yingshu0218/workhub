@@ -118,12 +118,12 @@ export const WRITE_TOOL_SKILLS: ToolSkillMeta[] = [
   },
   {
     name: 'todo_createTodo',
-    summary: '新建待办',
+    summary: '新建待办（正文首行即标题）',
     schema: createTodoSchema,
     sideEffect: '写入一条待办（todos）。无领域事件。',
     idempotency: '非幂等：同标题会重复创建。',
-    entityRule: `${RESOLVE_FIRST} customerId/projectId/listId 若提供必须为真实 id。dueAt 为毫秒时间戳。`,
-    examples: ['周五前给深蓝出方案，高优先级'],
+    entityRule: `${RESOLVE_FIRST} customerId/projectId/listId 若提供必须为真实 id。dueAt 为毫秒时间戳。**正文优先用 content**（整体正文，标题 = 首行截 60 字、其余作备注）；title/desc 仍兼容但会被合并成同一正文，不要再当成两个独立字段使用。`,
+    examples: ['周五前给深蓝出方案，高优先级', '新建待办：季度复盘会\n准备 Q3 数据'],
   },
   {
     name: 'todo_completeTodo',
@@ -147,18 +147,18 @@ export const WRITE_TOOL_SKILLS: ToolSkillMeta[] = [
   /* ───── P2 动作扩面：编辑 / 删除 / 项目 / 笔记（UI 与 AI 动作面对齐） ───── */
   {
     name: 'todo_updateTodo',
-    summary: '编辑待办（标题/描述/优先级/截止时间/关联）',
+    summary: '编辑待办（正文/优先级/截止时间/关联）',
     schema: updateTodoSchema,
     sideEffect: '更新待办字段（todos）。传 null 表示**清空**该关联（如取消挂靠客户）。无领域事件。',
     idempotency: '幂等：同一组字段重复提交结果一致。',
-    entityRule: `${RESOLVE_FIRST} todoId 必填；更换 customerId/projectId 时目标须为真实 id。完成态请改用 todo_completeTodo。`,
+    entityRule: `${RESOLVE_FIRST} todoId 必填；更换 customerId/projectId 时目标须为真实 id。完成态请改用 todo_completeTodo。**正文口径**：传 content = 整体替换正文（标题随之由首行重推）；只传 title = 只改标题；只传 desc = 只改备注；title+desc 同传 = 整体替换。`,
     examples: ['把「出方案」改成高优先级，截止到周五', '取消这条待办的项目关联'],
   },
   {
     name: 'todo_deleteTodo',
-    summary: '删除待办（不可逆）',
+    summary: '删除待办（不可逆，顺带解绑流水关联）',
     schema: deleteTodoSchema,
-    sideEffect: '软删待办（todos，盖章 deleted=1 并入同步队列）。**高风险、不可逆**，删除前必须向用户明确确认。',
+    sideEffect: '软删待办（todos，盖章 deleted=1 并入同步队列），并**解绑**流水 `transactions.todoIds` 里指向它的关联（条数见 `sideEffects.unlinked`）。**高风险、不可逆**，删除前必须向用户明确确认，并如实转述解绑条数。',
     idempotency: '幂等：对已删待办重复调用返回可操作错误（记录不存在）。',
     entityRule: `${RESOLVE_FIRST} todoId 必填。`,
     examples: ['把「临时想法」这条待办删掉'],

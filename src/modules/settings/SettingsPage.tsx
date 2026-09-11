@@ -39,6 +39,7 @@ import {
 } from '@/shared/theme'
 import { pbPing, isSyncConfigured, enqueueAllForPush } from '@/sync/pocketbaseAdapter'
 import { syncEngine } from '@/sync/engine'
+import { migrateLegacyTodoPriority } from '@/modules/todo/domain'
 import { useSyncStore } from '@/sync/store'
 import { useNoteFolders } from '@/modules/notes/hooks'
 import { moduleConfigRepo } from '@/repositories'
@@ -269,6 +270,8 @@ export default function SettingsPage() {
   const [persisted, setPersisted] = useState<boolean | null>(null)
   const [exporting, setExporting] = useState(false)
   const [resetting, setResetting] = useState(false)
+  // 待办优先级档位迁移（Issue #148 后续）：显式动作，避免自动改写破坏跨设备 LWW
+  const [migratingPriority, setMigratingPriority] = useState(false)
   // 导入迁移：选文件 → 解析 → confirm → 逐表 bulkPut（restoreFromJson）
   const importInputRef = useRef<HTMLInputElement>(null)
   const [importing, setImporting] = useState(false)
@@ -501,6 +504,35 @@ export default function SettingsPage() {
       toast.error(`恢复失败：${err instanceof Error ? err.message : '文件解析错误'}`)
       setImporting(false)
     }
+  }
+
+  /**
+   * 待办优先级档位迁移（Issue #148 后续 · 上轮审计建议 4）。
+   *
+   * 老数据 `P1/P2/P3` 读侧已被 `normalizeTodoPriority` 兜住，功能上不缺；
+   * 这里做的是**把口径漂移清掉**（库里不再同时存在两套档位写法）。刻意做成显式动作
+   * 而非启动自动迁移：自动改写会推进老记录 `rev`，破坏跨设备同步的 LWW 判据。
+   */
+  const migrateTodoPriority = () => {
+    askConfirm({
+      title: '迁移待办优先级档位',
+      message:
+        '把存量待办里的旧档位 P1/P2/P3 归一化为高/中/低，并写入同步队列。已是新档位的记录不会被改动，可重复执行。确定继续？',
+      confirmText: '开始迁移',
+      run: () => {
+        setMigratingPriority(true)
+        void migrateLegacyTodoPriority()
+          .then((n) => {
+            toast.success(n > 0 ? `已迁移 ${n} 条待办的优先级档位` : '没有需要迁移的待办')
+            setMigratingPriority(false)
+          })
+          .catch((err) => {
+            console.error('[settings] 优先级迁移失败', err)
+            toast.error(`迁移失败：${err instanceof Error ? err.message : '未知错误'}`)
+            setMigratingPriority(false)
+          })
+      },
+    })
   }
 
   // ── 危险区：清空本地数据并重新种子 ──
@@ -1536,6 +1568,30 @@ export default function SettingsPage() {
                 format={(v) => (v === 'realtime' ? '实时' : v === '5min' ? '每 5 分钟' : '手动')}
                 onChange={(v) => save({ security: { ...settings.security, syncFrequency: v } })}
               />
+            </div>
+          </Section>
+
+          <Section
+            icon="healing"
+            title="口径迁移与数据自愈"
+            desc="把历史数据的旧写法归一化到当前口径；均为幂等动作，可重复执行"
+          >
+            <div className="flex items-center gap-4 rounded-xl border border-outline-variant/50 px-5 py-4">
+              <div className="flex-1">
+                <div className="text-[0.9643rem] font-medium">待办优先级档位迁移</div>
+                <div className="mt-0.5 text-[0.8214rem] text-on-surface-variant">
+                  把 P1/P2/P3 旧档位写成高/中/低四档。读侧已兼容旧值，迁移只是清掉库内两套写法；
+                  已是新档位的记录不动、不入同步队列。
+                </div>
+              </div>
+              <Button
+                size="sm"
+                variant="tonal"
+                onClick={migrateTodoPriority}
+                disabled={migratingPriority}
+              >
+                {migratingPriority ? '迁移中…' : '开始迁移'}
+              </Button>
             </div>
           </Section>
 

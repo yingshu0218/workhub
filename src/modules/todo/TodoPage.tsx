@@ -18,7 +18,7 @@ import {
 } from '@/design-system/ui'
 import { MatchCombobox } from '@/design-system/MatchCombobox'
 import { toArchivedFlag } from '@/shared/search'
-import { quickCaptureTodoTitle } from '@/modules/notes/quickCapture'
+import { deriveTodoTitle, toTodoText, splitTodoText } from './title'
 import {
   TODO_PRIORITY_LEVELS,
   TODO_PRIORITY_META,
@@ -49,6 +49,7 @@ import {
   createTodoList,
   renameTodoList,
   deleteTodoListCascade,
+  deleteTodoCascade,
   reorderTodoLists,
 } from './hooks'
 
@@ -790,7 +791,8 @@ export default function TodoPage() {
         onConfirm={() => {
           const t = confirmTodo
           setConfirmTodo(null)
-          if (t) void todoRepo.softDelete(t.id)
+          // 级联删除（Issue #148 后续）：软删待办 + 解绑 transactions.todoIds 悬挂引用
+          if (t) void deleteTodoCascade(t.id)
         }}
         onCancel={() => setConfirmTodo(null)}
       />
@@ -852,27 +854,15 @@ export default function TodoPage() {
 }
 
 /**
- * 标题推导（Issue #148）：正文首行 → 标题。
- * 口径复用 `quickCaptureTodoTitle`（首行 trim、截断 60 字、空文本回退「未命名待办」），
- * 保证「新建待办」与「速记转待办」两条入口的命名规则完全一致。
- */
-export function deriveTodoTitle(body: string): string {
-  return quickCaptureTodoTitle(body)
-}
-
-/**
- * 编辑回填：把已落库的 title + desc 拼回单一正文，供编辑弹窗展示。
- * 历史数据里 title 可能未出现在 desc 首行（Issue #148 之前标题是独立输入），
- * 故仅当首行 != title 时才补上标题行，避免把标题重复写进正文。
+ * 编辑回填：把已落库的 title + desc 拼回单一正文（Issue #148 后续：实现已收口到
+ * `./title` 的 `toTodoText`，此处保留导出名以兼容既有测试与调用方）。
  */
 export function joinTodoText(todo: Pick<Todo, 'title' | 'desc'> | null): string {
-  if (!todo) return ''
-  const desc = (todo.desc ?? '').trim()
-  const title = (todo.title ?? '').trim()
-  if (!desc) return title
-  if (!title || deriveTodoTitle(desc) === title) return desc
-  return `${title}\n${desc}`
+  return toTodoText(todo)
 }
+
+/** 兼容再导出：口径唯一来源是 `./title`（见该模块头注释的收口说明） */
+export { deriveTodoTitle }
 
 export function TodoFormDrawer({
   open,
@@ -922,20 +912,20 @@ export function TodoFormDrawer({
   }
 
   async function save() {
-    // 标题口径（Issue #148）：正文首行 trim 后作标题（截断 60 字，空正文回退「未命名待办」），
-    // 与速记转待办 quickCaptureTodoTitle 同一口径，避免同一动作两条命名规则
-    const trimmed = desc.trim()
-    if (!trimmed) {
+    // 标题口径（Issue #148）：正文首行 trim 后作标题（截断 60 字，空正文回退「未命名待办」）。
+    // 拆分走 `./title` 的 `splitTodoText` —— 与速记转待办、Agent 两条写入口共用同一实现，
+    // 杜绝「同一动作多条命名规则」（本文件不再自行拼 title/desc）。
+    if (!desc.trim()) {
       setError('请先写下待办内容')
       return
     }
-    const title = deriveTodoTitle(trimmed)
+    const { title, desc: body } = splitTodoText(desc)
     // 以旧记录展开为基底，仅覆盖表单字段，保留 habitId/ledgerId/completedAt 等
     const base: Todo = {
       ...todo,
       id: todo?.id ?? newId('td'),
       title,
-      desc: trimmed,
+      desc: body,
       priority,
       status,
       // 完成/作废时间与状态成对维护（Issue #128）：切到 done 补 completedAt、切到 voided 补 voidedAt，
