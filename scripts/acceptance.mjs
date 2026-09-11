@@ -12,14 +12,16 @@
  *   ③ tools/list 下发的工具均带 name + inputSchema + risk/domain 标注（白名单域随工具下发）；
  *   ④ 浏览器离线时 tools/call 返回**可操作错误**而非静默失败或崩进程（P1-1 修复回归）。
  *
- * 用法（对任意部署形态通用）：
+ * 用法（对任意部署形态与协议通用，ws / wss 均可）：
  *   node scripts/acceptance.mjs --url ws://127.0.0.1:9001/relay --token <relay启动时打印的token>
+ *   node scripts/acceptance.mjs --url wss://dev.fpigeon.fun/relay --token <token>   # 线上 HTTPS
  *   # 独立进程形态（npm run relay）path 默认根：
  *   node scripts/acceptance.mjs --url ws://127.0.0.1:8787 --token <token>
  *
  * 退出码：0 = 全部通过；1 = 任一断言失败（每条检查独立报告，不短路）。
  */
 import { connect } from 'node:net'
+import { connect as tlsConnect } from 'node:tls'
 import { randomBytes } from 'node:crypto'
 
 /* ---------------- 参数 ---------------- */
@@ -40,7 +42,9 @@ if (!url || !token) {
 class MiniWS {
   constructor(url) {
     const u = new URL(url)
-    this.port = Number(u.port || 80)
+    // wss 需要 TLS 且默认端口 443（此前只支持 ws 明文，线上上 HTTPS 后脚本就用不了了）
+    this.tls = u.protocol === 'wss:'
+    this.port = Number(u.port || (this.tls ? 443 : 80))
     this.host = u.hostname
     this.path = `${u.pathname}${u.search}`
     this.buffer = Buffer.alloc(0)
@@ -51,12 +55,16 @@ class MiniWS {
   }
   async open(timeoutMs = 5000) {
     await new Promise((resolve, reject) => {
-      this.socket = connect({ host: this.host, port: this.port }, () => {
+      const onConnect = () => {
         this.socket.write(
-          `GET ${this.path} HTTP/1.1\r\nHost: ${this.host}:${this.port}\r\nUpgrade: websocket\r\n` +
+          `GET ${this.path} HTTP/1.1\r\nHost: ${this.host}\r\nUpgrade: websocket\r\n` +
             `Connection: Upgrade\r\nSec-WebSocket-Key: ${randomBytes(16).toString('base64')}\r\nSec-WebSocket-Version: 13\r\n\r\n`,
         )
-      })
+      }
+      // wss 走 TLS：SNI 填域名，**证书校验保持开启**（线上证书无效就该让它失败，而不是被 -k 掩盖）
+      this.socket = this.tls
+        ? tlsConnect({ host: this.host, port: this.port, servername: this.host }, onConnect)
+        : connect({ host: this.host, port: this.port }, onConnect)
       this.socket.on('data', (chunk) => this.#onData(chunk))
       this.socket.on('error', (e) => reject(e))
       setTimeout(() => reject(new Error('WS 握手超时')), timeoutMs)
