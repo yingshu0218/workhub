@@ -38,8 +38,9 @@ export function FocusCard() {
   const openTodos = todos.filter(isTodoOpen)
 
   // 专注进行中时的关联实体引用（对齐原型 01）：无关联则不显示
-  const refCustomer = doing?.customerId
-    ? customers.find((c) => c.id === doing.customerId)
+  // 多关联（Issue #140）：展示取首个关联客户
+  const refCustomer = (doing?.customerIds ?? [])[0]
+    ? customers.find((c) => c.id === doing!.customerIds![0])
     : undefined
   const refLedger = doing?.ledgerId ? ledgers.find((l) => l.id === doing.ledgerId) : undefined
   const customerLabel = refCustomer

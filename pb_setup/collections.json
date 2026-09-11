@@ -485,6 +485,21 @@
         "required": false
       },
       {
+        "name": "customerIds",
+        "type": "json",
+        "required": false
+      },
+      {
+        "name": "todoIds",
+        "type": "json",
+        "required": false
+      },
+      {
+        "name": "projectIds",
+        "type": "json",
+        "required": false
+      },
+      {
         "name": "tombstonePushed",
         "type": "number",
         "required": false,

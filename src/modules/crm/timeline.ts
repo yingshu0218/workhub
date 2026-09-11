@@ -102,6 +102,7 @@ export function mergeTimelineEvents(
 export function useCustomerTimeline(customerId: string | undefined): TimelineEvent[] {
   const events = useQuery<TimelineEvent[]>(async () => {
     if (!customerId) return EMPTY
+    // v11 多关联（Issue #140）：customerIds 不再建索引，交易/待办走内存过滤（取舍见 db.ts v11 注释）
     const [interactions, transactions, todos] = await Promise.all([
       db.interactions
         .where('customerId')
@@ -109,14 +110,10 @@ export function useCustomerTimeline(customerId: string | undefined): TimelineEve
         .filter((i) => !i.deleted)
         .toArray(),
       db.transactions
-        .where('customerId')
-        .equals(customerId)
-        .filter((t) => !t.deleted)
+        .filter((t) => !t.deleted && (t.customerIds ?? []).includes(customerId))
         .toArray(),
       db.todos
-        .where('customerId')
-        .equals(customerId)
-        .filter((t) => !t.deleted)
+        .filter((t) => !t.deleted && (t.customerIds ?? []).includes(customerId))
         .toArray(),
     ])
     const merged = mergeTimelineEvents(interactions, transactions, todos)
@@ -136,15 +133,16 @@ export function useAllTimelines(): TimelineEvent[] {
   const events = useQuery<TimelineEvent[]>(async () => {
     const [interactions, transactions, todos] = await Promise.all([
       db.interactions.filter((i) => !i.deleted && !!i.customerId).toArray(),
-      db.transactions.filter((t) => !t.deleted && !!t.customerId).toArray(),
-      db.todos.filter((t) => !t.deleted && !!t.customerId).toArray(),
+      // 多关联（Issue #140）：数组首客户作为时间轴归属展示口径
+      db.transactions.filter((t) => !t.deleted && (t.customerIds ?? []).length > 0).toArray(),
+      db.todos.filter((t) => !t.deleted && (t.customerIds ?? []).length > 0).toArray(),
     ])
     const merged = mergeTimelineEvents(interactions, transactions, todos)
-    // 回填 customerId：三源记录均携带该字段，按 kind 对齐源记录即可
+    // 回填 customerId：三源记录均携带该字段，按 kind 对齐源记录即可（多关联取首个）
     const byId = new Map<string, string>()
     for (const i of interactions) byId.set(i.id, i.customerId)
-    for (const t of transactions) byId.set(t.id, t.customerId!)
-    for (const t of todos) byId.set(t.id, t.customerId!)
+    for (const t of transactions) byId.set(t.id, (t.customerIds ?? [])[0]!)
+    for (const t of todos) byId.set(t.id, (t.customerIds ?? [])[0]!)
     for (const e of merged) {
       const srcId = e.kind === 'todo' ? e.recordId : e.id
       e.customerId = byId.get(srcId)

@@ -6,7 +6,8 @@ import type { PutInput } from '@/repositories/repository'
 import type { Attachment } from '@/db/db'
 import type { Customer, Ledger, Project, Todo, Transaction } from '@/db/types'
 import { Button, Chip, Field, Modal, inputCls, useAutoFocus } from '@/design-system/ui'
-import { MatchCombobox, type MatchOption } from '@/design-system/MatchCombobox'
+import type { MatchOption } from '@/design-system/MatchCombobox'
+import EntityLinkField from '@/design-system/EntityLinkField'
 import { toArchivedFlag } from '@/shared/search'
 import dayjs from 'dayjs'
 import { isTodoOpen } from '@/modules/todo/domain'
@@ -46,9 +47,10 @@ export default function TransactionFormDrawer({
   const [occurredAt, setOccurredAt] = useState('')
   const [tags, setTags] = useState<string[]>([])
   const [tagInput, setTagInput] = useState('')
-  const [customerId, setCustomerId] = useState('')
-  const [todoId, setTodoId] = useState('')
-  const [projectId, setProjectId] = useState('')
+  // 多关联（Issue #140）：关联客户/项目/待办改为多选芯片（数组，保存前去重）
+  const [customerIds, setCustomerIds] = useState<string[]>([])
+  const [todoIds, setTodoIds] = useState<string[]>([])
+  const [projectIds, setProjectIds] = useState<string[]>([])
   const [note, setNote] = useState('')
   const [files, setFiles] = useState<File[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -71,9 +73,9 @@ export default function TransactionFormDrawer({
         setOccurredAt(dayjs(editTxn.occurredAt).format('YYYY-MM-DD'))
         setTags(editTxn.tags)
         setTagInput('')
-        setCustomerId(editTxn.customerId ?? '')
-        setTodoId(editTxn.todoId ?? '')
-        setProjectId(editTxn.projectId ?? '')
+        setCustomerIds(editTxn.customerIds ?? [])
+        setTodoIds(editTxn.todoIds ?? [])
+        setProjectIds(editTxn.projectIds ?? [])
         setNote(editTxn.note ?? '')
       } else {
         // 归属账本默认值：左侧选中具体账本直接用；「全部账本」优先默认账本，再回落第一个
@@ -89,9 +91,9 @@ export default function TransactionFormDrawer({
         setOccurredAt(dayjs().format('YYYY-MM-DD'))
         setTags([])
         setTagInput('')
-        setCustomerId('')
-        setTodoId('')
-        setProjectId('')
+        setCustomerIds([])
+        setTodoIds([])
+        setProjectIds([])
         setNote('')
       }
       setFiles([])
@@ -101,14 +103,16 @@ export default function TransactionFormDrawer({
   }
 
   // 待办候选：新建态=未完成待办；编辑态若已选待办已完成，单独并入 + sub 标注「已完成」，保证回显不丢
+  // 多关联（Issue #140）：已完结回填分支按数组逐个并入
   const todoOptions: MatchOption[] = openTodos.map((t) => ({
     id: t.id,
     label: t.title,
     sub: t.priority,
     icon: 'task_alt',
   }))
-  if (editTxn?.todoId && !openTodos.some((t) => t.id === editTxn.todoId)) {
-    const done = todos.find((t) => t.id === editTxn.todoId)
+  for (const tid of editTxn?.todoIds ?? []) {
+    if (openTodos.some((t) => t.id === tid)) continue
+    const done = todos.find((t) => t.id === tid)
     if (done) todoOptions.push({ id: done.id, label: done.title, sub: '已完成', icon: 'task_alt' })
   }
 
@@ -163,6 +167,16 @@ export default function TransactionFormDrawer({
       setError(`附件「${oversized.name}」超过单文件 5MB 限制`)
       return
     }
+    // 多关联（Issue #140）：保存前去重；已删除/不存在的实体 id 过滤（弱引用纪律：解绑不报错）
+    const aliveCustomerIds = [
+      ...new Set(customerIds.filter((id) => customers.some((c) => c.id === id && !c.deleted))),
+    ]
+    const aliveTodoIds = [
+      ...new Set(todoIds.filter((id) => todos.some((t) => t.id === id && !t.deleted))),
+    ]
+    const aliveProjectIds = [
+      ...new Set(projectIds.filter((id) => projects.some((p) => p.id === id && !p.deleted))),
+    ]
     const txnId = editTxn?.id ?? newId('txn')
     // 记账时间口径走领域层 `normalizeOccurredAt`（仅日期录入 → 落当天 00:00）。
     // 该口径与 agentOps 的 fin_recordTransaction 同源一份实现（P1 补强：消除 UI/AI 两份内联拼接）。
@@ -179,9 +193,9 @@ export default function TransactionFormDrawer({
           occurredAt: occurredAtMs,
           tags,
           note: note.trim() || undefined,
-          customerId: customerId || undefined,
-          todoId: todoId || undefined,
-          projectId: projectId || undefined,
+          customerIds: aliveCustomerIds,
+          todoIds: aliveTodoIds,
+          projectIds: aliveProjectIds,
         }
       : {
           id: txnId,
@@ -193,9 +207,9 @@ export default function TransactionFormDrawer({
           occurredAt: occurredAtMs,
           tags,
           note: note.trim() || undefined,
-          customerId: customerId || undefined,
-          todoId: todoId || undefined,
-          projectId: projectId || undefined,
+          customerIds: aliveCustomerIds,
+          todoIds: aliveTodoIds,
+          projectIds: aliveProjectIds,
           status: '待对账',
         }
     // 附件存根：Blob 入 attachments 表，refId 指向交易；与交易同事务原子落库
@@ -273,6 +287,8 @@ export default function TransactionFormDrawer({
             </select>
           </Field>
         </div>
+        {/* 2 列分栏（Issue #140）：能塞的塞 2 列，长字段整行 */}
+        <div className="grid grid-cols-2 gap-x-4 gap-y-3">
         <Field label="交易名称 / 款项摘要 *">
           <input
             ref={summaryRef}
@@ -329,8 +345,8 @@ export default function TransactionFormDrawer({
           </div>
         </Field>
         <Field label="关联客户">
-          <MatchCombobox
-            value={customerId}
+          <EntityLinkField
+            value={customerIds}
             options={customers.map((c) => ({
               id: c.id,
               label: `${c.company} · ${c.name}`,
@@ -338,12 +354,13 @@ export default function TransactionFormDrawer({
             }))}
             placeholder="输入公司或姓名模糊搜索，如：深蓝"
             emptyText="没有匹配的客户"
-            onChange={setCustomerId}
+            entityType="customer"
+            onChange={setCustomerIds}
           />
         </Field>
         <Field label="关联项目">
-          <MatchCombobox
-            value={projectId}
+          <EntityLinkField
+            value={projectIds}
             options={projects.map((p) => ({
               id: p.id,
               label: p.name,
@@ -353,18 +370,23 @@ export default function TransactionFormDrawer({
             }))}
             placeholder="输入项目名称模糊搜索"
             emptyText="没有匹配的项目"
-            onChange={setProjectId}
+            entityType="project"
+            onChange={setProjectIds}
           />
         </Field>
-        <Field label="关联待办">
-          <MatchCombobox
-            value={todoId}
-            options={todoOptions}
-            placeholder="输入待办标题模糊搜索"
-            emptyText={openTodos.length === 0 ? '暂无未完成待办' : '没有匹配的待办'}
-            onChange={setTodoId}
-          />
-        </Field>
+        <div className="col-span-2">
+          <Field label="关联待办">
+            <EntityLinkField
+              value={todoIds}
+              options={todoOptions}
+              placeholder="输入待办标题模糊搜索"
+              emptyText={openTodos.length === 0 ? '暂无未完成待办' : '没有匹配的待办'}
+              entityType="todo"
+              onChange={setTodoIds}
+            />
+          </Field>
+        </div>
+        </div>
         <Field label="备注">
           <textarea
             className={`${inputCls} h-20 resize-none`}

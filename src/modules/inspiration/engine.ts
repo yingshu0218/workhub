@@ -56,7 +56,9 @@ function buildCandidates(input: EngineInput): InspirationCandidate[] {
     if (!isTodoOpen(t)) continue
     if (!t.dueAt) continue
     const overdueMs = now - t.dueAt
-    const customer = t.customerId ? customersById.get(t.customerId) : undefined
+    const customer = (t.customerIds ?? [])[0]
+      ? customersById.get(t.customerIds![0]!)
+      : undefined
 
     const context: CandidateContext[] = []
     if (customer)
@@ -89,7 +91,7 @@ function buildCandidates(input: EngineInput): InspirationCandidate[] {
         score,
         match: 0,
         todoId: t.id,
-        customerId: t.customerId,
+        customerId: (t.customerIds ?? [])[0],
         context,
       })
     } else {
@@ -105,7 +107,7 @@ function buildCandidates(input: EngineInput): InspirationCandidate[] {
         score,
         match: 0,
         todoId: t.id,
-        customerId: t.customerId,
+        customerId: (t.customerIds ?? [])[0],
         context,
       })
     }
@@ -123,13 +125,16 @@ function buildCandidates(input: EngineInput): InspirationCandidate[] {
         value: `¥${txn.amount.toLocaleString('zh-CN')} · ${txn.channel}`,
       },
     ]
-    const customer = txn.customerId ? customersById.get(txn.customerId) : undefined
-    if (customer)
+    // 多关联（Issue #140）：每个关联客户各给一条往来上下文；候选动作挂点取首个
+    for (const cid of txn.customerIds ?? []) {
+      const customer = customersById.get(cid)
+      if (!customer) continue
       context.push({
         icon: 'group',
         label: '往来客户',
         value: `${customer.name} · ${customer.company}`,
       })
+    }
     candidates.push({
       id: `cand-txn-${txn.id}`,
       kind: 'reconciliation',
@@ -137,7 +142,7 @@ function buildCandidates(input: EngineInput): InspirationCandidate[] {
       reason: `待对账 ¥${txn.amount.toLocaleString('zh-CN')} · 挂账 ${Math.max(0, hangDays)} 天，账实待核对`,
       score,
       match: 0,
-      customerId: txn.customerId,
+      customerId: (txn.customerIds ?? [])[0],
       context,
     })
   }

@@ -97,7 +97,7 @@ export default function CustomerFormDrawer({
 
   // 第 4 步可关联的交易：仅列出尚未归属任何客户的流水（已关联的可通过财务侧改）
   const transactions = useCollection<Transaction>('transactions')
-  const linkableTxns = transactions.filter((t) => !t.customerId)
+  const linkableTxns = transactions.filter((t) => (t.customerIds ?? []).length === 0)
 
   // 关联客户候选：所有未删除客户（排除自己），只能从这里选目标
   const customers = useCollection<Customer>('customers')

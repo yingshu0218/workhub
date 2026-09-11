@@ -430,7 +430,8 @@ export async function saveTransactionWithAttachments(
   if (created) {
     eventBus.emit('transaction:created', {
       transactionId: txn.id,
-      customerId: txn.customerId,
+      // 多关联（Issue #140）：载荷口径保持单客户，取第一个关联（其余关联不进事件）
+      customerId: txn.customerIds?.[0],
     })
   }
   syncEngine.requestSync()
@@ -613,11 +614,14 @@ export async function deleteCustomerCascade(customerId: string): Promise<void> {
         })
       }
 
-      const txns = await db.transactions.where('customerId').equals(customerId).toArray()
+      // v11 多关联（Issue #140）：customerIds 不再建索引，级联解绑走全表内存过滤
+      //（取舍理由见 db.ts v11 注释）；从数组移除该客户 id，数组为空则清字段
+      const txns = await db.transactions.toArray()
       for (const txn of txns) {
-        if (txn.deleted) continue
+        if (txn.deleted || !(txn.customerIds ?? []).includes(customerId)) continue
+        const customerIds = (txn.customerIds ?? []).filter((id) => id !== customerId)
         await db.transactions.update(txn.id, {
-          customerId: undefined,
+          customerIds,
           updatedAt: now,
           rev: txn.rev + 1,
         })
@@ -629,11 +633,13 @@ export async function deleteCustomerCascade(customerId: string): Promise<void> {
         })
       }
 
-      const todos = await db.todos.where('customerId').equals(customerId).toArray()
+      // v11 多关联（Issue #140）：待办同交易，内存过滤 + 数组移除
+      const todos = await db.todos.toArray()
       for (const todo of todos) {
-        if (todo.deleted) continue
+        if (todo.deleted || !(todo.customerIds ?? []).includes(customerId)) continue
+        const customerIds = (todo.customerIds ?? []).filter((id) => id !== customerId)
         await db.todos.update(todo.id, {
-          customerId: undefined,
+          customerIds,
           updatedAt: now,
           rev: todo.rev + 1,
         })
@@ -749,8 +755,9 @@ export async function createCustomerWithInit(
       if (opts.linkTransactionId) {
         const txn = await db.transactions.get(opts.linkTransactionId)
         if (txn && !txn.deleted) {
+          // v11 多关联（Issue #140）：追加而非覆盖既有关联（去重由 dedupeTxnLinks 保证）
           await db.transactions.update(txn.id, {
-            customerId: customer.id,
+            customerIds: [...new Set([...(txn.customerIds ?? []), customer.id])],
             updatedAt: now,
             rev: txn.rev + 1,
           })

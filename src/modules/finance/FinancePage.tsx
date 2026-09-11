@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Icon } from '@/design-system/Icon'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useCollection, useRecord } from '@/queries/hooks'
-import type { Customer, Ledger, Todo, Transaction } from '@/db/types'
+import type { Customer, Ledger, Project, Todo, Transaction } from '@/db/types'
 import {
   Avatar,
   Button,
@@ -340,7 +340,7 @@ export default function FinancePage() {
                   key={t.id}
                   txn={t}
                   ledger={ledgerMap.get(t.ledgerId)}
-                  customer={customers.find((c) => c.id === t.customerId)}
+                  customers={customers}
                   showLedger={scope === 'all'}
                   onOpen={() => setDetailId(t.id)}
                 />
@@ -535,16 +535,20 @@ function Segmented({
 function TransactionRow({
   txn,
   ledger,
-  customer,
+  customers,
   showLedger,
   onOpen,
 }: {
   txn: Transaction
   ledger: Ledger | undefined
-  customer: Customer | undefined
+  customers: Customer[]
   showLedger: boolean
   onOpen: () => void
 }) {
+  // 多关联（Issue #140）：所有关联客户逐枚芯片展示（弱引用：已删除客户自然不渲染）
+  const rowCustomers = (txn.customerIds ?? [])
+    .map((id) => customers.find((c) => c.id === id))
+    .filter((c): c is Customer => !!c)
   // 每行独立计数 Hook：count() 只走索引计数，不反序列化 Blob
   const attCount = useAttachmentCount(txn.id)
   const symbol = symbolOf(ledger?.currency)
@@ -575,11 +579,11 @@ function TransactionRow({
               #{tag}
             </Chip>
           ))}
-          {customer && (
-            <Chip tone="blue" icon="person">
-              {customer.company} · {customer.name}
+          {rowCustomers.map((c) => (
+            <Chip key={c.id} tone="blue" icon="person">
+              {c.company} · {c.name}
             </Chip>
-          )}
+          ))}
           {attCount > 0 && (
             <Chip tone="gray" icon="attach_file">
               {attCount}
@@ -625,6 +629,7 @@ function TransactionDetailDrawer({
   const ledgers = useCollection<Ledger>('ledgers')
   const customers = useCollection<Customer>('customers')
   const todos = useCollection<Todo>('todos')
+  const projects = useCollection<Project>('projects')
   const attachments = useTransactionAttachments(transactionId ?? undefined)
   const navigate = useNavigate()
   const [editing, setEditing] = useState(false)
@@ -632,8 +637,16 @@ function TransactionDetailDrawer({
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   const ledger = ledgers.find((l) => l.id === txn?.ledgerId)
-  const customer = customers.find((c) => c.id === txn?.customerId)
-  const todo = todos.find((t) => t.id === txn?.todoId)
+  // 多关联（Issue #140）：详情/溯源区按数组逐一渲染（弱引用：已删实体自然过滤）
+  const txnCustomers = (txn?.customerIds ?? [])
+    .map((id) => customers.find((c) => c.id === id))
+    .filter((c): c is Customer => !!c)
+  const txnTodos = (txn?.todoIds ?? [])
+    .map((id) => todos.find((t) => t.id === id))
+    .filter((t): t is Todo => !!t)
+  const txnProjects = (txn?.projectIds ?? [])
+    .map((id) => projects.find((p) => p.id === id))
+    .filter((p): p is Project => !!p)
   const symbol = symbolOf(ledger?.currency)
 
   /** 状态流转：以旧记录为基底，仅覆盖 status */
@@ -725,8 +738,20 @@ function TransactionDetailDrawer({
             </DetailField>
             <DetailField label="归属账本">{ledger?.name ?? '—'}</DetailField>
             <DetailField label="关联客户">
-              {customer ? `${customer.company} · ${customer.name}` : '—'}
+              {txnCustomers.length > 0
+                ? txnCustomers.map((c) => `${c.company} · ${c.name}`).join('、')
+                : '—'}
             </DetailField>
+            {txnProjects.length > 0 && (
+              <DetailField label="关联项目">
+                {txnProjects.map((p) => p.name).join('、')}
+              </DetailField>
+            )}
+            {txnTodos.length > 0 && (
+              <DetailField label="关联待办">
+                {txnTodos.map((t) => t.title).join('、')}
+              </DetailField>
+            )}
             {txn.note && (
               <div className="col-span-2">
                 <DetailField label="备注">{txn.note}</DetailField>
@@ -788,14 +813,15 @@ function TransactionDetailDrawer({
           </div>
 
           {/* 关联业务溯源 */}
-          {(customer || todo) && (
+          {(txnCustomers.length > 0 || txnTodos.length > 0 || txnProjects.length > 0) && (
             <div>
               <div className="mb-2 text-[0.8571rem] font-medium uppercase tracking-wide text-on-surface-variant">
                 关联业务溯源
               </div>
               <div className="space-y-2">
-                {customer && (
+                {txnCustomers.map((customer) => (
                   <button
+                    key={customer.id}
                     onClick={() => navigate(`/crm/${customer.id}`)}
                     className="flex w-full items-center justify-between rounded-xl bg-surface-container-low/60 p-3 text-left transition-colors hover:bg-surface-container-low"
                   >
@@ -815,9 +841,10 @@ function TransactionDetailDrawer({
                       <Icon name="open_in_new" size={14} />
                     </span>
                   </button>
-                )}
-                {todo && (
+                ))}
+                {txnTodos.map((todo) => (
                   <button
+                    key={todo.id}
                     onClick={() => navigate('/todo')}
                     className="flex w-full items-center justify-between rounded-xl bg-surface-container-low/60 p-3 text-left transition-colors hover:bg-surface-container-low"
                   >
@@ -838,7 +865,7 @@ function TransactionDetailDrawer({
                       <Icon name="open_in_new" size={14} />
                     </span>
                   </button>
-                )}
+                ))}
               </div>
             </div>
           )}

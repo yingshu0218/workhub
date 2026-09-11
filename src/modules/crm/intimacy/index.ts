@@ -111,14 +111,17 @@ export function buildScoreInput(
     interactionCount90d: graph.interactions.filter(
       (i) => i.customerId === customerId && i.at >= since,
     ).length,
+    // 多关联（Issue #140）：数组包含语义（一条流水可挂多个客户，每个客户都计入金额/待办统计）
     financeAmount: graph.transactions
-      .filter((t) => t.customerId === customerId)
+      .filter((t) => t.customerIds.includes(customerId))
       .reduce((sum, t) => sum + t.amount, 0),
-    activeTodos: graph.todos.filter((t) => t.customerId === customerId && isTodoOpen(t))
-      .length,
+    activeTodos: graph.todos.filter(
+      (t) => t.customerIds.includes(customerId) && isTodoOpen(t),
+    ).length,
     // 已完成口径（Issue #128）：作废条目不计入完成数（算法入参与 UI 同源，不漂移）
-    doneTodos: graph.todos.filter((t) => t.customerId === customerId && isTodoDone(t))
-      .length,
+    doneTodos: graph.todos.filter(
+      (t) => t.customerIds.includes(customerId) && isTodoDone(t),
+    ).length,
     projects: graph.projects.filter((p) => p.customerId === customerId).length,
     activeProjects: graph.projects.filter(
       (p) => p.customerId === customerId && graph.projectStatuses[p.id] === 'active',

@@ -66,9 +66,17 @@ export interface RecordTransactionInput {
   status?: '已结算' | '待对账'
   tags?: string[]
   note?: string
-  customerId?: string
-  todoId?: string
-  projectId?: string
+  /** 多关联（Issue #140）：单值入参自动包数组（向后兼容既有 UI/Agent 调用方），去重收口 */
+  customerId?: string | string[]
+  todoId?: string | string[]
+  projectId?: string | string[]
+}
+
+/** 关联入参归一化：string | string[] → 去重后的 string[]（弱引用去脏：去空串） */
+function normalizeLinkIds(v: string | string[] | undefined): string[] {
+  if (v === undefined) return []
+  const arr = Array.isArray(v) ? v : [v]
+  return [...new Set(arr.filter((x): x is string => typeof x === 'string' && x !== ''))]
 }
 
 /** 记账产物 */
@@ -108,9 +116,9 @@ export async function recordTransaction(
     occurredAt,
     tags: input.tags ?? [],
     note: input.note,
-    customerId: input.customerId,
-    todoId: input.todoId,
-    projectId: input.projectId,
+    customerIds: normalizeLinkIds(input.customerId),
+    todoIds: normalizeLinkIds(input.todoId),
+    projectIds: normalizeLinkIds(input.projectId),
     status: input.status ?? '待对账',
   }
   const { created } = await saveTransactionWithAttachments(record, [])

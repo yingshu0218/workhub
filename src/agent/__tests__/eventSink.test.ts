@@ -251,7 +251,7 @@ describe('createCustomerWithInit 下沉 repositories 且不新增事件', () => 
     await createCustomerWithInit(newCustomer('c8'), { linkTransactionId: txnId })
     cap.restore()
     expect(cap.events).toHaveLength(0)
-    expect((await db.transactions.get(txnId))!.customerId).toBe('c8')
+    expect((await db.transactions.get(txnId))!.customerIds).toContain('c8')
   })
 })
 

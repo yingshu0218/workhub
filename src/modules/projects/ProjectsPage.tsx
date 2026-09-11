@@ -41,7 +41,7 @@ export default function ProjectsPage() {
   const stats = useMemo(() => {
     const map = new Map<string, { income: number; expense: number; openTodos: number }>()
     for (const p of projects) {
-      const txns = transactions.filter((t) => t.projectId === p.id)
+      const txns = transactions.filter((t) => (t.projectIds ?? []).includes(p.id))
       map.set(p.id, {
         income: txns.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0),
         expense: txns.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amount, 0),

@@ -82,7 +82,11 @@ function assemble(graph: CanvasGraph): { nodes: GraphNode[]; links: GraphLink[] 
       fill: t.type === 'income' ? GRAPH_COLORS.income.fill : GRAPH_COLORS.expense.fill,
       radius: 12,
     })
-    ls.push({ source: t.customerId, target: `txn:${t.id}`, kind: 'belongs' })
+    // 多关联（Issue #140）：每个关联客户各连一条 belongs 边（无关联则不挂，画布不悬挂）
+    for (const cid of t.customerIds) {
+      if (!nodeIds.has(cid)) continue
+      ls.push({ source: cid, target: `txn:${t.id}`, kind: 'belongs' })
+    }
   }
   for (const t of graph.todos) {
     ns.push({
@@ -93,7 +97,11 @@ function assemble(graph: CanvasGraph): { nodes: GraphNode[]; links: GraphLink[] 
       fill: GRAPH_COLORS.todo.fill,
       radius: 9,
     })
-    ls.push({ source: t.customerId, target: `todo:${t.id}`, kind: 'belongs' })
+    // 多关联（Issue #140）：同交易，每个关联客户各连一条边
+    for (const cid of t.customerIds) {
+      if (!nodeIds.has(cid)) continue
+      ls.push({ source: cid, target: `todo:${t.id}`, kind: 'belongs' })
+    }
   }
   // 笔记节点：mentions 反查关联客户的笔记投影（数据来自 useCanvasGraph）
   for (const n of graph.notes) {
@@ -187,8 +195,10 @@ function deriveCustomerEdges(graph: CanvasGraph): GraphLink[] {
     if (!projCustomers.has(projectId)) projCustomers.set(projectId, new Set())
     projCustomers.get(projectId)!.add(customerId)
   }
-  for (const t of graph.transactions) feedProject(t.customerId, t.projectId)
-  for (const t of graph.todos) feedProject(t.customerId, t.projectId)
+  // 多关联（Issue #140）：流水/待办的每个关联客户都计入项目桥接桶
+  for (const t of graph.transactions)
+    for (const cid of t.customerIds) for (const pid of t.projectIds) feedProject(cid, pid)
+  for (const t of graph.todos) for (const cid of t.customerIds) feedProject(cid, t.projectId)
   for (const i of graph.interactions) feedProject(i.customerId, i.projectId)
   for (const [projId, members] of projCustomers) {
     const owner = projOwner.get(projId)
@@ -200,14 +210,17 @@ function deriveCustomerEdges(graph: CanvasGraph): GraphLink[] {
   // ── 财务桥接：按 ledger 倒排出账/入账双方，跨客户两两连「资金往来」 ──
   const ledgerBuckets = new Map<string, { payers: Set<string>; receivers: Set<string> }>()
   for (const t of graph.transactions) {
-    if (!t.ledgerId || !t.customerId) continue
+    if (!t.ledgerId || t.customerIds.length === 0) continue
     let b = ledgerBuckets.get(t.ledgerId)
     if (!b) {
       b = { payers: new Set(), receivers: new Set() }
       ledgerBuckets.set(t.ledgerId, b)
     }
-    if (t.type === 'expense') b.payers.add(t.customerId)
-    else if (t.type === 'income') b.receivers.add(t.customerId)
+    // 多关联（Issue #140）：每个关联客户按收支方向入桶
+    for (const cid of t.customerIds) {
+      if (t.type === 'expense') b.payers.add(cid)
+      else if (t.type === 'income') b.receivers.add(cid)
+    }
   }
   for (const { payers, receivers } of ledgerBuckets.values()) {
     for (const payer of payers) {

@@ -118,9 +118,10 @@ function projectTransaction(t: Transaction) {
     summary: t.summary,
     status: t.status,
     occurredAt: t.occurredAt,
-    ...(t.customerId ? { customerId: t.customerId } : {}),
-    ...(t.projectId ? { projectId: t.projectId } : {}),
-    ...(t.todoId ? { todoId: t.todoId } : {}),
+    // 多关联（Issue #140）：数组投影（空数组省略）
+    ...(t.customerIds?.length ? { customerIds: t.customerIds } : {}),
+    ...(t.projectIds?.length ? { projectIds: t.projectIds } : {}),
+    ...(t.todoIds?.length ? { todoIds: t.todoIds } : {}),
   }
 }
 
@@ -131,7 +132,7 @@ function projectTodo(t: Todo) {
     priority: t.priority,
     status: t.status,
     ...(t.dueAt ? { dueAt: t.dueAt } : {}),
-    ...(t.customerId ? { customerId: t.customerId } : {}),
+    ...(t.customerIds?.length ? { customerIds: t.customerIds } : {}),
     ...(t.projectId ? { projectId: t.projectId } : {}),
   }
 }
@@ -197,7 +198,8 @@ export async function listTransactions(input: unknown): Promise<ReadResult> {
   const fromMs = d.from ? dayjs(d.from).startOf('day').valueOf() : undefined
   const toMs = d.to ? dayjs(d.to).endOf('day').valueOf() : undefined
   const rows = alive(await db.transactions.toArray())
-    .filter((t) => (d.customerId ? t.customerId === d.customerId : true))
+    // 多关联（Issue #140）：customerId 过滤改为「数组包含」语义
+    .filter((t) => (d.customerId ? (t.customerIds ?? []).includes(d.customerId) : true))
     .filter((t) => (d.ledgerId ? t.ledgerId === d.ledgerId : true))
     .filter((t) => (d.status ? t.status === d.status : true))
     .filter((t) => (d.type ? t.type === d.type : true))
@@ -221,7 +223,7 @@ export async function listTodos(input: unknown): Promise<ReadResult> {
   const rows = alive(await db.todos.toArray())
     .filter((t) => (d.status ? t.status === d.status : true))
     .filter((t) => (d.priority ? t.priority === d.priority : true))
-    .filter((t) => (d.customerId ? t.customerId === d.customerId : true))
+    .filter((t) => (d.customerId ? (t.customerIds ?? []).includes(d.customerId) : true))
     .filter((t) => (d.projectId ? t.projectId === d.projectId : true))
     .sort((a, b) => (a.dueAt ?? Infinity) - (b.dueAt ?? Infinity))
   return envelope(rows.map(projectTodo), READ_LIMITS.listTodos)

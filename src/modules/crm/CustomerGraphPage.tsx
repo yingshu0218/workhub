@@ -75,11 +75,11 @@ export default function CustomerGraphPage() {
         <Chip
           tone="blue"
           icon="person"
-        >{`关联交易 ${graph.transactions.filter((t) => t.customerId === id).length}`}</Chip>
+        >{`关联交易 ${graph.transactions.filter((t) => t.customerIds.includes(id!)).length}`}</Chip>
         <Chip
           tone="amber"
           icon="task_alt"
-        >{`关联待办 ${graph.todos.filter((t) => t.customerId === id).length}`}</Chip>
+        >{`关联待办 ${graph.todos.filter((t) => t.customerIds.includes(id!)).length}`}</Chip>
         <Chip
           tone="gray"
           icon="description"

@@ -88,9 +88,13 @@ export const recordTransactionSchema = z.object({
   status: z.enum(['已结算', '待对账']).default('待对账'),
   tags: z.array(z.string()).default([]),
   note: z.string().optional(),
-  customerId: z.string().optional(),
-  todoId: z.string().optional(),
-  projectId: z.string().optional(),
+  /**
+   * 多关联（Issue #140）：接受单值或数组，单值自动包数组 —— 向后兼容已分发的
+   * AI 工具调用（旧调用方传单值不报错）；空串剔除 + 去重（弱引用脏数据防线）。
+   */
+  customerId: z.union([z.string(), z.array(z.string())]).optional(),
+  todoId: z.union([z.string(), z.array(z.string())]).optional(),
+  projectId: z.union([z.string(), z.array(z.string())]).optional(),
 })
 
 /** crm_createCustomer —— 落库 createCustomerWithInit（下沉后的 repositories 版本） */

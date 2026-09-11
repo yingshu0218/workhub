@@ -48,6 +48,47 @@ async function hasPendingUpsert(table: string, recordId: string): Promise<boolea
 /** 需要按数组归一化落库的 json 字段（服务端可能返回 JSON 字符串） */
 const JSON_ARRAY_FIELDS = ['tags', 'relations'] as const
 
+/**
+ * 交易多关联数组字段（Issue #140）：customerIds/todoIds/projectIds。
+ * 归一化语义与 JSON_ARRAY_FIELDS 一致，但叠加**旧单值兜底**：
+ * 服务端缺数组字段（Schema 未升级）或值为空时，回落旧单值 customerId/todoId/projectId 包数组，
+ * 保证「旧客户端写入的单值关联」拉回后不丢。
+ */
+const TXN_LINK_ARRAY_FIELDS = ['customerIds', 'todoIds', 'projectIds'] as const
+const TXN_LINK_LEGACY_FIELD: Record<(typeof TXN_LINK_ARRAY_FIELDS)[number], string> = {
+  customerIds: 'customerId',
+  todoIds: 'todoId',
+  projectIds: 'projectId',
+}
+
+/** 交易关联数组归一化：数组 / JSON 字符串 → 数组；空值回落旧单值字段 */
+function normalizeTxnLinks(
+  record: Record<string, unknown>,
+  localVal: Record<string, unknown> | undefined,
+): void {
+  for (const key of TXN_LINK_ARRAY_FIELDS) {
+    const legacyKey = TXN_LINK_LEGACY_FIELD[key]
+    const parsed = toArrayField(record[key])
+    if (parsed) {
+      record[key] = parsed
+      continue
+    }
+    const legacy =
+      typeof record[legacyKey] === 'string' && record[legacyKey]
+        ? [record[legacyKey] as string]
+        : []
+    if (legacy.length > 0) {
+      record[key] = legacy
+    } else if (localVal?.[key] !== undefined) {
+      // 远端字段全空（Schema 未升级会静默丢 json 字段）：保留本地数组
+      record[key] = localVal[key]
+    } else {
+      delete record[key]
+    }
+    delete record[legacyKey]
+  }
+}
+
 /** json 字段（customers.tags / customers.relations 等）归一化为数组，兼容服务端返回字符串或对象 */
 function toArrayField(v: unknown): unknown[] | null {
   if (Array.isArray(v)) return v
@@ -187,6 +228,8 @@ export async function mergeRemoteRecord(
   record.id = localId
   record.updatedAt = remoteUpdatedAt
   record.deleted = remote.deleted ? 1 : 0
+  // 交易多关联数组归一化（Issue #140）：兼收远端数组 / 旧单值，空值回落本地
+  if (table === 'transactions') normalizeTxnLinks(record, local)
   record.rev = Math.max(
     typeof local?.rev === 'number' ? local.rev : 0,
     typeof remote.rev === 'number' ? remote.rev : 0,

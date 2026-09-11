@@ -17,6 +17,7 @@ import {
   inputCls,
 } from '@/design-system/ui'
 import { MatchCombobox } from '@/design-system/MatchCombobox'
+import EntityLinkField from '@/design-system/EntityLinkField'
 import { toArchivedFlag } from '@/shared/search'
 import dayjs from 'dayjs'
 import { useFocusStore } from '@/stores/focus'
@@ -670,8 +671,10 @@ export default function TodoPage() {
                       {/* 归属信息：仅在有归属时展示；弱引用被级联解绑后自然消失，可即时感知 */}
                       {(() => {
                         const owner = [
-                          t.customerId
-                            ? `客户 ${customerName.get(t.customerId) ?? '已删除'}`
+                          (t.customerIds ?? []).length > 0
+                            ? `客户 ${(t.customerIds ?? [])
+                                .map((id) => customerName.get(id) ?? '已删除')
+                                .join('、')}`
                             : null,
                           t.projectId ? `项目 ${projectName.get(t.projectId) ?? '已删除'}` : null,
                           t.listId ? `清单 ${listName.get(t.listId) ?? '已删除'}` : null,
@@ -828,7 +831,8 @@ export function TodoFormDrawer({
   // 状态两态（Issue #74）：仅待处理/已完成，完成时间与 status 成对写入
   const [status, setStatus] = useState<Todo['status']>('todo')
   const [dueAt, setDueAt] = useState('')
-  const [customerId, setCustomerId] = useState('')
+  /** 多关联（Issue #140）：待办可挂多个客户（数组去重） */
+  const [customerIds, setCustomerIds] = useState<string[]>([])
   const [listId, setListId] = useState('')
   const [projectId, setProjectId] = useState('')
   const listOptions = useTodoListOptions()
@@ -846,7 +850,7 @@ export function TodoFormDrawer({
     setPriority(todo?.priority ?? 'P2')
     setStatus(todo?.status ?? 'todo')
     setDueAt(todo?.dueAt ? dayjs(todo.dueAt).format('YYYY-MM-DDTHH:mm') : '')
-    setCustomerId(todo?.customerId ?? '')
+    setCustomerIds(todo?.customerIds ?? [])
     setListId(todo?.listId ?? '')
     setProjectId(todo?.projectId ?? '')
     setError('')
@@ -871,7 +875,7 @@ export function TodoFormDrawer({
       completedAt: status === 'done' ? (todo?.completedAt ?? Date.now()) : undefined,
       voidedAt: status === 'voided' ? (todo?.voidedAt ?? Date.now()) : undefined,
       dueAt: dueAt ? dayjs(dueAt).valueOf() : undefined,
-      customerId: customerId || undefined,
+      customerIds: [...new Set(customerIds)],
       listId: listId || undefined,
       projectId: projectId || undefined,
       createdAt: todo?.createdAt ?? Date.now(),
@@ -982,8 +986,8 @@ export function TodoFormDrawer({
           />
         </Field>
         <Field label="关联客户">
-          <MatchCombobox
-            value={customerId}
+          <EntityLinkField
+            value={customerIds}
             options={customers.map((c) => ({
               id: c.id,
               label: c.company ? `${c.company} · ${c.name}` : c.name,
@@ -991,7 +995,8 @@ export function TodoFormDrawer({
             }))}
             placeholder="输入公司或姓名模糊搜索，如：深蓝"
             emptyText="没有匹配的客户"
-            onChange={setCustomerId}
+            entityType="customer"
+            onChange={setCustomerIds}
           />
         </Field>
         {error && <div className="mb-3 text-[0.8571rem] text-danger">{error}</div>}

@@ -144,6 +144,45 @@ export class NexusDB extends Dexie {
     this.version(9).stores({
       moduleConfigs: 'id, updatedAt',
     })
+    // v11（Issue #140 交易多关联）：交易关联字段单值 → 数组。
+    // 索引策略说明（对 v5/v8 纪律的有意偏离）：customerId 单值索引随多值化失效，
+    // Dexie 多值索引（multiEntry）与同步队列/远端 schema 的兼容成本高（需为 push/pull 各写
+    // 一套数组展开逻辑，且级联解绑语义复杂化）。交易量级小（个人工作台），级联与关联查询
+    // 改为内存过滤 `where('updatedAt').above(0)` 后 `(customerIds ?? []).includes(id)`，
+    // 放弃 where('customerId') 索引 —— 此取舍已获评审确认，后续若数据量级变化再评估回迁。
+    // migrate 纪律「双写不双读」：单值 → `[值]`（空 → `[]`），旧字段清除，新字段为唯一真源；
+    // 同步 merge 端把旧字段值归一化进数组兜底（见 sync/mergeRemote.ts）。
+    this.version(11)
+      .stores({
+        // 数组字段不建索引：与上述内存过滤策略一致
+        transactions: 'id, ledgerId, occurredAt, status, projectId, updatedAt',
+        todos: 'id, status, dueAt, priority, listId, projectId, updatedAt',
+      })
+      .upgrade(async (tx) => {
+        await tx
+          .table('transactions')
+          .toCollection()
+          .modify((t: Record<string, unknown>) => {
+            if (t.customerIds === undefined)
+              t.customerIds = typeof t.customerId === 'string' && t.customerId ? [t.customerId] : []
+            if (t.todoIds === undefined)
+              t.todoIds = typeof t.todoId === 'string' && t.todoId ? [t.todoId] : []
+            if (t.projectIds === undefined)
+              t.projectIds = typeof t.projectId === 'string' && t.projectId ? [t.projectId] : []
+            delete t.customerId
+            delete t.todoId
+            delete t.projectId
+          })
+        // todos：customerId → customerIds（customerIds/todoIds/projectIds 同口径）
+        await tx
+          .table('todos')
+          .toCollection()
+          .modify((t: Record<string, unknown>) => {
+            if (t.customerIds === undefined)
+              t.customerIds = typeof t.customerId === 'string' && t.customerId ? [t.customerId] : []
+            delete t.customerId
+          })
+      })
   }
 }
 
