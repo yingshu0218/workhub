@@ -118,9 +118,9 @@ describe('relay 侧取票与防重放（ConfirmTokenStore + preview 绑定）', 
   })
 
   it('relay 内置 confirm_preview 出现在 tools/list（非 --dev 下取票入口可达）', async () => {
-    // 直接检查 relay 源码里的 tools/list 合并逻辑（relay 是 .mjs 进程入口，不便直连）
+    // 直接检查 relay 内核源码里的 tools/list 合并逻辑（relay/server.mjs 为可嵌入内核，不便直连）
     const { readFileSync } = await import('node:fs')
-    const src = readFileSync('relay/index.mjs', 'utf8')
+    const src = readFileSync('relay/server.mjs', 'utf8')
     expect(src).toContain("const CONFIRM_TOOL = 'confirm_preview'")
     expect(src).toMatch(/\.\.\.tools,\s*\n\s*\{\s*\n\s*name: CONFIRM_TOOL/)
     // preview 落地时记下 (tool,args)，取票时消费

@@ -138,6 +138,11 @@ export function createMcpRouter({
   token,
   listTools,
   callTool,
+  /**
+   * 浏览器桥是否在线（可选）。缺省视为「在线」，仅供宿主在浏览器离线时给出**可操作错误**，
+   * 把「应用没开」与「工具执行失败」两类错误分开上报（见下 tools/call 分支）。
+   */
+  isBrowserOnline = () => true,
   confirmStore = new ConfirmTokenStore(),
   log = () => {},
   /**
@@ -191,7 +196,20 @@ export function createMcpRouter({
       case 'ping':
         return rpcResult(id, {})
       case 'tools/list': {
-        const tools = await listTools()
+        // 浏览器桥离线 / listTools 抛错时**必须转成 JSON-RPC 错误**，不得让异常穿出 handle()。
+        //
+        // 依据 §三：浏览器不在线时无权威数据，`tools/list` 只能失败——但失败必须是**返回的错误**，
+        // 不是抛出的异常。WS/stdio 宿主只在 `await router.handle(...)` 外层解析 JSON，
+        // 没有 try/catch：异常一旦穿出，就是**未处理的 Promise rejection → 进程退出**。
+        // 真实后果（实机复现）：relay 与站点同源同进程（`npm run serve`）时，
+        // Agent 一调 `tools/list` 就把**整个站点**一起打崩，且 Agent 侧只看到连接断开。
+        let tools
+        try {
+          tools = await listTools()
+        } catch (e) {
+          log(`[relay] listTools 失败：${e?.message ?? e}`)
+          return rpcError(id, -32001, `工具清单不可用：${e?.message ?? String(e)}`)
+        }
         return rpcResult(id, {
           tools: tools.map((t) => ({
             name: t.name,
@@ -239,8 +257,18 @@ export function createMcpRouter({
           }
         } catch (e) {
           log(`[relay] callTool(${name}) 抛错：${e?.message ?? e}`)
+          // 浏览器离线是**前置条件缺失**，不是工具执行异常：给出的提示必须是
+          // 「去把应用打开并启用 AI 桥」，否则 Agent 会以为是自己参数错了而反复重试。
+          const offline = !isBrowserOnline()
           return rpcResult(id, {
-            content: [{ type: 'text', text: `工具执行异常：${e?.message ?? String(e)}` }],
+            content: [
+              {
+                type: 'text',
+                text: offline
+                  ? `应用未连接：寻鸽工作台未连接到 relay（请确保应用已打开并在「设置 → AI Agent 桥」启用）。原始错误：${e?.message ?? String(e)}`
+                  : `工具执行异常：${e?.message ?? String(e)}`,
+              },
+            ],
             isError: true,
           })
         }

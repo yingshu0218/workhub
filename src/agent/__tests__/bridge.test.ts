@@ -186,3 +186,26 @@ describe('Relay 端到端：浏览器连出 × MCP 客户端（进程外 WS）',
     }
   })
 })
+
+describe('桥地址同源推导（Issue #33 整合：relay 内嵌进项目）', () => {
+  it('留空 → 用当前站点同源 /relay（http 页面用 ws:）', async () => {
+    const { resolveBridgeBase, SAME_ORIGIN_RELAY_PATH } = await import('../bridge')
+    const base = resolveBridgeBase('', { protocol: 'http:', host: '8.153.19.221:9001' } as Location)
+    expect(base).toBe(`ws://8.153.19.221:9001${SAME_ORIGIN_RELAY_PATH}`)
+  })
+
+  it('留空 + https 页面 → 自动 wss:（规避混合内容，不必改构建）', async () => {
+    const { resolveBridgeBase } = await import('../bridge')
+    expect(resolveBridgeBase('   ', { protocol: 'https:', host: 'workhub.example.com' } as Location)).toBe('wss://workhub.example.com/relay')
+  })
+
+  it('显式填地址 → 原样使用（兼容独立 relay 进程/端口的老用法）', async () => {
+    const { resolveBridgeBase } = await import('../bridge')
+    expect(resolveBridgeBase('ws://127.0.0.1:8787', { protocol: 'https:', host: 'x' } as Location)).toBe('ws://127.0.0.1:8787')
+  })
+
+  it('无 location（测试环境兜底）→ 回落到本地 127.0.0.1:8787', async () => {
+    const { resolveBridgeBase } = await import('../bridge')
+    expect(resolveBridgeBase('', undefined)).toBe('ws://127.0.0.1:8787')
+  })
+})
