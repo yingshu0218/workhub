@@ -167,4 +167,65 @@ describe('待办列表行点击 → 详情抽屉（Issue #162）', () => {
     // 回填后渲染真实内容
     expect(await screen.findByText(/本周五前给出报价/)).toBeTruthy()
   })
+
+  it('⑧ 深链 /todo?focus=<id> 直达详情抽屉，而非只落到列表', async () => {
+    await db.todos.put(todo() as never)
+    renderApp('/todo?focus=td1')
+    // 深链语义就是「定位到这一条」：直接打开详情，正文全文可见
+    expect(await screen.findByText('待办详情')).toBeTruthy()
+    expect(await screen.findByText(/本周五前给出报价/)).toBeTruthy()
+    // 消费后清参数，避免返回/刷新重复触发
+    expect(document.querySelector('[data-testid=loc]')?.textContent).toBe('/todo')
+  })
+
+  it('⑨ 深链指向已完成条目 → 切「已完成」视图并直达详情', async () => {
+    await db.todos.put(todo({ status: 'done', completedAt: 1_700_000_002_000 }) as never)
+    renderApp('/todo?focus=td1')
+    expect(await screen.findByText('待办详情')).toBeTruthy()
+    expect(await screen.findByText(/本周五前给出报价/)).toBeTruthy()
+  })
+
+  it('⑩ 深链指向不存在的 id → 不弹误导性空态抽屉，静默清参数', async () => {
+    await db.todos.put(todo() as never)
+    renderApp('/todo?focus=不存在')
+    await new Promise((r) => setTimeout(r, 50))
+    expect(screen.queryByText('待办详情')).toBeNull()
+    expect(document.querySelector('[data-testid=loc]')?.textContent).toBe('/todo')
+  })
+
+  it('⑪ 财务凭证详情点「查看待办详情」→ 待办详情抽屉打开（反向穿透对称）', async () => {
+    await db.todos.put(todo() as never)
+    await db.ledgers.put({
+      id: 'l1',
+      name: '主账本',
+      currency: 'CNY',
+      openingBalance: 0,
+      closingCycle: '月结',
+      createdAt: 1,
+      updatedAt: 1,
+      deleted: 0,
+      rev: 0,
+    } as never)
+    await db.transactions.put({
+      id: 't1',
+      ledgerId: 'l1',
+      type: 'income',
+      amount: 2000,
+      summary: '续约首款',
+      channel: '微信',
+      occurredAt: 1_700_000_000_000,
+      tags: [],
+      status: '已结算',
+      todoIds: ['td1'],
+      updatedAt: 1,
+      deleted: 0,
+      rev: 1,
+    } as never)
+
+    renderApp('/finance?focus=t1')
+    // 凭证详情里「查看待办详情」承诺了详情，就应落到详情（此前只 navigate('/todo') 落到列表）
+    fireEvent.click(await screen.findByText('查看待办详情'))
+    expect(await screen.findByText('待办详情')).toBeTruthy()
+    expect(await screen.findByText(/本周五前给出报价/)).toBeTruthy()
+  })
 })

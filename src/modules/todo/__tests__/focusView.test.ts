@@ -13,7 +13,7 @@
  */
 import { describe, it, expect } from 'vitest'
 import type { Todo } from '@/db/types'
-import { isTodoOpen, isTodoDone, isTodoVoided, resolveFocusViewKind } from '../domain'
+import { isTodoOpen, isTodoDone, isTodoVoided, resolveFocusViewKind, todoFocusPath } from '../domain'
 
 const mk = (id: string, status: Todo['status']): Pick<Todo, 'id' | 'status'> => ({ id, status })
 
@@ -57,5 +57,19 @@ describe('深链定位：按目标状态切视图（终态可见性）', () => {
     // 这正是修复前的表现——若回归成一律 'all'，终态目标就又不显示了
     expect(inView(rows[1], 'all')).toBe(false)
     expect(inView(rows[2], 'all')).toBe(false)
+  })
+})
+
+describe('待办详情深链收口 todoFocusPath（Issue #162）', () => {
+  it('① 生成 /todo?focus=<id> 且对特殊字符做编码', () => {
+    expect(todoFocusPath('td1')).toBe('/todo?focus=td1')
+    expect(todoFocusPath('a b&c')).toBe('/todo?focus=a%20b%26c')
+  })
+
+  it('② 四类入口同源：搜索结果 / 时间线骨刺 / 财务凭证文案指向同一路径口径', () => {
+    // 只要都走 todoFocusPath，编码与参数名就不会各写一遍而漂移
+    for (const id of ['td-1', 'td_2', 'td 3']) {
+      expect(todoFocusPath(id)).toBe(`/todo?focus=${encodeURIComponent(id)}`)
+    }
   })
 })

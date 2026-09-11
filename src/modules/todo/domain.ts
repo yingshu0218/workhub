@@ -69,6 +69,18 @@ export function resolveFocusViewKind(
 }
 
 /**
+ * 待办详情深链：`/todo?focus=<todoId>`（Issue #162 收口）
+ *
+ * TodoPage 消费 focus 参数后：切到目标所在视图 → 滚动高亮 → **打开该条详情抽屉**。
+ * 此前该深链在搜索 / CRM 时间线骨刺 / 工作台速记处置三处各写一遍
+ * `encodeURIComponent`，本次收口到一处；财务凭证详情「查看待办详情」也改走本函数，
+ * 与 `financeFocusPath` 同口径，避免「入口承诺详情、实际只落到列表」。
+ */
+export function todoFocusPath(todoId: string): string {
+  return `/todo?focus=${encodeURIComponent(todoId)}`
+}
+
+/**
  * 「今天」口径（待办软件通行做法）：今日截止 ∪ 逾期未完成。
  * 待办中心筛选/计数、工作台今日日程卡、待办达成分母统一引用本函数。
  * 作废条目（Issue #128）不进本口径：事项已终止，不再催办、不计逾期。

@@ -118,8 +118,10 @@ export default function TodoPage() {
     }
   }, [searchParams, setSearchParams])
 
-  // 深链定位：/todo?focus=<todoId>（客户时间线鱼骨穿透入口）——
-  // 默认视图「今天」未必包含目标，先切「全部待办」确保可见，再滚动 + 高亮 + 挂临时 ring
+  // 深链定位：/todo?focus=<todoId>（客户时间线鱼骨 / ⌘K 搜索 / 工作台速记 / 财务凭证穿透入口）——
+  // 默认视图「今天」未必包含目标，先切到目标所在视图确保可见，滚动 + 高亮 + 挂临时 ring，
+  // 并**直达单条详情抽屉**（Issue #162 收口）：深链语义就是「定位到这一条」，
+  // 只切视图+滚动、不打开详情，入口承诺的详情仍要用户再点一次行，观感等同「点了没进去」。
   const focusId = searchParams.get('focus') ?? undefined
   const [focusRingId, setFocusRingId] = useState<string | null>(null)
   const rowRefs = useRef<Map<string, HTMLDivElement>>(new Map())
@@ -133,7 +135,14 @@ export default function TodoPage() {
     setSelListId(null)
     setSelKind(resolveFocusViewKind(todos, focusId))
     setChipPriority(null)
-    // 等过滤切换生效、列表重渲染后再滚动定位
+    // 直达详情：仅当目标真实存在（库内已回填）才打开，避免首帧 todos 为空时闪空态抽屉；
+    // 记录被删/不存在时保持既有滚动兜底路径（不弹误导性空态）。
+    if (todos.some((t) => t.id === focusId)) {
+      setDetailId(focusId)
+      setSearchParams({}, { replace: true })
+      return
+    }
+    // 目标尚未回填（首帧）：等过滤切换生效、列表重渲染后再滚动定位
     const t = window.setTimeout(() => {
       const el = rowRefs.current.get(focusId)
       if (el) {
