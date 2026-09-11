@@ -173,10 +173,10 @@ export function useCustomerScoreInput(
   const rows = useQuery<CustomerScoreRows>(async () => {
     if (!customerId) return { transactions: [], todos: [], projects: [], interactions: [] }
     const [transactions, todos, projects, interactions] = await Promise.all([
+      // 多关联（Issue #140 v11）：transactions 关联已数组化、customerId 索引已删，改内存过滤
+      // （理由见 db.ts v11 注释）。旧写法 where('customerId') 抛 SchemaError → 详情页崩溃。
       db.transactions
-        .where('customerId')
-        .equals(customerId)
-        .filter((t) => !t.deleted)
+        .filter((t) => !t.deleted && txnCustomerIds(t).includes(customerId))
         .toArray(),
       db.todos
         .where('customerId')

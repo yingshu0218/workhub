@@ -42,6 +42,11 @@ const patterns = [
   /\bicon="([a-z0-9_]+)"/g,
   /\bicon:\s*'([a-z0-9_]+)'/g,
 ]
+// 表达式形态：name={cond ? 'call_made' : 'call_received'} / icon={x || 'expand_more'}。
+// 静态字面量正则扫不到三元/短路表达式里的图标名，曾漏掉 call_made/call_received
+// 这类「行内图标整体隐形」的问题；这里把 {} 表达式内的字符串字面量也纳入扫描。
+const exprPatterns = [/\bname=\{([^}]*)\}/g, /\bicon=\{([^}]*)\}/g]
+const stringLiteral = /'([a-z0-9_]+)'/g
 for (const file of walk(SRC)) {
   if (file.endsWith('Icon.tsx')) continue
   const lines = readFileSync(file, 'utf8').split('\n')
@@ -52,6 +57,17 @@ for (const file of walk(SRC)) {
         const name = m[1]
         if (!used.has(name)) used.set(name, [])
         used.get(name).push(`${relative(ROOT, file)}:${i + 1}`)
+      }
+    }
+    for (const re of exprPatterns) {
+      re.lastIndex = 0
+      for (const m of line.matchAll(re)) {
+        stringLiteral.lastIndex = 0
+        for (const lit of m[1].matchAll(stringLiteral)) {
+          const name = lit[1]
+          if (!used.has(name)) used.set(name, [])
+          used.get(name).push(`${relative(ROOT, file)}:${i + 1}`)
+        }
       }
     }
   })

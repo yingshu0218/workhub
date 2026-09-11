@@ -82,7 +82,9 @@ export function buildSearchIndex(inputs: {
       type: 'todo',
       title: t.title,
       subtitle: statusTag ? `${statusTag} · ${t.desc}` : t.desc,
-      path: '/todo',
+      // 深链定位（与时间线骨刺穿透同款口径）：/todo?focus=<id>，避免「点了结果只落到列表、
+      // 目标条目在默认视图外 → 观感等同没反应」。TodoPage 消费 focus 后切视图 + 滚动高亮。
+      path: `/todo?focus=${encodeURIComponent(t.id)}`,
     })
   }
   for (const t of inputs.transactions) {
@@ -91,7 +93,9 @@ export function buildSearchIndex(inputs: {
       type: 'transaction',
       title: t.summary,
       subtitle: `${t.type === 'income' ? '收入' : '支出'} ${fmtAmount(t.amount)} · ${t.status}`,
-      path: '/finance',
+      // 深链定位（与时间线骨刺穿透同款口径）：/finance?focus=<id>，FinancePage 消费后直接
+      // 打开该笔凭证详情抽屉。不带 focus 只会落到财务中心列表，观感上「点详情没反应」。
+      path: `/finance?focus=${encodeURIComponent(t.id)}`,
     })
   }
   for (const n of inputs.notes) {

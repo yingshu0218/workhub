@@ -109,10 +109,11 @@ export function useCustomerTimeline(customerId: string | undefined): TimelineEve
         .equals(customerId)
         .filter((i) => !i.deleted)
         .toArray(),
+      // 多关联（Issue #140 v11）：transactions 关联已数组化、customerId 索引已删，
+      // 必须内存过滤（同 useCustomerTransactions / deleteCustomerCascade 口径，理由见 db.ts v11 注释）。
+      // 旧写法 where('customerId') 会抛 SchemaError，被 useQuery 吞成空列表 → 详情页整块崩溃。
       db.transactions
-        .where('customerId')
-        .equals(customerId)
-        .filter((t) => !t.deleted)
+        .filter((t) => !t.deleted && txnCustomerIds(t).includes(customerId))
         .toArray(),
       db.todos
         .where('customerId')
