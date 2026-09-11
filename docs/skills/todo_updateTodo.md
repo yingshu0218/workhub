@@ -19,6 +19,7 @@
 | `customerId` | string | 否 | — |  |
 | `projectId` | string | 否 | — |  |
 | `listId` | string | 否 | — |  |
+| `tags` | array | 否 | — |  |
 
 ## 副作用
 
@@ -34,7 +35,7 @@
 
 ## 实体引用规则
 
-实体引用（客户/项目/待办/账本/习惯）必须先调 `resolveEntity` 消解；候选不唯一必须反问答用户，禁止猜 id。 todoId 必填；更换 customerId/projectId 时目标须为真实 id。完成态请改用 todo_completeTodo。**正文口径**：传 content = 整体替换正文（标题随之由首行重推）；只传 title = 只改标题；只传 desc = 只改备注；title+desc 同传 = 整体替换。
+实体引用（客户/项目/待办/账本/习惯）必须先调 `resolveEntity` 消解；候选不唯一必须反问答用户，禁止猜 id。 todoId 必填；更换 customerId/projectId 时目标须为真实 id。完成态请改用 todo_completeTodo。**正文口径**：传 content = 整体替换正文（标题随之由首行重推）；只传 title = 只改标题；只传 desc = 只改备注；title+desc 同传 = 整体替换。**tags 为整组替换**（传 `[]` 清空，不传则不动）。
 
 ## 典型说法
 

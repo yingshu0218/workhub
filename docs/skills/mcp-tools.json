@@ -347,7 +347,7 @@
               "P2",
               "P3"
             ],
-            "default": "mid"
+            "default": "none"
           },
           "dueAt": {
             "type": "number"
@@ -360,6 +360,12 @@
           },
           "projectId": {
             "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -466,6 +472,12 @@
           },
           "listId": {
             "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "required": [
