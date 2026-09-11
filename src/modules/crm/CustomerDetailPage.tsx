@@ -16,6 +16,7 @@ import {
 } from '@/design-system/ui'
 import dayjs from 'dayjs'
 import { isTodoOpen } from '@/modules/todo/domain'
+import { todoPriorityLabel, todoPriorityTone } from '@/modules/todo/priority'
 import CustomerFormDrawer from './CustomerFormDrawer'
 import { useCustomerTodos, useCustomerTransactions } from './hooks'
 import { financeFocusPath } from '@/modules/finance/links'
@@ -229,9 +230,9 @@ export default function CustomerDetailPage() {
                   >
                     <span className="truncate">{t.title}</span>
                     <Chip
-                      tone={t.priority === 'P1' ? 'red' : t.priority === 'P2' ? 'amber' : 'gray'}
+                      tone={todoPriorityTone(t.priority)}
                     >
-                      {t.priority}
+                      {todoPriorityLabel(t.priority)}
                     </Chip>
                   </div>
                 ))}
@@ -726,9 +727,7 @@ function TimelineItem({
           <Chip tone={done ? 'green' : voided ? 'gray' : 'amber'} icon={voided ? 'block' : KIND_ICONS.todo}>
             {done ? '完成待办' : voided ? '作废待办' : '新增待办'}
           </Chip>
-          <Chip tone={event.priority === 'P1' ? 'red' : event.priority === 'P2' ? 'amber' : 'gray'}>
-            {event.priority}
-          </Chip>
+          <Chip tone={todoPriorityTone(event.priority)}>{todoPriorityLabel(event.priority)}</Chip>
           <span className="text-[0.8571rem] text-outline">{fmtTimelineTime(event.at)}</span>
         </div>
         <p className="mt-1 rounded-lg bg-surface-container-low/50 px-3 py-2 text-[0.9286rem] leading-relaxed">

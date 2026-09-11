@@ -10,6 +10,7 @@ import { archivedLast, fuzzyMatch, fuzzySort, MatchCombobox } from '@/design-sys
 import { toArchivedFlag } from '@/shared/search'
 import dayjs from 'dayjs'
 import { todoStatusLabel } from '@/modules/todo/domain'
+import { todoPriorityFullLabel } from '@/modules/todo/priority'
 import { EditorState } from '@codemirror/state'
 import { EditorView, keymap, lineNumbers, placeholder } from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
@@ -428,7 +429,7 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
         type: 'todo',
         id: t.id,
         label: t.title,
-        sub: `${t.priority} · ${todoStatusLabel(t)}`,
+        sub: `${todoPriorityFullLabel(t.priority)} · ${todoStatusLabel(t)}`,
       })),
       ...ledgers.map<MentionItem>((l) => ({
         type: 'ledger',
@@ -1165,7 +1166,7 @@ function MentionEntitySummary({
           label="状态"
           value={todoStatusLabel(t)}
         />
-        <CardRow label="优先级" value={t.priority} />
+        <CardRow label="优先级" value={todoPriorityFullLabel(t.priority)} />
         <CardRow label="截止" value={t.dueAt ? dayjs(t.dueAt).format('YYYY-MM-DD') : '无'} />
       </>
     )

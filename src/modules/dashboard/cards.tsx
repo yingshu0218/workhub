@@ -15,6 +15,7 @@ import {
   isTodoDueToday,
   overdueDays,
 } from '@/modules/todo/domain'
+import { isHighPriority, todoPriorityFullLabel } from '@/modules/todo/priority'
 import { useCallback, useRef, useState } from 'react'
 import type { Todo, Customer, Ledger, Habit, HabitLog, QuickNote, Note } from '@/db/types'
 import dayjs from 'dayjs'
@@ -117,7 +118,7 @@ export function FocusCard() {
                   options={openTodos.map((t) => ({
                     id: t.id,
                     label: t.title,
-                    sub: t.priority,
+                    sub: todoPriorityFullLabel(t.priority),
                     icon: 'task_alt',
                   }))}
                   placeholder="自由专注：不选即不关联待办，可输入标题模糊搜索"
@@ -299,8 +300,9 @@ export function TodayTodosCard() {
               {isOver
                 ? `${dayjs(t.dueAt).format('M月D日 HH:mm')} · ${overdueFor(t)}`
                 : `${dayjs(t.dueAt).format('HH:mm')} 到期`}
-              {t.priority === 'P1' && (
-                <span className="ml-1.5 font-medium text-danger">P1 紧急</span>
+              {/* 只有高优先级（重要紧急）在日程行加红字提醒，其余档位不加重噪音（Issue #148 后续） */}
+              {isHighPriority(t) && (
+                <span className="ml-1.5 font-medium text-danger">高 · 重要紧急</span>
               )}
             </div>
           )}

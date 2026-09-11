@@ -78,7 +78,7 @@ describe('todo_updateTodo：nullable 三态与完成态隔离', () => {
       id,
       title: '旧标题',
       desc: '',
-      priority: 'P2',
+      priority: 'mid',
       status: 'todo',
       customerId: 'cus:1',
       createdAt: 1,
@@ -97,7 +97,7 @@ describe('todo_updateTodo：nullable 三态与完成态隔离', () => {
     expect(after!.title).toBe('新标题')
     expect(after!.customerId).toBeUndefined()
     // 未传字段不动
-    expect(after!.priority).toBe('P2')
+    expect(after!.priority).toBe('mid')
   })
 
   it('不写 status/completedAt（完成态唯一入口仍是 todo_completeTodo）', async () => {
@@ -106,7 +106,7 @@ describe('todo_updateTodo：nullable 三态与完成态隔离', () => {
       id,
       title: 'T',
       desc: '',
-      priority: 'P2',
+      priority: 'mid',
       status: 'todo',
       createdAt: 1,
       updatedAt: 1,
@@ -131,7 +131,7 @@ describe('todo_updateTodo：nullable 三态与完成态隔离', () => {
       id,
       title: 'T',
       desc: '',
-      priority: 'P2',
+      priority: 'mid',
       status: 'todo',
       createdAt: 1,
       updatedAt: 1,
@@ -149,7 +149,7 @@ describe('todo_updateTodo：nullable 三态与完成态隔离', () => {
       id,
       title: 'T',
       desc: '',
-      priority: 'P2',
+      priority: 'mid',
       status: 'todo',
       createdAt: 1,
       updatedAt: 1,
@@ -169,7 +169,7 @@ describe('删除类：软删 + 副作用清单 + 幂等', () => {
       id,
       title: 'T',
       desc: '',
-      priority: 'P2',
+      priority: 'mid',
       status: 'todo',
       createdAt: 1,
       updatedAt: 1,
@@ -190,7 +190,7 @@ describe('删除类：软删 + 副作用清单 + 幂等', () => {
       id,
       title: 'T',
       desc: '',
-      priority: 'P2',
+      priority: 'mid',
       status: 'todo',
       createdAt: 1,
       updatedAt: 1,

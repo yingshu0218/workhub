@@ -13,6 +13,7 @@ import type {
   Transaction,
 } from '@/db/types'
 import { isTodoOpen, isTodoDone } from '@/modules/todo/domain'
+import { normalizeTodoPriority } from '@/modules/todo/priority'
 import type { computeIntimacyScore } from './intimacy'
 
 /**
@@ -52,7 +53,7 @@ export interface CanvasGraph {
     id: string
     customerId: string
     title: string
-    priority: 'P1' | 'P2' | 'P3'
+    priority: Todo['priority']
     status: Todo['status']
     projectId?: string
   }[]
@@ -135,7 +136,8 @@ export function useCanvasGraph(): CanvasGraph {
         id: t.id,
         customerId: t.customerId ?? '',
         title: t.title,
-        priority: t.priority,
+        // 读投影归一化：存量 P1/P2/P3 也要能在图谱/健康分里按四档判定（Issue #148 后续）
+        priority: normalizeTodoPriority(t.priority),
         status: t.status,
         projectId: t.projectId ?? undefined,
       })),

@@ -1,11 +1,12 @@
 import dayjs from 'dayjs'
 import type { Customer, Todo, Transaction, Note } from '@/db/types'
+import { normalizeTodoPriority, todoPriorityFullLabel } from '@/modules/todo/priority'
 import { isTodoOpen } from '@/modules/todo/domain'
 import { txnCustomerIds } from '@/modules/finance/links'
 
 /**
  * 灵感闪现规则引擎（Phase 6 · 戒点①：权重一律从源记录推导，不存快照）
- * 候选源：逾期待办（P1 权重最高）/ 到期日程 / 待对账交易 / 久未跟进客户（距今天数 × 分层权重 S>A>B）/ 沉睡笔记（30 天未更新）
+ * 候选源：逾期待办（高/重要紧急权重最高）/ 到期日程 / 待对账交易 / 久未跟进客户（距今天数 × 分层权重 S>A>B）/ 沉睡笔记（30 天未更新）
  * 每类候选输出 理由文案 + 关联实体上下文 + 匹配合度%（原始分对最高分归一化）
  */
 
@@ -36,7 +37,17 @@ export interface InspirationCandidate {
   context: CandidateContext[]
 }
 
-const PRIORITY_BASE: Record<Todo['priority'], number> = { P1: 100, P2: 75, P3: 55 }
+/**
+ * 优先级权重（Issue #148 后续）：四档「重要 × 紧急」直接给基础分——
+ * 高（重要紧急）最高，中（重要不紧急）次之，低（不重要紧急）再次，无（都不）最低。
+ * 真实权重走 `todoPriorityWeight` 单一来源，本表只做引擎内的固定基准入口。
+ */
+const PRIORITY_BASE: Record<Todo['priority'], number> = {
+  high: 100,
+  mid: 75,
+  low: 55,
+  none: 30,
+}
 /** 客户分层权重：S > A > B（潜在不计入） */
 const TIER_WEIGHT: Record<string, number> = { S: 6, A: 4, B: 2.5 }
 
@@ -78,15 +89,16 @@ function buildCandidates(input: EngineInput): InspirationCandidate[] {
 
     if (overdueMs > 0) {
       const overdueDays = Math.floor(overdueMs / 86400_000)
-      const score = PRIORITY_BASE[t.priority] + Math.min(40, overdueDays * 8)
+      // 存量 P1/P2/P3 先归一化再取权重，避免旧数据在引擎里拿到 undefined 分数
+      const score = PRIORITY_BASE[normalizeTodoPriority(t.priority)] + Math.min(40, overdueDays * 8)
       candidates.push({
         id: `cand-todo-${t.id}`,
         kind: 'overdue-todo',
         title: t.title,
         reason:
           overdueDays >= 1
-            ? `已逾期 ${overdueDays} 天 · ${t.priority} 紧急事项，商业影响最高`
-            : `今天 ${dayjs(t.dueAt).format('HH:mm')} 截止已过 · ${t.priority} 优先级`,
+            ? `已逾期 ${overdueDays} 天 · ${todoPriorityFullLabel(t.priority)}，商业影响最高`
+            : `今天 ${dayjs(t.dueAt).format('HH:mm')} 截止已过 · ${todoPriorityFullLabel(t.priority)}`,
         score,
         match: 0,
         todoId: t.id,
@@ -97,12 +109,12 @@ function buildCandidates(input: EngineInput): InspirationCandidate[] {
       const dueToday = dayjs(t.dueAt).isSame(dayjs(), 'day')
       if (!dueToday) continue
       const hoursLeft = Math.max(0, Math.floor(overdueMs / -3600_000))
-      const score = PRIORITY_BASE[t.priority] * 0.8 + Math.max(0, 20 - hoursLeft)
+      const score = PRIORITY_BASE[normalizeTodoPriority(t.priority)] * 0.8 + Math.max(0, 20 - hoursLeft)
       candidates.push({
         id: `cand-todo-${t.id}`,
         kind: 'due-todo',
         title: t.title,
-        reason: `今天 ${dayjs(t.dueAt).format('HH:mm')} 截止 · 剩余 ${hoursLeft} 小时 · ${t.priority}`,
+        reason: `今天 ${dayjs(t.dueAt).format('HH:mm')} 截止 · 剩余 ${hoursLeft} 小时 · ${todoPriorityFullLabel(t.priority)}`,
         score,
         match: 0,
         todoId: t.id,

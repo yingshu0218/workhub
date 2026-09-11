@@ -37,7 +37,7 @@ function todo(id: string) {
     id,
     title: '回访客户',
     desc: '',
-    priority: 'P1' as const,
+    priority: 'high' as const,
     status: 'todo' as const,
     createdAt: 1,
     updatedAt: 1,

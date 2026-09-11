@@ -179,7 +179,7 @@ function todo(id: string, over: Record<string, unknown> = {}) {
     id,
     title: '待办',
     desc: '',
-    priority: 'P2' as const,
+    priority: 'mid' as const,
     status: 'todo' as const,
     createdAt: 0,
     updatedAt: 0,

@@ -286,7 +286,7 @@ describe('P1 第 7 步 E2E 主干验收（§9.8）', () => {
     const todoRes = await mcp.callTool('todo_createTodo', {
       title: '周五回访王五',
       customerId,
-      priority: 'P1',
+      priority: 'high',
     })
     expect(todoRes.ok, todoRes.text).toBe(true)
     const todoId = (todoRes.data as { todoId: string }).todoId
@@ -479,7 +479,7 @@ describe('P1 第 7 步 E2E 主干验收（§9.8）', () => {
       id: tid,
       title: '临时想法',
       desc: '',
-      priority: 'P2',
+      priority: 'mid',
       status: 'todo',
       createdAt: Date.now(),
       updatedAt: 0,

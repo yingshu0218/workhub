@@ -337,11 +337,15 @@
           "priority": {
             "type": "string",
             "enum": [
+              "high",
+              "mid",
+              "low",
+              "none",
               "P1",
               "P2",
               "P3"
             ],
-            "default": "P2"
+            "default": "mid"
           },
           "dueAt": {
             "type": "number"
@@ -440,6 +444,10 @@
           "priority": {
             "type": "string",
             "enum": [
+              "high",
+              "mid",
+              "low",
+              "none",
               "P1",
               "P2",
               "P3"
@@ -920,6 +928,10 @@
           "priority": {
             "type": "string",
             "enum": [
+              "high",
+              "mid",
+              "low",
+              "none",
               "P1",
               "P2",
               "P3"
@@ -931,7 +943,10 @@
           "projectId": {
             "type": "string"
           }
-        }
+        },
+        "required": [
+          "priority"
+        ]
       },
       "annotations": {
         "risk": "low",

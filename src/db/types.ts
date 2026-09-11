@@ -122,7 +122,15 @@ export interface Todo extends SyncMeta {
   id: string
   title: string
   desc: string
-  priority: 'P1' | 'P2' | 'P3'
+  /**
+   * 四档优先级（Issue #148 后续）：high 高 / mid 中 / low 低 / none 无。
+   * 语义为「重要 × 紧急」四象限，判定与展示一律走 `modules/todo/priority.ts`。
+   * 兼容：存量数据与已分发的 Agent 契约仍是 P1/P2/P3，读侧由
+   * `normalizeTodoPriority` 归一化（P1→high / P2→mid / P3→low），写侧接受别名。
+   * 为什么不为此升级 Dexie 版本：`high|mid|low|none` 与 `P1|P2|P3` 都不含 Dexie
+   * 复合键分隔符，同一个 priority 索引继续可用；远端 `priority` 是自由 text 字段。
+   */
+  priority: 'high' | 'mid' | 'low' | 'none'
   dueAt?: number
   /**
    * 三态（Issue #74 收窄为两态，Issue #128 扩入 'voided'「已作废」）：

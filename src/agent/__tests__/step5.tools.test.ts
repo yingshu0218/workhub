@@ -55,7 +55,7 @@ function newCustomer(id: string, over: Partial<Customer> = {}): Customer {
 
 function newTodo(id: string, over: Partial<Todo> = {}): Todo {
   return {
-    id, title: '回访王五', desc: '', priority: 'P2', status: 'todo', createdAt: Date.now(),
+    id, title: '回访王五', desc: '', priority: 'mid', status: 'todo', createdAt: Date.now(),
     updatedAt: 0, deleted: 0, rev: 0, ...over,
   } as Todo
 }

@@ -25,7 +25,7 @@ import { setTodoVoided, voidTodo, restoreTodo, toggleTodoDone } from '../toggle'
 const base = { desc: '', updatedAt: 0, deleted: 0 as const, rev: 0, createdAt: 1 }
 
 function mk(id: string, status: Todo['status'], extra: Partial<Todo> = {}): Todo {
-  return { ...base, id, title: `任务 ${id}`, priority: 'P2', status, ...extra }
+  return { ...base, id, title: `任务 ${id}`, priority: 'mid', status, ...extra }
 }
 
 beforeEach(async () => {

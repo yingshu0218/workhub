@@ -18,6 +18,7 @@ import {
 } from './links'
 import dayjs from 'dayjs'
 import { isTodoOpen } from '@/modules/todo/domain'
+import { todoPriorityFullLabel } from '@/modules/todo/priority'
 
 const CHANNELS = ['微信', '支付宝', '银行卡', '现金', '对公转账'] as const
 const MAX_ATTACHMENT_SIZE = 5 * 1024 * 1024
@@ -120,7 +121,7 @@ export default function TransactionFormDrawer({
   const todoOptions: { id: string; label: string; sub?: string; icon?: string }[] = openTodos.map((t) => ({
     id: t.id,
     label: t.title,
-    sub: t.priority,
+    sub: todoPriorityFullLabel(t.priority),
     icon: 'task_alt',
   }))
   // 多值版「已完结待办回填」：任一已选待办不在未完成列表时，把它的已完成记录补进候选

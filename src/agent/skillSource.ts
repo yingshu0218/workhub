@@ -123,7 +123,7 @@ export const WRITE_TOOL_SKILLS: ToolSkillMeta[] = [
     sideEffect: '写入一条待办（todos）。无领域事件。',
     idempotency: '非幂等：同标题会重复创建。',
     entityRule: `${RESOLVE_FIRST} customerId/projectId/listId 若提供必须为真实 id。dueAt 为毫秒时间戳。`,
-    examples: ['周五前给深蓝出方案，P1 优先级'],
+    examples: ['周五前给深蓝出方案，高优先级'],
   },
   {
     name: 'todo_completeTodo',
@@ -152,7 +152,7 @@ export const WRITE_TOOL_SKILLS: ToolSkillMeta[] = [
     sideEffect: '更新待办字段（todos）。传 null 表示**清空**该关联（如取消挂靠客户）。无领域事件。',
     idempotency: '幂等：同一组字段重复提交结果一致。',
     entityRule: `${RESOLVE_FIRST} todoId 必填；更换 customerId/projectId 时目标须为真实 id。完成态请改用 todo_completeTodo。`,
-    examples: ['把「出方案」改成 P1，截止到周五', '取消这条待办的项目关联'],
+    examples: ['把「出方案」改成高优先级，截止到周五', '取消这条待办的项目关联'],
   },
   {
     name: 'todo_deleteTodo',

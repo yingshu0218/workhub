@@ -11,6 +11,7 @@ import { describe, it, expect } from 'vitest'
 import { render } from '@testing-library/react'
 import { deriveTodoTitle, joinTodoText, TodoFormDrawer } from '../TodoPage'
 import { quickCaptureTodoTitle } from '@/modules/notes/quickCapture'
+import type { Todo } from '@/db/types'
 
 describe('① 正文首行 → 待办标题', () => {
   it('首行作标题，第二行起不入标题', () => {
@@ -79,5 +80,44 @@ describe('③ 表单布局：无独立标题输入，底部窄字段同处一个
     for (const label of ['截止时间', '所属清单', '所属项目', '关联客户']) {
       expect(text).toContain(label)
     }
+  })
+})
+
+describe('④ 优先级四档（Issue #148 后续）：高/中/低/无 + 象限示意', () => {
+  it('表单渲染四档按钮，各自带象限示意', () => {
+    const { container } = render(<TodoFormDrawer open={true} todo={null} onClose={() => {}} />)
+    const text = container.textContent ?? ''
+    for (const label of ['高', '中', '低', '无']) expect(text).toContain(label)
+    for (const q of ['重要紧急', '重要不紧急', '不重要紧急', '不重要不紧急']) {
+      expect(text).toContain(q)
+    }
+  })
+
+  it('不再出现 P1/P2/P3 字样（旧档位不进 UI）', () => {
+    const { container } = render(<TodoFormDrawer open={true} todo={null} onClose={() => {}} />)
+    const text = container.textContent ?? ''
+    expect(text).not.toContain('P1')
+    expect(text).not.toContain('P2')
+    expect(text).not.toContain('P3')
+  })
+
+  it('存量 P1 数据回填为「高」档，编辑保存即完成归一化', () => {
+    const legacy = {
+      id: 'td-legacy',
+      title: '老数据',
+      desc: '',
+      priority: 'P1',
+      status: 'todo' as const,
+      createdAt: Date.now(),
+      updatedAt: 0,
+      deleted: 0 as const,
+      rev: 0,
+    } as unknown as Todo
+    const { container } = render(<TodoFormDrawer open={true} todo={legacy} onClose={() => {}} />)
+    // 选中档位的按钮带 primary 高亮，且提示文案是「高」档的行动指引
+    const selected = container.querySelector('.bg-primary-fixed')
+    expect(selected?.textContent).toContain('高')
+    expect(selected?.textContent).toContain('重要紧急')
+    expect(container.textContent).toContain('立刻做：救火与关键节点，别排期')
   })
 })
