@@ -95,7 +95,7 @@ describe('todo_updateTodo：nullable 三态与完成态隔离', () => {
     expect(r.ok).toBe(true)
     const after = await db.todos.get(id)
     expect(after!.title).toBe('新标题')
-    expect(after!.customerIds).toEqual([])
+    expect(after!.customerId).toBeUndefined()
     // 未传字段不动
     expect(after!.priority).toBe('P2')
   })
