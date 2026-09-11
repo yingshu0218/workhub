@@ -877,14 +877,22 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
         )}
       </div>
 
-      {/* 编辑态：双栏源码 + 实时预览；查看态：整宽最终渲染 */}
-      <div className="flex min-h-0 flex-1 overflow-hidden surface-card-xl shadow-sm">
+      {/* 编辑态：双栏源码 + 实时预览；查看态：整宽最终渲染
+          关预览（Issue #158 四轮，方案 3）：外层容器去卡片装饰（白底/边框/圆角/阴影），
+          卡片视觉随「居中的编辑栏」走 —— 否则横条只收窄到 56rem、卡片边框仍铺满整宽，
+          右端会出现一段灰底横条的硬边断层（三轮复核实测：卡片右边 1412 vs 头条右边 1228）。 */}
+      <div
+        data-testid="note-editor-shell"
+        className={`flex min-h-0 flex-1 overflow-hidden ${
+          editing && !previewOn ? '' : 'surface-card-xl shadow-sm'
+        }`}
+      >
         {editing && (
-          /* 关闭预览（Issue #158 二轮）：编辑栏居中收窄到可读行宽，不再整宽铺开（不是「展开」） */
+          /* 关闭预览：编辑栏居中收窄到可读行宽（不是「展开」），并自身成卡片 */
           <div
             data-testid="note-editor-pane"
             className={`flex min-w-0 flex-1 flex-col overflow-hidden ${
-              previewOn ? '' : 'mx-auto w-full max-w-[56rem]'
+              previewOn ? '' : 'mx-auto w-full max-w-[56rem] surface-card-xl shadow-sm'
             }`}
           >
             <div className="flex items-center justify-between border-b border-outline-variant/30 bg-surface-container-low/40 px-4 py-1.5 text-[0.7857rem] font-medium tracking-wide text-outline">

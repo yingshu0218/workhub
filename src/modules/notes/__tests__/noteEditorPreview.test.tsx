@@ -66,6 +66,13 @@ function editorPane(): HTMLElement {
   return el
 }
 
+/** 外层容器：卡片装饰（白底/边框/圆角/阴影）的挂载点，关态应移交给编辑栏自身 */
+function editorShell(): HTMLElement {
+  const el = document.querySelector('[data-testid="note-editor-shell"]') as HTMLElement | null
+  if (!el) throw new Error('editor shell missing')
+  return el
+}
+
 /** 详情侧栏（反向链接 / @提及）：编辑态关预览时应整条收起 */
 function detailAside(): HTMLElement {
   const el = document.querySelector('[data-testid="note-detail-aside"]') as HTMLElement | null
@@ -129,6 +136,29 @@ describe('② 关闭：右栏正文收起，开关常驻可切回', () => {
     expect(detailAside().className).toContain('xl:flex')
   })
 
+  it('关态卡片不出现横条断层：装饰从外层容器移交居中编辑栏自身', async () => {
+    await db.notes.put(note('n-card') as never)
+    renderEditor('n-card')
+    await screen.findByText('LIVE PREVIEW')
+
+    // 开态：外层容器承载卡片装饰，编辑栏自身不叠一层装饰
+    expect(editorShell().className).toContain('surface-card-xl')
+    expect(editorPane().className).not.toContain('surface-card-xl')
+
+    act(() => switchEl().click())
+    // 关态：外层容器去装饰（否则横条收窄 56rem、卡片边框铺满整宽 → 右端灰底硬边断层），
+    // 卡片视觉落在居中的编辑栏上，头条与卡片边界重合
+    expect(editorShell().className).not.toContain('surface-card-xl')
+    expect(editorPane().className).toContain('surface-card-xl')
+    expect(editorPane().className).toContain('mx-auto')
+    expect(editorPane().className).toContain('max-w-[56rem]')
+
+    // 切回开态恢复原装修，不残留
+    act(() => switchEl().click())
+    expect(editorShell().className).toContain('surface-card-xl')
+    expect(editorPane().className).not.toContain('surface-card-xl')
+  })
+
   it('同页双向切换互不残留：开→关→开 后 aria-checked 与内容一致', async () => {
     await db.notes.put(note('n-toggle-twice') as never)
     renderEditor('n-toggle-twice')
@@ -177,6 +207,8 @@ describe('③ 偏好持久化：localStorage 决定初次渲染', () => {
     expect(await screen.findByRole('button', { name: /编辑/ })).toBeTruthy()
     expect(previewBody()?.querySelector('strong')).toBeTruthy()
     expect(screen.queryByRole('switch')).toBeNull()
+    // 查看态仍由外层容器承载卡片装修，不被关态规则误伤（整宽渲染无断层）
+    expect(editorShell().className).toContain('surface-card-xl')
   })
 })
 
