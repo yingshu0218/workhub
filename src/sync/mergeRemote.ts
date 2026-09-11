@@ -1,4 +1,5 @@
 import { db } from '@/db/db'
+import { normalizeTxnLinks } from '@/modules/finance/links'
 
 /**
  * 远端记录 → 本地 LWW 合并（从 pocketbaseAdapter 抽出，Issue #130）
@@ -48,8 +49,12 @@ async function hasPendingUpsert(table: string, recordId: string): Promise<boolea
 /**
  * 需要落库为数组的 json 字段（服务端可能返回 JSON 字符串）。
  * 只用于「远端缺该字段时是否兜底」的判断，不再承担反序列化职责 —— 见 rawJsonFromRemote。
+ *
+ * Issue #140 补充：transactions 的 `customerIds/todoIds/projectIds` 同为 json 数组字段 ——
+ * 服务端集合未升级时这些键根本不会回来，本地数组会被整体覆盖丢掉（与 relations 同源的静默丢数据），
+ * 故必须并入本表走「远端可解析才覆盖、否则保留本地」的收口逻辑。
  */
-const JSON_ARRAY_FIELDS = ['tags', 'relations'] as const
+const JSON_ARRAY_FIELDS = ['tags', 'relations', 'customerIds', 'todoIds', 'projectIds'] as const
 
 /**
  * json 字段（customers.tags / customers.relations / customers.intimacy 等）归一化为数组，
@@ -219,6 +224,22 @@ export async function mergeRemoteRecord(
         else merged[key] = localVal
       }
     }
+    // transactions 多关联（Issue #140）：数组字段同款收口 + 旧单值字段归一化。
+    // 两条真实路径都要挡：
+    // ① 服务端集合未升级（collections.json 未导入）→ 远端没有 customerIds 键，
+    //    直接展开 = 本地刚选的关联被静默清空；
+    // ② 老客户端仍推来旧键 customerId（多端混装期）→ 需折进数组，不能另存一份。
+    // normalizeTxnLinks 同时做这两件事，并把旧键删掉（双写不双读）。
+    if (table === 'transactions') {
+      for (const key of ['customerIds', 'todoIds', 'projectIds'] as const) {
+        const localVal = merged[key]
+        const parsed = toArrayField(merged[key])
+        if (parsed) merged[key] = parsed
+        else if (localVal === undefined) delete merged[key]
+        else merged[key] = localVal
+      }
+      normalizeTxnLinks(merged)
+    }
     await attachBlobIfNeeded(table, remote, merged, loadAttachmentBlob)
     await table0.put(merged)
     return 'write'
@@ -295,6 +316,19 @@ export async function mergeRemoteRecord(
       // 服务端 Schema 缺 relations 字段（collections.json 未导入/未升级）或返回空值：保留本地
       record.relations = localRels
     }
+  }
+
+  // transactions 多关联（Issue #140）：同上，LWW 分支同样要收口 —— 远端没带的数组字段
+  // 不能因为「远端更新」就被清掉（远端 updatedAt 更新只代表记录被改过，不代表关联被清空）。
+  if (table === 'transactions') {
+    for (const key of ['customerIds', 'todoIds', 'projectIds'] as const) {
+      const localVal = local?.[key]
+      const parsed = toArrayField(record[key])
+      if (parsed) record[key] = parsed
+      else if (localVal === undefined) delete record[key]
+      else record[key] = localVal
+    }
+    normalizeTxnLinks(record)
   }
 
   await attachBlobIfNeeded(table, remote, record, loadAttachmentBlob)

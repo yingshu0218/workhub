@@ -179,12 +179,32 @@ describe('C. 读工具：投影白名单 + 条数上限（§2.2 / §10.4）', ()
   })
 
   it('listTransactions 支持 customerId/status/日期范围过滤', async () => {
-    await db.transactions.put(newTxn('t1', { customerId: 'c1', occurredAt: Date.parse('2026-09-01') }))
-    await db.transactions.put(newTxn('t2', { customerId: 'c2', occurredAt: Date.parse('2026-09-20') }))
+    // Issue #140：关联字段数组化，且一笔流水可挂多个客户（按数组包含匹配）
+    await db.transactions.put(
+      newTxn('t1', { customerIds: ['c1'], occurredAt: Date.parse('2026-09-01') }),
+    )
+    await db.transactions.put(
+      newTxn('t2', { customerIds: ['c2'], occurredAt: Date.parse('2026-09-20') }),
+    )
+    // t3 同时挂 c1 + c2：两个客户视角都应命中（分摊多客户的真实场景）
+    await db.transactions.put(
+      newTxn('t3', { customerIds: ['c1', 'c2'], occurredAt: Date.parse('2026-09-25') }),
+    )
     const byCustomer = await dispatchAgentTool('listTransactions', { customerId: 'c1' })
-    expect((byCustomer.data!.items as { id: string }[]).map((i) => i.id)).toEqual(['t1'])
-    const byRange = await dispatchAgentTool('listTransactions', { from: '2026-09-10', to: '2026-09-30' })
-    expect((byRange.data!.items as { id: string }[]).map((i) => i.id)).toEqual(['t2'])
+    expect((byCustomer.data!.items as { id: string }[]).map((i) => i.id).sort()).toEqual([
+      't1',
+      't3',
+    ])
+    const byCustomer2 = await dispatchAgentTool('listTransactions', { customerId: 'c2' })
+    expect((byCustomer2.data!.items as { id: string }[]).map((i) => i.id).sort()).toEqual([
+      't2',
+      't3',
+    ])
+    const byRange = await dispatchAgentTool('listTransactions', {
+      from: '2026-09-10',
+      to: '2026-09-30',
+    })
+    expect((byRange.data!.items as { id: string }[]).map((i) => i.id).sort()).toEqual(['t2', 't3'])
   })
 
   it('listTransactions 超上限截断并标记 truncated', async () => {

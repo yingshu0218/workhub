@@ -19,6 +19,7 @@
  */
 import dayjs from 'dayjs'
 import { db } from '@/db/db'
+import { toLinkField } from '@/modules/finance/links'
 import { ledgerRepo, newId, saveTransactionWithAttachments } from '@/repositories'
 import type { PutInput } from '@/repositories/repository'
 import type { Transaction } from '@/db/types'
@@ -66,9 +67,10 @@ export interface RecordTransactionInput {
   status?: '已结算' | '待对账'
   tags?: string[]
   note?: string
-  customerId?: string
-  todoId?: string
-  projectId?: string
+  /** 关联客户 / 待办 / 项目（Issue #140 多值）：数组口径，空数组不落键 */
+  customerIds?: string[]
+  todoIds?: string[]
+  projectIds?: string[]
 }
 
 /** 记账产物 */
@@ -108,9 +110,9 @@ export async function recordTransaction(
     occurredAt,
     tags: input.tags ?? [],
     note: input.note,
-    customerId: input.customerId,
-    todoId: input.todoId,
-    projectId: input.projectId,
+    customerIds: toLinkField(input.customerIds ?? []),
+    todoIds: toLinkField(input.todoIds ?? []),
+    projectIds: toLinkField(input.projectIds ?? []),
     status: input.status ?? '待对账',
   }
   const { created } = await saveTransactionWithAttachments(record, [])
