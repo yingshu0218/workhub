@@ -13,6 +13,7 @@ import type { CSSProperties } from 'react'
  * 语义与「其他表单里的标签类型」（笔记标签行 / 记账业务标签）保持同款：
  * 回车或逗号提交、支持一次性粘贴多个（中英文逗号都切）、退格删末个、
  * 按标签名 hash 恒定同色。
+ * **空白不作为分隔符**（见 CHIP_SEPARATORS 注释）：含空格的标签/客户名不能被拆散。
  *
  * ⚠️ 提交时机（Issue #130 第三次回归根因）：
  * 本控件**只在输入变更（onChange / 回车）时固化**，不挂在 `onBlur` 上。
@@ -23,15 +24,23 @@ import type { CSSProperties } from 'react'
  * （见 CustomerFormDrawer 的 flush）。
  */
 
-/** 标签分隔符集合：中英文逗号 + 空白（一次粘贴多个标签的拆分口径，单一来源） */
-export const CHIP_SEPARATORS = /[,，\s]/
+/**
+ * 标签分隔符集合：**仅中英文逗号**（一次粘贴多个标签的拆分口径，单一来源）。
+ *
+ * ⚠️ 为什么不把空白算作分隔符：客户名 / 公司名 / 标签普遍含空格
+ * （「深蓝 科技」「VIP Client」「重要 客户」）。若按空白切分，这类输入会被**静默拆散**：
+ * 标签被拆成两枚；关联客户名被拆成两段后 `resolveTarget` 命中不了，
+ * 报「未找到客户『深蓝』」，关系反而加不进去 —— 与本控件要修的「保存不生效」同源。
+ * 故固化触发只剩回车与逗号：回车由 onKeyDown 提交整段，逗号由 onChange 当场固化。
+ */
+export const CHIP_SEPARATORS = /[,，]/
 
 /** 末位是分隔符 → 该分隔符之前的片段视为「已确认」（在 change 里当场固化，不等失焦） */
 function endsWithSeparator(v: string): boolean {
   return v.length > 0 && CHIP_SEPARATORS.test(v[v.length - 1])
 }
 
-/** 输入串 → 归一化标签数组（按分隔符切分 → trim → 去首 # → 去空 → 去重） */
+/** 输入串 → 归一化标签数组（按逗号切分 → trim → 去首 # → 去空 → 去重） */
 export function parseTagInput(raw: string): string[] {
   return [
     ...new Set(
@@ -44,14 +53,14 @@ export function parseTagInput(raw: string): string[] {
 }
 
 /**
- * 受控输入的「当场固化」结算：末位分隔符之前的全部片段立即提交，其余留在草稿里。
- * 返回 null 表示无需固化（草稿照原样收下）。
+ * 受控输入的「当场固化」结算：末位逗号之前的全部片段立即提交，其余留在草稿里。
+ * 返回 null 表示无需固化（草稿照原样收下，由保存路径结算）。
  */
 export function committedInputValue(raw: string): { committed: string[]; draft: string } | null {
-  if (!endsWithSeparator(raw) && !CHIP_SEPARATORS.test(raw)) return null
+  if (!endsWithSeparator(raw)) return null
   const parts = raw.split(CHIP_SEPARATORS)
   const last = parts.pop() ?? ''
-  const committed = parseTagInput(parts.join(' '))
+  const committed = parseTagInput(parts.join(','))
   if (committed.length === 0) {
     // 只有分隔符（如误敲逗号）：清掉分隔符，不留噪音
     return { committed: [], draft: last }
@@ -118,7 +127,7 @@ export default function ChipTagInput({
       }
       next.push(p)
     }
-    return next.length === value.length && base === value ? value : next
+    return next
   }
 
   /** 显式提交草稿（回车路径） */

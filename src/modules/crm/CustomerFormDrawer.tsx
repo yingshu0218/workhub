@@ -302,7 +302,7 @@ export default function CustomerFormDrawer({
             ))}
           </div>
         </Field>
-        <Field label="标签（回车、逗号或空格即固化）">
+        <Field label="标签（回车或逗号即固化）">
           <ChipTagInput
             value={tags}
             onChange={setTags}
@@ -349,13 +349,13 @@ export default function CustomerFormDrawer({
         </Field>
         {/* 关联客户维护区（新建/编辑共用）：
             交互按用户要求改为「芯片标签式手动输入」——关系列表就是一组可删芯片，
-            下方两块 ChipTagInput 负责手动输入（客户名 / 关系语义），回车或逗号即固化。
+            下方两块 ChipTagInput 负责手动输入（客户名 / 关系语义），回车或逗号即固化（客户名/标签里的空格不会被拆开）。
             不再用下拉 + 弹层：抽屉里再叠弹层会把表单输入状态顶掉，关掉后与表单不同步。
             目标仍只能从已有客户选择（联想候选 + 唯一命中考验），杜绝自由造 id 产生画布悬挂边。 */}
         <div className="mt-4 rounded-xl bg-surface-container-low/60 p-3">
           <StepHeader n={4} title="客户关系" />
           <div className="mb-2 text-[0.8571rem] text-on-surface-variant">
-            输入客户名与关系语义（回车、逗号或空格即固化，无需点「添加关系」也行 ——
+            输入客户名与关系语义（回车或逗号即固化，无需点「添加关系」也行 ——
             保存时会自动配对），点「添加关系」可立即把两者两两配对写入下方列表。
           </div>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -367,7 +367,7 @@ export default function CustomerFormDrawer({
                 onOverflow={() => setError('一次最多添加 5 位关联客户')}
               />
             </Field>
-            <Field label="关系语义（回车、逗号或空格即固化）">
+            <Field label="关系语义（回车或逗号即固化）">
               <ChipTagInput
                 value={relLabels}
                 onChange={setRelLabels}
