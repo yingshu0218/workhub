@@ -947,126 +947,130 @@ export function TodoFormDrawer({
   }
 
   return (
-    <Modal open={open} title={todo ? '编辑待办' : '新建待办'} onClose={onClose} size="md">
+    <Modal
+      open={open}
+      title={todo ? '编辑待办' : '新建待办'}
+      onClose={onClose}
+      size="lg"
+    >
       <div key={seedKey}>
-        {/* 单一大文本域（Issue #148）：标题取自首行，不再单独占一行输入 */}
-        <Field label="待办内容 *">
-          <textarea
-            ref={descRef}
-            className={`${inputCls} h-44 resize-none`}
-            value={desc}
-            onChange={(e) => setDesc(e.target.value)}
-            placeholder={'第一行作为标题，其余行作为备注\n例如：跟进深蓝续约\n本周五前给出报价'}
-          />
-          <p className="mt-1.5 text-[0.7857rem] text-outline">
-            第一行将作为待办标题，其余内容作为备注
-          </p>
-        </Field>
-        <Field label="优先级">
-          <div className="flex flex-wrap gap-2">
-            {TODO_PRIORITY_LEVELS.map((p) => {
-              const meta = TODO_PRIORITY_META[p]
-              const on = priority === p
-              return (
-                <button
-                  key={p}
-                  type="button"
-                  title={meta.hint}
-                  onClick={() => setPriority(p)}
-                  className={`rounded-lg border px-3 py-1.5 text-left text-[0.9286rem] transition-colors ${
-                    on
-                      ? 'border-primary bg-primary-fixed font-semibold text-primary'
-                      : 'border-outline-variant text-on-surface-variant hover:border-outline'
-                  }`}
-                >
-                  <span className="block">{meta.label}</span>
-                  <span className="block text-[0.7143rem] font-normal opacity-70">
-                    {meta.quadrant}
-                  </span>
-                </button>
-              )
-            })}
+        {/* 左右分区（Issue #148 后续）：
+            - 左栏只放正文，独占可用高度（「把更大的面积留给文本输入」）；
+            - 右栏「事项设置」收纳全部非正文字段（优先级/状态/截止时间/清单/项目/客户）；
+            - 窄屏（<640px）自动回退单栏堆叠，正文在上、设置在下。 */}
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
+          {/* 左栏：正文。`sm:flex-1 sm:min-w-0` 保证长文本不会顶破栅格 */}
+          <div className="sm:min-w-0 sm:flex-1">
+            <Field label="待办内容 *">
+              <textarea
+                ref={descRef}
+                className={`${inputCls} h-44 resize-none sm:h-72`}
+                value={desc}
+                onChange={(e) => setDesc(e.target.value)}
+                placeholder={'第一行作为标题，其余行作为备注\n例如：跟进深蓝续约\n本周五前给出报价'}
+              />
+              <p className="mt-1.5 text-[0.7857rem] text-outline">
+                第一行将作为待办标题，其余内容作为备注
+              </p>
+            </Field>
           </div>
-          <p className="mt-1.5 text-[0.7857rem] text-outline">
-            {TODO_PRIORITY_META[priority].hint}
-          </p>
-        </Field>
-        {/* 三态（Issue #128）：待处理 / 已完成 / 已作废——编辑弹窗也能终止或恢复事项 */}
-        <Field label="状态">
-          <div className="flex gap-2">
-            {(
-              [
-                { key: 'todo', label: '待处理' },
-                { key: 'done', label: '已完成' },
-                { key: 'voided', label: '已作废' },
-              ] as const
-            ).map((opt) => (
-              <button
-                key={opt.key}
-                onClick={() => setStatus(opt.key)}
-                className={`rounded-lg border px-4 py-1.5 text-[0.9286rem] ${
-                  status === opt.key
-                    ? 'border-primary bg-primary-fixed font-semibold text-primary'
-                    : 'border-outline-variant text-on-surface-variant'
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-          {status === 'voided' && (
-            <p className="mt-1.5 text-[0.7857rem] text-outline">
-              作废即终止事项：记录保留、可随时恢复，与「删除」不同。
-            </p>
-          )}
-        </Field>
-        {/* 双栏区（Issue #148）：窄字段两两并排，压缩纵向高度，把面积留给上方文本域 */}
-        <div className="grid grid-cols-2 gap-x-4">
-          <Field label="截止时间">
-            <input
-              type="datetime-local"
-              className={inputCls}
-              value={dueAt}
-              onChange={(e) => setDueAt(e.target.value)}
-            />
-          </Field>
-          <Field label="所属清单">
-            <MatchCombobox
-              value={listId}
-              options={listOptions.map((l) => ({ id: l.id, label: l.name, icon: 'folder' }))}
-              placeholder="输入清单名称模糊搜索"
-              emptyText="没有匹配的清单"
-              onChange={setListId}
-            />
-          </Field>
-          <Field label="所属项目">
-            <MatchCombobox
-              value={projectId}
-              options={projects.map((p) => ({
-                id: p.id,
-                label: p.name,
-                sub: p.status === 'archived' ? '已归档' : undefined,
-                ...toArchivedFlag(p),
-                icon: 'folder_open',
-              }))}
-              placeholder="输入项目名称模糊搜索"
-              emptyText="没有匹配的项目"
-              onChange={setProjectId}
-            />
-          </Field>
-          <Field label="关联客户">
-            <MatchCombobox
-              value={customerId}
-              options={customers.map((c) => ({
-                id: c.id,
-                label: c.company ? `${c.company} · ${c.name}` : c.name,
-                icon: 'person',
-              }))}
-              placeholder="输入公司或姓名模糊搜索，如：深蓝"
-              emptyText="没有匹配的客户"
-              onChange={setCustomerId}
-            />
-          </Field>
+
+          {/* 右栏：事项设置。窄屏与左栏同宽堆叠，桌面固定 280px 侧栏 */}
+          <section
+            aria-label="事项设置"
+            className="shrink-0 surface-card-low p-4 sm:w-[17.5rem]"
+          >
+            <h3 className="mb-3 text-[0.9286rem] font-semibold text-on-surface-variant">
+              事项设置
+            </h3>
+
+            <Field label="优先级">
+              {/* 可输入模糊下拉（Issue #148：左侧位置全部改成文本框口径）：
+                  仍保留「档位 + 象限」双行示意，避免退化成看不懂的裸词 */}
+              <MatchCombobox
+                value={priority}
+                options={TODO_PRIORITY_LEVELS.map((p) => {
+                  const meta = TODO_PRIORITY_META[p]
+                  return { id: p, label: meta.label, sub: meta.quadrant, icon: 'flag' }
+                })}
+                placeholder="输入 高/中/低/无 模糊搜索"
+                emptyText="没有匹配的档位"
+                onChange={(id) => setPriority(normalizeTodoPriority(id))}
+              />
+              <p className="mt-1.5 text-[0.7857rem] text-outline">
+                {TODO_PRIORITY_META[priority].hint}
+              </p>
+            </Field>
+
+            {/* 三态（Issue #128）：待处理 / 已完成 / 已作废——编辑弹窗也能终止或恢复事项 */}
+            <Field label="状态">
+              <MatchCombobox
+                value={status}
+                options={[
+                  { id: 'todo', label: '待处理', icon: 'radio_button_unchecked' },
+                  { id: 'done', label: '已完成', icon: 'task_alt' },
+                  { id: 'voided', label: '已作废', icon: 'block' },
+                ]}
+                placeholder="输入 待处理/已完成/已作废 模糊搜索"
+                emptyText="没有匹配的状态"
+                onChange={(id) => setStatus((id || 'todo') as Todo['status'])}
+              />
+              {status === 'voided' && (
+                <p className="mt-1.5 text-[0.7857rem] text-outline">
+                  作废即终止事项：记录保留、可随时恢复，与「删除」不同。
+                </p>
+              )}
+            </Field>
+
+            <Field label="截止时间">
+              <input
+                type="datetime-local"
+                className={inputCls}
+                value={dueAt}
+                onChange={(e) => setDueAt(e.target.value)}
+              />
+            </Field>
+
+            <Field label="所属清单">
+              <MatchCombobox
+                value={listId}
+                options={listOptions.map((l) => ({ id: l.id, label: l.name, icon: 'folder' }))}
+                placeholder="输入清单名称模糊搜索"
+                emptyText="没有匹配的清单"
+                onChange={setListId}
+              />
+            </Field>
+
+            <Field label="所属项目">
+              <MatchCombobox
+                value={projectId}
+                options={projects.map((p) => ({
+                  id: p.id,
+                  label: p.name,
+                  sub: p.status === 'archived' ? '已归档' : undefined,
+                  ...toArchivedFlag(p),
+                  icon: 'folder_open',
+                }))}
+                placeholder="输入项目名称模糊搜索"
+                emptyText="没有匹配的项目"
+                onChange={setProjectId}
+              />
+            </Field>
+
+            <Field label="关联客户">
+              <MatchCombobox
+                value={customerId}
+                options={customers.map((c) => ({
+                  id: c.id,
+                  label: c.company ? `${c.company} · ${c.name}` : c.name,
+                  icon: 'person',
+                }))}
+                placeholder="输入公司或姓名模糊搜索，如：深蓝"
+                emptyText="没有匹配的客户"
+                onChange={setCustomerId}
+              />
+            </Field>
+          </section>
         </div>
         {error && <div className="mb-3 text-[0.8571rem] text-danger">{error}</div>}
         <div className="flex justify-end gap-2 pt-2">

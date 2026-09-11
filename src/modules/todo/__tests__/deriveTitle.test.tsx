@@ -8,7 +8,7 @@
  *   ② 编辑回填能把 title + desc 拼回单一正文，且不与历史数据（标题未出现在 desc 首行）打架。
  */
 import { describe, it, expect } from 'vitest'
-import { render } from '@testing-library/react'
+import { render, fireEvent } from '@testing-library/react'
 import { deriveTodoTitle, joinTodoText, TodoFormDrawer } from '../TodoPage'
 import { quickCaptureTodoTitle } from '@/modules/notes/quickCapture'
 import type { Todo } from '@/db/types'
@@ -65,32 +65,65 @@ describe('② 编辑回填：title + desc → 单一正文', () => {
   })
 })
 
-describe('③ 表单布局：无独立标题输入，底部窄字段同处一个双栏栅格', () => {
+describe('③ 表单布局：左侧正文独占 / 右侧「事项设置」收纳全部非正文字段', () => {
   it('新建态渲染出「待办内容」文本域，且不再有「标题」字段', () => {
     const { container } = render(<TodoFormDrawer open={true} todo={null} onClose={() => {}} />)
     expect(container.textContent).toContain('待办内容 *')
     expect(container.textContent).not.toContain('标题 *')
   })
 
-  it('截止时间/所属清单/所属项目/关联客户 同处一个两列栅格', () => {
+  it('存在右栏「事项设置」，且六项设置全在其中', () => {
     const { container } = render(<TodoFormDrawer open={true} todo={null} onClose={() => {}} />)
-    const grid = container.querySelector('.grid-cols-2')
-    expect(grid).toBeTruthy()
-    const text = grid!.textContent ?? ''
-    for (const label of ['截止时间', '所属清单', '所属项目', '关联客户']) {
+    const aside = container.querySelector('[aria-label="事项设置"]')
+    expect(aside).toBeTruthy()
+    const text = aside!.textContent ?? ''
+    for (const label of ['优先级', '状态', '截止时间', '所属清单', '所属项目', '关联客户']) {
       expect(text).toContain(label)
     }
+  })
+
+  it('正文文本域不在右栏内（左栏独占，面积留给输入）', () => {
+    const { container } = render(<TodoFormDrawer open={true} todo={null} onClose={() => {}} />)
+    const aside = container.querySelector('[aria-label="事项设置"]')
+    expect(aside!.querySelector('textarea')).toBeNull()
+    expect(container.querySelector('textarea')).toBeTruthy()
+  })
+
+  it('左右分区容器存在：桌面两栏、窄屏堆叠（flex-col sm:flex-row）', () => {
+    const { container } = render(<TodoFormDrawer open={true} todo={null} onClose={() => {}} />)
+    const split = container.querySelector('.sm\\:flex-row')
+    expect(split).toBeTruthy()
+    expect(split!.className).toContain('flex-col')
+    // 旧的「底部窄字段双栏栅格」已随布局调整移除
+    expect(container.querySelector('.grid-cols-2')).toBeNull()
   })
 })
 
 describe('④ 优先级四档（Issue #148 后续）：高/中/低/无 + 象限示意', () => {
-  it('表单渲染四档按钮，各自带象限示意', () => {
+  it('优先级是可输入下拉，展开候选为四档且各带象限示意', () => {
     const { container } = render(<TodoFormDrawer open={true} todo={null} onClose={() => {}} />)
-    const text = container.textContent ?? ''
+    const priorityField = Array.from(container.querySelectorAll('label')).find((l) =>
+      (l.textContent ?? '').startsWith('优先级'),
+    )!
+    // 形态是下拉（已选回显条 / 未选时为可输入文本框），不再是四连按钮组
+    expect(priorityField.querySelectorAll('button').length).toBeGreaterThan(0)
+    fireEvent.click(priorityField.querySelector('button')!)
+    const text = document.body.textContent ?? ''
     for (const label of ['高', '中', '低', '无']) expect(text).toContain(label)
     for (const q of ['重要紧急', '重要不紧急', '不重要紧急', '不重要不紧急']) {
       expect(text).toContain(q)
     }
+  })
+
+  it('状态同样是可输入下拉（待处理/已完成/已作废）', () => {
+    const { container } = render(<TodoFormDrawer open={true} todo={null} onClose={() => {}} />)
+    const statusField = Array.from(container.querySelectorAll('label')).find((l) =>
+      (l.textContent ?? '').startsWith('状态'),
+    )!
+    expect(statusField.querySelectorAll('button').length).toBeGreaterThan(0)
+    fireEvent.click(statusField.querySelector('button')!)
+    const text = document.body.textContent ?? ''
+    for (const label of ['待处理', '已完成', '已作废']) expect(text).toContain(label)
   })
 
   it('不再出现 P1/P2/P3 字样（旧档位不进 UI）', () => {
@@ -114,10 +147,11 @@ describe('④ 优先级四档（Issue #148 后续）：高/中/低/无 + 象限�
       rev: 0,
     } as unknown as Todo
     const { container } = render(<TodoFormDrawer open={true} todo={legacy} onClose={() => {}} />)
-    // 选中档位的按钮带 primary 高亮，且提示文案是「高」档的行动指引
-    const selected = container.querySelector('.bg-primary-fixed')
-    expect(selected?.textContent).toContain('高')
-    expect(selected?.textContent).toContain('重要紧急')
+    // 可输入下拉的已选回显条显示「高」，且下方提示是「高」档的行动指引
+    const priorityField = Array.from(container.querySelectorAll('label')).find((l) =>
+      (l.textContent ?? '').startsWith('优先级'),
+    )
+    expect(priorityField?.textContent).toContain('高')
     expect(container.textContent).toContain('立刻做：救火与关键节点，别排期')
   })
 })
