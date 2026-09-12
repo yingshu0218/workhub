@@ -134,6 +134,7 @@
 | 路径收敛 | ✅ 并行 PR（#90/#91 已合入主干、#92/#97/#98 待收敛）统一取 `/module-config`，目录 `module-config/` → `moduleConfig/`；避免合并顺序变化导致路由分裂，页面标题仍为「功能配置」（同 `/settings` 标题「系统设置」） |
 | 消费链 | ✅ 客户详情亲密度选择器（隔离态降级留痕 note）、缩略卡亲密度徽章/备注、customer-only 图谱节点大小按档位（远近即大小）+ 亲密度图例、黑名单默认图谱隐藏；导出/恢复存档含 moduleConfigs |
 | 待人工 | ⚠️ 服务端需重导入 collections.json（新增 module_configs 集合）+ 一次全量推送；⌘K/选择器/时间线黑名单屏蔽开关已留好口径，消费点接线为后续小增量 |
+| 配置页状态模型修复（功能测试 #22） | ✅ 已修（Changelog #103 / D3）：原用 `useState(cfg.algorithm.weights)` 取初值，而 `useIntimacyConfig()` 首帧返回 DEFAULT（`useLiveQuery` 未完成），**`useState` 初值只认首次渲染** → 库内生效值（实测 `58/18/12/12`）与界面（恒为默认 `30/30/20/20`）长期脱节，用户无法得知生效值。改为「库值为真源 + 草稿覆盖」（`weightsDraft` / `thresholdsDraft` / `levelsDraft`，`null` 即展示库值，库值追平后自动清草稿）。顺带修：滑杆补 `onKeyUp`（原只绑 `mouseup`/`touchend`，键盘调整不保存）、自动修正提示改走 `flash`（原被 `flash` 的 `setError('')` 覆盖，导致「已归一化」提示看不见）、滑杆 `step` 5→1（避免归一化值 58% 被显示对齐成 60%） |
 
 ### 功能配置页（Issue #86，业务规则配置与系统设置切分）
 
@@ -171,7 +172,9 @@
 | P0-1 墓碑清理与 delete 推送竞态 | ✅ tombstonePushed meta 标记：delete 推送成功才打标；cleanupTombstones 只清理带标记且超 30 天的墓碑，未推送的保留重试；确认推送的墓碑清理时对服务端同步物理删除 |
 | P0-2 推送侧 LWW 服务端校验 | ✅ pbUpsert 查远端附带 updatedAt：远端更新且非墓碑 → 跳过推送（防旧数据迟到覆盖），由 pull 的 LWW 拉回新值 |
 | P1-3 服务端墓碑定时清理 | ✅ pb_hooks 新增 tombstonePushed 盖戳钩子 + 每日 04:00 cron（清 tombstonePushed=1 且 updated 超 30 天的墓碑）；collections.json 13 张业务表加 tombstonePushed 字段（需重导入 Schema） |
-| P1-4 HTTPS 部署补齐 PWA | ⏳ 需用户操作（绑域名 + certbot），代码无需改动 |
+| P1-4 HTTPS 部署补齐 PWA | ✅ 已闭环：HTTPS 经 `dev.fpigeon.fun` 接入（复用通配符证书 `*.fpigeon.fun`，Changelog #101）；**SW 注册时机缺陷已修**（Changelog #103 / D2）—— 原 `main.tsx` 在 `useEffect` 内监听 `load`，实测 `load` 早于 `useEffect` 触发（166ms vs 202ms）致注册永不执行；改为 `readyState === 'complete'` 即直接注册、否则才等 `load`（`{ once: true }`） |
+| 功能测试 #100 配置集合同步 404 | ✅ 已修（Changelog #103 / D1）：新增 `PB_COLLECTION_NAME` 映射 + `pbCollection(table)` 单一出口（`pocketbaseAdapter.ts` 内 8 处 URL 拼接全部收敛）；服务端 `module_configs` 与前端 `moduleConfigs` 的差异显式声明，并加 parity 测试锁定（含「不存在未声明的同物异名」反向断言） |
+| 功能测试 #192 / #193 PWA 离线失效 | ✅ 已修（Changelog #103 / D2）：干净 profile 首次访问 `getRegistrations()` 由 **0 变 1**、`controller: true`；断网 reload 可正常打开且页面完整渲染 |
 | PR #6 评审遗留（后续迭代，不阻塞合并） | ① pull 合并来的墓碑缺 tombstone_pushed 标记不会被本地清理；② delete 推送后立即物理删服务端记录，离线设备收敛窗口短——建议改为靠 cron 30 天清理 |
 
 ### Issue #11 后续提示

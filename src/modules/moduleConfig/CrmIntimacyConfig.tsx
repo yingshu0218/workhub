@@ -1,6 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button, inputCls } from '@/design-system/ui'
-import { DEFAULT_INTIMACY_CONFIG, INTIMACY_LEVELS, type IntimacyLevel } from '@/db/types'
+import {
+  DEFAULT_INTIMACY_CONFIG,
+  INTIMACY_LEVELS,
+  type IntimacyLevel,
+  type ModuleConfigIntimacy,
+} from '@/db/types'
 import { saveIntimacyConfig, useIntimacyConfig } from '@/modules/crm/intimacy'
 import { isIntimacyTrustLevel } from '@/db/types'
 import { Section, Toggle } from './parts'
@@ -17,19 +22,55 @@ import { Section, Toggle } from './parts'
 
 export default function CrmIntimacyConfig() {
   const cfg = useIntimacyConfig()
-  const [editingLevels, setEditingLevels] = useState<
-    Record<IntimacyLevel, { name: string; desc: string }>
-  >(
-    () =>
-      Object.fromEntries(cfg.levels.map((l) => [l.key, { name: l.name, desc: l.desc }])) as Record<
-        IntimacyLevel,
-        { name: string; desc: string }
-      >,
-  )
-  const [weights, setWeights] = useState(cfg.algorithm.weights)
-  const [thresholds, setThresholds] = useState(cfg.algorithm.thresholds)
+
+  /**
+   * 编辑草稿模型：`cfg`（useLiveQuery 的库值）是唯一真源。
+   * 三个草稿为 null 时界面直接展示 cfg；非 null 表示「有未提交的编辑」。
+   *
+   * ⚠️ 切勿写成 `useState(cfg.xxx)`：首帧 useLiveQuery 尚未解析时 cfg 是
+   * DEFAULT_INTIMACY_CONFIG，而 useState 的初值只在首次渲染生效 → 库值到达后界面
+   * 永不更新，用户看到的权重与库内实际生效值长期不一致（功能测试 #22）。
+   */
+  const [levelsDraft, setLevelsDraft] = useState<Record<
+    IntimacyLevel,
+    { name: string; desc: string }
+  > | null>(null)
+  const [weightsDraft, setWeightsDraft] = useState<
+    ModuleConfigIntimacy['algorithm']['weights'] | null
+  >(null)
+  const [thresholdsDraft, setThresholdsDraft] = useState<
+    ModuleConfigIntimacy['algorithm']['thresholds'] | null
+  >(null)
   const [saved, setSaved] = useState('')
   const [error, setError] = useState('')
+
+  const levelsValue =
+    levelsDraft ??
+    (Object.fromEntries(cfg.levels.map((l) => [l.key, { name: l.name, desc: l.desc }])) as Record<
+      IntimacyLevel,
+      { name: string; desc: string }
+    >)
+  const weights = weightsDraft ?? cfg.algorithm.weights
+  const thresholds = thresholdsDraft ?? cfg.algorithm.thresholds
+
+  /**
+   * 滑杆的「提交」发生在 onMouseUp/onTouchEnd/onKeyUp，需要拿到本次操作后的最新值，
+   * 而 React 事件批处理下 state 未必已提交 → onChange 内同步写入 ref 兜底。
+   */
+  const weightsRef = useRef(weights)
+
+  // 库值追平草稿后自动清草稿：保存成功的值随即成为新库值，界面无缝切回库值、无闪回。
+  useEffect(() => {
+    const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
+    if (weightsDraft && same(weightsDraft, cfg.algorithm.weights)) setWeightsDraft(null)
+    if (thresholdsDraft && same(thresholdsDraft, cfg.algorithm.thresholds)) setThresholdsDraft(null)
+    if (levelsDraft) {
+      const fromCfg = Object.fromEntries(
+        cfg.levels.map((l) => [l.key, { name: l.name, desc: l.desc }]),
+      )
+      if (same(levelsDraft, fromCfg)) setLevelsDraft(null)
+    }
+  }, [cfg, weightsDraft, thresholdsDraft, levelsDraft])
 
   function flash(msg: string) {
     setSaved(msg)
@@ -39,13 +80,14 @@ export default function CrmIntimacyConfig() {
 
   async function saveLevels() {
     await saveIntimacyConfig({
-      levels: INTIMACY_LEVELS.map((k) => ({ key: k, ...editingLevels[k]! })),
+      levels: INTIMACY_LEVELS.map((k) => ({ key: k, ...levelsValue[k]! })),
     })
     flash('健康分等级名称已保存')
   }
 
   async function resetLevels() {
-    setEditingLevels(
+    // 先把默认名写进草稿（界面即时反馈），再落库；落库后库值与草稿一致，effect 自动清草稿。
+    setLevelsDraft(
       Object.fromEntries(
         DEFAULT_INTIMACY_CONFIG.levels.map((l) => [l.key, { name: l.name, desc: l.desc }]),
       ) as Record<IntimacyLevel, { name: string; desc: string }>,
@@ -59,29 +101,36 @@ export default function CrmIntimacyConfig() {
     flash('黑名单屏蔽开关已保存')
   }
 
-  async function saveAlgorithm(patch: {
-    enabled?: boolean
-    weights?: typeof weights
-    thresholds?: typeof thresholds
-  }) {
+  /**
+   * 保存算法配置。`okMessage` 用于区分「普通保存」与「自动修正后保存」：
+   * 自动修正的提示必须走 flash（成功态）而不是 error —— flash 内部会 setError('')，
+   * 两者并用时前脚 setError 后脚就被 flash 清掉，用户只看到「已保存」而看不到「已归一化」。
+   * （功能测试 #22 复核时自动化始终捕不到归一化提示，根因即此。）
+   */
+  async function saveAlgorithm(
+    patch: {
+      enabled?: boolean
+      weights?: typeof weights
+      thresholds?: typeof thresholds
+    },
+    okMessage = '算法兜底配置已保存',
+  ) {
     await saveIntimacyConfig({ algorithm: patch })
-    flash('算法兜底配置已保存')
+    flash(okMessage)
   }
 
   function applyWeights(next: typeof weights) {
-    setWeights(next)
     const total = next.contact + next.finance + next.todo + next.project
     if (total === 100) {
       void saveAlgorithm({ weights: next })
       return
     }
-    // 保存时归一化到 100（收敛稿边界：权重和≠100 时等比归一，全 0 回退默认并提示）
+    // 权重和≠100：等比归一化到 100（收敛稿边界；全 0 回退默认）
     if (total <= 0) {
       const d = DEFAULT_INTIMACY_CONFIG.algorithm.weights
-      setWeights(d)
-      void saveAlgorithm({ weights: d })
-      setError('权重不可全为 0，已回退默认权重')
-      setTimeout(() => setError(''), 2600)
+      weightsRef.current = d
+      setWeightsDraft(d)
+      void saveAlgorithm({ weights: d }, '权重不可全为 0，已回退默认权重')
       return
     }
     const norm = (v: number) => Math.round((v / total) * 100)
@@ -94,21 +143,20 @@ export default function CrmIntimacyConfig() {
     const diff =
       100 - (normalized.contact + normalized.finance + normalized.todo + normalized.project)
     if (diff !== 0) normalized.contact += diff // 余数补偿，保证和恒为 100
-    setWeights(normalized)
-    void saveAlgorithm({ weights: normalized })
-    setError('权重和≠100，已自动归一化保存')
-    setTimeout(() => setError(''), 2600)
+    // 草稿改写为归一化结果：否则草稿停留在用户拖出的原值，永远追不平库值、界面不回正
+    weightsRef.current = normalized
+    setWeightsDraft(normalized)
+    void saveAlgorithm({ weights: normalized }, '权重和≠100，已自动归一化保存')
   }
 
   function applyThresholds(next: typeof thresholds) {
-    // 单调递减校验（收敛稿边界：T2>T3>T4，否则切档逻辑出 bug）
+    // 单调递减校验（收敛稿边界：T2>T3>T4，否则切档逻辑出 bug）—— 失败属「阻止保存」
     if (!(next.t2 > next.t3 && next.t3 > next.t4 && next.t4 >= 0 && next.t2 <= 100)) {
       setError('阈值需满足 T2 > T3 > T4（0~100）')
       setTimeout(() => setError(''), 2600)
-      setThresholds(thresholds)
+      setThresholdsDraft(null) // 撤销本次编辑，回落库值
       return
     }
-    setThresholds(next)
     void saveAlgorithm({ thresholds: next })
   }
 
@@ -140,7 +188,7 @@ export default function CrmIntimacyConfig() {
       >
         <div className="space-y-2">
           {INTIMACY_LEVELS.map((k) => {
-            const row = editingLevels[k]!
+            const row = levelsValue[k]!
             const isolation = !isIntimacyTrustLevel(k)
             return (
               <div key={k} className="flex items-center gap-2">
@@ -160,7 +208,7 @@ export default function CrmIntimacyConfig() {
                   maxLength={8}
                   placeholder={DEFAULT_INTIMACY_CONFIG.levels.find((l) => l.key === k)!.name}
                   onChange={(e) =>
-                    setEditingLevels((m) => ({ ...m, [k]: { ...row, name: e.target.value } }))
+                    setLevelsDraft({ ...levelsValue, [k]: { ...row, name: e.target.value } })
                   }
                 />
                 <input
@@ -168,7 +216,7 @@ export default function CrmIntimacyConfig() {
                   value={row.desc}
                   placeholder={DEFAULT_INTIMACY_CONFIG.levels.find((l) => l.key === k)!.desc}
                   onChange={(e) =>
-                    setEditingLevels((m) => ({ ...m, [k]: { ...row, desc: e.target.value } }))
+                    setLevelsDraft({ ...levelsValue, [k]: { ...row, desc: e.target.value } })
                   }
                 />
               </div>
@@ -251,16 +299,24 @@ export default function CrmIntimacyConfig() {
                 <div className="text-[0.9286rem] font-medium">{row.label}</div>
                 <div className="text-[0.7857rem] text-on-surface-variant">{row.desc}</div>
               </div>
+              {/* 权重滑杆 step=1：归一化会产出 1% 精度的权重（如 58%），而 step=5 会把显示
+                  对齐到最近的 5 倍数（58→60），造成「界面显示值 ≠ 实际保存值」；权重是占比，
+                  1% 粒度也符合预期（功能测试 #22 复核发现） */}
               <input
                 type="range"
                 min={0}
                 max={100}
-                step={5}
+                step={1}
                 className="h-1.5 flex-1 accent-primary"
                 value={weights[row.key]}
-                onChange={(e) => setWeights({ ...weights, [row.key]: Number(e.target.value) })}
-                onMouseUp={() => applyWeights(weights)}
-                onTouchEnd={() => applyWeights(weights)}
+                onChange={(e) => {
+                  const next = { ...weights, [row.key]: Number(e.target.value) }
+                  weightsRef.current = next
+                  setWeightsDraft(next)
+                }}
+                onMouseUp={() => applyWeights(weightsRef.current)}
+                onTouchEnd={() => applyWeights(weightsRef.current)}
+                onKeyUp={() => applyWeights(weightsRef.current)}
               />
               <span className="w-10 text-right text-[0.8929rem] font-semibold tabular-nums">
                 {weights[row.key]}%
@@ -287,9 +343,13 @@ export default function CrmIntimacyConfig() {
                   className={`${inputCls} w-16`}
                   value={thresholds[row.key]}
                   onChange={(e) =>
-                    setThresholds({ ...thresholds, [row.key]: Number(e.target.value) })
+                    setThresholdsDraft({ ...thresholds, [row.key]: Number(e.target.value) })
                   }
                   onBlur={() => applyThresholds(thresholds)}
+                  onKeyDown={(e) => {
+                    // 回车即提交（number input 不会因回车失焦，显式 blur 触发上面的校验保存）
+                    if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+                  }}
                 />
               </label>
             ))}

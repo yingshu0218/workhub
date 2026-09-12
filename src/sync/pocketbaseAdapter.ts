@@ -52,6 +52,25 @@ export type SyncTable = (typeof SYNC_TABLES)[number]
 
 const SYNC_TABLE_SET: ReadonlySet<string> = new Set(SYNC_TABLES)
 
+/**
+ * Dexie 表名 → PocketBase 集合名。
+ *
+ * 只在两者不一致时列明差异；未列出的表名与集合名同名直通。
+ * 契约以 `pb_setup/collections.json` 为单源，并由 `src/sync/__tests__/collectionName.parity.test.ts`
+ * 断言「每个 SYNC_TABLES 项经此映射后都能在服务端集合清单里找到」，防止任一端改名后静默 404。
+ *
+ * 历史遗留：`moduleConfigs` 早期在服务端建为下划线命名（`module_configs`），
+ * 前端表名沿用驼峰 → 若不映射，该集合的拉取/推送/物理删除全部 404（Issue：功能测试 #100）。
+ */
+const PB_COLLECTION_NAME: Partial<Record<SyncTable, string>> = {
+  moduleConfigs: 'module_configs',
+}
+
+/** 取该表对应的 PocketBase 集合名（同步请求路径一律经此，禁止直接拼 table） */
+export function pbCollection(table: string): string {
+  return PB_COLLECTION_NAME[table as SyncTable] ?? table
+}
+
 /** 附件文件上限：与 collections.json attachments.file.maxSize 保持一致 */
 const ATTACHMENT_FILE_MAX_SIZE = 20 * 1024 * 1024
 
@@ -290,7 +309,7 @@ async function pbUpsert(
   // fields 附带 updatedAt：推送侧 LWW 校验需要与本地记录比较（P0-2）
   const found = await pbAuthedFetch(
     cfg,
-    `/api/collections/${table}/records?filter=${filter}&fields=id,updatedAt`,
+    `/api/collections/${pbCollection(table)}/records?filter=${filter}&fields=id,updatedAt`,
     { method: 'GET' },
   )
   if (!found.ok) throw new Error(`查询 ${table}/${localId} 失败（HTTP ${found.status}）`)
@@ -334,8 +353,8 @@ async function pbUpsert(
     const res = await pbAuthedFetch(
       cfg,
       exists
-        ? `/api/collections/${table}/records/${encodeURIComponent(remoteId)}`
-        : `/api/collections/${table}/records`,
+        ? `/api/collections/${pbCollection(table)}/records/${encodeURIComponent(remoteId)}`
+        : `/api/collections/${pbCollection(table)}/records`,
       { method: exists ? 'PATCH' : 'POST', body: form },
     )
     if (!res.ok)
@@ -349,8 +368,8 @@ async function pbUpsert(
   const res = await pbAuthedFetch(
     cfg,
     exists
-      ? `/api/collections/${table}/records/${encodeURIComponent(remoteId)}`
-      : `/api/collections/${table}/records`,
+      ? `/api/collections/${pbCollection(table)}/records/${encodeURIComponent(remoteId)}`
+      : `/api/collections/${pbCollection(table)}/records`,
     { method: exists ? 'PATCH' : 'POST', body },
   )
   if (!res.ok)
@@ -368,7 +387,7 @@ async function pbDeleteRemote(
   const filter = encodeURIComponent(`localId = '${localId.replace(/'/g, "\\'")}'`)
   const found = await pbAuthedFetch(
     cfg,
-    `/api/collections/${table}/records?filter=${filter}&fields=id`,
+    `/api/collections/${pbCollection(table)}/records?filter=${filter}&fields=id`,
     { method: 'GET' },
   )
   if (!found.ok) return // 查询失败不阻塞：墓碑记录仍在服务端，靠 LWW 墓碑兜底
@@ -376,7 +395,7 @@ async function pbDeleteRemote(
   if (!items || items.length === 0) return
   const res = await pbAuthedFetch(
     cfg,
-    `/api/collections/${table}/records/${encodeURIComponent(String(items[0].id))}`,
+    `/api/collections/${pbCollection(table)}/records/${encodeURIComponent(String(items[0].id))}`,
     { method: 'DELETE' },
   )
   if (!res.ok && res.status !== 404) {
@@ -406,7 +425,7 @@ async function pbListAll(
       sort: 'server_received_at,id',
     })
     if (filterExpr) params.set('filter', filterExpr)
-    const res = await pbAuthedFetch(cfg, `/api/collections/${table}/records?${params}`, {
+    const res = await pbAuthedFetch(cfg, `/api/collections/${pbCollection(table)}/records?${params}`, {
       method: 'GET',
     })
     if (!res.ok) throw new Error(`拉取 ${table} 失败（HTTP ${res.status}）`)

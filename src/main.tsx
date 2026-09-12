@@ -45,12 +45,18 @@ function Bootstrap() {
       disposeBridge = d
     })
     // PWA：仅生产构建注册 Service Worker（cache-first 静态资源，API 不缓存）
+    // ⚠️ 不能只用 window.addEventListener('load', ...)：本段位于 React useEffect 内，
+    // 实测 load 先于 useEffect 触发（load 166ms / useEffect 202ms），监听器挂上时事件已成过去，
+    // register 永远不会被调用 → 首次访问 SW 注册数恒为 0、离线能力全程失效（功能测试 #192/#193）。
+    // 故：已 complete 就直接注册，否则才等 load（{ once: true } 避免重复）。
     if (import.meta.env.PROD && 'serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
+      const registerSW = () => {
         navigator.serviceWorker.register('/sw.js').catch((err) => {
           console.warn('[pwa] Service Worker 注册失败', err)
         })
-      })
+      }
+      if (document.readyState === 'complete') registerSW()
+      else window.addEventListener('load', registerSW, { once: true })
     }
     return () => {
       syncEngine.stop()
