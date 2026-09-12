@@ -51,7 +51,28 @@ function findToken(x: unknown): string | undefined {
   return undefined
 }
 
-type InvokeResult = { ok: boolean; phase: string; text: string; data: unknown }
+export type InvokeResult = { ok: boolean; phase: string; text: string; data: unknown }
+
+/**
+ * 标准 Agent 调用行为：低风险直达；中/高风险先预览 → `confirm_preview` 取票 → 带票重试。
+ *
+ * 导出原因：演示数据播种脚本也要按同样方式调工具。取票逻辑若再抄一份，就是第三处实现 ——
+ * 本仓库刚因「生成器抄了一份拷贝」吃过亏，不再重复。
+ */
+export function makeInvoker(mcp: McpClient) {
+  return async (tool: string, args: Record<string, unknown> = {}): Promise<InvokeResult> => {
+    const first = await mcp.callTool(tool, args)
+    const d = first.data as { preview?: boolean; confirmHint?: { args: Record<string, unknown> } } | undefined
+    if (!first.ok) return { ok: false, phase: 'call', text: first.text, data: first.data }
+    if (!d?.preview) return { ok: true, phase: 'direct', text: first.text, data: first.data }
+    if (!d.confirmHint?.args) return { ok: false, phase: 'preview', text: '预览未给出 confirmHint.args', data: first.data }
+    const ticket = await mcp.callTool('confirm_preview', d.confirmHint.args)
+    const token = findToken(ticket.data)
+    if (!token) return { ok: false, phase: 'ticket', text: `取票失败：${ticket.text}`, data: ticket.data }
+    const second = await mcp.callTool(tool, args, token)
+    return { ok: second.ok, phase: 'confirmed', text: second.text, data: second.data }
+  }
+}
 
 /**
  * 主入口：跑完整遍历（27 工具正向 + 边界用例），返回结构化结果，**不抛错**。
@@ -69,19 +90,7 @@ export async function runToolSweep(mcp: McpClient, deps: SweepDeps = {}): Promis
     return v
   }
 
-  /** 标准 Agent 行为：低风险直达；中/高风险先预览 → confirm_preview 取票 → 带票重试 */
-  async function invoke(tool: string, args: Record<string, unknown>): Promise<InvokeResult> {
-    const first = await mcp.callTool(tool, args)
-    const d = first.data as { preview?: boolean; confirmHint?: { args: Record<string, unknown> } } | undefined
-    if (!first.ok) return { ok: false, phase: 'call', text: first.text, data: first.data }
-    if (!d?.preview) return { ok: true, phase: 'direct', text: first.text, data: first.data }
-    if (!d.confirmHint?.args) return { ok: false, phase: 'preview', text: '预览未给出 confirmHint.args', data: first.data }
-    const ticket = await mcp.callTool('confirm_preview', d.confirmHint.args)
-    const token = findToken(ticket.data)
-    if (!token) return { ok: false, phase: 'ticket', text: `取票失败：${ticket.text}`, data: ticket.data }
-    const second = await mcp.callTool(tool, args, token)
-    return { ok: second.ok, phase: 'confirmed', text: second.text, data: second.data }
-  }
+  const invoke = makeInvoker(mcp)
 
   /** 跑一个正向用例：记录结果，不抛出（保证遍历跑完） */
   async function kase(
