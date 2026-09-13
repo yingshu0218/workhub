@@ -24,8 +24,11 @@ const SYNC_COLLECTIONS = [
   'todos', 'todoLists', 'notes', 'quickNotes', 'habits', 'habitLogs', 'trophies', 'attachments',
   // 存量遗漏补齐：projects 系列与 noteFolders 在客户端 SYNC_TABLES 里，服务端 hooks 曾未覆盖
   'noteFolders', 'projects', 'projectMilestones',
-  // 亲密度/分组/模块配置：客户分组与 moduleConfigs 配置表也参与同步与墓碑清理
-  'moduleConfigs', 'customerGroups',
+  // 亲密度/分组/模块配置：客户分组与模块配置表也参与同步与墓碑清理
+  // ⚠️ 表名必须与**服务端集合名**一致：模块配置在服务端叫 `module_configs`（下划线），
+  //    写成驼峰 `moduleConfigs` 会让本 hook 静默不挂上该集合 —— 与 Changelog #100 的同步 404
+  //    是同一个命名不一致（客户端表名驼峰 / 服务端集合名下划线）。
+  'module_configs', 'customerGroups',
 ]
 
 onRecordCreateRequest((e) => {
