@@ -33,17 +33,8 @@ export function fmtRelative(ts: number): string {
 }
 
 /**
- * 标签归一化（配组界面 / 客户表单共用，避免「打错字导致分组失效」）：
- * 按英文逗号切分 → trim → 去首 # → 去空 → Set 去重。
- * 不做强制词库约束，仅归一化，手打自由标签照旧（Issue #63 收敛稿）。
+ * 标签归一化 —— 实现已收敛到 `@/shared/tags`（单一真相，功能测试 #32 整改）。
+ * 此处保留同名导出，CRM 内部调用点无需关心实现落点。
+ * 口径：trim → 去首 `#` → 折叠小写 → 去空 → 去重；不做强制词库约束，手打自由标签照旧（Issue #63 收敛稿）。
  */
-export function normalizeTags(raw: string): string[] {
-  return [
-    ...new Set(
-      raw
-        .split(/[,,]/)
-        .map((t) => t.trim().replace(/^#/, ''))
-        .filter(Boolean),
-    ),
-  ]
-}
+export { normalizeTags } from '@/shared/tags'

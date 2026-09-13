@@ -9,6 +9,7 @@ import { MatchCombobox } from '@/design-system/MatchCombobox'
 import ChipTagInput, { chipTagStyle, parseTagInput } from '@/design-system/ChipTagInput'
 import { createCustomerWithInit } from './hooks'
 import { txnCustomerIds } from '@/modules/finance/links'
+import { canonicalTags } from '@/shared/tags'
 
 /** 单条关系的稳定标识（Issue #39）：优先取条目 id，旧数据按 目标::语义 兜底（同对允许多条，可逐条删除） */
 const relKey = (r: { id?: string; targetId: string; label: string }) =>
@@ -163,10 +164,10 @@ export default function CustomerFormDrawer({
    * 故保存前显式结算一次：标签并入 tags，客户名 × 语义配对并入 relations。
    */
   function settleDrafts(): { tags: string[]; relations: CustomerRelation[]; error: string } {
-    const nextTags = [...tags]
-    for (const t of parseTagInput(pendingTags)) {
-      if (!nextTags.includes(t)) nextTags.push(t)
-    }
+    // 标签走「标签语义」的唯一归一化（折叠大小写与 # 前缀）：
+    // ① 并入未固化的草稿 ② 让存量里的旧写法（如 VIP）在下次保存时自然收敛为规范形式，
+    // 避免标签栏出现 VIP / vip 两枚看起来一样的芯片（功能测试 #32）。
+    const nextTags = canonicalTags([...tags, ...parseTagInput(pendingTags)])
     const pendingRelationDrafts = relTargets.map((t) => t.trim()).filter(Boolean)
     if (pendingRelationDrafts.length === 0) {
       return { tags: nextTags, relations, error: '' }

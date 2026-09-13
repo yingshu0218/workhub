@@ -1,4 +1,5 @@
 import type { ThemeStyleId, SkinStyleId } from '@/shared/theme'
+import { tagKey } from '@/shared/tags'
 
 /**
  * 全局实体类型定义
@@ -608,13 +609,18 @@ export function matchGroup(customer: Pick<Customer, 'tags'>, group: CustomerGrou
   return matchesRule(customer, group.includeTags, group.excludeTags)
 }
 
-/** 单条规则判定：含全部 includeTags 且不含任何 excludeTags */
+/** 单条规则判定：含全部 includeTags 且不含任何 excludeTags（标签按 tagKey 折叠比较） */
 function matchesRule(
   customer: Pick<Customer, 'tags'>,
   includeTags: string[],
   excludeTags: string[],
 ): boolean {
-  const tags = customer.tags ?? []
   if (includeTags.length === 0) return false // 空规则不圈人，避免「新建即全量」
-  return includeTags.every((t) => tags.includes(t)) && !excludeTags.some((t) => tags.includes(t))
+  // 折叠大小写与 # 前缀后再比（功能测试 #32）：VIP / vip / #VIP / 带空格 视为同一标签。
+  // 存量数据可能仍是大写写法，故规则侧与客户侧都过 tagKey，任一侧未收敛也能正确圈人。
+  const keys = new Set((customer.tags ?? []).map((t) => tagKey(t)))
+  return (
+    includeTags.every((t) => keys.has(tagKey(t))) &&
+    !excludeTags.some((t) => keys.has(tagKey(t)))
+  )
 }
