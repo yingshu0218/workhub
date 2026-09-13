@@ -54,6 +54,7 @@ import {
   isTodoOverdue,
   overdueDays,
   resolveFocusViewKind,
+  resolveFocusAction,
   todoStatusLabel,
 } from './domain'
 import {
@@ -146,24 +147,32 @@ export default function TodoPage() {
     setSelListId(null)
     setSelKind(resolveFocusViewKind(todos, focusId))
     setChipPriority(null)
-    // 直达详情：仅当目标真实存在（库内已回填）才打开，避免首帧 todos 为空时闪空态抽屉；
-    // 记录被删/不存在时保持既有滚动兜底路径（不弹误导性空态）。
-    if (todos.some((t) => t.id === focusId)) {
-      setDetailId(focusId)
-      setSearchParams({}, { replace: true })
-      return
-    }
-    // 目标尚未回填（首帧）：等过滤切换生效、列表重渲染后再滚动定位
-    const t = window.setTimeout(() => {
-      const el = rowRefs.current.get(focusId)
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-        setFocusRingId(focusId)
-        window.setTimeout(() => setFocusRingId(null), 2400)
+    // 该做什么由领域层决策（resolveFocusAction，缺陷 D10）：
+    // 关键点是**清参只在确实收尾时**——首帧 todos 为空时清参会把 focus 参数吃掉，
+    // 数据回填后 effect 重跑时 focusId 已成 undefined，详情抽屉永不打开（#162 的根因）。
+    switch (resolveFocusAction(todos, focusId)) {
+      case 'open':
+        // 目标已在库中：直达详情抽屉（深链语义就是「定位到这一条」）
+        setDetailId(focusId)
+        setSearchParams({}, { replace: true })
+        return
+      case 'wait':
+        // 数据尚未回填：**保留 focus 参数**，等 todos 到达后本 effect 因依赖变化重跑
+        return
+      default: {
+        // 数据已就绪但目标不在（记录被删 / id 不存在）：滚动兜底 + 清参收尾，不留误导性参数
+        const t = window.setTimeout(() => {
+          const el = rowRefs.current.get(focusId)
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            setFocusRingId(focusId)
+            window.setTimeout(() => setFocusRingId(null), 2400)
+          }
+          setSearchParams({}, { replace: true })
+        }, 0)
+        return () => window.clearTimeout(t)
       }
-      setSearchParams({}, { replace: true })
-    }, 0)
-    return () => window.clearTimeout(t)
+    }
   }, [focusId, setSearchParams, todos])
 
   const todayStr = dayjs().format('YYYY-MM-DD')
@@ -1376,7 +1385,10 @@ export function TodoDetailDrawer({
               {todo.title}
             </h3>
             {/* 正文即备注全文（Issue #148：标题由首行推导，desc 承载完整内容） */}
-            {todo.desc.trim() ? (
+            {/* ⚠️ desc 必须兜底：类型上标为必填，但存量/同步/手写库的记录可能没有该字段，
+                直接 .trim() 会抛 "Cannot read properties of undefined"，让整个待办模块白屏。
+                与 modules/todo/title.ts 的 `(todo.desc ?? '')` 保持同口径（缺陷 D11）。 */}
+            {(todo.desc ?? '').trim() ? (
               <p className="mt-2 whitespace-pre-wrap break-words text-[0.9286rem] text-on-surface-variant">
                 {todo.desc}
               </p>

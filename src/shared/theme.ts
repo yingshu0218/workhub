@@ -29,6 +29,18 @@ export const RADIUS_PRESETS = [
   { id: 'large', label: '柔和 14px' },
 ] as const
 
+/**
+ * 深色模式下强调色的提亮口径（Material 3 的 tonality 提升）：`--color-primary` 保留的百分比，
+ * 其余混白；`--color-on-primary` 同法混黑（提亮后的主色上必须压深字，否则按钮与导航激活项
+ * 的白字同样不可读）。应用见 effects.ts applySettingsToDom。
+ *
+ * ⚠️ 45% 不是随手取的：它是「12 套强调色 × 12 套配色主题」共 144 种组合**全部**达到
+ * WCAG AA（4.5:1，含最不利的深色容器底 #47283f）的临界点 —— 再暗一档（50%）即跌到 4.08。
+ * 调整任一常量前，请先跑 src/shared/__tests__/accentDarkContrast.test.ts。
+ */
+export const DARK_PRIMARY_KEEP_PCT = 45
+export const DARK_ON_PRIMARY_KEEP_PCT = 22
+
 export const FONT_SIZE_STEPS = [13, 14, 15, 16]
 export const LINE_HEIGHT_STEPS = [1.4, 1.6, 1.8]
 

@@ -88,6 +88,30 @@ export function todoFocusPath(todoId: string): string {
 }
 
 /**
+ * 深链定位的动作决策（缺陷 D10 / 功能测试 #162 的根因修复）。
+ *
+ * 背景：页面用 `useEffect` 消费 `?focus=`，而首帧 live query **尚未回填**（todos 为空）。
+ * 旧实现无论命中与否都在 effect 里 `setSearchParams({}, { replace: true })` 清参——
+ * 参数一清，数据回填后 effect 重跑时 `focusId`（由 searchParams 派生）已是 undefined，
+ * 开头 `if (!focusId) return` 直接返回，**详情抽屉永不打开**。
+ * 表现为「直接开深链 / ⌘K 点结果 → 只跳到列表、不进详情」。
+ *
+ * 所以把「清参」从**无条件**收紧为**仅在确实收尾时**：
+ * - `open`   目标已在库中 → 打开详情抽屉 + 清参；
+ * - `wait`   集合为空（数据未回填）→ **保留 focus 参数**，等下一轮 effect 重跑；
+ * - `fallback` 数据已就绪但目标不在（记录被删 / id 不存在）→ 滚动兜底后清参收尾。
+ *
+ * 边界：库内**一条待办都没有**时给不存在的 id 会一直停在 `wait`（参数残留、但页面本就空态，
+ * 无实际影响）；一旦有任何数据回填即转为 `fallback` 正常收尾。
+ */
+export type FocusAction = 'open' | 'wait' | 'fallback'
+
+export function resolveFocusAction(todos: readonly Pick<Todo, 'id'>[], focusId: string): FocusAction {
+  if (todos.some((t) => t.id === focusId)) return 'open'
+  return todos.length === 0 ? 'wait' : 'fallback'
+}
+
+/**
  * 「今天」口径（待办软件通行做法）：今日截止 ∪ 逾期未完成。
  * 待办中心筛选/计数、工作台今日日程卡、待办达成分母统一引用本函数。
  * 作废条目（Issue #128）不进本口径：事项已终止，不再催办、不计逾期。

@@ -1,7 +1,7 @@
 import { eventBus } from './eventBus'
 import { habitRepo, checkinHabit, settingsRepo } from '@/repositories'
 import { installTrophyEngine } from '@/modules/trophies/trophyEngine'
-import { ACCENT_PRESETS, THEME_STYLES, SKIN_STYLES, FONT_STACKS, type FontPresetId, type SkinStyleId } from './theme'
+import { ACCENT_PRESETS, THEME_STYLES, SKIN_STYLES, FONT_STACKS, DARK_PRIMARY_KEEP_PCT, DARK_ON_PRIMARY_KEEP_PCT, type FontPresetId, type SkinStyleId } from './theme'
 import dayjs from 'dayjs'
 
 /**
@@ -71,7 +71,29 @@ export function applySettingsToDom(settings: import('@/db/types').Settings): voi
   // 强调色 → 覆盖 primary 系变量（fixed 为浅色容器底，用 color-mix 派生）
   const accent =
     ACCENT_PRESETS.find((a) => a.id === settings.appearance.accent) ?? ACCENT_PRESETS[0]
-  root.style.setProperty('--color-primary', accent.primary)
+  // ⚠️ 深色模式下主色必须提亮（Material 3 的 tonality 提升口径）。
+  // ACCENT_PRESETS 给的是「浅色底上的主色」（约 tone 40），直接用在深色底上：
+  //   · 压在 surface(#0b1220) 上对比度 ≈2.5
+  //   · 压在 primary-fixed（深色下是 color-mix(container 16%, 深底)）上仅 ≈1.8
+  // 表现就是侧栏选中项 / 链接 / 图标在深色下几乎看不清（功能测试 #79 实测 1.84）。
+  // 混白 55%（= primary 占 45%，约 tone 80）经 12 套强调色 × 12 套配色主题全组合验算，
+  // 对两种底最坏情形分别 5.4 / 4.6，全部达 WCAG AA（45% 是临界达标点，故取此值）。
+  // 随之 on-primary 必须反转为深色 —— 提亮后的主色若仍压白字，按钮与导航激活项同样不可读。
+  root.style.setProperty(
+    '--color-primary',
+    dark
+      ? `color-mix(in srgb, ${accent.primary} ${DARK_PRIMARY_KEEP_PCT}%, #ffffff)`
+      : accent.primary,
+  )
+  if (dark) {
+    root.style.setProperty(
+      '--color-on-primary',
+      `color-mix(in srgb, ${accent.primary} ${DARK_ON_PRIMARY_KEEP_PCT}%, #000000)`,
+    )
+  } else {
+    // 浅色侧回落到 index.css 的 token（#ffffff），不在这里复制一份常量
+    root.style.removeProperty('--color-on-primary')
+  }
   root.style.setProperty('--color-primary-container', accent.container)
   const mixBase = dark
     ? (styleVars['surface-container'] ?? '#0f172a')

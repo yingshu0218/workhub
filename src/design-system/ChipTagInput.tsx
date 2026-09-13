@@ -53,6 +53,24 @@ export function parseTagInput(raw: string): string[] {
 }
 
 /**
+ * 已固化片段 + 未固化的输入框草稿 → 完整片段列表（**保存路径的结算口径**）。
+ *
+ * 控件刻意不做失焦固化（见文件头的提交时机说明），草稿的归属由调用方的保存路径决定。
+ * 因此调用方**必须**把 `onDraftChange` 上报的草稿交给本函数合并 ——
+ * 漏接就会出现「输了客户名/语义、没敲分隔符直接点保存 → 内容静默丢失」，
+ * 与表单自己的提示「无需点添加关系也行，保存时会自动配对」矛盾（功能测试 #144）。
+ *
+ * 与控件回车路径完全同口径（parseTagInput：逗号切分 → trim → 去首 # → 去空 → 去重），
+ * 并额外做**跨段去重** —— 契约是「无重复的完整片段列表」，
+ * 已固化段与草稿段出现同一片段时不应产出两份（调用方若再去重就是重复劳动）。
+ */
+export function mergeDraftInto(committed: readonly string[], draft: string): string[] {
+  return [
+    ...new Set([...committed.map((s) => s.trim()), ...parseTagInput(draft)].filter(Boolean)),
+  ]
+}
+
+/**
  * 受控输入的「当场固化」结算：末位逗号之前的全部片段立即提交，其余留在草稿里。
  * 返回 null 表示无需固化（草稿照原样收下，由保存路径结算）。
  */

@@ -10,7 +10,7 @@
  * 关联客户名被拆段后 resolveTarget 命中不了，关系反而加不进去。
  */
 import { describe, it, expect } from 'vitest'
-import { CHIP_SEPARATORS, committedInputValue, parseTagInput } from '../ChipTagInput'
+import { CHIP_SEPARATORS, committedInputValue, mergeDraftInto, parseTagInput } from '../ChipTagInput'
 
 describe('parseTagInput：分隔符拆分（仅中英文逗号）', () => {
   it('英文逗号 / 中文逗号都能拆，并去 # 去空去重', () => {
@@ -58,5 +58,63 @@ describe('committedInputValue：敲下逗号即固化（不等失焦）', () => 
   it('只敲了分隔符 / 只有空白 → 不产生空标签，也不误判为提交', () => {
     expect(committedInputValue(',')).toEqual({ committed: [], draft: '' })
     expect(committedInputValue('   ')).toBeNull()
+  })
+})
+
+/**
+ * 保存路径的草稿结算口径（缺陷 D8 / 功能测试 #144）
+ *
+ * 原缺陷：本控件已实现未固化草稿上报（`onDraftChange`），客户表单的**标签区接了**、
+ * **关系区两个控件没接** → `settleDrafts` 只读已固化数组，输入框里没回车、没失焦的内容
+ * 在保存时被静默丢弃，与表单自带提示「无需点添加关系也行，保存时会自动配对」矛盾。
+ *
+ * 修复把「已固化片段 + 未固化草稿」的合并收口到 `mergeDraftInto`（与控件回车路径同口径），
+ * 本组用例锁死该口径，防止再次出现「接了一处漏了两处」。
+ */
+describe('mergeDraftInto：保存路径的草稿结算（D8）', () => {
+  it('① 关键回归：已固化为空 + 草稿有内容 → 草稿必须被采纳（修复前会丢失）', () => {
+    expect(mergeDraftInto([], '孙博')).toEqual(['孙博'])
+    expect(mergeDraftInto([], '转介绍人')).toEqual(['转介绍人'])
+  })
+
+  it('② 已固化与草稿合并，已固化在前（保持录入顺序）', () => {
+    expect(mergeDraftInto(['林晓棠'], '孙博')).toEqual(['林晓棠', '孙博'])
+  })
+
+  it('③ 草稿含多个（中英文逗号）→ 全部采纳', () => {
+    expect(mergeDraftInto([], '甲,乙，丙')).toEqual(['甲', '乙', '丙'])
+  })
+
+  it('④ 含空格的客户名不被拆散（空白不作分隔符）', () => {
+    expect(mergeDraftInto([], '南京 团队')).toEqual(['南京 团队'])
+    expect(mergeDraftInto(['深蓝 科技'], '')).toEqual(['深蓝 科技'])
+  })
+
+  it('⑤ 与已固化重复的草稿片段去重', () => {
+    expect(mergeDraftInto(['孙博'], '孙博')).toEqual(['孙博'])
+    expect(mergeDraftInto(['孙博'], '孙博,林晓棠')).toEqual(['孙博', '林晓棠'])
+  })
+
+  it('⑥ 空草稿 / 纯空白 / 纯分隔符 → 不产生空片段', () => {
+    expect(mergeDraftInto(['甲'], '')).toEqual(['甲'])
+    expect(mergeDraftInto(['甲'], '   ')).toEqual(['甲'])
+    expect(mergeDraftInto(['甲'], ',')).toEqual(['甲'])
+    expect(mergeDraftInto([], '')).toEqual([])
+  })
+
+  it('⑦ 首尾空白被裁剪、去首 # 与控件口径一致', () => {
+    expect(mergeDraftInto([], '  孙博  ')).toEqual(['孙博'])
+    expect(mergeDraftInto([], '#VIP')).toEqual(['VIP'])
+  })
+
+  it('⑧ 与控件回车路径同口径（草稿结算结果 = 直接回车提交的结果）', () => {
+    for (const raw of ['孙博', '甲,乙', '南京 团队', '#VIP']) {
+      expect(mergeDraftInto([], raw)).toEqual(parseTagInput(raw))
+    }
+  })
+
+  it('⑨ 不折叠大小写（关系语义不是标签；大小写折叠由 CRM 标签路径单独负责）', () => {
+    expect(mergeDraftInto([], 'VIP')).toEqual(['VIP'])
+    expect(mergeDraftInto([], 'vip')).toEqual(['vip'])
   })
 })

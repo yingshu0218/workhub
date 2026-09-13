@@ -13,7 +13,14 @@
  */
 import { describe, it, expect } from 'vitest'
 import type { Todo } from '@/db/types'
-import { isTodoOpen, isTodoDone, isTodoVoided, resolveFocusViewKind, todoFocusPath } from '../domain'
+import {
+  isTodoOpen,
+  isTodoDone,
+  isTodoVoided,
+  resolveFocusViewKind,
+  resolveFocusAction,
+  todoFocusPath,
+} from '../domain'
 
 const mk = (id: string, status: Todo['status']): Pick<Todo, 'id' | 'status'> => ({ id, status })
 
@@ -71,5 +78,43 @@ describe('待办详情深链收口 todoFocusPath（Issue #162）', () => {
     for (const id of ['td-1', 'td_2', 'td 3']) {
       expect(todoFocusPath(id)).toBe(`/todo?focus=${encodeURIComponent(id)}`)
     }
+  })
+})
+
+/**
+ * 深链动作决策（缺陷 D10 / 功能测试 #162 的根因回归）
+ *
+ * 原缺陷：effect 无论命中与否都清参 —— 首帧 todos 为空时清掉 `?focus=`，
+ * 数据回填后 effect 重跑时 focusId 已由 searchParams 派生为 undefined，
+ * 开头 `if (!focusId) return` 直接返回，**详情抽屉永不打开**。
+ * 表现为「直接开深链 / ⌘K 点结果 → 只跳到列表、不进详情」。
+ */
+describe('深链动作决策 resolveFocusAction（D10）', () => {
+  it('① 目标已在库中 → open（打开详情 + 清参）', () => {
+    const rows = [mk('o1', 'todo'), mk('d1', 'done'), mk('v1', 'voided')]
+    for (const id of ['o1', 'd1', 'v1']) expect(resolveFocusAction(rows, id)).toBe('open')
+  })
+
+  it('② 集合为空（首帧未回填）→ wait，**绝不清参**（这是 D10 的修复点）', () => {
+    // 修复前这里会走「清参」路径，直接把深链参数吃掉
+    expect(resolveFocusAction([], 'd1')).toBe('wait')
+  })
+
+  it('③ 数据已就绪但目标不在 → fallback（滚动兜底后清参收尾）', () => {
+    const rows = [mk('o1', 'todo'), mk('d1', 'done')]
+    expect(resolveFocusAction(rows, '已删除的id')).toBe('fallback')
+  })
+
+  it('④ 时序还原：先 wait、数据回填后转 open（深链最终能打开详情）', () => {
+    const focusId = 'd1'
+    // 第 1 轮：live query 还没回填
+    expect(resolveFocusAction([], focusId)).toBe('wait')
+    // 第 2 轮：todos 到达（依赖变化触发 effect 重跑）—— 因为参数没被清，focusId 仍在
+    expect(resolveFocusAction([mk('o1', 'todo'), mk('d1', 'done')], focusId)).toBe('open')
+  })
+
+  it('⑤ 防回退：任何「有数据 + 目标存在」的组合都不得落到 fallback', () => {
+    const rows = [mk('a', 'todo'), mk('b', 'done'), mk('c', 'voided')]
+    for (const id of ['a', 'b', 'c']) expect(resolveFocusAction(rows, id)).not.toBe('fallback')
   })
 })

@@ -6,7 +6,7 @@ import { RELATION_CATEGORIES } from '@/db/types'
 import { Button, Field, Modal, inputCls, useAutoFocus } from '@/design-system/ui'
 import { Icon } from '@/design-system/Icon'
 import { MatchCombobox } from '@/design-system/MatchCombobox'
-import ChipTagInput, { chipTagStyle, parseTagInput } from '@/design-system/ChipTagInput'
+import ChipTagInput, { chipTagStyle, mergeDraftInto } from '@/design-system/ChipTagInput'
 import { createCustomerWithInit } from './hooks'
 import { txnCustomerIds } from '@/modules/finance/links'
 import { canonicalTags } from '@/shared/tags'
@@ -63,6 +63,14 @@ export default function CustomerFormDrawer({
   const [relations, setRelations] = useState<CustomerRelation[]>([])
   const [relTargets, setRelTargets] = useState<string[]>([])
   const [relLabels, setRelLabels] = useState<string[]>([])
+  /**
+   * 关系区两个输入框里尚未敲下分隔符的草稿（保存时一并结算）。
+   * 与 pendingTags 同理：控件不做失焦固化，草稿的归属由保存路径决定。
+   * 漏接这两个上报会造成「输了客户名/语义直接点保存 → 静默丢失」，
+   * 与表单自带提示「无需点添加关系也行，保存时会自动配对」矛盾（功能测试 #144）。
+   */
+  const [pendingRelTargets, setPendingRelTargets] = useState('')
+  const [pendingRelLabels, setPendingRelLabels] = useState('')
   const [relCategory, setRelCategory] = useState<RelationCategory | ''>('')
   // 第 4 步「跨模块关联初始化」状态（仅新建模式展示）
   const [initLog, setInitLog] = useState(false)
@@ -92,6 +100,8 @@ export default function CustomerFormDrawer({
       setPendingTags('')
       setRelTargets([])
       setRelLabels([])
+      setPendingRelTargets('')
+      setPendingRelLabels('')
       setRelCategory('')
       setInitLog(false)
       setInitTxnId('')
@@ -167,12 +177,16 @@ export default function CustomerFormDrawer({
     // 标签走「标签语义」的唯一归一化（折叠大小写与 # 前缀）：
     // ① 并入未固化的草稿 ② 让存量里的旧写法（如 VIP）在下次保存时自然收敛为规范形式，
     // 避免标签栏出现 VIP / vip 两枚看起来一样的芯片（功能测试 #32）。
-    const nextTags = canonicalTags([...tags, ...parseTagInput(pendingTags)])
-    const pendingRelationDrafts = relTargets.map((t) => t.trim()).filter(Boolean)
+    const nextTags = canonicalTags(mergeDraftInto(tags, pendingTags))
+    // 关系区同样结算草稿（功能测试 #144）：客户名与语义各按控件同款口径解析
+    // （mergeDraftInto = 已固化片段 + 未固化草稿，逗号切分 + trim + 去空 + 去重，
+    //  与控件回车路径完全一致）。注意关系**不是标签**，不折叠大小写。
+    const pendingRelationDrafts = mergeDraftInto(relTargets, pendingRelTargets)
     if (pendingRelationDrafts.length === 0) {
       return { tags: nextTags, relations, error: '' }
     }
-    const { added, hints } = pairPendingRelations(pendingRelationDrafts, relLabels)
+    const labels = mergeDraftInto(relLabels, pendingRelLabels)
+    const { added, hints } = pairPendingRelations(pendingRelationDrafts, labels)
     return { tags: nextTags, relations: withDedup(relations, added), error: hints.join('；') }
   }
 
@@ -366,6 +380,7 @@ export default function CustomerFormDrawer({
               <ChipTagInput
                 value={relTargets}
                 onChange={setRelTargets}
+                onDraftChange={setPendingRelTargets}
                 placeholder="输入客户名，回车或逗号固化"
                 onOverflow={() => setError('一次最多添加 5 位关联客户')}
               />
@@ -374,6 +389,7 @@ export default function CustomerFormDrawer({
               <ChipTagInput
                 value={relLabels}
                 onChange={setRelLabels}
+                onDraftChange={setPendingRelLabels}
                 placeholder="如：转介绍人 / 同一公司"
                 onOverflow={() => setError('一次最多添加 5 个关系语义')}
               />
