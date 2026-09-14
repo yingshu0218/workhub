@@ -28,6 +28,8 @@ import {
   createCustomerGroup,
   updateCustomerGroup,
   deleteCustomerGroup,
+  reorderCustomerGroups,
+  moveInOrder,
 } from './hooks'
 
 /** 客户管理主页面（对齐原型 08-crm-list） */
@@ -40,6 +42,8 @@ export default function CrmPage() {
   // 自定义分组（Issue #63）：选中分组 id 与编辑弹层
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
   const [editorGroup, setEditorGroup] = useState<CustomerGroup | 'new' | null>(null)
+  // 分组的拖拽排序（用例 #34）：记录被拖起的 id，落点由目标项决定
+  const [dragGroupId, setDragGroupId] = useState<string | null>(null)
 
   const customGroups = useCustomerGroups()
   const intimacyCfg = useIntimacyConfig()
@@ -155,12 +159,43 @@ export default function CrmPage() {
             {customGroups.map((g) => (
               <div
                 key={g.id}
+                /* 拖拽排序（用例 #34）：内置分组（全部/S/A/B/潜在）是固定顺序不参与，
+                   只有自定义分组可拖 —— 它们的 sortOrder 才是用户语义上的「我的排序」 */
+                draggable
+                onDragStart={(e) => {
+                  setDragGroupId(g.id)
+                  e.dataTransfer.effectAllowed = 'move'
+                }}
+                onDragEnd={() => setDragGroupId(null)}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  if (!dragGroupId || dragGroupId === g.id) return
+                  const ids = customGroups.map((x) => x.id)
+                  const from = ids.indexOf(dragGroupId)
+                  const to = ids.indexOf(g.id)
+                  if (from < 0 || to < 0) return
+                  void reorderCustomerGroups(moveInOrder(ids, from, to))
+                  setDragGroupId(null)
+                }}
                 className={`app-nav-link group/g flex items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[0.9286rem] transition-colors ${
+                  dragGroupId === g.id ? 'opacity-40' : ''
+                } ${
                   selectedGroupId === g.id
                     ? 'bg-primary-fixed font-semibold text-primary'
                     : 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'
                 }`}
               >
+                {/* 拖拽手柄：仅作视觉提示（整行都可拖，与 /todo 清单、/finance 账本同款写法
+                    与同一个 ⠿ 字符），hover 或正在拖时可见，避免常态下与「编辑/删除」抢注意力 */}
+                <span
+                  title="拖动调整分组顺序"
+                  className={`-ml-1 shrink-0 cursor-grab text-[1rem] leading-none text-outline/60 transition-opacity group-hover/g:text-outline ${
+                    dragGroupId ? 'opacity-100' : 'opacity-0 group-hover/g:opacity-100'
+                  }`}
+                >
+                  ⠿
+                </span>
                 <button
                   className="flex min-w-0 flex-1 items-center gap-2 text-left"
                   onClick={() => setSelectedGroupId(selectedGroupId === g.id ? null : g.id)}

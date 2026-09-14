@@ -7,6 +7,8 @@
  * - scope: 'page' 的快捷键在注册时快照 location.pathname，派发时按前缀校验真实生效，
  *   离开该页面（或其子路径）后 page 快捷键不再触发。
  */
+import { isImeComposing } from './ime'
+
 export interface ShortcutDef {
   /** 标准化组合键，如 'mod+k'、'space'、'esc' */
   combo: string
@@ -75,8 +77,8 @@ export function installKeyboardListener() {
   window.addEventListener(
     'keydown',
     (e) => {
-      // 输入法组合中不拦截（戒点④：IME isComposing）
-      if (e.isComposing) return
+      // 输入法组合中不拦截（戒点④：IME isComposing；单一实现见 shared/ime.ts）
+      if (isImeComposing(e)) return
       // 输入场景不拦截
       const target = e.target as HTMLElement
       if (

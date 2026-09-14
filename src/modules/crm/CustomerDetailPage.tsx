@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Icon } from '@/design-system/Icon'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useCollection, useRecord } from '@/queries/hooks'
+import { isImeComposing } from '@/shared/ime'
 import type { Customer, Interaction, Note, Project } from '@/db/types'
 import { deleteCustomerCascade, newId, saveInteractionAndTouchCustomer } from '@/repositories'
 import {
@@ -835,7 +836,7 @@ function QuickLog({ customerId }: { customerId: string }) {
           className={inputCls}
           value={content}
           onChange={(e) => setContent(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && !e.nativeEvent.isComposing && void save()}
+          onKeyDown={(e) => e.key === 'Enter' && !isImeComposing(e.nativeEvent) && void save()}
           placeholder="如：确认了二期验收标准，下周回签合同…"
         />
         <Button icon="send" disabled={!content.trim() || saving} onClick={() => void save()}>

@@ -365,6 +365,47 @@ export function useCustomerGroupCounts(
   }, [customers, groups])
 }
 
+/**
+ * 拖拽落点的索引修正（纯函数，可测）。
+ *
+ * **先把源项从数组里摘掉，再按目标索引插入** —— 否则 `from < to` 时目标项会因源项
+ * 被摘除而整体前移一位，表现为「往下拖一格只挪了半格 / 拖不动」。
+ * 与 `/todo`（清单）和 `/finance`（账本）两处的实现同一口径，避免三处各写一遍。
+ */
+export function moveInOrder(ids: readonly string[], from: number, to: number): string[] {
+  const next = [...ids]
+  const [moved] = next.splice(from, 1)
+  next.splice(from < to ? to - 1 : to, 0, moved)
+  return next
+}
+
+/**
+ * 拖拽排序：按传入的 id 顺序重写 sortOrder（用例 #34）。
+ *
+ * 与 `reorderTodoLists` 同款纪律：**同事务内改记录 + 入同步队列**，
+ * 否则本地顺序变了但推不上服务端，换设备就回到旧顺序（本项目最容易踩的同步坑）。
+ * `sortOrder` 字段早在 Issue #63 就已在模型与服务端集合里（customerGroups），
+ * 缺的只是「改它的入口」—— 本函数补上写入侧，UI 侧在 CrmPage 的分组栏。
+ */
+export async function reorderCustomerGroups(orderedIds: string[]): Promise<void> {
+  const now = Date.now()
+  const all = await db.customerGroups.toArray()
+  await db.transaction('rw', [db.customerGroups, db.syncQueue], async () => {
+    for (let i = 0; i < orderedIds.length; i++) {
+      const g = all.find((x) => x.id === orderedIds[i])
+      if (!g || g.sortOrder === i) continue
+      await db.customerGroups.put({ ...g, sortOrder: i, updatedAt: now, rev: g.rev + 1 })
+      await db.syncQueue.add({
+        table: 'customerGroups',
+        recordId: g.id,
+        op: 'upsert',
+        createdAt: now,
+      })
+    }
+  })
+  syncEngine.requestSync()
+}
+
 /** 新建分组（同事务入同步队列，走 TodoList 先例） */
 export async function createCustomerGroup(input: {
   name: string

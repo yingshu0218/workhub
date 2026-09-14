@@ -3,6 +3,7 @@ import { Icon } from '@/design-system/Icon'
 import { useNavigate } from 'react-router-dom'
 import { useCollection } from '@/queries/hooks'
 import { buildSearchIndex, searchAll } from '@/shared/search'
+import { isImeComposing } from '@/shared/ime'
 import type { SearchItem } from '@/shared/search'
 import type { Customer, Project, Todo, Transaction, Note, Habit } from '@/db/types'
 import { noteRepo, newId } from '@/repositories'
@@ -126,8 +127,8 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
   ]
 
   const onKeyDown = (e: React.KeyboardEvent) => {
-    // 输入法组合中不处理（戒点④：IME isComposing）
-    if (e.nativeEvent.isComposing) return
+    // 输入法组合中不处理（戒点④：IME isComposing；单一实现见 shared/ime.ts）
+    if (isImeComposing(e.nativeEvent)) return
     if (e.key === 'ArrowDown') {
       e.preventDefault()
       setActive((i) => (flat.length ? (i + 1) % flat.length : 0))

@@ -8,6 +8,7 @@ import type { Customer, Ledger, Todo, Project } from '@/db/types'
 import { Button, Card, Chip, ConfirmDialog, EmptyState } from '@/design-system/ui'
 import { archivedLast, fuzzyMatch, fuzzySort, MatchCombobox } from '@/design-system/MatchCombobox'
 import { toArchivedFlag } from '@/shared/search'
+import { isImeComposing } from '@/shared/ime'
 import dayjs from 'dayjs'
 import { todoStatusLabel } from '@/modules/todo/domain'
 import { todoPriorityFullLabel } from '@/modules/todo/priority'
@@ -683,7 +684,7 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
     }
     const onKey = (e: KeyboardEvent) => {
       // CodeMirror keymap 已处理（preventDefault）的事件不再重复响应；IME 组合输入期间不触发选择
-      if (e.defaultPrevented || e.isComposing) return
+      if (e.defaultPrevented || isImeComposing(e)) return
       // 搜索框自身的按键已由 input onKeyDown 处理，document 兜底不重复介入（防止对同一按键二次响应）
       if (mentionInputRef.current && e.target === mentionInputRef.current) return
       handleMentionNavRef.current(e.key)
@@ -1127,8 +1128,8 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
                 setActiveIdx(0)
               }}
               onKeyDown={(e) => {
-                // IME 组合输入期间不拦截（避免打断中文/日文候选上屏）
-                if (e.nativeEvent.isComposing || e.keyCode === 229) return
+                // IME 组合输入期间不拦截（避免打断中文/日文候选上屏；单一实现见 shared/ime.ts）
+                if (isImeComposing(e.nativeEvent)) return
                 const handled = handleMentionNav(e.key)
                 if (handled) {
                   e.preventDefault()
