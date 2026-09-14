@@ -15,6 +15,7 @@
     "relay": "node relay/index.mjs",
     "relay:stdio": "node relay/index.mjs --stdio",
     "gen:skills": "node scripts/gen-skills.mjs",
+    "agent:setup": "node scripts/agent-setup.mjs",
     "serve": "node scripts/serve.mjs"
   },
   "dependencies": {

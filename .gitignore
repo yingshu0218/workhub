@@ -6,3 +6,23 @@ dist/
 .env
 .env.local
 *.tsbuildinfo
+# 部署配置与状态（含服务器地址/凭据，勿入库）
+.deploy.env
+.deploy-state
+
+# ── Agent 一键接入（npm run agent:setup）的生成物 ──────────────────────────
+# 全部是「本机派生」：含绝对路径（node 可执行文件、仓库位置），换机器即失效，
+# 且 MCP 条目本身没有共享价值（团队共享的是 AGENTS.md 与 docs/skills/ 这两处
+# 单一事实源，由 agent:setup 在各自机器上重新生成）。故一律不入库。
+# 注意：AGENTS.md 不在此列 —— 它是手写的事实源，必须提交。
+.agents/
+.opencode/
+.claude/skills/
+.workbuddy/skills/
+opencode.json
+.mcp.json
+CLAUDE.md
+GEMINI.md
+.cursor/mcp.json
+.cursor/rules/workhub.mdc
+*.bak-workhub-agent-setup
