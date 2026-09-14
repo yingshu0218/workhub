@@ -38,7 +38,25 @@ cp pb_setup/backup.sh /opt/nexus/pocketbase/
 
 1. 打开 `http://<服务器IP>:8090/_/`，用超管账号登录；
 2. Settings → **Import collections**；
-3. 粘贴 `collections.json` 全文 → 确认导入（会列出新增的 14 张表，confirm 后落库）。
+3. 粘贴 `collections.json` 全文 → 确认导入（会列出新增的 **19 张业务表**，confirm 后落库）。
+
+> ⚠️ **`collections.json` 只含业务集合（19 张），不含认证集合 `users`** —— 而前端登录用的就是这个 `users`（见第 3 节）。
+> 它不在文件里的原因是：它是 PocketBase 的**标准认证集合**（`type: auth`），字段全是内置的
+> （`email` / `password` / `tokenKey` / `verified` …），没有项目自定义字段，故当初没有纳入快照。
+> **重建环境时务必先建它**（管理后台 → New collection → **Auth**，名称填 `users`），
+> 并按下表核对四项设置 —— 少一项都会让登录链路断掉：
+>
+> | 项 | 线上实测值 |
+> |---|---|
+> | `passwordAuth` | `{ enabled: true, identityFields: ["email"] }` |
+> | `listRule` / `viewRule` / `updateRule` / `deleteRule` | `id = @request.auth.id`（仅本人可读写） |
+> | `createRule` | 空（不允许自行注册） |
+>
+> 演示账号 `demo@nexus.local` 与各成员的同步账号都落在这一集合里。
+>
+> 之所以**不把它写进 `collections.json`**：部署脚本在「schema 有变更」时会导入该文件，
+> 一旦把认证集合的快照并进去，将来线上对登录设置做的任何调整都会在下次 `--full` 部署时**被快照回滚**。
+> 宁可在这里写清楚，也不给未来埋一个「部署把登录设置冲掉」的坑。
 
 **方式 B · pb migrate（命令行）**
 
@@ -47,7 +65,8 @@ cp pb_setup/backup.sh /opt/nexus/pocketbase/
 ```bash
 cd /opt/nexus/pocketbase
 # 若你选择手写迁移，可执行后按提示在 pb_migrations/ 生成空模板，
-# 参照 collections.json 里的字段定义用 $app.newCollection() 填写 14 张表
+# 参照 collections.json 里的字段定义用 $app.newCollection() 填写 19 张业务表
+# （另有认证集合 users 需单独创建，见上方 ⚠️ 说明）
 ./pocketbase migrate create init_sync_collections
 ./pocketbase migrate up     # serve 启动时也会自动执行未应用的迁移
 ```
