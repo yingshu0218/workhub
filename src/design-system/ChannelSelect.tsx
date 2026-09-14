@@ -95,7 +95,7 @@ export default function ChannelSelect({
           }
         }}
       >
-        <span className={`truncate ${selected ? '' : 'text-outline'}`}>
+        <span className={`truncate ${selected ? '' : 'text-on-surface-variant'}`}>
           {selected?.label ?? placeholder}
         </span>
         <Icon name="keyboard_arrow_down" size={18} className="shrink-0 text-outline" />
@@ -114,7 +114,11 @@ export default function ChannelSelect({
             }`}
           >
             <Icon name="do_not_disturb_on" size={15} className="shrink-0 text-outline" />
-            <span className="min-w-0 flex-1 truncate text-outline">{placeholder}</span>
+            {/* ⚠️ 标签**不要**再硬编码颜色：这一行是「选中行」，父按钮已按选中态给了
+                `bg-primary-fixed text-primary`；此前这里写死 `text-outline` 会把父级的
+                primary 覆盖掉，实测对比度由 6.0:1 掉到 3.92:1（浅）/ 6.12:1 掉到 3.25:1（暗），**低于 AA 4.5**。
+                去掉后与下方各渠道选项行写法一致（不自带颜色、继承按钮态）。 */}
+            <span className="min-w-0 flex-1 truncate">{placeholder}</span>
           </button>
           {options.map((o) => (
             <button
