@@ -79,11 +79,16 @@ export function buildSearchIndex(inputs: {
     // 状态前缀（Issue #128）：⌘K 结果里一眼区分「已完成 / 已作废 / 未完成」，
     // 终态条目仍在索引内（可搜到、可跳转回溯），只是标注清楚
     const statusTag = t.status === 'done' ? '已完成' : t.status === 'voided' ? '已作废' : ''
+    // ⚠️ desc 必须兜底：`Todo.desc` 类型上标为必填，但存量 / 同步 / 手写库的记录可能没有该字段。
+    // 直接把它当作 subtitle 会让下面 filter 里的 `item.subtitle.toLowerCase()` 抛
+    // "Cannot read properties of undefined" —— 一条脏数据即可让**整个 ⌘K 搜索崩溃**（整页错误页）。
+    // 与 modules/todo/title.ts、TodoPage 详情抽屉同口径（缺陷 D11 的姊妹处，D13）。
+    const desc = t.desc ?? ''
     items.push({
       id: t.id,
       type: 'todo',
-      title: t.title,
-      subtitle: statusTag ? `${statusTag} · ${t.desc}` : t.desc,
+      title: t.title ?? '',
+      subtitle: statusTag ? `${statusTag} · ${desc}` : desc,
       // 深链定位（与时间线骨刺穿透同款口径）：/todo?focus=<id>，避免「点了结果只落到列表、
       // 目标条目在默认视图外 → 观感等同没反应」。TodoPage 消费 focus 后切视图 + 打开详情抽屉。
       path: todoFocusPath(t.id),
@@ -128,9 +133,13 @@ export function searchAll(
   query: string,
 ): { type: SearchEntityType; label: string; icon: string; items: SearchItem[] }[] {
   const q = query.trim().toLowerCase()
+  // 消费侧同样兜底（与索引侧双保险）：搜索索引来自多类实体投影（客户/项目/待办/流水/笔记/习惯），
+  // 任一类出现字段缺失都不该让整个搜索崩掉 —— 缺字段的项退化为「匹配不到」而非抛错。
   const matched = q
     ? index.filter(
-        (item) => item.title.toLowerCase().includes(q) || item.subtitle.toLowerCase().includes(q),
+        (item) =>
+          (item.title ?? '').toLowerCase().includes(q) ||
+          (item.subtitle ?? '').toLowerCase().includes(q),
       )
     : index
   return TYPE_ORDER.map((type) => ({

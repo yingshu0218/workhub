@@ -135,6 +135,43 @@ export function isHighPriority(t: Pick<Todo, 'priority'>): boolean {
   return normalizeTodoPriority(t.priority) === 'high'
 }
 
+/**
+ * 档位比较器（缺陷 D12 / 用例 #158）：高 → 中 → 低 → 无。
+ *
+ * 返回负数表示 a 应排在 b 之前（`Array.prototype.sort` 约定）。
+ * 只比档位、不比时间 —— 同档位内的次序由调用方叠加二级比较器决定（见 `sortTodosByPriority`）。
+ * 归一化在读侧完成，因此存量 `P1/P2/P3` 与写坏的字段值都能正确落位。
+ */
+export function compareTodoPriority(
+  a: Pick<Todo, 'priority'>,
+  b: Pick<Todo, 'priority'>,
+): number {
+  return todoPriorityWeight(b.priority) - todoPriorityWeight(a.priority)
+}
+
+/**
+ * 待办列表两级排序（缺陷 D12 / 用例 #158）：**档位优先，创建时间兜底**。
+ *
+ * 为什么不是「纯时间序」：`high` 档的语义就是「立刻做，别排期」，若被一条后建的
+ * `none` 档压在上面，档位选择在列表上就没有任何可见后果（用户会认为档位没生效）。
+ *
+ * 为什么不是「纯档位序」：同档位内必须保持稳定可预期的次序，否则每次读库顺序抖动、
+ * 同一档位的事项看起来会「自己换位置」。用创建时间兜底最稳，且保留用户已有的
+ * 升序 / 降序切换（该按钮现在是**同档位内**的时间轴方向）。
+ *
+ * 返回新数组，不改动入参（`useMemo` 依赖的源数组不可被原地排序）。
+ */
+export function sortTodosByPriority<T extends Pick<Todo, 'priority' | 'createdAt'>>(
+  items: readonly T[],
+  dir: 'asc' | 'desc' = 'asc',
+): T[] {
+  const byCreatedAt = (a: T, b: T) => {
+    const d = (a.createdAt ?? 0) - (b.createdAt ?? 0)
+    return dir === 'asc' ? d : -d
+  }
+  return [...items].sort((a, b) => compareTodoPriority(a, b) || byCreatedAt(a, b))
+}
+
 /** 高优先级筛选 Chip 的选中判定（列表行 / 兜底切换共用） */
 export function matchesPriorityFilter(raw: unknown, filter: TodoPriority | null): boolean {
   if (!filter) return true

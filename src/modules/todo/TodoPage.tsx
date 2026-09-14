@@ -31,6 +31,7 @@ import {
   todoPriorityTone,
   isHighPriority,
   matchesPriorityFilter,
+  sortTodosByPriority,
   type TodoPriority,
 } from './priority'
 import {
@@ -177,15 +178,23 @@ export default function TodoPage() {
 
   const todayStr = dayjs().format('YYYY-MM-DD')
 
-  // 列表统一按添加时间（createdAt）排序，可通过按钮切换升序/降序，筛选视图沿用同一顺序
-  const sortedTodos = useMemo(
-    () =>
-      [...todos].sort((a, b) => {
+  // 列表排序（缺陷 D12 / 用例 #158）：**档位一级 + 创建时间二级**——
+  //   · 未完成口径视图：「高 → 中 → 低 → 无」，同档位内按创建时间（由排序按钮切升/降）；
+  //   · 终态视图（已完成 / 已作废）：跳过档位一级，保持纯时间序。
+  // 终态视图不参与档位排序的理由：事项已终结，档位不再有「立刻做 / 排进计划」的行动含义，
+  // 这两个视图的实际用法是「回看最近完成 / 最近作废了什么」，时间序才对得上直觉；
+  // 强行按档位排序会让回溯列表失去时间轴的意义。
+  const sortedTodos = useMemo(() => {
+    const terminal = (selKind === 'done' || selKind === 'voided') && !selListId
+    if (terminal) {
+      const list = [...todos]
+      return list.sort((a, b) => {
         const d = (a.createdAt ?? 0) - (b.createdAt ?? 0)
         return sortDir === 'asc' ? d : -d
-      }),
-    [todos, sortDir],
-  )
+      })
+    }
+    return sortTodosByPriority(todos, sortDir)
+  }, [todos, sortDir, selKind, selListId])
   // 三态口径统一走领域层（Issue #128），不再手写 status === 'done' 之类的判据
   const openTodos = sortedTodos.filter(isTodoOpen)
   const doneTodos = sortedTodos.filter(isTodoDone)
@@ -601,10 +610,10 @@ export default function TodoPage() {
               )}
             </div>
             <div className="flex items-center gap-2">
-              {/* 排序按钮：按创建时间升序 / 降序 */}
+              {/* 排序按钮：同一档位内按创建时间升序 / 降序（档位本身恒为高→无，见 sortedTodos） */}
               <button
                 onClick={() => setSortDir('asc')}
-                title="按创建时间升序"
+                title="同一档位内按创建时间升序"
                 className={`rounded-lg p-1.5 transition-colors ${
                   sortDir === 'asc'
                     ? 'bg-primary-fixed text-primary'
@@ -615,7 +624,7 @@ export default function TodoPage() {
               </button>
               <button
                 onClick={() => setSortDir('desc')}
-                title="按创建时间降序"
+                title="同一档位内按创建时间降序"
                 className={`rounded-lg p-1.5 transition-colors ${
                   sortDir === 'desc'
                     ? 'bg-primary-fixed text-primary'
