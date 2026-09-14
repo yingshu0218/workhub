@@ -1,5 +1,6 @@
 import Dexie, { type Table } from 'dexie'
 import type {
+  SyncMeta,
   Workspace,
   Customer,
   Interaction,
@@ -30,8 +31,17 @@ export interface MetaEntry {
   value: unknown
 }
 
-/** 附件 Blob 单独存表（凭证图片等），元数据随业务记录同步 */
-export interface Attachment {
+/**
+ * 附件 Blob 单独存表（凭证图片等），元数据随业务记录同步。
+ *
+ * P2 #1：本表此前是**有同步行为、却没有同步元数据类型**的孤例 ——
+ * `SYNC_TABLES` 早已含 attachments、服务端集合也一直带 `updatedAt`(required) / `deleted` / `rev`、
+ * 写入路径运行时确实在盖这些字段，但全靠 `as Attachment & Partial<SyncMeta>` 之类断言绕过类型。
+ * 类型不声明、索引不建，等于「跨设备 LWW 与软删」只在约定层面成立。
+ *
+ * `blob` 是**仅本地**字段：推送前由 `toPayload` 剥离，改走 multipart 上传到服务端 file 字段。
+ */
+export interface Attachment extends SyncMeta {
   id: string
   refType: string
   refId: string
@@ -191,6 +201,19 @@ export class NexusDB extends Dexie {
             delete t.projectId
           })
       })
+    /**
+     * v12（P2 #1 附件同步语义）：attachments 补 `updatedAt` 索引。
+     *
+     * 附件此前只有 `id, refType, refId, createdAt` 四个索引位 —— 没有 `updatedAt`，
+     * 而本项目的增量游标、LWW 判定、按时间序回溯全都依赖它。补索引是纯本地动作：
+     * **服务端无需变更**（`pb_setup/collections.json` 的 attachments 早已含这三个字段，
+     * 线上实测亦一致），也不涉及数据搬迁 —— 存量记录缺的字段由写入路径与远端合并
+     * （`mergeRemoteRecord` 统一盖 updatedAt / deleted / rev）逐步补齐，
+     * 读取侧对缺字段一律按「未删除」处理（`!a.deleted`），不会把老记录误判成已删。
+     */
+    this.version(12).stores({
+      attachments: 'id, refType, refId, createdAt, updatedAt',
+    })
   }
 }
 

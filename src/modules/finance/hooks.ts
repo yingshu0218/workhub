@@ -4,7 +4,6 @@ import { db } from '@/db/db'
 import { useQuery } from '@/queries/hooks'
 import type { Ledger } from '@/db/types'
 import { syncEngine } from '@/sync/engine'
-import type { SyncMeta } from '@/db/types'
 
 /**
  * 财务模块领域查询 Hook（附件读写在 hooks 层封装，组件不直碰 Dexie）
@@ -12,22 +11,40 @@ import type { SyncMeta } from '@/db/types'
 
 const EMPTY_LIST: Attachment[] = []
 
+/**
+ * 某笔交易的存活附件（软删已过滤）。
+ *
+ * `deleted` 过滤不能省：附件是**软删**表 —— `deleteTransactionCascade` 只置 `deleted=1`，
+ * 记录仍留在库里；跨设备传播删除与 pull 回来的远端删除也走同一形状。
+ * 直查 `refId` 会把已删存根一并返回，表现为「删了凭证，附件仍挂在别的入口上」。
+ * 缺 `deleted` 字段的存量记录按「未删除」处理（`!undefined === true`），不会误判成已删。
+ *
+ * 抽成模块级函数而不是内联进 hook：UI、单测与后续任何读入口共用同一实现
+ * （与 `deleteTodoCascade` 同款纪律），「软删过滤」这条语义才有可断言的真源。
+ */
+export function listTransactionAttachments(transactionId: string): Promise<Attachment[]> {
+  return db.attachments.where('refId').equals(transactionId).filter((a) => !a.deleted).toArray()
+}
+
+/** 某条记录的存活附件数（先走 refId 索引收窄，再过滤软删；不反序列化 Blob） */
+export function countAttachments(refId: string): Promise<number> {
+  return db.attachments.where('refId').equals(refId).filter((a) => !a.deleted).count()
+}
+
 /** 某笔交易的附件列表（凭证存根） */
 export function useTransactionAttachments(transactionId: string | undefined): Attachment[] {
   const list = useQuery<Attachment[]>(
     () =>
-      transactionId
-        ? db.attachments.where('refId').equals(transactionId).toArray()
-        : Promise.resolve(EMPTY_LIST),
+      transactionId ? listTransactionAttachments(transactionId) : Promise.resolve(EMPTY_LIST),
     [transactionId],
   )
   return list ?? EMPTY_LIST
 }
 
-/** 某条记录的附件计数角标（count() 只走索引计数，不反序列化 Blob） */
+/** 某条记录的附件计数角标 */
 export function useAttachmentCount(refId: string | undefined): number {
   const count = useQuery<number>(
-    () => (refId ? db.attachments.where('refId').equals(refId).count() : Promise.resolve(0)),
+    () => (refId ? countAttachments(refId) : Promise.resolve(0)),
     [refId],
   )
   return count ?? 0
@@ -60,12 +77,11 @@ export async function deleteTransactionCascade(txnId: string): Promise<void> {
 
     const atts = await db.attachments.where('refId').equals(txnId).toArray()
     for (const att of atts) {
-      const stamped = att as Attachment & Partial<SyncMeta>
       await db.attachments.update(att.id, {
         deleted: 1,
         updatedAt: now,
-        rev: (stamped.rev ?? 0) + 1,
-      } as unknown as Partial<Attachment>)
+        rev: (att.rev ?? 0) + 1,
+      })
       await db.syncQueue.add({
         table: 'attachments',
         recordId: att.id,

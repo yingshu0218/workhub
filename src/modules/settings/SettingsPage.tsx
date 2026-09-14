@@ -26,6 +26,7 @@ import {
 } from '@/repositories'
 import { useNavigate } from 'react-router-dom'
 import { listShortcuts } from '@/shared/shortcuts'
+import { downloadBlob, downloadText } from '@/shared/download'
 import {
   ACCENT_PRESETS,
   RADIUS_PRESETS,
@@ -137,16 +138,11 @@ function SkinThumb({ id }: { id: SkinStyleId }) {
   }
 }
 
-/** 下载文本文件（导出共用）：CSV 载荷自带 BOM，浏览器端生成无需依赖 */
-function downloadText(content: string, mime: string, filename: string) {
-  const blob = new Blob([content], { type: mime })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.click()
-  URL.revokeObjectURL(url)
-}
+/**
+ * 下载实现已收口到 `@/shared/download`（P2 #42）。
+ * 原实现在此同步调用 `URL.revokeObjectURL`，Safari 下会在浏览器真正读到 Blob 之前
+ * 就把对象 URL 释放掉 —— 表现为「点了导出没反应 / 文件 0 字节」，且只在换浏览器时暴露。
+ */
 
 /** CSV 序列化：含逗号/引号/换行的字段引号包裹转义，\uFEFF BOM 兼容 Excel 直开 */
 function toCsv(headers: string[], rows: (string | number)[][]): string {
@@ -397,13 +393,10 @@ export default function SettingsPage() {
           moduleConfigs,
         },
       }
-      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `nexus-workspace-backup-${new Date().toISOString().slice(0, 10)}.json`
-      a.click()
-      URL.revokeObjectURL(url)
+      downloadBlob(
+        new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }),
+        `nexus-workspace-backup-${new Date().toISOString().slice(0, 10)}.json`,
+      )
     } finally {
       setExporting(false)
     }

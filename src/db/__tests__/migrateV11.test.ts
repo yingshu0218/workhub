@@ -100,7 +100,9 @@ describe('v11 迁移：交易关联单值 → 数组', () => {
     expect(e).not.toHaveProperty('customerIds')
   })
 
-  it('schema 版本号已推进到 11（防止后续实现回退版本）', () => {
-    expect(db.verno).toBe(11)
+  it('schema 版本号不低于 11（防止后续实现回退版本）', () => {
+    // 本意是防回退、不是钉死：v12 起为附件补了 updatedAt 索引（P2 #1），
+    // 后续再有版本推进也不该让这条断言变红 —— 回退到 11 以下才是要拦的事。
+    expect(db.verno).toBeGreaterThanOrEqual(11)
   })
 })

@@ -281,8 +281,14 @@ function dataUrlToBlob(dataUrl: string): Blob {
   return new Blob([bytes], { type: mime })
 }
 
-/** 存档附件行（dataUrl 承载）→ 本地附件记录（blob 承载） */
-function attachmentRowToRecord(row: Record<string, unknown>): Attachment | null {
+/**
+ * 存档附件行（dataUrl 承载）→ 本地附件记录（blob 承载）。
+ *
+ * 同步盖章**原样保留**（与其它表 bulkPut「保留记录自带 updatedAt/rev/deleted」同口径）：
+ * 恢复一次存档不应把所有附件的时间戳重置，否则这批记录会整批输给远端旧版本（LWW），
+ * 换设备后看起来像「导入的附件被回滚掉了」。
+ */
+function attachmentRowToRecord(row: Record<string, unknown>): PutInput<Attachment> | null {
   const { dataUrl, ...rest } = row
   const blob =
     typeof dataUrl === 'string' && dataUrl.startsWith('data:')
@@ -300,6 +306,9 @@ function attachmentRowToRecord(row: Record<string, unknown>): Attachment | null 
     size: typeof rest.size === 'number' ? rest.size : blob.size,
     blob,
     createdAt: typeof rest.createdAt === 'number' ? rest.createdAt : 0,
+    ...(typeof rest.updatedAt === 'number' ? { updatedAt: rest.updatedAt } : {}),
+    ...(typeof rest.rev === 'number' ? { rev: rest.rev } : {}),
+    ...(rest.deleted === 0 || rest.deleted === 1 ? { deleted: rest.deleted } : {}),
   }
 }
 
@@ -329,7 +338,7 @@ export async function restoreFromJson(payload: unknown): Promise<number> {
           // 附件特殊通道：dataUrl → Blob 后写入，跳过无法落库的存档原行
           const records = rows
             .map((r) => attachmentRowToRecord(r as Record<string, unknown>))
-            .filter((r): r is Attachment => r !== null)
+            .filter((r): r is PutInput<Attachment> => r !== null)
           if (records.length === 0) continue
           await table.bulkPut(records)
           count += records.length
@@ -438,7 +447,7 @@ export async function saveTransactionWithAttachments(
     created = !prevTxn || !!prevTxn.deleted
     await putStamped('transactions', txn as Transaction & Partial<SyncMeta>)
     for (const att of attachments) {
-      await putStamped('attachments', att as Attachment & Partial<SyncMeta>)
+      await putStamped('attachments', att)
     }
   })
   // 事务 commit 之后：仅在新建时发送事件（载荷与旧 UI 内联 emit 逐字段一致，无多余字段）

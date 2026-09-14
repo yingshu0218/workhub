@@ -1,4 +1,5 @@
 import type { Trophy, TrophyTier } from '@/db/types'
+import { downloadBlob } from '@/shared/download'
 
 /**
  * 奖杯分享海报（审计 Phase 4/5 P2-12「奖杯海报未实装」）：
@@ -171,10 +172,8 @@ export async function downloadTrophyPoster(trophy: Trophy, level: number): Promi
   // 下载 PNG
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'))
   if (!blob) throw new Error('海报导出失败')
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `trophy-${trophy.name}-${new Date(trophy.unlockedAt ?? Date.now()).toISOString().slice(0, 10)}.png`
-  a.click()
-  URL.revokeObjectURL(url)
+  downloadBlob(
+    blob,
+    `trophy-${trophy.name}-${new Date(trophy.unlockedAt ?? Date.now()).toISOString().slice(0, 10)}.png`,
+  )
 }

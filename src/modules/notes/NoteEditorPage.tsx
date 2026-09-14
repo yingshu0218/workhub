@@ -9,6 +9,7 @@ import { Button, Card, Chip, ConfirmDialog, EmptyState } from '@/design-system/u
 import { archivedLast, fuzzyMatch, fuzzySort, MatchCombobox } from '@/design-system/MatchCombobox'
 import { toArchivedFlag } from '@/shared/search'
 import { isImeComposing } from '@/shared/ime'
+import { downloadText } from '@/shared/download'
 import dayjs from 'dayjs'
 import { todoStatusLabel } from '@/modules/todo/domain'
 import { todoPriorityFullLabel } from '@/modules/todo/priority'
@@ -737,15 +738,13 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
     scheduleSave()
   }
 
-  // ===== 导出 .md（延时 revoke，兼容 Safari） =====
+  // ===== 导出 .md（延迟释放 + 锚点入 DOM，兼容 Safari；实现见 @/shared/download） =====
   function exportMd() {
-    const blob = new Blob([mdRef.current], { type: 'text/markdown;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `${(titleRef.current.trim() || '未命名笔记').replace(/[\\/:*?"<>|]/g, '_')}.md`
-    link.click()
-    setTimeout(() => URL.revokeObjectURL(url), 3000)
+    downloadText(
+      mdRef.current,
+      'text/markdown;charset=utf-8',
+      `${(titleRef.current.trim() || '未命名笔记').replace(/[\\/:*?"<>|]/g, '_')}.md`,
+    )
   }
 
   // ===== 删除（软删 + 跳回列表，应用风格确认弹窗） =====

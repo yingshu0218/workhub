@@ -12,6 +12,7 @@ import {
   inputCls,
 } from '@/design-system/ui'
 import { useToast } from '@/design-system/Toast'
+import { downloadText } from '@/shared/download'
 import dayjs from 'dayjs'
 import { NOTE_PROSE_CSS, renderMarkdown, tagStyle, wordCount } from './shared'
 import {
@@ -441,13 +442,11 @@ function NoteViewModal({
   const folder = folders.find((f) => f.id === cur.folderId)
 
   function exportMd() {
-    const blob = new Blob([cur.markdown], { type: 'text/markdown;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = (cur.title.trim() || '未命名笔记').replace(/[\\/:*?"<>|]/g, '_') + '.md'
-    link.click()
-    setTimeout(() => URL.revokeObjectURL(url), 3000)
+    downloadText(
+      cur.markdown,
+      'text/markdown;charset=utf-8',
+      (cur.title.trim() || '未命名笔记').replace(/[\\/:*?"<>|]/g, '_') + '.md',
+    )
   }
 
   function handleDelete() {

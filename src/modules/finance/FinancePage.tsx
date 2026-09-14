@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Icon } from '@/design-system/Icon'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useCollection, useRecord } from '@/queries/hooks'
+import { downloadBlob } from '@/shared/download'
 import type { Customer, Ledger, Todo, Transaction } from '@/db/types'
 import {
   Avatar,
@@ -608,12 +609,7 @@ function TransactionRow({
 }
 
 function downloadAttachment(a: { name: string; blob: Blob }) {
-  const url = URL.createObjectURL(a.blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = a.name
-  link.click()
-  URL.revokeObjectURL(url)
+  downloadBlob(a.blob, a.name)
 }
 
 /** 凭证详情抽屉：完整字段 + 附件下载 + 关联业务溯源 + 状态流转与编辑 */
