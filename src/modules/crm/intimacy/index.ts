@@ -27,6 +27,44 @@ export function isBlacklistHidden(
   return isCustomerBlacklisted(customer) && cfg.blacklist[scene]
 }
 
+/** 开关关闭时的空集合（模块级常量：引用稳定，可直接进 useMemo 依赖） */
+const NO_HIDDEN_IDS: ReadonlySet<string> = new Set<string>()
+
+/**
+ * 某场景下应被屏蔽的**客户 id 集合**（选择器 / 搜索等按 id 命中过滤的消费面用）。
+ *
+ * 开关为 false 时返回**同一个空集合常量** —— 引用稳定，调用方可安全放进 useMemo 依赖，
+ * 不会因为「每次都返回新 Set」把下游 useMemo 打得永远重算。
+ */
+export function hiddenCustomerIds(
+  customers: readonly Pick<Customer, 'id' | 'intimacy'>[],
+  cfg: ModuleConfigIntimacy,
+  scene: keyof ModuleConfigIntimacy['blacklist'],
+): ReadonlySet<string> {
+  if (!cfg.blacklist[scene]) return NO_HIDDEN_IDS
+  return new Set(customers.filter(isCustomerBlacklisted).map((c) => c.id))
+}
+
+/**
+ * 某场景下过滤掉被屏蔽的客户（客户列表 / 时间线 / 搜索索引等按数组消费的面用）。
+ *
+ * **开关关闭时原样返回入参引用**（不是拷贝）：上层 useMemo 依赖不变，下游 zero-copy。
+ *
+ * 为什么把这两个函数放在这里：`isBlacklistHidden` 只是判定口径，而黑名单的四个场景
+ * 分散在 6 个以上消费面（搜索索引 / 客户选择器 / 客户列表 / 全部时间线 / 图谱 / Agent 读与消解）——
+ * 逐个手写 `filter` 必然会漏。缺陷 D15 的根因正是 `hideInSearch` / `excludeFromPicker` /
+ * `hideInTimeline` **根本没有消费点**（开关能切、能存、刷新还在，但打开后毫无后果）。
+ * 所以这里只留两个入口，各消费面一律从这里走，并有一条**源码扫描**测试盯着它们的调用点存在。
+ */
+export function filterBlacklisted<T extends Pick<Customer, 'intimacy'>>(
+  customers: T[],
+  cfg: ModuleConfigIntimacy,
+  scene: keyof ModuleConfigIntimacy['blacklist'],
+): T[] {
+  if (!cfg.blacklist[scene]) return customers
+  return customers.filter((c) => !isCustomerBlacklisted(c))
+}
+
 /**
  * 算法亲密度（0-100）：4 因子归一化加权——联系频率 30 / 金钱往来 30 / 事项 20 / 关联项目 20（可配置）。
  * 归一化口径（0-100 截断，对数化防大客户通吃）：

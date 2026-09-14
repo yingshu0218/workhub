@@ -20,7 +20,11 @@ import { markdown } from '@codemirror/lang-markdown'
 import { defaultHighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import { registerShortcut } from '@/shared/shortcuts'
 import { useBacklinks, useNoteRecord } from './hooks'
-import { useIntimacyConfig, resolveIntimacyLevel } from '@/modules/crm/intimacy'
+import {
+  filterBlacklisted,
+  useIntimacyConfig,
+  resolveIntimacyLevel,
+} from '@/modules/crm/intimacy'
 import { useCustomerScoreRows } from '@/modules/crm/hooks'
 import { resolveHealthScoreDisplay } from '@/modules/crm/healthScore'
 import { useProjects, moveNoteToProject } from '@/modules/projects/hooks'
@@ -304,6 +308,11 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
   const ledgers = useCollection<Ledger>('ledgers')
   // @提及「项目」tab 候选源（须在 mentionItems useMemo 之前声明并纳入依赖）
   const mentionProjects = useProjects()
+  // 黑名单「单据选择器排除」（缺陷 D15）：@ 提及候选同属「选客户」入口，与表单选择器同口径
+  const mentionCustomers = useMemo(
+    () => filterBlacklisted(customers, intimacyCfg, 'excludeFromPicker'),
+    [customers, intimacyCfg],
+  )
   const backlinks = useBacklinks(note)
 
   // 本地编辑态（以旧记录为基底，保存时展开旧记录仅覆盖所属字段）
@@ -509,7 +518,7 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
     // 复用 MatchCombobox 的 fuzzyMatch（子串 + 子序列）与 fuzzySort（前缀 > 子串 > 子序列，同质量稳定）
     const match = (it: MentionItem) => !kw || fuzzyMatch(it.label, kw) || fuzzyMatch(it.sub, kw)
     return [
-      ...customers.map<MentionItem>((c) => ({
+      ...mentionCustomers.map<MentionItem>((c) => ({
         type: 'customer',
         id: c.id,
         label: c.company ? `${c.company} · ${c.name}` : c.name,
@@ -536,7 +545,7 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
         ...toArchivedFlag(p),
       })),
     ].filter((it) => it.type === mentionTab && match(it))
-  }, [customers, todos, ledgers, mentionProjects, mentionTab, mention?.query])
+  }, [mentionCustomers, todos, ledgers, mentionProjects, mentionTab, mention?.query])
 
   // 筛选结果先按匹配质量排序，再让归档项目沉底（fuzzySort 按 label 质量排序，同质量保持原顺序）
   const sortedMentionItems = useMemo(

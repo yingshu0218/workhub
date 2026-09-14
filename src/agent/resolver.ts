@@ -1,5 +1,6 @@
 import { db } from '@/db/db'
 import { archivedLast, fuzzyMatch, fuzzySort, isProjectArchived } from '@/shared/search'
+import { filterBlacklisted, getIntimacyConfig } from '@/modules/crm/intimacy'
 
 /**
  * 实体消解器 —— agentOps P1 第 3 步（方案 §9.7 第 3 步 / §2.2 resolveEntity / §2.3）
@@ -88,7 +89,10 @@ async function buildPool(type: ResolvableType): Promise<ResolveCandidate[]> {
   switch (type) {
     case 'customer': {
       const rows = alive(await db.customers.limit(MAX_SCAN).toArray())
-      return rows.map((c) => ({
+      // 黑名单「单据选择器排除」（缺陷 D15）：消解器是 Agent 侧的「选客户」入口，
+      // 与 UI 选择器同口径 —— 否则 AI 仍能把被开关排除的客户关联到单据上（绕过开关）。
+      const cfg = await getIntimacyConfig()
+      return filterBlacklisted(rows, cfg, 'excludeFromPicker').map((c) => ({
         id: c.id,
         type,
         label: c.company ? `${c.company} · ${c.name}` : c.name,

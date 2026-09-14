@@ -78,6 +78,7 @@ export default function EntityLinkField({
   placeholder,
   emptyText,
   onChange,
+  hiddenIds,
 }: {
   /** 已关联实体 id 数组 */
   value: string[]
@@ -91,6 +92,13 @@ export default function EntityLinkField({
   emptyText: string
   /** 增删回调（已去重；解绑即从数组移除） */
   onChange: (next: string[]) => void
+  /**
+   * 从**候选**中排除的 id 集合（黑名单「单据选择器排除」等）。
+   * ⚠️ 必须只滤候选、不滤 `options`：`selected` 是从 `options` 里 find 出来的，
+   * 一旦把已关联的客户从 options 摘掉，芯片会**直接消失**，保存时连带把关联扔掉 ——
+   * 而配置文案明确「关联区始终保留，不丢数据」。
+   */
+  hiddenIds?: ReadonlySet<string>
 }) {
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
@@ -101,8 +109,8 @@ export default function EntityLinkField({
   const hover = useEntityHover()
 
   const selected = value.map((id) => options.find((o) => o.id === id)).filter((o): o is MatchOption => !!o)
-  // 仅列出未关联的候选（已关联的不再出现在下拉里，避免重复选）
-  const candidates = options.filter((o) => !value.includes(o.id))
+  // 仅列出未关联的候选（已关联的不再出现在下拉里，避免重复选）；黑名单屏蔽项同样不进候选
+  const candidates = options.filter((o) => !value.includes(o.id) && !hiddenIds?.has(o.id))
   const matched = candidates.filter((o) => fuzzyMatch(o.label, query))
   const filtered = archivedLast(fuzzySort(matched, (o) => o.label, query))
   const safeIdx = Math.min(activeIdx, Math.max(0, filtered.length - 1))

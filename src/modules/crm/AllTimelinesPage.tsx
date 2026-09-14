@@ -8,6 +8,7 @@ import dayjs from 'dayjs'
 import { TIMELINE_FILTERS, filterTimeline, type TimelineFilter, useAllTimelines } from './timeline'
 import { SPINE_Y, boneTarget, laneColor, layoutLanedBones, type Bone } from './timelineLayout'
 import { IDENTITY_VIEW, usePanZoom } from './usePanZoom'
+import { filterBlacklisted, useIntimacyConfig } from './intimacy'
 
 /**
  * 全部客户时间线鱼骨（/crm/timeline-all，Issue #22 需求 ④）
@@ -43,7 +44,13 @@ export default function AllTimelinesPage() {
     return () => ro.disconnect()
   }, [wheelRef])
 
-  const active = customers.filter((c) => !c.deleted)
+  // 黑名单「时间线隐藏」（缺陷 D15）：分带与「按客户筛选」下拉都不再出现被屏蔽客户；
+  // 该客户自己的档案页与单客户时间线（CustomerTimelinePage）仍可直达 —— 配置文案即「仅档案直接访问可见」
+  const active = filterBlacklisted(
+    customers.filter((c) => !c.deleted),
+    useIntimacyConfig(),
+    'hideInTimeline',
+  )
   const customerById = useMemo(() => new Map(active.map((c) => [c.id, c])), [active])
 
   // 有事件的客户才占分带（稳定排序：按客户名）

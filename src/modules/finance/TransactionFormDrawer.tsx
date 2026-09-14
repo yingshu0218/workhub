@@ -7,6 +7,7 @@ import type { Attachment } from '@/db/db'
 import type { Customer, Ledger, Project, Todo, Transaction } from '@/db/types'
 import { Button, Chip, Field, Modal, inputCls, useAutoFocus } from '@/design-system/ui'
 import { toArchivedFlag } from '@/shared/search'
+import { hiddenCustomerIds, useIntimacyConfig } from '@/modules/crm/intimacy'
 import EntityLinkField from '@/design-system/EntityLinkField'
 import ChannelSelect from '@/design-system/ChannelSelect'
 import {
@@ -69,6 +70,9 @@ export default function TransactionFormDrawer({
 }) {
   const ledgers = useCollection<Ledger>('ledgers')
   const customers = useCollection<Customer>('customers')
+  // 黑名单「单据选择器排除」（缺陷 D15）：被屏蔽客户不进候选，但**已关联的仍正常回显**
+  // （只滤候选不滤 options —— 见 EntityLinkField.hiddenIds 的说明）
+  const pickerHiddenIds = hiddenCustomerIds(customers, useIntimacyConfig(), 'excludeFromPicker')
   const projects = useCollection<Project>('projects')
   const todos = useCollection<Todo>('todos')
   const openTodos = todos.filter(isTodoOpen)
@@ -389,6 +393,7 @@ export default function TransactionFormDrawer({
               <EntityLinkField
                 type="customer"
                 icon="person"
+                hiddenIds={pickerHiddenIds}
                 value={customerIds}
                 options={customers.map((c) => ({
                   id: c.id,

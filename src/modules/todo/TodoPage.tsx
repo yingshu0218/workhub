@@ -47,6 +47,7 @@ import { useFocusStore } from '@/stores/focus'
 import { toggleTodoDone, voidTodo, restoreTodo } from './toggle'
 import { useToast } from '@/design-system/Toast'
 import { txnTodoIds, financeFocusPath } from '@/modules/finance/links'
+import { hiddenCustomerIds, useIntimacyConfig } from '@/modules/crm/intimacy'
 import {
   isTodoOpen,
   isTodoDone,
@@ -959,6 +960,8 @@ export function TodoFormDrawer({
 }) {
   const toast = useToast()
   const customers = useCollection<Customer>('customers')
+  // 黑名单「单据选择器排除」（缺陷 D15）：被屏蔽客户不进候选，已关联的仍正常回显
+  const pickerHiddenIds = hiddenCustomerIds(customers, useIntimacyConfig(), 'excludeFromPicker')
   const projects = useCollection<Project>('projects')
   // 标题不再是独立输入（Issue #148）：全文入正文，标题恒由正文首行推导
   const [desc, setDesc] = useState('')
@@ -1269,6 +1272,7 @@ export function TodoFormDrawer({
             <Field label="关联客户">
               <MatchCombobox
                 value={customerId}
+                hiddenIds={pickerHiddenIds}
                 options={customers.map((c) => ({
                   id: c.id,
                   label: c.company ? `${c.company} · ${c.name}` : c.name,

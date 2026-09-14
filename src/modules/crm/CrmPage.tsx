@@ -18,7 +18,7 @@ import {
 } from '@/design-system/ui'
 import CustomerFormDrawer from './CustomerFormDrawer'
 import { fmtRelative, normalizeTags, tierChipTone } from './shared'
-import { useIntimacyConfig, resolveIntimacyLevel } from './intimacy'
+import { filterBlacklisted, useIntimacyConfig, resolveIntimacyLevel } from './intimacy'
 import { resolveHealthScoreDisplay } from './healthScore'
 import {
   useCustomerGroups,
@@ -47,19 +47,27 @@ export default function CrmPage() {
 
   const customGroups = useCustomerGroups()
   const intimacyCfg = useIntimacyConfig()
-  // 算法兜底入参只需为「未手动设置档位」的客户计算（批次查询，避免 N+1）
+  /**
+   * 黑名单「时间线隐藏」（缺陷 D15）：列表与所有计数一律按**可见集**算 ——
+   * 配置文案写的是「客户列表与时间线中隐藏（仅档案直接访问可见）」，
+   * 所以档案页（含单客户时间线）不受影响，只屏蔽「列举客户」的这些面。
+   */
+  const visibleCustomers = filterBlacklisted(customers, intimacyCfg, 'hideInTimeline')
+  // 算法兜底入参只需为「未手动设置档位」的客户计算（批次查询，避免 N+1）。
+  // 刻意用**全量** customers：它是算法输入而不是列表呈现，被隐藏的客户一旦不再被列举，
+  // 若从入参里摘掉会让算法分凭空变化（口径漂移）。
   const scoreInputs = useCustomerScoreRows(
     customers.filter((c) => !c.intimacy?.level).map((c) => c.id),
   )
-  const groupCounts = useCustomerGroupCounts(customers, customGroups)
+  const groupCounts = useCustomerGroupCounts(visibleCustomers, customGroups)
   const selectedGroup = customGroups.find((g) => g.id === selectedGroupId) ?? null
 
   const counts = {
-    total: customers.length,
-    s: customers.filter((c) => c.tier === 'S').length,
-    a: customers.filter((c) => c.tier === 'A').length,
-    b: customers.filter((c) => c.tier === 'B').length,
-    potential: customers.filter((c) => c.tier === '潜在').length,
+    total: visibleCustomers.length,
+    s: visibleCustomers.filter((c) => c.tier === 'S').length,
+    a: visibleCustomers.filter((c) => c.tier === 'A').length,
+    b: visibleCustomers.filter((c) => c.tier === 'B').length,
+    potential: visibleCustomers.filter((c) => c.tier === '潜在').length,
   }
 
   /** 左侧分组项：全部 + 各分层 */
@@ -71,7 +79,7 @@ export default function CrmPage() {
     { key: '潜在', label: '潜在客户', icon: 'trending_up' },
   ]
 
-  const list = customers
+  const list = visibleCustomers
     .filter((c) => {
       if (group !== 'all' && c.tier !== group) return false
       if (selectedGroup && !matchGroup(c, selectedGroup)) return false

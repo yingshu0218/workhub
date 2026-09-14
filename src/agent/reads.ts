@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { db } from '@/db/db'
 import { txnCustomerIds, txnProjectIds, txnTodoIds } from '@/modules/finance/links'
 import { buildSearchIndex, searchAll, type SearchEntityType } from '@/shared/search'
+import { filterBlacklisted, getIntimacyConfig } from '@/modules/crm/intimacy'
 import { normalizeTodoPriority, todoPriorityFullLabel } from '@/modules/todo/priority'
 import type { Customer, Habit, Ledger, Note, Project, Todo, Transaction } from '@/db/types'
 
@@ -282,8 +283,12 @@ export async function searchEntities(input: unknown): Promise<ReadResult> {
     db.notes.toArray(),
     db.habits.toArray(),
   ])
+  // 黑名单「全局搜索屏蔽」（缺陷 D15）：Agent 读工具复用同一份 ⌘K 索引 ——
+  // 若这里不过滤，被屏蔽的客户会从 AI 侧原样漏出去，等于给开关留了个后门。
+  // 与 CommandPalette 同口径（都调 filterBlacklisted + getIntimacyConfig/useIntimacyConfig）。
+  const intimacyCfg = await getIntimacyConfig()
   const index = buildSearchIndex({
-    customers: alive(customers),
+    customers: filterBlacklisted(alive(customers), intimacyCfg, 'hideInSearch'),
     projects: alive(projects),
     todos: alive(todos),
     transactions: alive(transactions),

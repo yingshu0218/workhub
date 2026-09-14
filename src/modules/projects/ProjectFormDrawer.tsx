@@ -3,6 +3,7 @@ import type { Customer, Project } from '@/db/types'
 import { useCollection } from '@/queries/hooks'
 import { Button, Field, Modal, inputCls, useAutoFocus } from '@/design-system/ui'
 import { MatchCombobox } from '@/design-system/MatchCombobox'
+import { hiddenCustomerIds, useIntimacyConfig } from '@/modules/crm/intimacy'
 import { saveProject } from './hooks'
 
 /** 预设项目色板（区分于客户/标签语义色，取低饱和稳重视觉） */
@@ -46,6 +47,8 @@ export default function ProjectFormDrawer({
 
   // 客户候选：挂靠客户打通 CRM（客户详情「名下项目」/ 关系画布「客户→项目」层级）
   const customers = useCollection<Customer>('customers')
+  // 黑名单「单据选择器排除」（缺陷 D15）：项目也是单据，挂靠客户同样受同一开关约束
+  const pickerHiddenIds = hiddenCustomerIds(customers, useIntimacyConfig(), 'excludeFromPicker')
 
   // 打开时重置（渲染期重置模式，同 TransactionFormDrawer）
   const openKey = `${open}-${project?.id ?? 'new'}`
@@ -137,6 +140,7 @@ export default function ProjectFormDrawer({
         <Field label="挂靠客户（可选，打通 CRM 下钻）">
           <MatchCombobox
             value={customerId}
+            hiddenIds={pickerHiddenIds}
             options={customers.map((c) => ({
               id: c.id,
               label: c.company ? `${c.company} · ${c.name}` : c.name,

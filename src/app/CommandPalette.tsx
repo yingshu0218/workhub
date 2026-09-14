@@ -3,6 +3,7 @@ import { Icon } from '@/design-system/Icon'
 import { useNavigate } from 'react-router-dom'
 import { useCollection } from '@/queries/hooks'
 import { buildSearchIndex, searchAll } from '@/shared/search'
+import { filterBlacklisted, useIntimacyConfig } from '@/modules/crm/intimacy'
 import { isImeComposing } from '@/shared/ime'
 import type { SearchItem } from '@/shared/search'
 import type { Customer, Project, Todo, Transaction, Note, Habit } from '@/db/types'
@@ -29,13 +30,31 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
   const notes = useCollection<Note>('notes', ['id', 'title', 'tags'])
   const habits = useCollection<Habit>('habits')
 
+  const intimacyCfg = useIntimacyConfig()
+  /**
+   * 黑名单「全局搜索屏蔽」（缺陷 D15）：被屏蔽的客户**不进搜索索引**。
+   * ⌘K 与「全局搜索」是同一次索引（本组件即入口），所以这里一处收口即两处生效；
+   * Agent 侧另有一份同口径过滤（agent/reads.searchEntities），否则 AI 会绕过开关。
+   */
+  const searchableCustomers = useMemo(
+    () => filterBlacklisted(customers, intimacyCfg, 'hideInSearch'),
+    [customers, intimacyCfg],
+  )
+
   const groups = useMemo(
     () =>
       searchAll(
-        buildSearchIndex({ customers, projects, todos, transactions, notes, habits }),
+        buildSearchIndex({
+          customers: searchableCustomers,
+          projects,
+          todos,
+          transactions,
+          notes,
+          habits,
+        }),
         query,
       ),
-    [customers, projects, todos, transactions, notes, habits, query],
+    [searchableCustomers, projects, todos, transactions, notes, habits, query],
   )
   const flat: (SearchItem & { icon: string })[] = useMemo(
     () => groups.flatMap((g) => g.items.map((it) => ({ ...it, icon: g.icon }))),

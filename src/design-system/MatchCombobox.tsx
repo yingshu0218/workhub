@@ -38,6 +38,7 @@ export function MatchCombobox({
   emptyText,
   onChange,
   onChangeMeta,
+  hiddenIds,
 }: {
   value: string
   options: MatchOption[]
@@ -46,6 +47,12 @@ export function MatchCombobox({
   onChange: (id: string) => void
   /** 选中/清除时回传命中的候选原文（用于联动组件外状态，如笔记 @提及浮层切到项目 Tab） */
   onChangeMeta?: (option: MatchOption | undefined) => void
+  /**
+   * 从**候选**中排除的 id 集合（黑名单「单据选择器排除」等）。
+   * 已选项不受影响：`selected` 仍从完整 `options` 里取，回显条照常显示
+   * —— 配置文案明确「关联区始终保留，不丢数据」，过滤候选不能连已建立的关联一起抹掉。
+   */
+  hiddenIds?: ReadonlySet<string>
 }) {
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
@@ -53,7 +60,8 @@ export function MatchCombobox({
   const boxRef = useRef<HTMLDivElement>(null)
 
   const selected = options.find((o) => o.id === value)
-  const matched = options.filter((o) => _fuzzyMatch(o.label, query))
+  // 候选排除（hiddenIds）只作用于「可选项」，不影响上面的 selected 回显
+  const matched = options.filter((o) => _fuzzyMatch(o.label, query) && !hiddenIds?.has(o.id))
   // 归档沉底：先按匹配质量排序，再按 archived 沉底（稳定，两种顺序都保留）
   const filtered = archivedLast(fuzzySort(matched, (o) => o.label, query))
   // 「不关联」恒在首位（仅无已选时展示）
