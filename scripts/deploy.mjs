@@ -83,7 +83,7 @@ const cfg = Object.fromEntries(
     .filter((l) => l && !l.startsWith('#'))
     .map((l) => l.split(/=(.*)/s).map((s) => s.trim())),
 )
-for (const k of ['DEPLOY_SSH', 'DEPLOY_REMOTE_DIR', 'DEPLOY_SUPERUSER', 'DEPLOY_SUPERUSER_PASSWORD']) {
+for (const k of ['DEPLOY_SSH', 'DEPLOY_REMOTE_DIR']) {
   if (!cfg[k]) {
     console.error(`.deploy.env 缺少 ${k}`)
     process.exit(1)
@@ -93,7 +93,9 @@ const ssh = cfg.DEPLOY_SSH
 const remoteDir = cfg.DEPLOY_REMOTE_DIR
 const remoteTmp = '/tmp'
 // 首次直连自动信任 host key（避免非交互卡在 yes/no 确认）；非首次仍校验指纹
-let SSH_OPTS = '-o StrictHostKeyChecking=accept-new'
+// BatchMode：认证一旦需要交互（密码/passphrase）立即失败。否则 scp 步骤是静默模式
+// （stdin=ignore），会在这里无限挂起而不报错——比失败更难排查。
+let SSH_OPTS = '-o StrictHostKeyChecking=accept-new -o BatchMode=yes'
 // 可选：显式指定私钥（沙箱/非交互环境读不到 ~/.ssh/config 别名时用 user@host + key 直连）
 if (cfg.DEPLOY_SSH_KEY) {
   const keyPath = cfg.DEPLOY_SSH_KEY.replace(/^~/, os.homedir())
@@ -102,7 +104,13 @@ if (cfg.DEPLOY_SSH_KEY) {
 
 /* ---------- 1. git pull ---------- */
 console.log('\n== [1/10] git pull ==')
-sh('git pull --ff-only')
+// 部署的目标是「当前 HEAD」，pull 只是尽量把本地同步到远端。
+// 无上游分支 / 离线 / 有本地改动时不该阻断部署，仅告警继续。
+try {
+  sh('git pull --ff-only')
+} catch {
+  console.warn('⚠️ git pull 未成功（无上游分支 / 离线 / 冲突），按当前 HEAD 继续部署')
+}
 const head = sh('git rev-parse --short HEAD', { silent: true })
 const headFull = sh('git rev-parse HEAD', { silent: true })
 
@@ -121,6 +129,17 @@ const depsChanged = sh(`git diff --name-only ${base}..HEAD -- package.json packa
 let mode = opt.mode
 if (mode === 'auto') mode = schemaChanged ? 'full' : 'light'
 console.log(`\n模式: ${mode}（schema ${schemaChanged ? '有变更' : '未变'}${opt.mode === 'auto' ? '' : `，用户指定 ${opt.mode}`}）`)
+
+// light 模式不导入 collections，也就不该要求部署机持有超管凭据（最小权限）。
+// 注意：必须在 mode 判定之后校验，否则 auto 模式判定为 full 时会漏检。
+if (mode === 'full') {
+  for (const k of ['DEPLOY_SUPERUSER', 'DEPLOY_SUPERUSER_PASSWORD']) {
+    if (!cfg[k]) {
+      console.error(`full 模式需要 .deploy.env 提供 ${k}（light 模式不需要）`)
+      process.exit(1)
+    }
+  }
+}
 
 if (opt.check) {
   console.log('\n--check：仅检查，不执行。部署所需动作：')
