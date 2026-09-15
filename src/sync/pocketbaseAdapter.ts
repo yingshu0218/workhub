@@ -667,12 +667,32 @@ function tombstonePushedKey(table: string, localId: string): string {
   return `tombstone_pushed:${table}:${localId}`
 }
 
+/** 无标记墓碑是否仍「未收敛」：队列里还留着该记录的待推送条目 */
+async function hasQueuedEntry(table: string, localId: string): Promise<boolean> {
+  const queued = await db.syncQueue
+    .filter((q) => q.table === table && q.recordId === localId && !q.sentAt)
+    .count()
+  return queued > 0
+}
+
 /**
  * 清理两端 30 天前的软删除墓碑（开发计划 2.3：防墓碑膨胀）。
- * 竞态防护（P0-1）：只物理删除带 tombstonePushed 标记的墓碑——
- * 若墓碑对应的 delete 变更尚未成功推送，保留本地墓碑并继续重试推送，
- * 否则服务端对应记录将永远不会被标记删除。
- * 已确认推送的墓碑清理时对服务端做物理删除（服务端墓碑膨胀由 pb_hooks cron 兜底）。
+ *
+ * 保留条件（2026-09-15 方案 A 放宽，原为「必须有 tombstonePushed 标记」）：
+ * **有标记 或 队列中已无该记录的待推送条目**，二者取其一即可清。
+ *
+ * 为什么必须放宽：无标记的墓碑有两种来源，处置相反，原条件把它们混为一谈 ——
+ *   ① **本端删除、delete 尚未送达服务端**（推送失败/离线）→ 必须保留，清掉就永久丢删除；
+ *   ② **pull 落库的墓碑**（`mergeRemote` 落删，不经过推送，天然无标记）→ 本端已收敛，纯属垃圾。
+ * 方案 A 用「队列里还有没有待推送条目」把两者分开：① 一定有队列条目（推送成功即出队），
+ * ② 一定没有。原条件只认标记，于是 ② 类墓碑永远不会被清 —— 每次远端删除都会在对端留一条，
+ * 而 pull 游标已推过、永不重拉，只能靠这里才能回收。
+ *
+ * 时序安全性：①「对端删除 vs 本端编辑」并存时，队列里的 upsert 必须先经推送侧出队
+ * （删除优先会把它拒掉并就地镜像），墓碑此刻才满足清理条件；30 天 cutoff 不变，
+ * 不会清掉任何新墓碑。
+ *
+ * 已确认收敛的墓碑清理时对服务端做物理删除（服务端墓碑膨胀由 pb_hooks cron 兜底）。
  */
 export async function cleanupTombstones(): Promise<number> {
   const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000
@@ -687,7 +707,9 @@ export async function cleanupTombstones(): Promise<number> {
     for (const rec of stale) {
       const localId = String(rec.id)
       const pushed = await db.meta.get(tombstonePushedKey(table, localId))
-      if (!pushed || pushed.value !== 1) continue // delete 尚未送达服务端：保留墓碑待重试
+      const marked = !!pushed && pushed.value === 1
+      // 无标记且队列仍留着待推送条目 → delete 尚未送达服务端，保留墓碑待重试
+      if (!marked && (await hasQueuedEntry(table, localId))) continue
       if (syncEnabled) {
         await pbDeleteRemote(cfg, table, localId) // 服务端墓碑同步物理清理，防远端膨胀
       }

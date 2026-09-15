@@ -24,7 +24,7 @@ import 'fake-indexeddb/auto'
 import { db } from '@/db/db'
 import { DEFAULT_SETTINGS } from '@/db/types'
 import { mergeRemoteRecord as mergeRemote } from '../mergeRemote'
-import { pocketBaseAdapter } from '../pocketbaseAdapter'
+import { pocketBaseAdapter, cleanupTombstones } from '../pocketbaseAdapter'
 
 const PB_ID = 'pbcust00000001x'
 
@@ -282,5 +282,77 @@ describe('删除优先 · 接收侧（墓碑只进不出）', () => {
     expect(after.deleted).toBe(0)
     expect(after.name).toBe('对端改过的名字')
     expect(after.updatedAt).toBe(900)
+  })
+
+  it('【对照】本端曾持有该记录时，远端墓碑照常落库（方案 B 不误伤）', async () => {
+    // 与下一条的唯一差别就是本地有没有这条记录 —— 用来把 B 的判定钉在 `local` 上
+    await db.customers.put(customer({ updatedAt: 100 }) as never)
+    await db.syncQueue.add({ table: 'customers', recordId: 'c1', op: 'upsert', createdAt: 100 })
+
+    const res = await mergeRemote('customers', remoteTombstone(200) as never)
+
+    expect(res).toBe('write')
+    expect(((await db.customers.get('c1')) as never as Record<string, unknown>).deleted).toBe(1)
+  })
+
+  it('本端从未持有该记录时，远端墓碑不落库（方案 B：不写幽灵墓碑）', async () => {
+    // 对端建了又删，本端从没见过这条记录：pull 拉到墓碑不应在本地凭空生出一条记录。
+    // 这类墓碑无标记、不经推送，本地也永不重拉 → 只会长期占着 IndexedDB。
+    const res = await mergeRemote('customers', remoteTombstone(200) as never)
+
+    expect(res).toBe('skip')
+    expect(await db.customers.get('c1')).toBeUndefined()
+  })
+})
+
+// ─────────────────── 墓碑清理（方案 A）与幽灵抑制（方案 B）· 2026-09-15 ───────────────────
+
+/** 31 天前的 updatedAt：越过 cleanupTombstones 的 30 天保留期 */
+const STALE_AT = Date.now() - 31 * 24 * 60 * 60 * 1000
+
+describe('墓碑清理 · 方案 A（放宽保留条件，无标记墓碑也能回收）', () => {
+  it('无标记 + 队列已空 → 清理（pull 落库的墓碑，本端已收敛）', async () => {
+    await configureSync()
+    await db.customers.put(customer({ deleted: 1, updatedAt: STALE_AT, rev: 2 }) as never)
+    installFetch({ remoteExists: true })
+
+    const removed = await cleanupTombstones()
+
+    expect(removed).toBe(1)
+    expect(await db.customers.get('c1')).toBeUndefined()
+  })
+
+  it('无标记 + 队列仍有该记录待推送条目 → 保留（delete 尚未送达服务端，清掉就丢删除）', async () => {
+    await configureSync()
+    await db.customers.put(customer({ deleted: 1, updatedAt: STALE_AT, rev: 2 }) as never)
+    await db.syncQueue.add({ table: 'customers', recordId: 'c1', op: 'delete', createdAt: 1 })
+    installFetch({ remoteExists: true })
+
+    const removed = await cleanupTombstones()
+
+    expect(removed).toBe(0)
+    expect(((await db.customers.get('c1')) as never as Record<string, unknown>).deleted).toBe(1)
+  })
+
+  it('有标记 + 队列已空 → 清理（原有行为不变）', async () => {
+    await configureSync()
+    await db.customers.put(customer({ deleted: 1, updatedAt: STALE_AT, rev: 2 }) as never)
+    await db.meta.put({ key: 'tombstone_pushed:customers:c1', value: 1 })
+    installFetch({ remoteExists: true })
+
+    const removed = await cleanupTombstones()
+
+    expect(removed).toBe(1)
+    expect(await db.customers.get('c1')).toBeUndefined()
+    expect(await db.meta.get('tombstone_pushed:customers:c1')).toBeUndefined()
+  })
+
+  it('【对照】未过 30 天保留期的墓碑一律不动（无论有无标记）', async () => {
+    await configureSync()
+    await db.customers.put(customer({ deleted: 1, updatedAt: Date.now(), rev: 2 }) as never)
+    installFetch({ remoteExists: true })
+
+    expect(await cleanupTombstones()).toBe(0)
+    expect(((await db.customers.get('c1')) as never as Record<string, unknown>).deleted).toBe(1)
   })
 })

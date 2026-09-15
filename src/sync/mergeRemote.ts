@@ -202,11 +202,18 @@ export async function mergeRemoteRecord(
   // 并在下次编辑时以更新的 updatedAt 反向复活（即 §4 的 P0 演化路径）。
   if (isTombstone(local)) return 'skip' // 本端已是墓碑：只进不出，远端更晚的编辑一并丢弃
   if (isTombstone(revived)) {
+    // 方案 B（2026-09-15）：本端**从未持有**该记录时不写墓碑 —— 这类墓碑纯属幽灵。
+    //   · 删除只经服务端传播、设备之间不直连，本地墓碑并不承担「再传给第三台设备」的职责
+    //     （其他设备各自的删除由它们自己从服务端墓碑拉到）；
+    //   · 而 pull 游标一旦推过该位置就**永不重拉**，这条墓碑只会长期占着 IndexedDB。
+    // 时序上安全：同一 localId 在服务端只有一行（pbId 即 localId 的哈希），
+    // 不存在「同一记录的墓碑先到、活版本后到」这种先后关系。
+    if (!local) return 'skip'
     // 远端墓碑落到本地：保留本地内容（墓碑时刻的远端业务字段更旧，覆盖无意义），
     // 只翻 deleted 并把 updatedAt 抬到两者较大值 —— 本端墓碑因此在回推时「不比旧墓碑旧」，
     // 不会被任何更旧的副本压回 deleted=0。
     const tombstone: Record<string, unknown> = {
-      ...(local ?? stripPbMeta(revived)),
+      ...local,
       id: localId,
       updatedAt: Math.max(remoteUpdatedAt, localUpdatedAt),
       deleted: 1,
