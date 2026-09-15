@@ -175,8 +175,17 @@ export async function mergeRemoteRecord(
   // 远端记录先到一步也不能整体覆盖本地 —— 否则「刚编辑的字段被云端旧值抹掉」
   // （客户关系等嵌套字段的编辑会因整记录覆盖而丢失，表现为「保存了不生效」）。
   // 处理：按被编辑记录逐字段覆盖本地（本地保存的字段取本地值），推送到服务端后自然收敛。
+  //
+  // 例外（P0：删除不跨设备传播）：远端是**墓碑**时不得保护。
+  // 保护分支会把 deleted 写回本地值（`local.deleted ?? 0`），等于把删除静默吃掉 ——
+  // 本端于是永久滞留一条对端已删的记录；又因 `remoteUpdatedAt > localUpdatedAt` 已经成立，
+  // 推送侧 LWW 会一直跳过这条待推送编辑，墓碑也再不会被拉到（游标已推过），
+  // 记录就此成为跨设备永久不一致的幽灵，直到本端某次编辑让它以更新的 updatedAt 复活。
+  // 走到这里时远端 updatedAt 必然严格大于本地（见上方 172 行 LWW 短路），
+  // 即「删除发生在本次编辑之后」——按 LWW 归删除胜，与「删除/编辑优先级」策略无关
+  // （后者针对的是「删除之后又有更新编辑」，那种情形在 172 行就已短路，不会进本分支）。
   const hasPendingLocalEdit = await hasPendingUpsert(table, localId)
-  if (hasPendingLocalEdit && local) {
+  if (hasPendingLocalEdit && local && !revived.deleted) {
     const {
       collectionId: _pc,
       collectionName: _pn,

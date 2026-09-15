@@ -503,10 +503,18 @@ async function pushImpl(
         continue
       }
       if (item.op === 'delete') {
-        // 墓碑记录：推送墓碑（对端 LWW 收敛）后对服务端做物理删除。
-        // 服务端钩子对墓碑写入统一盖 tombstonePushed=1（供服务端 cron 定向清理墓碑）。
+        // 墓碑记录：只把墓碑写进服务端，**绝不**在此处物理删除。
+        //
+        // 为什么不能「推完就删」（P0：删除不跨设备传播）：
+        // 物理删除让服务端行在本端一推即消失，而其他设备仍持有 deleted=0 的旧副本 ——
+        // 它们永远拉不到这条删除（没有行可拉），一旦之后对该记录做任何操作（updatedAt 变新），
+        // 推送就会以「查不到 → POST 新建」把记录复活，并凭更新的 updatedAt 反过来覆盖本端墓碑。
+        // 实测：删除后 100ms 探针从未观测到服务端出现 deleted=1，行存活 <100ms，三处全部复活。
+        //
+        // 正确收敛路径：服务端保留墓碑（钩子统一盖 tombstonePushed=1 + server_received_at），
+        // 对端 pull 按 server_received_at 拉到墓碑并 LWW 落库为本地删除；
+        // 服务端墓碑由 pb_hooks cron 每日 04:00 清理超保留期（30 天）的记录，不会无限膨胀。
         await pbUpsert(cfg, item.table, rec)
-        await pbDeleteRemote(cfg, item.table, rec.id as string)
         // 打「delete 已推送」标记（P0-1）：cleanupTombstones 只物理删除带此标记的墓碑，
         // 避免墓碑先被本地清理而 delete 从未送达服务端、远端数据永不删除的竞态。
         await db.meta.put({ key: tombstonePushedKey(item.table, String(rec.id)), value: 1 })
