@@ -297,19 +297,32 @@ function stripLocalOnlyFields(table: string, payload: Record<string, unknown>): 
   for (const k of keys) delete payload[k]
 }
 
+/**
+ * pbUpsert 结果（推送侧需据此决定本地怎么收敛）：
+ * - `written`：本次已写入服务端
+ * - `skipped-stale`：远端有更新的**活记录**，本端是迟到的旧数据 → 跳过（交由 pull 把远端值拉回）
+ * - `skipped-tombstone`：远端是**墓碑**而本端不是 → **拒绝复活**（删除优先），
+ *   调用方必须把本地也落删，否则本端会永远停在 deleted=0
+ */
+type PbUpsertResult =
+  | { outcome: 'written' }
+  | { outcome: 'skipped-stale' }
+  | { outcome: 'skipped-tombstone'; remoteUpdatedAt: number }
+
 /** 幂等 upsert：按 localId 查服务端判存，存在 PATCH、不存在 POST（PocketBase REST 无原生 upsert） */
 async function pbUpsert(
   cfg: SyncSettingsView,
   table: string,
   rec: Record<string, unknown>,
-): Promise<void> {
+): Promise<PbUpsertResult> {
   const localId = String(rec.id)
   const pbRecordId = await pbId(localId)
   const filter = encodeURIComponent(`localId = '${localId.replace(/'/g, "\\'")}'`)
-  // fields 附带 updatedAt：推送侧 LWW 校验需要与本地记录比较（P0-2）
+  // fields 附带 updatedAt（推送侧 LWW 校验，P0-2）与 deleted（删除优先：识别服务端墓碑）。
+  // 搭同一次查询取回，不额外增加请求。
   const found = await pbAuthedFetch(
     cfg,
-    `/api/collections/${pbCollection(table)}/records?filter=${filter}&fields=id,updatedAt`,
+    `/api/collections/${pbCollection(table)}/records?filter=${filter}&fields=id,updatedAt,deleted`,
     { method: 'GET' },
   )
   if (!found.ok) throw new Error(`查询 ${table}/${localId} 失败（HTTP ${found.status}）`)
@@ -317,17 +330,32 @@ async function pbUpsert(
   const exists = !!items && items.length > 0
   const remoteId = exists ? String(items![0].id) : ''
 
-  // 推送侧 LWW（P0-2）：服务端已有 updatedAt 更新的记录 → 本条是旧数据迟到，
-  // 跳过推送（否则会以「后到覆盖」污染服务端新数据），交由 pull 的 LWW 把远端新值拉回本地。
-  // 删除墓碑除外：墓碑 updatedAt 已在 softDelete 时盖章，正常总是最新；且必须推出去才能收敛删除。
   if (exists) {
     const remoteUpdatedAt = typeof items![0].updatedAt === 'number' ? items![0].updatedAt : 0
     const localUpdatedAt = typeof rec.updatedAt === 'number' ? rec.updatedAt : 0
+    const remoteDeleted = items![0].deleted === 1 || items![0].deleted === true
+
+    // 删除优先（2026-09-15 拍板）：服务端已是墓碑，本地这条**活记录**的编辑不得把它复活。
+    //
+    // 为什么必须在推送侧挡：同步引擎是**先推后拉**（engine.runSync 先 adapter.push 再 adapter.pull），
+    // 而编辑走 2s 去抖、拉取走 30s 心跳 —— 对端「不知情期间」的编辑几乎总是先被推上来，
+    // 这一推就会以更新的 updatedAt 把服务端墓碑覆盖成 deleted=0，之后再也无从收敛。
+    // 只靠接收侧（mergeRemote 的删除优先）挡不住这条时序，故两个边界都要设防。
+    if (remoteDeleted && rec.deleted !== 1) {
+      console.info(
+        `[sync] 拒绝复活已删除记录 ${table}/${localId}（服务端为墓碑，删除优先）`,
+      )
+      return { outcome: 'skipped-tombstone', remoteUpdatedAt }
+    }
+
+    // 推送侧 LWW（P0-2）：服务端已有 updatedAt 更新的记录 → 本条是旧数据迟到，
+    // 跳过推送（否则会以「后到覆盖」污染服务端新数据），交由 pull 的 LWW 把远端新值拉回本地。
+    // 删除墓碑除外：墓碑 updatedAt 已在 softDelete 时盖章，正常总是最新；且必须推出去才能收敛删除。
     if (remoteUpdatedAt > localUpdatedAt && rec.deleted !== 1) {
       console.info(
         `[sync] 跳过旧数据推送 ${table}/${localId}（远端更新：${remoteUpdatedAt} > ${localUpdatedAt}）`,
       )
-      return
+      return { outcome: 'skipped-stale' }
     }
   }
 
@@ -361,7 +389,7 @@ async function pbUpsert(
       throw new Error(
         `上传附件 ${localId} 失败（HTTP ${res.status}）：${(await res.text()).slice(0, 200)}`,
       )
-    return
+    return { outcome: 'written' }
   }
 
   const body = JSON.stringify(exists ? payload : { ...payload, id: pbRecordId })
@@ -376,6 +404,7 @@ async function pbUpsert(
     throw new Error(
       `推送 ${table}/${localId} 失败（HTTP ${res.status}）：${(await res.text()).slice(0, 200)}`,
     )
+  return { outcome: 'written' }
 }
 
 /** 服务端物理删除：按 localId 查 pb 记录 id 后 DELETE（用于墓碑收敛后的真删） */
@@ -502,7 +531,7 @@ async function pushImpl(
         results.push({ recordId: item.recordId, ok: true })
         continue
       }
-      if (item.op === 'delete') {
+      if (item.op === 'delete' || rec.deleted === 1) {
         // 墓碑记录：只把墓碑写进服务端，**绝不**在此处物理删除。
         //
         // 为什么不能「推完就删」（P0：删除不跨设备传播）：
@@ -512,14 +541,38 @@ async function pushImpl(
         // 实测：删除后 100ms 探针从未观测到服务端出现 deleted=1，行存活 <100ms，三处全部复活。
         //
         // 正确收敛路径：服务端保留墓碑（钩子统一盖 tombstonePushed=1 + server_received_at），
-        // 对端 pull 按 server_received_at 拉到墓碑并 LWW 落库为本地删除；
+        // 对端 pull 按 server_received_at 拉到墓碑并落库为本地删除；
         // 服务端墓碑由 pb_hooks cron 每日 04:00 清理超保留期（30 天）的记录，不会无限膨胀。
+        //
+        // 判定用「队列 op 是 delete」**或**「记录此刻已是墓碑」：删除优先下沉后，
+        // 对端墓碑会被 mergeRemote 落到本端，而队列里可能还留着这条记录更早的 upsert 条目 ——
+        // 若只认 op，这条墓碑会以 upsert 路径推上去（结果虽同为 deleted=1，但漏盖标记，见下）。
         await pbUpsert(cfg, item.table, rec)
         // 打「delete 已推送」标记（P0-1）：cleanupTombstones 只物理删除带此标记的墓碑，
         // 避免墓碑先被本地清理而 delete 从未送达服务端、远端数据永不删除的竞态。
         await db.meta.put({ key: tombstonePushedKey(item.table, String(rec.id)), value: 1 })
       } else {
-        await pbUpsert(cfg, item.table, rec)
+        const upsert = await pbUpsert(cfg, item.table, rec)
+        if (upsert.outcome === 'skipped-tombstone') {
+          // 删除优先（2026-09-15 拍板）：服务端已是墓碑，本端这条编辑**不允许**把它复活。
+          //
+          // 仅「跳过推送」是不够的：本端该记录会永远停在 deleted=0 —— 该墓碑的 server_received_at
+          // 早已被本表游标推过，pull 不会再拉一次，于是本端留下一条对端已删的幽灵记录，
+          // 且每次编辑都会重演一次被拒。故在这里就此地收敛：把对端已发生的删除镜像到本地。
+          //
+          // 只做「镜像删除」，不重跑业务级联：级联删掉的其他记录由对端推送的对应条目各自到达，
+          // 本端 pull 时也会逐条收敛（此处重跑级联反而会以本机时间戳制造一批新的本地变更）。
+          await db.meta.put({ key: tombstonePushedKey(item.table, String(rec.id)), value: 1 })
+          await bizTable(item.table).put({
+            ...rec,
+            deleted: 1,
+            updatedAt: Math.max(
+              typeof rec.updatedAt === 'number' ? rec.updatedAt : 0,
+              upsert.remoteUpdatedAt,
+            ),
+          })
+          console.info(`[sync] 已把服务端墓碑镜像到本地 ${item.table}/${item.recordId}（删除优先）`)
+        }
       }
       results.push({ recordId: item.recordId, ok: true })
     } catch (err) {

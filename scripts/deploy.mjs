@@ -68,11 +68,11 @@ function sh(cmd, opts = {}) {
 /* ---------- 配置 ---------- */
 if (!existsSync(ENV_FILE)) {
   console.error(`缺少 ${ENV_FILE}。请参考 docs/部署指南.md 创建：
-DEPLOY_SSH=srv153
+DEPLOY_SSH=devtest
 DEPLOY_REMOTE_DIR=/opt/pocketbase
 DEPLOY_SUPERUSER=deploy@nexus.local
 DEPLOY_SUPERUSER_PASSWORD=xxx
-DEPLOY_PUBLIC_URL=http://8.153.19.221:9001
+DEPLOY_PUBLIC_URL=https://dev.fpigeon.fun
 `)
   process.exit(1)
 }

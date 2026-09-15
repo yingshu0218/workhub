@@ -32,6 +32,29 @@ function bizTable(table: string) {
   }
 }
 
+/**
+ * 是否墓碑（软删除标记）。
+ * 服务端 json 字段经 PocketBase 往返后可能是数字 / 布尔 / 字符串形态，统一按真值判定 ——
+ * 漏判的后果是「删除优先」失效，记录被更晚的编辑复活。
+ */
+function isTombstone(r: Record<string, unknown> | undefined): boolean {
+  return !!r && (r.deleted === 1 || r.deleted === true || r.deleted === '1')
+}
+
+/** 剥离 pb 系统字段（collectionId/collectionName/created/updated/server_received_at）与映射字段 localId */
+function stripPbMeta(revived: Record<string, unknown>): Record<string, unknown> {
+  const {
+    collectionId: _c,
+    collectionName: _n,
+    created: _cr,
+    updated: _u,
+    server_received_at: _s,
+    localId: _l,
+    ...mirrored
+  } = revived
+  return mirrored
+}
+
 // ─────────────────────────── 本地未推送编辑保护（Issue #130） ───────────────────────────
 
 /**
@@ -168,7 +191,36 @@ export async function mergeRemoteRecord(
   reviveRemoteJsonFields(table, revived)
   const remoteUpdatedAt = typeof revived.updatedAt === 'number' ? revived.updatedAt : 0
   const localUpdatedAt = typeof local?.updatedAt === 'number' ? local.updatedAt : 0
+
+  // ── 删除优先（产品口径，2026-09-15 拍板）：软删是**不可逆终态** ──
+  // 依据：本应用不存在「撤销删除 / 恢复」入口（全仓 `deleted: 0` 只出现在新建 meta()，
+  // 待办的「恢复」是 status='voided' → 未完成，属另一套语义，与软删无关）。
+  // 因此一条记录一旦在任一端成为墓碑，就永久保持墓碑 —— 任何更晚的编辑都不允许让它复活。
+  //
+  // 判定必须**先于**下方 LWW 短路：否则「本地编辑更晚」会把远端墓碑挡回去，
+  // 而 pullImpl 的游标随即推过该位置 —— 这条删除再也拉不到，本端滞留对端已删的幽灵记录，
+  // 并在下次编辑时以更新的 updatedAt 反向复活（即 §4 的 P0 演化路径）。
+  if (isTombstone(local)) return 'skip' // 本端已是墓碑：只进不出，远端更晚的编辑一并丢弃
+  if (isTombstone(revived)) {
+    // 远端墓碑落到本地：保留本地内容（墓碑时刻的远端业务字段更旧，覆盖无意义），
+    // 只翻 deleted 并把 updatedAt 抬到两者较大值 —— 本端墓碑因此在回推时「不比旧墓碑旧」，
+    // 不会被任何更旧的副本压回 deleted=0。
+    const tombstone: Record<string, unknown> = {
+      ...(local ?? stripPbMeta(revived)),
+      id: localId,
+      updatedAt: Math.max(remoteUpdatedAt, localUpdatedAt),
+      deleted: 1,
+      rev: Math.max(
+        typeof local?.rev === 'number' ? local.rev : 0,
+        typeof remote.rev === 'number' ? remote.rev : 0,
+      ),
+    }
+    await table0.put(tombstone)
+    return 'write'
+  }
+
   // LWW：只认 updatedAt，新者胜；相等视为本端已推送的回环副本，跳过
+  // （仅适用于「双方都非墓碑」——墓碑已在上面先行收口）
   if (remoteUpdatedAt <= localUpdatedAt) return 'skip'
 
   // 本地编辑优先保护（Issue #130）：本地存在尚未推送成功（或推送被跳过的）的 upsert 队列条目时，
@@ -176,25 +228,11 @@ export async function mergeRemoteRecord(
   // （客户关系等嵌套字段的编辑会因整记录覆盖而丢失，表现为「保存了不生效」）。
   // 处理：按被编辑记录逐字段覆盖本地（本地保存的字段取本地值），推送到服务端后自然收敛。
   //
-  // 例外（P0：删除不跨设备传播）：远端是**墓碑**时不得保护。
-  // 保护分支会把 deleted 写回本地值（`local.deleted ?? 0`），等于把删除静默吃掉 ——
-  // 本端于是永久滞留一条对端已删的记录；又因 `remoteUpdatedAt > localUpdatedAt` 已经成立，
-  // 推送侧 LWW 会一直跳过这条待推送编辑，墓碑也再不会被拉到（游标已推过），
-  // 记录就此成为跨设备永久不一致的幽灵，直到本端某次编辑让它以更新的 updatedAt 复活。
-  // 走到这里时远端 updatedAt 必然严格大于本地（见上方 172 行 LWW 短路），
-  // 即「删除发生在本次编辑之后」——按 LWW 归删除胜，与「删除/编辑优先级」策略无关
-  // （后者针对的是「删除之后又有更新编辑」，那种情形在 172 行就已短路，不会进本分支）。
+  // 注：走到这里远端必然**不是**墓碑 —— 墓碑已在上方「删除优先」分支收口（2026-09-15 拍板），
+  // 因此本分支只需处理「双方都是活记录」的字段级合并，不再需要操心 deleted 被回写的问题。
   const hasPendingLocalEdit = await hasPendingUpsert(table, localId)
-  if (hasPendingLocalEdit && local && !revived.deleted) {
-    const {
-      collectionId: _pc,
-      collectionName: _pn,
-      created: _pcr,
-      updated: _pu,
-      server_received_at: _ps,
-      localId: _pl,
-      ...mirroredPending
-    } = revived
+  if (hasPendingLocalEdit && local) {
+    const mirroredPending = stripPbMeta(revived)
     const merged: Record<string, unknown> = {
       ...local,
       ...mirroredPending,
@@ -279,20 +317,12 @@ export async function mergeRemoteRecord(
   const keepLocalConverted =
     table === 'quickNotes' && !!local?.convertedTo && !remote.convertedTo
 
-  // 剥离 pb 系统字段（collectionId/collectionName/created/updated/server_received_at）与映射字段 localId
-  const {
-    collectionId: _c,
-    collectionName: _n,
-    created: _cr,
-    updated: _u,
-    server_received_at: _s,
-    localId: _l,
-    ...mirrored
-  } = revived
-  const record: Record<string, unknown> = { ...mirrored }
+  // 剥离 pb 系统字段与映射字段（与上方保护分支同一套，收口到 stripPbMeta）
+  const record: Record<string, unknown> = { ...stripPbMeta(revived) }
   record.id = localId
   record.updatedAt = remoteUpdatedAt
-  record.deleted = remote.deleted ? 1 : 0
+  // 到此双方都非墓碑（墓碑已在上方「删除优先」分支收口）→ 落库必然是活记录
+  record.deleted = 0
   record.rev = Math.max(
     typeof local?.rev === 'number' ? local.rev : 0,
     typeof remote.rev === 'number' ? remote.rev : 0,
