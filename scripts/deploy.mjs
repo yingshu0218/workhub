@@ -235,7 +235,9 @@ echo "== [6/6] verify =="
 TOKEN2=$(curl -s -X POST http://127.0.0.1:9002/api/collections/_superusers/auth-with-password \\
   -H "Content-Type: application/json" \\
   -d '{"identity":"${cfg.DEPLOY_SUPERUSER}","password":"${cfg.DEPLOY_SUPERUSER_PASSWORD}"}' | python3 -c "import sys,json;print(json.load(sys.stdin).get('token',''))")
-echo "entry: $(grep -oE 'index-[A-Za-z0-9_-]+\\\\.js' pb_public/index.html | head -1)"
+echo "entry: $(grep -oE 'index-[A-Za-z0-9_-]+\\.js' pb_public/index.html | head -1)"
+echo "hooks: $(md5sum pb_hooks/main.pb.js | cut -d' ' -f1)"
+echo "files: $(find pb_public -type f | wc -l)"
 echo "collections:"
 curl -s -H "Authorization: $TOKEN2" 'http://127.0.0.1:9002/api/collections?perPage=200' | python3 -c 'import sys,json;items=json.load(sys.stdin)["items"];print(len(items))' 2>/dev/null || echo "(list failed)"
 echo "== remote done =="
@@ -253,16 +255,35 @@ console.log(`\n== [8/10] 远程执行（${mode}） ==`)
 sh(`ssh ${SSH_OPTS} ${ssh} 'bash ${remoteTmp}/nexus-remote.sh'`)
 
 /* ---------- 9. 公网验证 ---------- */
+// 注意转义层级：这里是**模板字符串**，`\\.` 到 shell 才是 `\.`（正则「字面点」）。
+// 曾写成 `\\\\.` → shell 实收 `\\.`（字面反斜杠 + 任意字符）→ grep 永不匹配、退出码 1，
+// 又因 execSync 抛错而**在写 .deploy-state 之前中断**（部署其实已成功，状态却没记）。
+// 验证步骤一律不得中断部署：取不到就按「无法确认」告警，让人工核对。
 console.log('\n== [9/10] 公网验证 ==')
 let pubEntry = '(无法获取)'
+let pubHealth = '(未取到)'
 if (cfg.DEPLOY_PUBLIC_URL) {
-  pubEntry = sh(`curl -s ${cfg.DEPLOY_PUBLIC_URL}/ | grep -oE 'src="[^"]*index-[^"]*\\\\.js"'`, { silent: true }).replace(/src="|"/g, '')
-  const health = sh(`curl -s -o /dev/null -w '%{http_code}' ${cfg.DEPLOY_PUBLIC_URL}/api/health`, { silent: true })
-  console.log(`公网入口: ${pubEntry}  health=${health}`)
+  try {
+    pubEntry = sh(
+      `curl -s ${cfg.DEPLOY_PUBLIC_URL}/ | grep -oE 'src="[^"]*index-[^"]*\\.js"'`,
+      { silent: true },
+    ).replace(/src="|"/g, '')
+    pubHealth = sh(
+      `curl -s -o /dev/null -w '%{http_code}' ${cfg.DEPLOY_PUBLIC_URL}/api/health`,
+      { silent: true },
+    )
+    console.log(`公网入口: ${pubEntry}  health=${pubHealth}`)
+  } catch {
+    console.warn(`⚠️ 公网验证未取到结果（${cfg.DEPLOY_PUBLIC_URL}）——请手动核对入口 JS 与 /api/health`)
+  }
 }
 console.log(`本地 dist: ${distEntry}`)
-if (pubEntry !== '(无法获取)' && pubEntry !== distEntry) {
+if (pubEntry === '(无法获取)') {
+  console.warn('⚠️ 未确认公网入口：无法判断「部署是否已生效」，请手动打开站点核对')
+} else if (pubEntry !== distEntry) {
   console.error('⚠️ 公网入口与本地 dist 不一致！可能未生效，请检查缓存')
+} else {
+  console.log('✅ 公网入口与本地 dist 一致')
 }
 
 /* ---------- 10. 更新状态 ---------- */
