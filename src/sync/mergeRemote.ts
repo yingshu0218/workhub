@@ -80,6 +80,43 @@ async function hasPendingUpsert(table: string, recordId: string): Promise<boolea
 const JSON_ARRAY_FIELDS = ['tags', 'relations', 'customerIds', 'todoIds', 'projectIds'] as const
 
 /**
+ * **按表声明的 json 字段表**（`pb_setup/collections.json` 里 type=json 的字段唯一对照源）。
+ *
+ * Issue #169 审计 P1-A 根因：`reviveRemoteJsonFields` 此前写死 `if (table !== 'customers') return`，
+ * 于是 #130 在 customers 上修好的「服务端 json 字段反序列化」**没有覆盖到其他表**：
+ *   - `notes.tags` / `notes.mentions` / `notes.backlinks`
+ *   - `transactions` / `todos` / `customerGroups` / `moduleConfigs` 同样有 json 字段
+ * 服务端返回 JSON 字符串形态时（PB 对 string 走 `JSONRaw.Scan` 双重编码 / 集合版本差异），
+ * 落库后类型仍是 string，前端 `n.tags.join(' ')` / `n.mentions.map(...)` 直接抛 TypeError
+ * → 笔记模块整页进 ErrorBoundary（「模块出错了」）。
+ * 这是 #130「只在一条分支做归一化」在 notes 表上的**同形状复发**：customers 修了，其他表漏了。
+ *
+ * 收口方式：不逐个表写 if，改为**声明式字段表**（`无声明 = 该表无 json 字段`），
+ * 新增表/字段时只在此处登记一次，并由 `mergeNotesJsonRevive.test.ts` 的**字段表 ↔ collections.json 一致性断言**兜住漂移。
+ */
+const JSON_FIELDS_BY_TABLE: Record<string, readonly string[]> = {
+  customers: ['tags', 'relations', 'intimacy'],
+  transactions: ['tags', 'customerIds', 'todoIds', 'projectIds'],
+  todos: ['tags'],
+  notes: ['tags', 'backlinks', 'mentions'],
+  customerGroups: ['includeTags', 'excludeTags', 'rules'],
+  moduleConfigs: ['payload'],
+}
+
+/**
+ * 该表下「需要数组语义」的 json 字段（落库前做数组兜底，防前端 `.map`/`.join` 抛错）。
+ * 与 `JSON_FIELDS_BY_TABLE` 是同一份声明，只是标出其中**必须是数组**的那些键
+ * （intimacy 是对象、moduleConfigs.payload 是任意 json，不做数组兜底）。
+ */
+const JSON_ARRAY_FIELDS_BY_TABLE: Record<string, readonly string[]> = {
+  customers: ['tags', 'relations'],
+  transactions: ['tags', 'customerIds', 'todoIds', 'projectIds'],
+  todos: ['tags'],
+  notes: ['tags', 'backlinks', 'mentions'],
+  customerGroups: ['includeTags', 'excludeTags'],
+}
+
+/**
  * json 字段（customers.tags / customers.relations / customers.intimacy 等）归一化为数组，
  * 兼容服务端返回字符串或对象；空字符串 / null / 解析失败一律视为「无值」（null）。
  */
@@ -141,13 +178,25 @@ function toSafeArrayField(v: unknown): unknown {
   return []
 }
 
-/** 落库前把服务端的 json 字段反序列化回本地形态（customers.tags / relations / intimacy） */
+/**
+ * 落库前把服务端的 json 字段反序列化回本地形态（按表声明走 `JSON_FIELDS_BY_TABLE`）。
+ *
+ * 数组语义字段（`tags` / `mentions` / `backlinks` …）走 `toSafeArrayField`：
+ * 解析后仍不是数组时降级为单元素数组，保证前端 `.map` / `.join` 永不抛错；
+ * 其余 json 字段（`intimacy` 对象、`moduleConfigs.payload` 任意 json）只做一层反序列化。
+ *
+ * 任何**合并分支**落库前都必须先过这里（#130 教训：只在其中一条分支归一化 = 另一条分支照样白屏）。
+ */
 function reviveRemoteJsonFields(table: string, record: Record<string, unknown>): void {
-  if (table !== 'customers') return
-  for (const key of ['tags', 'relations'] as const) {
-    if (key in record) record[key] = toSafeArrayField(record[key])
+  const fields = JSON_FIELDS_BY_TABLE[table]
+  if (!fields) return
+  const arrayFields = JSON_ARRAY_FIELDS_BY_TABLE[table] ?? []
+  for (const key of fields) {
+    if (!(key in record)) continue
+    record[key] = arrayFields.includes(key)
+      ? toSafeArrayField(record[key])
+      : rawJsonFromRemote(record[key])
   }
-  if ('intimacy' in record) record.intimacy = rawJsonFromRemote(record.intimacy)
 }
 
 /** 关系条目稳定标识：优先条目 id，旧数据按 目标::语义 兜底（与 CustomerFormDrawer.relKey 同口径） */
@@ -257,6 +306,10 @@ export async function mergeRemoteRecord(
     //    前端 `relations.map` / `tags.map` 立刻抛错（已由端到端用例暴露）；
     // ② 即使能解析成数组，整体覆盖也会把本地刚新增的条目冲掉（保护了「本地优先」却在字段内部又丢编辑）。
     // 收口为与下方同一套语义：relations 取并集，其余数组字段本地有值时保留本地。
+    //
+    // Issue #169 P1-A：本条与下方 LWW 分支的 `reviveRemoteJsonFields` 是**两条都必须过**的收口口
+    // （`revived` 已在函数开头按表声明还原，这里直接消费 `revived[key]` 即可，不再需要逐表判定）。
+    // notes / todos / customerGroups 等表此前既没有声明也没有本分支收口，属同一形状的漏网。
     if (table === 'customers') {
       for (const key of JSON_ARRAY_FIELDS as readonly string[]) {
         const localVal = (local as Record<string, unknown>)[key]
@@ -317,10 +370,12 @@ export async function mergeRemoteRecord(
 
   // 速记处置态本地优先（Issue #134 三轮）：与上面的待办终态本地优先同款。
   // 根因是**处置态是单边的**：本地「已处置」（有 convertedTo）、远端「未处置」（convertedTo 空）。
-  // 服务端 quickNotes 集合未收录 convertedAt / convertedVia，且旧版本连 convertedTo 都可能丢，
-  // 于是换设备 / 重装 / 队列清空后拉一次远端旧记录，处置态被整体抹掉——
+  // 服务端 quickNotes 集合**已收录** convertedAt / convertedVia（随 collections.json 同步升级），
+  // 旧版本连 convertedTo 都可能丢，于是换设备 / 重装 / 队列清空后拉一次远端旧记录，处置态被整体抹掉——
   // 已转入待办的速记重新回到「暂存区待处置」，再点一次「转入待办」就多出一条重复待办。
   // 反向不保护：远端有 convertedTo 而本地没有时按 LWW 写入（可能是另一端的处置结果）。
+  // （Issue #169 P3：本条注释此前写「服务端集合未收录 convertedAt / convertedVia」，与
+  // collections.json 现状不符 —— 属注释漂移，已更正。）
   const keepLocalConverted =
     table === 'quickNotes' && !!local?.convertedTo && !remote.convertedTo
 

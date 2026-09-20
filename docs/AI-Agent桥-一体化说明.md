@@ -32,9 +32,14 @@ npm run dev
 
 1. 浏览器打开 `npm run dev` 输出的地址（如 `http://localhost:5173`）；
 2. 系统设置 → **AI Agent 桥** → 打开「启用 AI 桥」；
-3. **relay 地址留空**（留空 = 自动使用当前站点的 `/relay`），token 填控制台打印的那个；
+3. **relay 地址留空**（留空 = 自动使用当前站点的 `/relay`）；
 4. 「能力白名单」按需打开域（财务 / CRM / 待办 …）；
 5. 让 Agent（workbuddy / codebuddy 等）连 relay 即可。
+
+> ⚠️ **顺序有个反直觉处，实测踩过**：「接入 token」输入框是**只读**的 —— 页面侧 token 由应用在
+> 首次启用时随机生成，**你想「把控制台打印的 token 填进页面」是填不进去的**。可行顺序只有一条：
+> **先在页面启用桥、点「复制」拿到页面 token T → 再用 `WORKHUB_RELAY_TOKEN="T"` 重启站点**。
+> 两者不一致时 UI 只会显示「连接中…/连接失败」，不会告诉你差在哪（详见「token 轮换注意」）。
 
 > 想让 Agent 用 stdio 本地连接：另开终端 `npm run relay:stdio`（仅调试用，非必需）。
 
@@ -93,12 +98,21 @@ node scripts/acceptance.mjs --url ws://127.0.0.1:9001/relay --token <token>
 
 ## token 轮换注意（重要）
 
-token 有**两个持有方**：relay（启动时经环境变量/打印获得）与页面侧桥（设置页保存）。
-两者是**同一份值的两处副本**，不会自动同步：
+token 有**三个落点，值必须完全一致**（不一致时 UI 只显示「连接中…/连接失败」，不会告诉你差在哪）：
+
+| 落点 | 位置 |
+|---|---|
+| relay 侧 | `WORKHUB_RELAY_TOKEN`（缺省时启动随机生成并打印） |
+| 页面侧桥 | 设置 → AI Agent 桥 → **只读**输入框（页面首次启用时随机生成） |
+| Agent 侧 | `~/.workhub/relay.json`（由 `npm run agent:setup -- --token <T>` 写入） |
+
+三者是同一份值的三处副本，**不会自动同步**：
 
 - **在设置页「重置 token」后，必须用新 token 重启 relay**（`npm run serve` / `npm run relay`
   时更新 `WORKHUB_RELAY_TOKEN`），否则桥会静默重连失败，UI 只有 status error 提示；
-- 建议操作顺序：设置页重置并复制新 token → 重启 relay 携带新 token → 桥自动重连成功；
+- 接了 Agent 的话还要重跑一次 `npm run agent:setup -- --token <新 token>`（它负责更新第三个落点）；
+- 建议操作顺序：设置页重置并复制新 token → 重启 relay 携带新 token → 重跑 `agent:setup` →
+  桥自动重连成功；
 - relay 侧不校验「旧 token 是否仍在用」——轮换后旧 token 立即失效（这正是目的）。
 
 ## 与「独立进程形态」的关系
@@ -109,3 +123,93 @@ token 有**两个持有方**：relay（启动时经环境变量/打印获得）�
 | 独立进程 | `npm run relay` / `relay:stdio` | 只调试 relay 本身、或你有自己的静态托管 |
 
 两种形态共用同一份内核 `relay/server.mjs`，行为一致（同一套测试覆盖）。
+
+## 外部 Agent 接入（两种接法）
+
+relay 的 Agent 端点是**裸 WebSocket**（`ws(s)://<站点>/relay`），而标准 MCP 只有 stdio 与
+Streamable HTTP 两种传输 —— **没有一家客户端支持「连裸 ws://」**（它会按 Streamable HTTP 发
+POST，relay 只认 Upgrade 握手，直接 426）。所以 Agent 侧需要一层 stdio 桥把 JSON-RPC 帧搬过来：
+项目自带 `relay/mcp-stdio-shim.mjs`，对 Agent 而言就是一台普通 MCP 服务器。
+
+| 路线 | 做法 | 适用 |
+|---|---|---|
+| **一键（推荐）** | `npm run agent:setup -- --url <relay 地址> --token <T>` | 自动写入各 Agent 工具（Codex / Hermes / opencode / Claude Code / Cursor …）的配置 + 规则 + 技能。**凭据集中存 `~/.workhub/relay.json`，token 不落进任何可入库的配置文件** |
+| 手动 | Agent 的 MCP 配置里写 `node <项目路径>/relay/mcp-stdio-shim.mjs --url <…> --token <T>` | 不想跑脚本、或只想接一个工具 |
+
+> 设置页「AI Agent 桥」现在把这两条**生成好供复制**（地址取当前站点同源 `/relay`、token 已填）。
+> 一键接入的完整说明（写了哪些文件、怎么卸载、怎么排障）见 `docs/一键接入-Agent说明.md`。
+
+## 远程场景：Agent 在本机、站点在服务器（★ 常见形态）
+
+这是「**Agent 本机 ≠ 项目宿主**」的标准拓扑。**关键点：Agent 只连服务器的 relay，不用管数据在哪台机器** ——
+数据只在服务器上那个浏览器页面的 IndexedDB 里，relay 零特权、只转发调用。
+
+```
+本机（你的 Agent / Codex / Cursor …）
+  └─ stdio ─► node <项目路径>/relay/mcp-stdio-shim.mjs ─► wss://<站点域名>/relay
+                                                              │（服务器上，与站点同源）
+  ┌───────────────────────────────────────────────────────────┘
+  └─ 服务器上有一个浏览器页面开着站点、且已启用 AI 桥 ──► agentOps ──► 该页面的 IndexedDB
+```
+
+**四个前置条件（缺一不可）**：
+
+1. 服务器站点在跑，且 relay 同源可用（本测试环境 `dev.fpigeon.fun` 由 nginx 把 `/relay`
+   转到独立 relay 进程，见 `docs/开发测试环境说明.md`）；
+2. 服务器上**有一个浏览器页面开着站点并启用了桥**（状态「已连接 relay」）。
+   ⚠️ 桥只在「有页面开着」时在线；**关掉页面 = 桥离线**，Agent 会拿到「应用未连接」的**可操作错误**；
+3. 本机能访问到站点域名/端口（防火墙放行，WebSocket Upgrade 不被反代吃掉）；
+4. 本机侧持有与 relay 一致的 token（见「token 轮换注意」的三个落点）。
+
+**先验链路、再配 Agent**（不接 Agent 也能自检）：
+
+```bash
+# 项目自带的连通性自检：连 relay → 列工具 → 结果打到 stderr
+node relay/mcp-stdio-shim.mjs --url wss://<站点域名>/relay --token <T> --verify
+# 或让 agent:setup 代跑（真起 shim、走一次 MCP 握手 + tools/list）
+npm run agent:setup -- --check
+```
+
+拿到「工具清单不可用：寻鸽工作台未连接 relay」= **relay 通了，但服务器页面没开/没启用桥** ——
+这不是配置错误，别改参数、别反复重试。
+
+## 分层测试（换任意 Agent、或改动链路后按层跑）
+
+| 层 | 命令 | 盯什么 |
+|---|---|---|
+| **L1 离线单测** | `npx vitest run src/agent/__tests__` | 代码本身：桥 / relay / stdio shim / 确认票据 / 白名单 |
+| **L2 协议级验收** | `node scripts/acceptance.mjs --url <relay> --token <T>` | 以「从未适配本项目的纯标准 MCP Agent」视角跑 11 项条款，退出码 0 = 全通（见「通用性验收」） |
+| **L3 真实 Agent**（语义层） | 接上 Agent 后按下方冒烟顺序 | 读回的数据对不对、该反问时是否反问、确认转述是否清晰 |
+| **L4 端到端回归** | `npm test` | 全量；**改动链路后必跑** |
+
+**L3 冒烟顺序（由低风险到高风险，逐步验证）**：
+
+| 步骤 | 调用 | 风险 | 预期 |
+|---|---|---|---|
+| 1 | `tools/list` | — | 工具清单完整；**关掉的域直接不出现**（不是调用时才拒） |
+| 2 | `resolveEntity` | low | 只读消解；候选不唯一必须**反问**，不许猜 id |
+| 3 | `todo_createTodo` | low | 直接落库（**非幂等**，同参数会重复创建） |
+| 4 | `fin_recordTransaction` | **medium** | 必须走确认闸门四步（见下） |
+
+**medium 确认闸门（正向 + 负向都要验）**：
+
+```
+① 无票调用 → 只回 preview 材料（不落库），含 confirmHint 指向 confirm_preview
+② Agent 把参数逐字转述给你 → 你确认
+③ Agent 调 confirm_preview（参数与①完全一致）→ relay 校验「这组参数确实被预览过」→ 签发一次性 confirmToken
+④ 以①完全相同的参数重试，携带 confirmToken → 真正执行
+```
+
+负向四条必须同时验：无预览直接取票被拒 / 用「预览 A」的票执行参数 B 被拒（**票据绑定参数**）/
+同一张票用第二次被拒（一次性、防重放）/ `high` 风险（如 `todo_deleteTodo`）的预览载荷带 `irreversible: true`。
+
+## skill 与 MCP 连接器：一次说清（最容易混淆的一点）
+
+| 概念 | 是什么 | 怎么给 Agent |
+|---|---|---|
+| **MCP 连接器** | **调用通道** —— Agent 真正发 `tools/call` 的地方 | 配 stdio 桥那条命令（或 `agent:setup`），指向 relay |
+| **skill** | **给 Agent 的说明书**：有哪些工具、参数怎么写、哪些要先确认 | `docs/skills/`（读文件即可），或让 Agent 先 `tools/list` 自举 |
+| 工具 schema | 运行期真源，skill 由它**单源生成** | `tools/list` 返回；静态快照 `docs/skills/mcp-tools.json` |
+
+一句话：**skill 不是调用通道**。Agent 读 skill 知道「怎么调」，真正调还是走 MCP 连接器。
+两者都要有：**连接器负责能调通，skill 负责调得对。**

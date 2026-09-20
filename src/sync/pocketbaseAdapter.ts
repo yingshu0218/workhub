@@ -298,6 +298,21 @@ function stripLocalOnlyFields(table: string, payload: Record<string, unknown>): 
 }
 
 /**
+ * PocketBase filter 字符串字面量转义（Issue #169 P2-B）。
+ *
+ * PB 的 filter 是一门小查询语言，字符串字面量用单引号包裹。此前只有 `pbUpsert` 做了
+ * `replace(/'/g, "\\'")`，其余拼接点（含增量拉取的 `receivedAt` / `lastId`）直接内插 ——
+ * 值本身都来自服务端生成，实际不可控注入面很窄，但属**同一件事有多个写法**的漂移形状：
+ * 只要将来有一处值是用户可控的（如按标题/标签搜索），就会成为真实的 filter 注入点。
+ *
+ * 收口为唯一入口，全仓 filter 拼接一律走它。转义顺序很重要：
+ * 先转义反斜杠再转义单引号，否则 `\'` 会被后一步改写成 `\\'`（多出一层反斜杠）。
+ */
+export function escapePbFilterValue(v: string): string {
+  return v.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
+}
+
+/**
  * pbUpsert 结果（推送侧需据此决定本地怎么收敛）：
  * - `written`：本次已写入服务端
  * - `skipped-stale`：远端有更新的**活记录**，本端是迟到的旧数据 → 跳过（交由 pull 把远端值拉回）
@@ -317,7 +332,7 @@ async function pbUpsert(
 ): Promise<PbUpsertResult> {
   const localId = String(rec.id)
   const pbRecordId = await pbId(localId)
-  const filter = encodeURIComponent(`localId = '${localId.replace(/'/g, "\\'")}'`)
+  const filter = encodeURIComponent(`localId = '${escapePbFilterValue(localId)}'`)
   // fields 附带 updatedAt（推送侧 LWW 校验，P0-2）与 deleted（删除优先：识别服务端墓碑）。
   // 搭同一次查询取回，不额外增加请求。
   const found = await pbAuthedFetch(
@@ -413,7 +428,7 @@ async function pbDeleteRemote(
   table: string,
   localId: string,
 ): Promise<void> {
-  const filter = encodeURIComponent(`localId = '${localId.replace(/'/g, "\\'")}'`)
+  const filter = encodeURIComponent(`localId = '${escapePbFilterValue(localId)}'`)
   const found = await pbAuthedFetch(
     cfg,
     `/api/collections/${pbCollection(table)}/records?filter=${filter}&fields=id`,
@@ -445,8 +460,10 @@ async function pbListAll(
   const out: PbRecord[] = []
   for (let page = 1; page <= 500; page++) {
     // 首拉（无游标）按 updatedAt 全量；有游标按 server_received_at 增量，带 id tiebreaker 防同毫秒丢记录
+    // 游标值经 escapePbFilterValue 转义（Issue #169 P2-B）：两值均服务端生成，风险低，
+    // 但 filter 拼接必须只有一个写法，否则将来某处用户可控即成为注入点
     const filterExpr = receivedAt
-      ? `(server_received_at > '${receivedAt}' || (server_received_at = '${receivedAt}' && id > '${lastId}'))`
+      ? `(server_received_at > '${escapePbFilterValue(receivedAt)}' || (server_received_at = '${escapePbFilterValue(receivedAt)}' && id > '${escapePbFilterValue(lastId)}'))`
       : ''
     const params = new URLSearchParams({
       page: String(page),

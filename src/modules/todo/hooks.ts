@@ -56,18 +56,23 @@ export async function renameTodoList(id: string, name: string): Promise<void> {
   syncEngine.requestSync()
 }
 
-/** 删除清单（级联：名下待办解绑 listId 归入「全部待办」） */
+/**
+ * 删除清单（级联：名下待办解绑 listId 归入「全部待办」）
+ *
+ * Issue #169 P2-A：子表读取**移入事务内**。此前 `db.todos.where('listId').equals(id).toArray()`
+ * 在事务外先读、再进事务改，构成 TOCTOU 窗口 —— 窗口内新建的待办不会被解绑，
+ * 留下「listId 指向已删清单」的悬挂外键（该待办既不在任何清单、也不进「收集箱」）。
+ * `deleteCustomerCascade` / `deleteProjectCascade` / `deleteTodoCascade` 都在事务内读，本处此前是例外。
+ */
 export async function deleteTodoListCascade(id: string): Promise<void> {
-  const prev = await db.todoLists.get(id)
-  if (!prev) return
   const now = Date.now()
-  const todos = await db.todos.where('listId').equals(id).toArray()
   await db.transaction('rw', [db.todoLists, db.todos, db.syncQueue], async () => {
-    if (prev) {
-      await db.todoLists.put({ ...prev, deleted: 1, updatedAt: now, rev: prev.rev + 1 })
-      await db.syncQueue.add({ table: 'todoLists', recordId: id, op: 'delete', createdAt: now })
-    }
+    const prev = await db.todoLists.get(id)
+    if (!prev) return
+    await db.todoLists.put({ ...prev, deleted: 1, updatedAt: now, rev: prev.rev + 1 })
+    await db.syncQueue.add({ table: 'todoLists', recordId: id, op: 'delete', createdAt: now })
     // 含已软删待办一并解绑：否则其 listId 指向已删清单，UI 上既不在任何清单、也不进「收集箱」
+    const todos = await db.todos.where('listId').equals(id).toArray()
     for (const t of todos) {
       await db.todos.put({ ...t, listId: undefined, updatedAt: now, rev: t.rev + 1 })
       await db.syncQueue.add({ table: 'todos', recordId: t.id, op: 'upsert', createdAt: now })

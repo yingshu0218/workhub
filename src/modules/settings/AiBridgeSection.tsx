@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Card, Button } from '@/design-system/ui'
 import { Icon } from '@/design-system/Icon'
 import type { Settings, AiDomain } from '@/db/types'
-import { agentBridge, type BridgeStatus } from '@/agent/bridge'
+import { agentBridge, resolveBridgeBase, type BridgeStatus } from '@/agent/bridge'
 
 /**
  * AI Agent 桥配置区（能力白名单 + 接入凭据） —— 方案 §四.2 / §四.3（P1 第 4 步配套）
@@ -46,8 +46,45 @@ export function AiBridgeSection({
   const domains: Partial<Record<AiDomain, boolean>> = ai.domains ?? {}
   const [status, setStatus] = useState<BridgeStatus>(() => agentBridge.getStatus())
   const [copied, setCopied] = useState(false)
+  const [copiedCmd, setCopiedCmd] = useState(false)
+  const [copiedConfig, setCopiedConfig] = useState(false)
+  /** 桥实际连出的 relay 基址（留空 = 当前站点同源 /relay，与实际连接口径同源，不另算一份） */
+  const bridgeBase = resolveBridgeBase(ai.bridgeUrl)
 
   useEffect(() => agentBridge.onStatus(setStatus), [])
+
+  /**
+   * 给外部 Agent 的「一条命令」接入（Issue #154）。
+   *
+   * 为什么放在设置页：用户直觉是「丢个地址给 Agent 就能用」，而标准 MCP 只有 stdio /
+   * Streamable HTTP 两种传输、**没有「连裸 ws://」这条**，直连 ws 的客户端极少。
+   * 所以这里直接产出可粘贴的命令与配置：Agent 侧用项目自带的 stdio 桥
+   * （`relay/mcp-stdio-shim.mjs`）把 JSON-RPC 帧搬到 relay 上。
+   *
+   * 优先给 `npm run agent:setup`：它自动写入各 Agent 工具（Codex / Hermes / opencode /
+   * Claude Code / Cursor …）的配置，并把凭据**集中存到 `~/.workhub/relay.json`** ——
+   * token 因此不落进任何可入库的配置文件。手抄下面那份 JSON 是备选路径，
+   * 注意它含明文 token，别提交到仓库。
+   */
+  const agentSetupCmd = `npm run agent:setup -- --url ${bridgeBase} --token ${ai.bridgeToken ?? ''}`
+  const mcpConfig = JSON.stringify(
+    {
+      mcpServers: {
+        workhub: {
+          command: 'node',
+          args: [
+            '<项目路径>/relay/mcp-stdio-shim.mjs',
+            '--url',
+            bridgeBase,
+            '--token',
+            ai.bridgeToken ?? '',
+          ],
+        },
+      },
+    },
+    null,
+    2,
+  )
 
   const setDomain = (d: AiDomain, on: boolean) => save({ ai: { ...ai, domains: { ...domains, [d]: on } } })
 
@@ -165,6 +202,69 @@ export function AiBridgeSection({
               </p>
             </div>
             {status.error && <p className="text-[0.8214rem] text-error">{status.error}</p>}
+            <div>
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <div className="text-[0.8214rem] font-medium text-on-surface-variant">
+                  Agent 侧接入（复制即用）
+                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  icon="content_copy"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(agentSetupCmd)
+                      setCopiedCmd(true)
+                      setTimeout(() => setCopiedCmd(false), 1500)
+                    } catch {
+                      /* 剪贴板不可用时静默 */
+                    }
+                  }}
+                >
+                  {copiedCmd ? '已复制' : '复制命令'}
+                </Button>
+              </div>
+              <pre className="overflow-x-auto rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 font-mono text-[0.7857rem] leading-relaxed">
+                {agentSetupCmd}
+              </pre>
+              <p className="mt-1 text-[0.7857rem] text-outline">
+                推荐用这条命令：它自动写入各 Agent 工具（Codex / Hermes / opencode / Claude Code /
+                Cursor …）的配置，并把凭据集中存到 <code>~/.workhub/relay.json</code> ——
+                token 因此不落进任何可入库的配置文件。跑完<b>重启 Agent 工具</b>即可。详见{' '}
+                <code>docs/一键接入-Agent说明.md</code>。
+              </p>
+              <details className="mt-2">
+                <summary className="cursor-pointer text-[0.7857rem] text-on-surface-variant">
+                  手动配置（不想跑脚本时）·{' '}
+                  <button
+                    type="button"
+                    className="underline"
+                    onClick={async (e) => {
+                      e.preventDefault()
+                      try {
+                        await navigator.clipboard.writeText(mcpConfig)
+                        setCopiedConfig(true)
+                        setTimeout(() => setCopiedConfig(false), 1500)
+                      } catch {
+                        /* 剪贴板不可用时静默 */
+                      }
+                    }}
+                  >
+                    {copiedConfig ? '已复制' : '复制 JSON'}
+                  </button>
+                </summary>
+                <pre className="mt-1 overflow-x-auto rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 font-mono text-[0.7857rem] leading-relaxed">
+                  {mcpConfig}
+                </pre>
+                <p className="mt-1 text-[0.7857rem] text-outline">
+                  标准 MCP 只有 stdio / Streamable HTTP 两种传输，<b>没有「连裸 ws://」这条</b>，
+                  所以 Agent 侧要用本项目的 stdio 桥（
+                  <code>relay/mcp-stdio-shim.mjs</code>）把 JSON-RPC 帧搬到 relay：把{' '}
+                  <code>&lt;项目路径&gt;</code> 换成实际路径后粘进 Agent 的 MCP 配置。
+                  该配置含明文 token，<b>不要提交到仓库</b>。
+                </p>
+              </details>
+            </div>
           </div>
         )}
       </Card>

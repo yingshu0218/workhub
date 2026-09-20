@@ -98,6 +98,10 @@ export async function createNoteFolder(name: string): Promise<NoteFolder> {
       createdAt: now,
     })
   })
+  // Issue #169 P1-B：本模块 4 个文件夹写函数里原本只有 moveNoteToFolder 触发同步，
+  // 建/改/删三个只入队不唤醒引擎 → 变更只能等 30s 心跳（用户建完文件夹立刻关标签页，
+  // 本机可见、其他设备要等到下次心跳；属延迟而非丢失，但对「刚建就看得到」是硬缺陷）。
+  syncEngine.requestSync()
   return folder
 }
 
@@ -110,22 +114,34 @@ export async function renameNoteFolder(id: string, name: string): Promise<void> 
     await db.noteFolders.put({ ...prev, name: name.trim(), updatedAt: now, rev: prev.rev + 1 })
     await db.syncQueue.add({ table: 'noteFolders', recordId: id, op: 'upsert', createdAt: now })
   })
+  syncEngine.requestSync()
 }
 
-/** 删除文件夹（级联：名下笔记解绑 folderId 回到「全部笔记」根层） */
+/**
+ * 删除文件夹（级联：名下笔记解绑 folderId 回到「全部笔记」根层）
+ *
+ * Issue #169 P2-A：子表读取**移入事务内**。此前 `db.notes.where('folderId').equals(id).toArray()`
+ * 在事务外先读、再进事务改，构成 TOCTOU 窗口 —— 窗口内新建的笔记不会被解绑，
+ * 于是留下「folderId 指向已删文件夹」的悬挂外键（该笔记在界面上既不在任何文件夹、也不进根层）。
+ * `deleteCustomerCascade` / `deleteProjectCascade` / `deleteTodoCascade` 都在事务内读，本处此前是例外。
+ *
+ * 注：含**已软删**笔记一并解绑（与 `deleteTodoListCascade` 同口径）—— 否则其 folderId
+ * 仍指向已删文件夹，将来恢复时会挂在一个不存在的节点上。
+ */
 export async function deleteNoteFolderCascade(id: string): Promise<void> {
-  const prev = await db.noteFolders.get(id)
-  if (!prev || prev.deleted) return
   const now = Date.now()
-  const notes = await db.notes.where('folderId').equals(id).toArray()
   await db.transaction('rw', [db.noteFolders, db.notes, db.syncQueue], async () => {
+    const prev = await db.noteFolders.get(id)
+    if (!prev || prev.deleted) return
     await db.noteFolders.put({ ...prev, deleted: 1, updatedAt: now, rev: prev.rev + 1 })
     await db.syncQueue.add({ table: 'noteFolders', recordId: id, op: 'delete', createdAt: now })
-    for (const n of notes.filter((x) => !x.deleted)) {
+    const notes = await db.notes.where('folderId').equals(id).toArray()
+    for (const n of notes) {
       await db.notes.put({ ...n, folderId: undefined, updatedAt: now, rev: n.rev + 1 })
       await db.syncQueue.add({ table: 'notes', recordId: n.id, op: 'upsert', createdAt: now })
     }
   })
+  syncEngine.requestSync()
 }
 
 /** 移动笔记到文件夹（folderId=undefined 即移回根层） */
