@@ -139,6 +139,15 @@ POST，relay 只认 Upgrade 握手，直接 426）。所以 Agent 侧需要一�
 > 设置页「AI Agent 桥」现在把这两条**生成好供复制**（地址取当前站点同源 `/relay`、token 已填）。
 > 一键接入的完整说明（写了哪些文件、怎么卸载、怎么排障）见 `docs/一键接入-Agent说明.md`。
 
+**常见坑（四条，逐条对应一个可操作动作）**：
+
+| 现象 | 原因 | 处理 |
+|---|---|---|
+| 配了 `http(s)://<站点>/relay` 连不上 | relay 是 **WebSocket 端点**，不是 HTTP 端点（客户端会按 Streamable HTTP 发 POST，relay 只认 Upgrade 握手，回 426） | 地址写 `ws://` / `wss://`；shim 对缺协议名的写法会自动补 `ws://` 并补 `/relay` |
+| `接入 token 无效` | 三个落点不一致（多半是重置过页面 token） | 按「token 轮换注意」一节：重启 relay 带上新 token，并重跑 `agent:setup` |
+| `工具清单不可用：寻鸽工作台未连接 relay` | 桥没启用、或服务器上那个页面没开着 | 打开站点 → 设置 → AI Agent 桥 → 启用；**这不是配置错误，别改参数** |
+| 想用 `npm run relay:stdio` 直接给 Agent | 那是「自己单独起一个 relay 进程」的入口 | 日常内嵌形态下 Agent 要连的是**站点里的** relay，走 shim 转发（见「与独立进程形态的关系」） |
+
 ## 远程场景：Agent 在本机、站点在服务器（★ 常见形态）
 
 这是「**Agent 本机 ≠ 项目宿主**」的标准拓扑。**关键点：Agent 只连服务器的 relay，不用管数据在哪台机器** ——
