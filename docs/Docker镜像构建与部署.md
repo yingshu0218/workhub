@@ -79,22 +79,50 @@ cnb registries list-package-tags --slug blueteam0715/workhub --type docker --nam
 
 ## 5. 在 VPS 上部署
 
-```bash
-# 登录（用户名必须是 cnb 这个固定值；填个人账号名会被拒且报错为空原因）
-AT=$(python3 -c "import json,os;print(json.load(open(os.path.expanduser('~/.cnb/token')))['access_token'])")
-printf '%s' "$AT" | sudo docker login docker.cnb.cool -u cnb --password-stdin
+### 5.1 正式环境实况（2026-10-09 上线）
 
-sudo docker pull docker.cnb.cool/blueteam0715/workhub:latest
-sudo docker run -d --name workhub -p 8080:80 -v /srv/workhub/data:/data \
-  -e WORKHUB_RELAY_TOKEN='<≥16 位>' \
-  -e PB_SUPERUSER='<超管邮箱>' -e PB_SUPERUSER_PASSWORD='<≥8 位>' \
-  -e PB_IMPORT_COLLECTIONS=1 \
-  --restart unless-stopped \
-  docker.cnb.cool/blueteam0715/workhub:latest
+| 项 | 值 |
+|---|---|
+| 站点 | **https://team.fpigeon.fun** |
+| 主机 | `1204pigeon` = `124.221.74.170`（`srv124`）。⚠️ 与测试环境 `devtest`（8.153.19.221）是**两台不同机器** |
+| 落点 | `/opt/workhub/`：`docker-compose.yml` + `.env`(权限 600) + `data/` |
+| 端口 | 只绑回环 **`127.0.0.1:8790`**（宿主端口 = 容器端口，内外一致）；对外由宿主 nginx 负责 TLS |
+| TLS | `/etc/nginx/certs/team.fpigeon.fun.crt` —— acme.sh **单独签发**（本域不属于 `*.honeypani.fun`，**不能复用那张泛域名证书**；且 acme.sh 无 DNS API 凭据 → 走 HTTP-01 + webroot `/var/www/acme`） |
+| nginx | `/etc/nginx/sites-available/team.fpigeon.fun.conf` + `sites-enabled/` 软链（仓库内权威副本 `deploy/nginx/team.fpigeon.fun.conf`） |
+| 持久化 | `/opt/workhub/data` → 容器 `/data`（PB 库 + 上传物 + 迁移） |
+| 资源上限 | `mem_limit`/`memswap_limit` **768m**（同值=禁 swap）、`cpus` **1.0**、`pids_limit` **256**（宿主 4 核 / 3.6G，同机另有 5 个容器；实测常驻约 60M / PIDs 25） |
+
+### 5.2 部署步骤
+
+```bash
+# ① 登录制品库（用户名必须是 cnb 这个固定值；填个人账号名会被拒且报错为空原因）
+#    凭据不要经命令行参数传（会进 shell 历史与进程表）—— 走 stdin 管道
+AT=$(python3 -c "import json,os;print(json.load(open(os.path.expanduser('~/.cnb/token')))['access_token'])")
+printf '%s' "$AT" | ssh <host> 'sudo docker login docker.cnb.cool -u cnb --password-stdin'
+
+# ② 落地编排文件与凭据（仅首次）
+ssh <host> 'sudo mkdir -p /opt/workhub/data'
+scp deploy/docker/docker-compose.yml <host>:/tmp/ && \
+  ssh <host> 'sudo mv /tmp/docker-compose.yml /opt/workhub/'
+# .env（600）里放 PB_SUPERUSER / PB_SUPERUSER_PASSWORD / WORKHUB_RELAY_TOKEN
+
+# ③ 拉镜像并启动 —— 以后每次更新只需要这两条
+ssh <host> 'cd /opt/workhub && sudo docker compose pull && sudo docker compose up -d'
+
+# ④ 验收
+curl -sI https://team.fpigeon.fun/api/health | head -1                       # 200
+curl -s -o /dev/null -w '%{http_code}\n' https://team.fpigeon.fun/_/        # 200（PB 管理台）
 ```
 
-**首次启动会做三件事**（幂等，可安全重复）：建/更新超管（若给了凭据）→ 等 PB 就绪 →
-库内还没有业务集合时导入 `pb_setup/collections.json`。
+### 5.3 首次启动会做三件事（幂等，可安全重复）
+
+建/更新超管（若给了凭据）→ 等 PB 与站点就绪 → **库内为空时**导入 `pb_setup/collections.json`。
+
+⚠️ **空库判据是「`collections.json` 里声明的集合一个都不存在」**，不是「有没有非 `_` 开头的集合」：
+PocketBase 首次启动会**自动建一个 `users` 集合**（不以 `_` 开头），用后者会把全新空库误判成
+「已有业务集合」而**跳过导入** —— 表现为站点能打开、但一张业务表都没有（2026-10-09 首次部署实测踩到）。
+若已误判，补救：取超管 token 后 `PUT /api/collections/import`，body 为
+`{"collections":[...], "deleteMissing":false}`（注意 `collections.json` 是**裸数组**，要包一层）。
 
 ⚠️ **`/data` 必须挂卷**，PB 的库与上传物都在里面。不挂卷则容器重建即丢数据。
 

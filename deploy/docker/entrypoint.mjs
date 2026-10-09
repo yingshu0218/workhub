@@ -138,19 +138,34 @@ async function importCollectionsIfFresh() {
   const token = await pbToken()
   const headers = { authorization: token }
 
-  // 只在**库内还没有任何业务集合**时导入 —— 避免每次重启都把 UI 上的改动覆盖回去。
-  // 注意 PB 自带 `_superusers` 等系统集合，`totalItems` 不能当判据，故按名称过滤。
+  const collections = JSON.parse(readFileSync(PB_COLLECTIONS, 'utf8'))
+  if (!Array.isArray(collections)) throw new Error('collections.json 顶层应为数组')
+  const wanted = collections.map((c) => String(c?.name ?? '')).filter(Boolean)
+
   const listRes = await fetch(`http://${PB_HTTP}/api/collections?perPage=200`, { headers })
   if (!listRes.ok) throw new Error(`列集合失败：HTTP ${listRes.status}`)
   const listed = await listRes.json()
-  const custom = (listed?.items ?? []).filter((c) => !String(c?.name ?? '').startsWith('_'))
-  if (custom.length > 0) {
-    log(`库内已有 ${custom.length} 个业务集合，跳过 collections 导入（幂等）`)
+  const existing = new Set((listed?.items ?? []).map((c) => String(c?.name ?? '')))
+  const missing = wanted.filter((n) => !existing.has(n))
+
+  // 空库判据 = **collections.json 里声明的集合一个都不存在**。
+  //
+  // ⚠️ 不能用「任何不以 `_` 开头的集合」当判据：PocketBase 首次启动会自动建一个
+  //    `users` 集合（不以 `_` 开头），那会把**全新空库误判成「已有业务集合」**
+  //    从而跳过导入 —— 表现为站点能打开、但一张业务表都没有。
+  //    （2026-10-09 正式环境首次部署实测踩到，当时只导入了 PB 自建的 users。）
+  if (missing.length === 0) {
+    log(`collections.json 里的 ${wanted.length} 个集合均已存在，跳过导入（幂等）`)
     return
   }
-
-  const collections = JSON.parse(readFileSync(PB_COLLECTIONS, 'utf8'))
-  if (!Array.isArray(collections)) throw new Error('collections.json 顶层应为数组')
+  if (missing.length < wanted.length) {
+    // 部分存在：**刻意不自动导入** —— import 会按文件定义覆盖已存在集合的字段，
+    // 把 UI 上改过的东西重置回去。这种情况应人工确认后手动导入。
+    log(`⚠️ 库内已有 ${wanted.length - missing.length} 个集合，缺少 ${missing.length} 个：${missing.join(', ')}`)
+    log('⚠️ 为免覆盖 UI 上的改动，不自动导入；确认后请手动调用 PUT /api/collections/import')
+    return
+  }
+  log(`检测到空库（${wanted.length} 个集合均不存在），开始导入…`)
   // deleteMissing:false —— 只增不删。**这个参数不能改**：改成 true 会把线上多出来的
   // 集合（如历史遗留、以及 `users`）一并删掉，属不可逆破坏。
   const res = await fetch(`http://${PB_HTTP}/api/collections/import`, {

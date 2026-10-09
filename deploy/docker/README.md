@@ -42,7 +42,7 @@ docker run -d --name workhub \
 | `PUBLIC_PORT` | `80` | **容器对外唯一端口**（容器内由入口脚本做同源路由） |
 | `WORKHUB_RELAY_TOKEN` | 随机 | Agent 桥的接入 token。**生产必须显式给**，否则每次重建都换 |
 | `PB_SUPERUSER` / `PB_SUPERUSER_PASSWORD` | 空 | 两者**同时提供**时，启动前自动 `superuser upsert`（幂等）。缺省则跳过 |
-| `PB_IMPORT_COLLECTIONS` | `0` | 设 `1` 时，**仅当库内还没有业务集合**才导入 `pb_setup/collections.json` |
+| `PB_IMPORT_COLLECTIONS` | `0` | 设 `1` 时，**仅当 `collections.json` 里声明的集合一个都不存在**（= 全新空库）才导入 |
 | `PB_DATA_DIR` | `/data/pb_data` | PB 数据库目录 —— **必须挂卷**，否则重建即丢数据 |
 | `PB_HTTP` | `127.0.0.1:8090` | PB 监听地址（容器内回环，不对外） |
 | `PORT` / `HOST` | `9001` / `127.0.0.1` | 内部 serve.mjs 的端口/地址（不对外） |
@@ -72,6 +72,9 @@ docker run -d --name workhub \
 | 页面能开但数据全空、控制台 404 | `/api` 没被代理到 PB → 确认用的是本入口（而不是直接把 `serve.mjs` 当 entrypoint） |
 | 每次重建都要重新配 Agent 桥 | `WORKHUB_RELAY_TOKEN` 没显式设置（缺省是随机生成） |
 | 重建后数据没了 | `/data` 没挂卷 |
+| **站点能开，但一张业务表都没有**（`/api/collections` 里只有 `users`） | 首启空库判据被 PB 自建的 `users` 集合误判 → 补救步骤见 `docs/Docker镜像构建与部署.md` §5.3 |
+| `docker pull` 报 **401 Unauthorized** | 机器上 `config.json` 里的凭据**已失效**（发出后不会回退匿名）→ 重新 `-u cnb` 登录；别去查仓库可见性 |
+| 用 `curl -H 'Host: …' https://127.0.0.1/...` 测站点得到 404 | 该写法**只改 HTTP 头、不改 TLS 的 SNI**，nginx 按 SNI 路由到了默认 server → 要用真域名测 |
 
 ## 为什么手机端（Tauri）不在这个镜像里
 

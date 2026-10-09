@@ -1,0 +1,104 @@
+# 寻鸽工作台 · 正式环境（team.fpigeon.fun）—— 单容器全包（前端 + relay + PocketBase）
+#
+# 【服务器上的落点】/opt/workhub/docker-compose.yml
+# 【本文件是仓库内的权威副本】改完同步到上面那个路径。
+#
+# 只拉镜像，不在本机构建：
+#   sudo docker compose pull && sudo docker compose up -d
+#
+# 镜像由 CNB 流水线构建（见仓库根 .cnb.yml）：
+#   docker.cnb.cool/blueteam0715/workhub:latest
+# 不在本机构建的理由同同机其它站点：不可复现、无溯源，且构建峰值要吃 1–2G 内存 ——
+# 宿主只有 3.6G，同机还跑着 vaultwarden / zjjjs / dailycheckin / eng-study / tmux-web。
+#
+# 容器内是一个「同源路由入口」（deploy/docker/entrypoint.mjs），把三件事收在一个端口：
+#   /api 、/_/  → PocketBase；其余（含 /relay 与 WS 升级）→ serve.mjs（静态站 + relay）
+# ⚠️ 因此**不要在容器外套一层只转发 / 的反代** —— 那会把 /api 也带走。
+#
+# 配套 nginx 站点：/etc/nginx/sites-available/team.fpigeon.fun.conf
+#                 （仓库内权威副本 deploy/nginx/team.fpigeon.fun.conf）
+
+services:
+  workhub:
+    image: ${WORKHUB_IMAGE:-docker.cnb.cool/blueteam0715/workhub:latest}
+    container_name: workhub
+    restart: unless-stopped
+    # latest 必须配 always：否则 up -d 不会去拉新镜像，
+    # 会出现「镜像已更新但容器还是旧的」。
+    pull_policy: always
+
+    ports:
+      # 只绑回环：对外流量一律经宿主 nginx（负责 TLS）。
+      # 宿主端口 = 容器端口 = 8790 —— 内外一致，少一处「容器里 80、宿主上 8790」式
+      # 的对齐负担。（同机已占用：8080 vaultwarden / 8765 eng-study / 8787 zjjjs /
+      # 8788 dailycheckin / 9301 tmux-web / 9119 hermes）
+      - "127.0.0.1:8790:8790"
+
+    volumes:
+      # 唯一需要持久化的东西：PocketBase 的库与上传物（/data/pb_data）
+      # 及迁移目录（/data/pb_migrations，默认 = PB_DATA_DIR/../pb_migrations，正好落在卷内）。
+      # 镜像里其余内容（前端产物、relay、PB 二进制、pb_hooks）都是**代码**，
+      # 换镜像即换代码，不该持久化。
+      - ./data:/data
+
+    environment:
+      TZ: Asia/Shanghai
+      # 容器对外唯一端口（入口脚本据此监听；与上面的端口映射保持一致）
+      PUBLIC_PORT: "8790"
+      # Agent 桥的接入 token。生产必须显式给 —— 缺省是随机生成，
+      # 那样每次重建容器都会换掉，已接入的 Agent 全部失效。
+      WORKHUB_RELAY_TOKEN: ${WORKHUB_RELAY_TOKEN:?WORKHUB_RELAY_TOKEN 必须显式提供（≥16 位）}
+      # 超管：两者同时提供时，容器启动前会幂等 upsert（改密码后重启即生效）。
+      # 缺失则跳过初始化 —— 首次部署必须给，否则库里没有业务集合可导。
+      PB_SUPERUSER: ${PB_SUPERUSER:-}
+      PB_SUPERUSER_PASSWORD: ${PB_SUPERUSER_PASSWORD:-}
+      # 仅当 collections.json 里声明的集合**一个都不存在**（= 全新空库）时才导入（幂等，只增不删）。
+      # ⚠️ 不能按「有没有非 `_` 开头的集合」判 —— PocketBase 首启会自动建一个 `users` 集合，
+      #    那样会把空库误判成「已有业务集合」而跳过导入（2026-10-09 首次部署实测踩到）。
+      PB_IMPORT_COLLECTIONS: "1"
+
+    # ── 资源上限 ─────────────────────────────────────────────────────────
+    # 宿主 4 核 / 3.6G（可用约 1.9G），同机另有 5 个容器在跑。
+    # 本站常驻 3 个进程（入口 + serve.mjs + PocketBase），闲时合计约 250–350M；
+    # 给 768M 有 2 倍以上余量 —— 足够挡住内存泄漏把整机拖垮，又不会把手脚捆到误杀。
+    mem_limit: "${WORKHUB_MEM_LIMIT:-768m}"
+    # 与 mem_limit 同值 = 禁用 swap：宁可让容器 OOM 退出被 restart 拉起，
+    # 也不要让它把宿主拖进换页抖动、连累同机其它服务。
+    memswap_limit: "${WORKHUB_MEM_LIMIT:-768m}"
+    # 4 核要分给 6 个服务；本站是「静态文件 + SQLite」的轻负载，
+    # 上限的意义是挡住某个并发高峰或死循环把整机 CPU 吃完。
+    cpus: "${WORKHUB_CPU_LIMIT:-1.0}"
+    # 入口 + 静态站 + PB，外加健康检查的短命 node；256 是给突发留的余量，
+    # 同时挡住线程/进程失控式的资源耗尽。
+    pids_limit: 256
+
+    # 容器内没有需要提权的操作；这条不影响功能，
+    # 但能挡住「子进程通过 setuid 拿到更多权限」这类提权路径。
+    security_opt:
+      - no-new-privileges:true
+
+    # 单个容器日志上限 30M（10M × 3 个文件），防止长跑把 40G 盘写满。
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # ── 健康检查 ─────────────────────────────────────────────────────────
+    # 探针打 /api/health —— 它走的是**容器自己的同源路由**，因此一次同时验证
+    # 「入口活着 + 路由通 + PocketBase 活着」三件事。
+    # （直接打 127.0.0.1:8090/api/health 会绕过入口，路由坏了也照样绿。）
+    # 不用 curl：运行镜像是 node:22-slim，**镜像里没有 curl**，用它会让健康检查
+    # 永远失败、容器长期停在 unhealthy。故走 node 内置 fetch。
+    # 不查库：PB 的库异常是数据问题，反复重启解决不了，只会让页面连不上。
+    healthcheck:
+      test:
+        - "CMD"
+        - "node"
+        - "-e"
+        - "fetch('http://127.0.0.1:8790/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      # 首启要跑：建超管 → 起 PB → 等 PB 就绪 → 起 serve → 等站点就绪 → 导 collections
+      start_period: 60s
