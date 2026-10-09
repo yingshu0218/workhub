@@ -1,0 +1,87 @@
+# CNB → GitHub 单向镜像
+
+> 一句话：`cnb.cool/blueteam0715/workhub` 是**唯一主仓库**；每次 push 到 `main`（外加每日 03:00 兜底）自动把
+> `main` 分支与全部 tag 镜像到私有仓库 `github.com/yingshu0218/workhub`。GitHub 侧是**只读副本**，不要在那里提交。
+
+## 配置在哪
+
+| 东西 | 位置 |
+|---|---|
+| 流水线定义 | 仓库根 `.cnb.yml` |
+| GitHub 写入凭据（PAT） | CNB **密钥仓库** `blueteam0715/keystore` 的 `github-sync.yml` |
+| 目标仓库 | `https://github.com/yingshu0218/workhub.git` |
+
+**凭据为什么不在这个仓库里**：密钥仓库禁止 clone 到本地、禁止本地 push，只能网页编辑 —— PAT 不会出现在任何人的磁盘上。
+`.cnb.yml` 里只写变量名 `${GIT_USERNAME}` / `${GIT_ACCESS_TOKEN}`，由 `imports` 在构建时注入。
+
+> ⚠️ 变量优先级是「仓库 CI 环境变量 > `env` > `imports`」。所以 `.cnb.yml` 里**绝不能**再定义同名的 `env`，否则会压过密钥仓库的值。
+
+## 流水线结构
+
+```
+main:
+  push:                      -> 同一条流水线
+  "crontab: 0 3 * * *":      -> 同上（YAML 锚点 .mirror-to-github + <<: 合并键引用，不复制两遍）
+```
+
+一条流水线含三个 stage，顺序执行：
+
+1. `ensure-local-main` —— `git checkout -B main HEAD`。
+2. `sync-to-github` —— 官方 Git Sync 插件（`tencentcom/git-sync`）：`branch: main` + `push_tags: true` + `force: true`。
+3. `verify-github-mirror` —— 读 GitHub 真实 ref，与本次 HEAD 比对，不一致就 `exit 1`。
+
+## 为什么有 ①③ 两个「多余」的 stage
+
+读插件 `entrypoint.sh` 源码发现：指定 `branch: main` 时，它的判据是
+
+```sh
+if git rev-parse --verify "$PLUGIN_BRANCH" >/dev/null 2>&1; then
+  git push target "$PLUGIN_BRANCH" ...
+else
+  echo "Warning: Branch $PLUGIN_BRANCH does not exist locally, skipping push"
+fi
+```
+
+**本地没有 `main` 引用时它只打印一句 Warning，然后 `exit 0`** —— 流水线全绿，GitHub 上什么都没有。
+这是本仓库最忌讳的「假阳性成功」，所以：
+
+- `ensure-local-main` 显式建出本地 `main` 引用，让那个 `else` 分支永不成立；
+- `verify-github-mirror` **不信任插件退出码**，直接读远端真实 SHA 比对 —— 这是唯一不依赖插件行为的判据。
+
+同理，`lock`（`wait: true`）是用来防「连续两次 push 触发并发 force-push，若旧构建最后落地则 GitHub 静默停在旧提交」。
+
+## 故意没做的事
+
+- **不用 `tag_push` 事件触发**：tag_push 检出的是该 tag 所在提交，`ensure-local-main` 会把 `main` 重置到那个（可能更旧的）
+  提交并 force-push，**会把 GitHub 的 main 推回退**。tag 同步由「每日兜底 + 通常伴随 push」覆盖。
+- **不推 `auto/*` 等临时分支**：`branch: main` 是显式指定；若删掉它，插件会执行 `git push --all`，把远端 70+ 个临时分支全推上去。
+
+## 出问题怎么查
+
+| 现象 | 先看 |
+|---|---|
+| 流水线绿但 GitHub 没更新 | 不可能 —— 校验 stage 会转红。若真出现，说明校验 stage 也被跳过了，先看构建日志里有没有走到第 3 个 stage |
+| `verify` 转红 | 构建日志里会打印 `CNB HEAD=` 与 `GitHub main=` 两个 SHA，对比即可判断是没推上去还是推错了 |
+| 认证失败 | 密钥仓库 `github-sync.yml` 里的 PAT 是否过期；PAT 权限是否够（私有仓库需 classic `repo` 或 fine-grained `Contents: RW`） |
+| `imports` 取不到变量 | 密钥仓库是否声明了 `allow_slugs: blueteam0715/workhub`；引用者是否对密钥仓库有读权限 |
+| 定时同步不再执行 | CNB 仓库页「定时任务」看负责人：定时任务以**最后修改并推送该 crontab 配置的用户**身份执行，该用户被移出仓库任务即失败 |
+
+## 怎么临时停掉
+
+删掉或注释 `.cnb.yml` 里 `main:` 下的两个触发器并 push；或在 CNB 上直接停用该流水线。
+**不要**为了停同步去改写 git 历史。
+
+## 验收（改完配置后照这个查）
+
+```bash
+# 1. 两边 main 必须同 SHA
+git ls-remote https://github.com/yingshu0218/workhub.git refs/heads/main
+git ls-remote origin main
+
+# 2. 全部 tag 都在且指向一致（annotated tag 会有 ^{} 行，两边都要对上）
+git ls-remote --tags https://github.com/yingshu0218/workhub.git
+git ls-remote --tags origin
+
+# 3. 反向校验：GitHub 上不该有 auto/* —— 只应出现 main
+git ls-remote --heads https://github.com/yingshu0218/workhub.git
+```

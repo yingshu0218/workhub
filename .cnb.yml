@@ -1,0 +1,71 @@
+# CNB -> GitHub 单向只读镜像
+# 目标仓库: https://github.com/yingshu0218/workhub (私有)
+# 触发: push 到 main 自动同步; 每日 03:00 (Asia/Shanghai) crontab 兜底
+# 凭据: 密钥仓库 blueteam0715/keystore 的 github-sync.yml, 经 imports 注入
+# 范围: 仅 main 分支 + 全部 tag (远端 70+ 个 auto/* 临时分支刻意不同步)
+
+# 点开头的键是 YAML 隐藏键, 只作锚点用, 不会被当作分支名。
+# 锚点是 YAML 文档级特性, 因此在 push 与 crontab 两个事件下引用同一份定义。
+.mirror-to-github: &mirror-to-github
+  name: mirror-cnb-to-github
+  imports:
+    - https://cnb.cool/blueteam0715/keystore/-/blob/main/github-sync.yml
+  # 串行化: 快速连续 push 会并发 force-push, 若「旧」构建最后落地, GitHub 会停在
+  # 旧提交 —— 而它的校验早已通过, 属静默陈旧。wait 让并发构建排队, 保证最新的最后落地。
+  lock:
+    key: cnb-to-github-mirror
+    wait: true
+    timeout: 900
+  stages:
+    # ① 让「插件找不到本地 main 就静默跳过」这个前提永不成立。
+    #    插件源码对 $PLUGIN_BRANCH 做 git rev-parse --verify, 失败时只打印
+    #    "Warning: ... skipping push" 然后 exit 0 —— 流水线全绿但什么都没同步。
+    #    用 HEAD 而非 CNB_COMMIT: push 与 crontab 两种事件下 HEAD 都指向本次检出的提交。
+    - name: ensure-local-main
+      script: git checkout -B main HEAD
+
+    # ② 官方 Git Sync 插件: 推 main + 全部 tag
+    - name: sync-to-github
+      image: tencentcom/git-sync
+      settings:
+        target_url: https://github.com/yingshu0218/workhub.git
+        auth_type: https
+        # 插件容器收不到自定义环境变量(官方原文), 只能靠 settings 的变量替换
+        username: ${GIT_USERNAME}
+        password: ${GIT_ACCESS_TOKEN}
+        # 必须写 branch: 不写时插件执行 git push target --all, 会把 70+ 个 auto/* 分支全推上去
+        branch: main
+        push_tags: true
+        # 只读镜像语义: 允许覆盖, 以容纳 tag 重指与 CNB 侧历史重写
+        force: true
+
+    # ③ 真正的防线。插件在异常路径上是「警告 + exit 0」, 所以不能只看它的退出码,
+    #    必须读远端真实 ref 与本次构建 HEAD 比对, 把假阳性转成响亮失败。
+    - name: verify-github-mirror
+      script: |
+        set -eu
+        export GIT_TERMINAL_PROMPT=0
+        export HOME="${HOME:-/root}"
+        # 凭据落 credential store: token 只进文件、不进命令行, 日志里只会看到变量名
+        printf 'https://%s:%s@github.com\n' "$GIT_USERNAME" "$GIT_ACCESS_TOKEN" > "$HOME/.git-credentials"
+        chmod 600 "$HOME/.git-credentials" 2>/dev/null || true
+
+        REMOTE="https://github.com/yingshu0218/workhub.git"
+        EXPECTED="$(git rev-parse HEAD)"
+        RAW="$(git ls-remote "$REMOTE" refs/heads/main)"
+        ACTUAL="${RAW%%[[:space:]]*}"
+
+        echo "CNB HEAD    = $EXPECTED"
+        echo "GitHub main = ${ACTUAL:-<none>}"
+        if [ "$EXPECTED" != "$ACTUAL" ]; then
+          echo "ERROR: GitHub 镜像未同步到本次提交, 构建失败" >&2
+          exit 1
+        fi
+        echo "OK: GitHub main == CNB HEAD"
+
+main:
+  push:
+    - <<: *mirror-to-github
+  # crontab 的 key 必须带引号: 不加会因 * 触发 YAML 语法错误
+  "crontab: 0 3 * * *":
+    - <<: *mirror-to-github
