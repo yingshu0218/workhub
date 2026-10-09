@@ -17,7 +17,7 @@
 | 顺序 | 文件 | 为什么 |
 |---|---|---|
 | 1 | `docs/PROGRESS.md` | **唯一进度事实来源**。判断「做到哪了、接下来做什么」只认它 |
-| 2 | `README.md` 的「协作约定」+ Changelog 表尾 | 提交纪律与最新变更流水 |
+| 2 | `README.md` 的「协作约定」+ `CHANGELOG.md` | 提交纪律与版本变更摘要 |
 | 3 | 涉事模块的 `docs/审查报告-*.md` | 已知缺陷与已裁决口径，避免重复踩坑 |
 
 审代码先看 PROGRESS，动手前先读 PROGRESS。
@@ -78,8 +78,10 @@ npm run serve          # 生产形态：同进程托管 dist + relay（同源 ws
 
 ## 7. 提交规范
 
-- **同一个 commit 内**必须：① 更新 `docs/PROGRESS.md`；② 在 `README.md` 的 Changelog 表**追加一行**
-  （序号 / 日期 / 变更摘要 / 提交人），序号递增。
+- **同一个 commit 内**必须更新 `docs/PROGRESS.md`（状态表格 + 「最后更新」）。
+- **Changelog 已改为版本级**（2026-10-09）：**不再逐条记流水**，只在**发版本（打 tag）时**往根目录
+  `CHANGELOG.md` 追加该版本小节（版本号 / 日期 / 要点）；日常逐条记录交给 PROGRESS 与 git 提交历史。
+  旧 README 底部的逐条表格（#1~#128）已归档到 `docs/CHANGELOG-详细流水-v1.0.0至v1.2.1.md`（**只归档、不再追加**）。
 - 提交署名统一用 CNB 账号身份。
 - 推送前先过 pre-push 检查（`.pushcheck.conf` 定义规则）。
 - **一次提交只做一件事**。批量修复要分组，不要混成一坨。
