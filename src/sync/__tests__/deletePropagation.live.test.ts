@@ -11,7 +11,7 @@
  * 凭据走环境变量，**严禁**写进本文件（AGENTS.md §9：密码 / 服务器地址不入库）。
  *
  * 运行：
- *   NEXUS_LIVE_URL=https://dev.fpigeon.fun \
+ *   NEXUS_LIVE_URL=http://8.153.19.221:9001 \
  *   NEXUS_LIVE_USER=demo@nexus.local \
  *   NEXUS_LIVE_PASSWORD='***' \
  *   npx vitest run src/sync/__tests__/deletePropagation.live.test.ts

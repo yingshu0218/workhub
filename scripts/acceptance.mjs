@@ -14,7 +14,7 @@
  *
  * 用法（对任意部署形态与协议通用，ws / wss 均可）：
  *   node scripts/acceptance.mjs --url ws://127.0.0.1:9001/relay --token <relay启动时打印的token>
- *   node scripts/acceptance.mjs --url wss://dev.fpigeon.fun/relay --token <token>   # 线上 HTTPS
+ *   node scripts/acceptance.mjs --url ws://8.153.19.221:9001/relay --token <token>   # 测试站（源码部署，明文 HTTP）
  *   # 独立进程形态（npm run relay）path 默认根：
  *   node scripts/acceptance.mjs --url ws://127.0.0.1:8787 --token <token>
  *
