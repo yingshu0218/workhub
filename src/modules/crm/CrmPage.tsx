@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Icon } from '@/design-system/Icon'
 import { useNavigate } from 'react-router-dom'
 import { useCollection } from '@/queries/hooks'
-import type { Customer, CustomerGroup, IntimacyLevel } from '@/db/types'
-import { matchGroup } from '@/db/types'
+import type { Customer, CustomerGroup, IntimacyLevel, ModuleConfigIntimacy } from '@/db/types'
+import { INTIMACY_VISUAL, matchGroup } from '@/db/types'
 import {
   Avatar,
   Button,
@@ -18,11 +18,14 @@ import {
 } from '@/design-system/ui'
 import CustomerFormDrawer from './CustomerFormDrawer'
 import { fmtRelative, normalizeTags } from './shared'
+import { fmtMoney } from './timeline'
 import { filterBlacklisted, useIntimacyConfig, resolveIntimacyLevel } from './intimacy'
 import { resolveHealthScoreDisplay } from './healthScore'
 import {
   useCustomerGroups,
   useCustomerGroupCounts,
+  useCustomerListStats,
+  STALE_FOLLOW_UP_DAYS,
   useTagSuggestions,
   useCustomerScoreRows,
   createCustomerGroup,
@@ -36,8 +39,12 @@ import {
 export default function CrmPage() {
   const customers = useCollection<Customer>('customers')
   const navigate = useNavigate()
-  // 左侧分层维度：原手动 tier 已并入健康分，分组直接按健康分档位（key 取自配置，档位名随配置可变）
-  const [group, setGroup] = useState<'all' | IntimacyLevel>('all')
+  /**
+   * 筛选维度（改版）：**健康分/亲密度分层不再进左栏**。
+   * 左栏只承载「用户自己加的分组」；分层收进工具栏浮层，并作为**与自定义分组正交的筛选条件**
+   * （两者可叠加：自定义分组圈人 ∩ 分层档位）。分层 key 取自配置，档位名随配置可变。
+   */
+  const [levelFilter, setLevelFilter] = useState<'all' | IntimacyLevel>('all')
   const [keyword, setKeyword] = useState('')
   const [formOpen, setFormOpen] = useState(false)
   // 自定义分组（Issue #63）：选中分组 id 与编辑弹层
@@ -62,6 +69,8 @@ export default function CrmPage() {
   )
   const groupCounts = useCustomerGroupCounts(visibleCustomers, customGroups)
   const selectedGroup = customGroups.find((g) => g.id === selectedGroupId) ?? null
+  // 顶部统计（改版）：口径全部与分层无关 —— 总数 / 本月新增 / 待跟进 / 待回收款
+  const stats = useCustomerListStats(visibleCustomers)
 
   /**
    * 每客户解析出的健康分档位（手动优先 → 算法兜底）—— 分组、统计与行内 chip 共用这一份口径。
@@ -78,19 +87,9 @@ export default function CrmPage() {
     counts[key] = (counts[key] ?? 0) + 1
   }
 
-  /** 左侧分组项：全部 + 各健康分档位 */
-  const groups: { key: 'all' | IntimacyLevel; label: string; icon: string }[] = [
-    { key: 'all', label: '全部客户', icon: 'group' },
-    ...intimacyCfg.levels.map((lv) => ({
-      key: lv.key,
-      label: `${lv.key} · ${lv.name}`,
-      icon: 'favorite',
-    })),
-  ]
-
   const list = visibleCustomers
     .filter((c) => {
-      if (group !== 'all' && levelOf(c) !== group) return false
+      if (levelFilter !== 'all' && levelOf(c) !== levelFilter) return false
       if (selectedGroup && !matchGroup(c, selectedGroup)) return false
       if (keyword.trim()) {
         const kw = keyword.trim().toLowerCase()
@@ -102,9 +101,6 @@ export default function CrmPage() {
       return true
     })
     .sort((a, b) => b.lastContactAt - a.lastContactAt)
-
-  const groupCount = (g: 'all' | IntimacyLevel) =>
-    g === 'all' ? visibleCustomers.length : (counts[g] ?? 0)
 
   return (
     <div className="mx-auto max-w-[1200px]">
@@ -124,38 +120,33 @@ export default function CrmPage() {
       />
 
       <div className="flex items-start gap-4">
-        {/* 左栏：客户分组菜单 */}
+        {/* 左栏：客户分组菜单（改版：只放「用户自己加的分组」—— 分层是算法推断、用户改不了，
+            与自定义分组混在一栏会让人以为分层也能增删改，已整体移到工具栏浮层） */}
         <Card className="w-60 shrink-0 self-start p-4">
           <div className="mb-3 text-[0.8571rem] font-medium uppercase tracking-wide text-on-surface-variant">
             客户分组
           </div>
           <div className="flex flex-col gap-0.5">
-            {groups.map((g) => (
-              <button
-                key={g.key}
-                onClick={() => {
-                  setGroup(g.key)
-                  setSelectedGroupId(null)
-                }}
-                className={`app-nav-link flex items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[0.9286rem] transition-colors ${
-                  group === g.key && !selectedGroupId
-                    ? 'bg-primary-fixed font-semibold text-primary'
-                    : 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'
-                }`}
+            <button
+              onClick={() => setSelectedGroupId(null)}
+              className={`app-nav-link flex items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[0.9286rem] transition-colors ${
+                selectedGroupId === null
+                  ? 'bg-primary-fixed font-semibold text-primary'
+                  : 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'
+              }`}
+            >
+              <Icon
+                name="group"
+                size={16}
+                className={selectedGroupId === null ? 'text-primary' : 'text-outline'}
+              />
+              <span className="min-w-0 flex-1 truncate">全部客户</span>
+              <span
+                className={`shrink-0 text-[0.7857rem] ${selectedGroupId === null ? 'text-primary/70' : 'text-outline'}`}
               >
-                <Icon
-                  name={g.icon}
-                  size={16}
-                  className={group === g.key && !selectedGroupId ? 'text-primary' : 'text-outline'}
-                />
-                <span className="min-w-0 flex-1 truncate">{g.label}</span>
-                <span
-                  className={`shrink-0 text-[0.7857rem] ${group === g.key && !selectedGroupId ? 'text-primary/70' : 'text-outline'}`}
-                >
-                  {groupCount(g.key)}
-                </span>
-              </button>
-            ))}
+                {visibleCustomers.length}
+              </span>
+            </button>
           </div>
 
           {/* 我的分组：自定义 tag 规则圈人，实时计数，可增/改名/改规则/删（Issue #63） */}
@@ -251,33 +242,42 @@ export default function CrmPage() {
 
         {/* 右侧：统计 + 列表 */}
         <div className="min-w-0 flex-1">
-          {/* 顶部统计：总数 + 健康分前 3 档（档位名/顺序/说明全部从配置派生。
-              原「S/A/B 分层」四张卡已合并到此 —— 手动分层并入健康分后不再有第二套维度） */}
+          {/* 顶部统计（改版）：原「客户总数 + 健康分前 3 档」里三张是分层派生，
+              按用户拍板一并移出列表页 —— 换成本页自己的业务指标，与分层维度彻底解耦 */}
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             <StatCard
               label="客户总数"
               icon="group"
               iconCls="bg-primary-fixed text-primary"
-              value={visibleCustomers.length}
+              value={stats.total}
               sub="全部活跃档案"
             />
-            {intimacyCfg.levels.slice(0, 3).map((lv, i) => (
-              <StatCard
-                key={lv.key}
-                label={`${lv.key} · ${lv.name}`}
-                icon={TOP_LEVEL_ICONS[i]?.icon ?? 'favorite'}
-                iconCls={
-                  TOP_LEVEL_ICONS[i]?.cls ?? 'bg-surface-container-high text-on-surface-variant'
-                }
-                value={counts[lv.key] ?? 0}
-                sub={lv.desc}
-              />
-            ))}
+            <StatCard
+              label="本月新增"
+              icon="trending_up"
+              iconCls="bg-success-container/60 text-success"
+              value={stats.newThisMonth}
+              sub="本月建立档案"
+            />
+            <StatCard
+              label="待跟进"
+              icon="schedule"
+              iconCls="bg-warning-container text-warning"
+              value={stats.staleFollowUp}
+              sub={`超 ${STALE_FOLLOW_UP_DAYS} 天未联系`}
+            />
+            <StatCard
+              label="待回收款"
+              icon="account_balance_wallet"
+              iconCls="bg-success-container/60 text-success"
+              value={fmtMoney(stats.pendingReceivable)}
+              sub={stats.topReceivable ?? '暂无待对账收入'}
+            />
           </div>
 
-          {/* 筛选工具栏：关键字 */}
-          <div className="mb-3 mt-5 flex items-center gap-2">
-            <div className="ml-auto w-56">
+          {/* 筛选工具栏：关键字 + 亲密度（分层从左侧分组移出后的落位，二者可叠加） */}
+          <div className="mb-3 mt-5 flex flex-wrap items-center gap-2">
+            <div className="w-56">
               <input
                 className={inputCls}
                 value={keyword}
@@ -285,6 +285,16 @@ export default function CrmPage() {
                 placeholder="按姓名、公司、职位、标签检索…"
               />
             </div>
+            <IntimacyFilterMenu
+              cfg={intimacyCfg}
+              counts={counts}
+              total={visibleCustomers.length}
+              value={levelFilter}
+              onChange={setLevelFilter}
+            />
+            <span className="ml-auto text-[0.8571rem] text-on-surface-variant">
+              共 {list.length} 位客户
+            </span>
           </div>
 
           {/* 客户列表 */}
@@ -328,12 +338,141 @@ export default function CrmPage() {
   )
 }
 
-/** 顶部健康分统计卡的图标与配色（按档位序取，第 4 档起用兜底样式） */
-const TOP_LEVEL_ICONS = [
-  { icon: 'workspace_premium', cls: 'bg-danger-container text-danger' },
-  { icon: 'star', cls: 'bg-warning-container text-warning' },
-  { icon: 'person', cls: 'bg-surface-container-high text-on-surface-variant' },
-]
+/**
+ * 亲密度筛选浮层（改版：分层从左侧「客户分组」移出，收进工具栏按钮）。
+ *
+ * 为什么不做成左栏的第二组条目：分层是**算法推断、用户不可编辑**，而「我的分组」是用户
+ * 按 tag 规则自己圈的人 —— 两类东西混在一栏，既会让人以为分层可增删改，也让「分组」这个
+ * 概念承担两种语义。收进按钮后它回到本位：一个**可与自定义分组叠加**的筛选条件。
+ *
+ * 点外关闭沿用 MatchCombobox / ChannelSelect / EntityLinkField 的既有口径
+ * （`data-dropdown-root` 认内部 + window 冒泡阶段 `mousedown`），不新造第三套。
+ */
+function IntimacyFilterMenu({
+  cfg,
+  counts,
+  total,
+  value,
+  onChange,
+}: {
+  cfg: ModuleConfigIntimacy
+  /** 各分层命中人数（与左侧分组计数同源，由页面按可见集算出） */
+  counts: Record<string, number>
+  /** 「全部客户」人数（= 可见集大小） */
+  total: number
+  value: 'all' | IntimacyLevel
+  onChange: (next: 'all' | IntimacyLevel) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const active = value !== 'all'
+  const current = cfg.levels.find((lv) => lv.key === value)
+
+  useEffect(() => {
+    if (!open) return
+    const isInside = (target: Node | null) =>
+      target instanceof Element ? !!target.closest('[data-dropdown-root]') : false
+    const onDown = (e: MouseEvent) => {
+      if (!isInside(e.target as Node)) setOpen(false)
+    }
+    window.addEventListener('mousedown', onDown)
+    return () => window.removeEventListener('mousedown', onDown)
+  }, [open])
+
+  // Esc 关闭：走 window 捕获并在本层消费，避免冒泡给上层弹层顺手关掉别的东西
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      e.stopPropagation()
+      setOpen(false)
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [open])
+
+  const pick = (next: 'all' | IntimacyLevel) => {
+    onChange(next)
+    setOpen(false)
+  }
+
+  return (
+    <div data-dropdown-root className="relative">
+      <button
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label="按亲密度筛选"
+        className={`flex h-9 items-center gap-1.5 rounded-lg border px-3 text-[0.9286rem] transition-colors ${
+          active
+            ? 'border-primary bg-primary-fixed font-medium text-primary'
+            : 'border-outline-variant bg-surface-container-lowest text-on-surface-variant hover:border-primary hover:text-primary'
+        }`}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <Icon name="tune" size={16} />
+        <span className="whitespace-nowrap">
+          亲密度 · {active ? (current?.name ?? value) : '全部'}
+        </span>
+        <Icon name="keyboard_arrow_down" size={16} className="text-outline" />
+      </button>
+
+      {open && (
+        <div
+          role="listbox"
+          aria-label="亲密度分层"
+          className="surface-card absolute left-0 top-full z-20 mt-1 w-60 py-1 shadow-lg"
+        >
+          <button
+            type="button"
+            role="option"
+            aria-selected={!active}
+            onClick={() => pick('all')}
+            className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[0.9286rem] transition-colors ${
+              !active ? 'bg-primary-fixed text-primary' : 'hover:bg-surface-container'
+            }`}
+          >
+            <Icon name="group" size={15} className="shrink-0 text-outline" />
+            <span className="min-w-0 flex-1 truncate">全部客户</span>
+            <span className="shrink-0 text-[0.7857rem]">{total}</span>
+          </button>
+          {cfg.levels.map((lv) => (
+            <button
+              key={lv.key}
+              type="button"
+              role="option"
+              aria-selected={value === lv.key}
+              onClick={() => pick(lv.key)}
+              className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[0.9286rem] transition-colors ${
+                value === lv.key ? 'bg-primary-fixed text-primary' : 'hover:bg-surface-container'
+              }`}
+            >
+              {/* 档位色沿用图谱圈层色（INTIMACY_VISUAL）：档位→颜色是同一个语义，
+                  在此另写一套色板必然与图谱漂移 */}
+              <span
+                aria-hidden
+                className="h-2 w-2 shrink-0 rounded-full"
+                style={{ background: INTIMACY_VISUAL[lv.key].color }}
+              />
+              <span className="min-w-0 flex-1 truncate">
+                {lv.key} · {lv.name}
+              </span>
+              <span className="shrink-0 text-[0.7857rem]">{counts[lv.key] ?? 0}</span>
+            </button>
+          ))}
+          {active && (
+            <button
+              type="button"
+              onClick={() => pick('all')}
+              className="mt-1 w-full border-t border-outline-variant/40 px-3 pb-1 pt-2 text-left text-[0.8571rem] text-primary hover:underline"
+            >
+              清除筛选条件
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
 function StatCard({
   label,
@@ -345,7 +484,8 @@ function StatCard({
   label: string
   icon: string
   iconCls: string
-  value: number
+  /** 计数或已格式化金额（如「¥120,000」） */
+  value: number | string
   sub: string
 }) {
   return (

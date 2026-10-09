@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import dayjs from 'dayjs'
 import { db } from '@/db/db'
 import { txnCustomerIds, txnProjectIds } from '@/modules/finance/links'
 import { useQuery } from '@/queries/hooks'
@@ -280,6 +281,79 @@ export function buildScoreInputFromRows(
       .filter((i) => i.customerId === customerId)
       .reduce((max, i) => (i.at > max ? i.at : max), 0),
   }
+}
+
+// ─────────────────────────── 客户列表顶部统计（改版：指标去健康度化） ───────────────────────────
+
+/** 客户列表顶部统计口径（刻意与健康分无关，故不依赖 intimacy 模块） */
+export interface CustomerListStats {
+  /** 可见客户总数（已剔除黑名单屏蔽集） */
+  total: number
+  /** 本月新建档案数 */
+  newThisMonth: number
+  /** 待跟进：超 7 天未联系（含从未联系） */
+  staleFollowUp: number
+  /** 待回收款：关联客户「收入 且 待对账」流水的金额合计 */
+  pendingReceivable: number
+  /** 待回收款中金额最大一笔的「客户名 · 摘要」；无待收款时为 null（卡片副标题用） */
+  topReceivable: string | null
+}
+
+/** 待跟进判定天数 —— 卡片文案「超 N 天未联系」与判据必须同源，故提常量而非两处写死 */
+export const STALE_FOLLOW_UP_DAYS = 7
+
+/**
+ * 客户列表顶部统计（改版）：原「客户总数 + 健康分前 3 档」四张卡里，三张是健康分派生，
+ * 按用户拍板一并移出列表页 —— 换成与分层无关的指标。
+ *
+ * `pendingReceivable` 的判据刻意与客户详情页「待对账款项」同源（`status === '待对账'`），
+ * 只是这里收窄到**收入**并跨客户聚合（详情页看单客户、列表页看全局）；
+ * 两处口径若漂移，会出现「列表说有待收、点进去一笔都没有」。
+ */
+export function useCustomerListStats(visible: Customer[]): CustomerListStats {
+  const ids = visible.map((c) => c.id)
+  // 依赖用 join 后的 key 而非 ids 数组：调用方每次渲染都新建数组，直接依赖会无限重算
+  const key = ids.join(',')
+  const receivables = useQuery<{ customerId: string; amount: number; summary: string }[]>(
+    async () => {
+      if (ids.length === 0) return []
+      const idSet = new Set(ids)
+      const rows = await db.transactions
+        .filter(
+          (t) =>
+            !t.deleted &&
+            t.type === 'income' &&
+            t.status === '待对账' &&
+            txnCustomerIds(t).some((id) => idSet.has(id)),
+        )
+        .toArray()
+      // 一笔款分摊多客户时各方各记一份（与健康分因子 / 图谱建边同一展开口径）
+      return rows.flatMap((t) =>
+        txnCustomerIds(t)
+          .filter((id) => idSet.has(id))
+          .map((id) => ({ customerId: id, amount: t.amount, summary: t.summary })),
+      )
+    },
+    [key],
+  )
+
+  return useMemo(() => {
+    const monthStart = dayjs().startOf('month').valueOf()
+    const staleBefore = Date.now() - STALE_FOLLOW_UP_DAYS * 86_400_000
+    const list = receivables ?? []
+    const nameOf = new Map(visible.map((c) => [c.id, c.name]))
+    const top = list.reduce<(typeof list)[number] | null>(
+      (best, r) => (best && best.amount >= r.amount ? best : r),
+      null,
+    )
+    return {
+      total: visible.length,
+      newThisMonth: visible.filter((c) => c.createdAt >= monthStart).length,
+      staleFollowUp: visible.filter((c) => !c.lastContactAt || c.lastContactAt < staleBefore).length,
+      pendingReceivable: list.reduce((sum, r) => sum + r.amount, 0),
+      topReceivable: top ? `${nameOf.get(top.customerId) ?? '未知客户'} · ${top.summary}` : null,
+    }
+  }, [visible, receivables])
 }
 
 /** 某客户的沟通日志（按时间倒序） */
