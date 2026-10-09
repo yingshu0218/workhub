@@ -264,12 +264,11 @@ describe('P1 第 7 步 E2E 主干验收（§9.8）', () => {
     const logPreview = await mcp.callTool('crm_addInteraction', {
       customerId,
       content: '电话沟通采购需求',
-      type: '电话',
     })
     expect((logPreview.data as { preview?: boolean }).preview).toBe(true)
     const logRes = await mcp.callTool(
       'crm_addInteraction',
-      { customerId, content: '电话沟通采购需求', type: '电话' },
+      { customerId, content: '电话沟通采购需求' },
       previewToken(logPreview),
     )
     expect(logRes.ok).toBe(true)
@@ -364,7 +363,7 @@ describe('P1 第 7 步 E2E 主干验收（§9.8）', () => {
 
     captured = []
     await saveInteractionAndTouchCustomer(
-      { id: 'itx-manual-e2e', customerId, content: '手工沟通', type: '电话', at: Date.now() } as never,
+      { id: 'itx-manual-e2e', customerId, content: '手工沟通', at: Date.now() } as never,
       customerId,
     )
     const manualEvent = captured.find((e) => e.event === 'customer:contacted')!

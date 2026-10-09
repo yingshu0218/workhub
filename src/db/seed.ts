@@ -107,7 +107,6 @@ export async function seedIfEmpty(): Promise<boolean> {
     {
       id: 'i1',
       customerId: 'c1',
-      type: '会议',
       content: '二期需求评审会，确认交付范围与时间线，下周回签补充协议',
       at: now - 2 * 3600_000,
       ...meta(),
@@ -115,7 +114,6 @@ export async function seedIfEmpty(): Promise<boolean> {
     {
       id: 'i2',
       customerId: 'c2',
-      type: '电话',
       content: '沟通品牌年度框架合作意向，对方需要内部预算审批',
       at: now - 3 * 86400_000,
       ...meta(),

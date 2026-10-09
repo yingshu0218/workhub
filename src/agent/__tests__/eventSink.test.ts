@@ -123,7 +123,7 @@ describe('边界② interaction 统一 emit：customer:contacted 单点收口', 
     await db.customers.put(newCustomer('c1'))
     const cap = capture()
     await saveInteractionAndTouchCustomer(
-      { id: newId('itx'), customerId: 'c1', type: '拜访', content: '当面沟通', at: Date.now() },
+      { id: newId('itx'), customerId: 'c1', content: '当面沟通', at: Date.now() },
       'c1',
     )
     cap.restore()
@@ -134,7 +134,7 @@ describe('边界② interaction 统一 emit：customer:contacted 单点收口', 
     await db.customers.put(newCustomer('c1'))
     const cap = capture()
     await saveInteractionAndTouchCustomer(
-      { id: newId('itx'), customerId: 'c1', type: '电话', content: '项目跟进', at: Date.now(), projectId: 'p1' },
+      { id: newId('itx'), customerId: 'c1', content: '项目跟进', at: Date.now(), projectId: 'p1' },
       'c1',
     )
     cap.restore()
@@ -145,7 +145,7 @@ describe('边界② interaction 统一 emit：customer:contacted 单点收口', 
     const cap = capture()
     await expect(
       saveInteractionAndTouchCustomer(
-        { id: newId('itx'), customerId: 'ghost', type: '拜访', content: 'x', at: Date.now() },
+        { id: newId('itx'), customerId: 'ghost', content: 'x', at: Date.now() },
         'ghost',
       ),
     ).rejects.toThrow()
@@ -195,7 +195,7 @@ describe('边界③ 事务外硬规则：事件在事务 commit 之后发', () =
     }
     const at = Date.now()
     await saveInteractionAndTouchCustomer(
-      { id: newId('itx'), customerId: 'c1', type: '拜访', content: 'x', at },
+      { id: newId('itx'), customerId: 'c1', content: 'x', at },
       'c1',
     )
     eventBus.emit = orig

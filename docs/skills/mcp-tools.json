@@ -284,19 +284,6 @@
           "content": {
             "type": "string"
           },
-          "type": {
-            "type": "string",
-            "enum": [
-              "电话",
-              "会议",
-              "邮件",
-              "拜访",
-              "跟进",
-              "小结",
-              "其他"
-            ],
-            "default": "电话"
-          },
           "at": {
             "type": "number"
           },

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useRecord } from '@/queries/hooks'
-import type { Customer, Interaction } from '@/db/types'
+import type { Customer } from '@/db/types'
 import { Button, Card, Chip, EmptyState, PageHeader } from '@/design-system/ui'
 import { Icon } from '@/design-system/Icon'
 import dayjs from 'dayjs'
@@ -34,17 +34,6 @@ import { resolveHealthScoreDisplay } from './healthScore'
  * 数据源单源消费 useCustomerTimeline（与详情页共用同一投影，保证口径一致）。
  * 复用共享 usePanZoom：wheel 缩放 + 空白处拖拽平移（与关系画布一致），纯 SVG 零新依赖。
  */
-
-/** 沟通日志类型 → 图标（与详情页手写日志样式一致） */
-const TYPE_ICONS: Record<Interaction['type'], string> = {
-  电话: 'call',
-  会议: 'groups',
-  邮件: 'mail',
-  拜访: 'directions_walk',
-  跟进: 'trending_up',
-  小结: 'summarize',
-  其他: 'more_horiz',
-}
 
 /** 世界坐标布局常量（水平从左到右按时间递增，鱼头在最右） */
 // 世界坐标布局常量：从 timelineLayout 纯函数模块导入（与全部视图共用形态）
@@ -452,9 +441,6 @@ export default function CustomerTimelinePage() {
                             ? 'gray'
                             : 'amber'
                         : 'blue'
-                  }
-                  icon={
-                    hover.event.kind === 'interaction' ? TYPE_ICONS[hover.event.type] : undefined
                   }
                 >
                   {hover.label}

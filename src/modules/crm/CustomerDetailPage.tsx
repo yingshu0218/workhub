@@ -3,7 +3,7 @@ import { Icon } from '@/design-system/Icon'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useCollection, useRecord } from '@/queries/hooks'
 import { isImeComposing } from '@/shared/ime'
-import type { Customer, Interaction, Note, Project } from '@/db/types'
+import type { Customer, Note, Project } from '@/db/types'
 import { deleteCustomerCascade, newId, saveInteractionAndTouchCustomer } from '@/repositories'
 import {
   Avatar,
@@ -33,24 +33,11 @@ import {
   useCustomerTimeline,
 } from './timeline'
 
-const TYPE_ICONS: Record<Interaction['type'], string> = {
-  电话: 'call',
-  会议: 'groups',
-  邮件: 'mail',
-  拜访: 'directions_walk',
-  跟进: 'trending_up',
-  小结: 'summarize',
-  其他: 'more_horiz',
-}
-
-/** 时间轴系统事件的 kind → 图标映射（与手写日志的 TYPE_ICONS 分开，不复用不混用） */
+/** 时间轴系统事件的 kind → 图标映射（手写沟通日志已无类型，此表只服务交易 / 待办两类） */
 const KIND_ICONS: Record<Exclude<TimelineEvent['kind'], 'interaction'>, string> = {
   transaction: 'payments',
   todo: 'task_alt',
 }
-
-/** 沟通日志类型选择仍需 4 种类型常量（QuickLog 使用） */
-const INTERACTION_TYPE_OPTIONS = Object.keys(TYPE_ICONS) as Interaction['type'][]
 
 /** 明细区 Tab（Issue #108：「概览给数字，明细给记录」，一次只显示一层） */
 type DetailTab = 'timeline' | 'finance' | 'project' | 'profile'
@@ -743,9 +730,6 @@ function TimelineItem({
         <span className="h-1.5 w-1.5 rounded-full bg-primary" />
       </span>
       <div className="flex flex-wrap items-center gap-2">
-        <Chip tone="blue" icon={TYPE_ICONS[event.type]}>
-          {event.type}
-        </Chip>
         <span className="text-[0.8571rem] text-outline">{fmtTimelineTime(event.at)}</span>
       </div>
       <p className="mt-1 rounded-lg bg-surface-container-low/50 px-3 py-2 text-[0.9286rem] leading-relaxed">
@@ -787,9 +771,8 @@ function copyText(text: string) {
   document.body.removeChild(el)
 }
 
-/** 快速记一笔：类型 + 内容 → interactions 表，并联动刷新 lastContactAt */
+/** 快速记一笔：内容 → interactions 表，并联动刷新 lastContactAt */
 function QuickLog({ customerId }: { customerId: string }) {
-  const [type, setType] = useState<Interaction['type']>('电话')
   const [content, setContent] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -802,7 +785,7 @@ function QuickLog({ customerId }: { customerId: string }) {
       // 事件（customer:contacted）已下沉 saveInteractionAndTouchCustomer（事务 commit 后统一 emit），
       // UI 侧不再内联 emit，避免双发。
       await saveInteractionAndTouchCustomer(
-        { id: newId('itx'), customerId, type, content: content.trim(), at },
+        { id: newId('itx'), customerId, content: content.trim(), at },
         customerId,
       )
       setContent('')
@@ -815,22 +798,6 @@ function QuickLog({ customerId }: { customerId: string }) {
 
   return (
     <div className="rounded-xl bg-surface-container-low/60 p-3">
-      <div className="mb-2 flex gap-1.5">
-        {INTERACTION_TYPE_OPTIONS.map((t) => (
-          <button
-            key={t}
-            onClick={() => setType(t)}
-            className={`flex items-center gap-1 rounded-lg border px-2.5 py-1 text-[0.8571rem] transition-colors ${
-              type === t
-                ? 'border-primary bg-primary-fixed font-semibold text-primary'
-                : 'border-outline-variant text-on-surface-variant hover:text-on-surface'
-            }`}
-          >
-            <Icon name={TYPE_ICONS[t]} size={14} />
-            {t}
-          </button>
-        ))}
-      </div>
       <div className="flex gap-2">
         <input
           className={inputCls}

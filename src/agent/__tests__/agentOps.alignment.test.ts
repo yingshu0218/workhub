@@ -108,6 +108,28 @@ describe('§9.5 bug2 对齐：agentOps 记沟通日志统一 emit customer:conta
   })
 })
 
+/**
+ * 契约变更回归锁（Interaction.type 移除）
+ *
+ * type 已从模型与工具 schema 删除，但**已分发给外部 Agent 的调用不能因此失败**：
+ * zod 默认 strip 未知键，老调用方继续传 `type` 只是被忽略。
+ * 若有人把 schema 改成 `.strict()`（或把 type 加回来），下面两条会红。
+ */
+describe('契约变更：crm_addInteraction 已无 type，但老调用不失败', () => {
+  it('继续传 type 被忽略、落库成功，且记录里不出现 type 字段', async () => {
+    await db.customers.put({ id: 'c1', name: '王五', company: '', title: '', decisionLevel: '决策人', tier: 'A', tags: [], phone: '', wechat: '', email: '', address: '', lastContactAt: 0, createdAt: 1, updatedAt: 0, deleted: 0, rev: 0 })
+    const r = await crm_addInteraction({ customerId: 'c1', content: '老调用方仍在传类型', type: '会议' })
+    expect(r.ok).toBe(true)
+    const itx = await db.interactions.get((r.data as { interactionId: string }).interactionId)
+    expect(itx?.content).toBe('老调用方仍在传类型')
+    expect(itx).not.toHaveProperty('type')
+  })
+
+  it('工具 schema 不再声明 type（防静默回填）', () => {
+    expect(Object.keys(AGENT_TOOLS['crm_addInteraction'].schema.shape)).not.toContain('type')
+  })
+})
+
 describe('CRM / Todo 工具面', () => {
   it('建客户默认口径与 UI 一致（tier=A / 决策人），openingLog 建首联日志', async () => {
     const r = await crm_createCustomer({ name: '王五' })

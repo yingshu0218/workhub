@@ -246,7 +246,6 @@ export async function crm_addInteraction(input: unknown): Promise<AgentOpResult>
     {
       id,
       customerId: d.customerId,
-      type: d.type,
       content: d.content,
       at,
       projectId: d.projectId,

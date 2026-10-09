@@ -243,7 +243,7 @@ export async function runToolSweep(mcp: McpClient, deps: SweepDeps = {}): Promis
     },
   )
 
-  await kase('crm_addInteraction', () => ({ customerId: g('customerId'), content: '电话沟通采购需求', type: '电话' }))
+  await kase('crm_addInteraction', () => ({ customerId: g('customerId'), content: '电话沟通采购需求' }))
 
   await kase('crm_addRelation', () => ({ customerId: g('customerId'), targetId: g('customer2Id'), label: '同一公司' }))
 

@@ -82,14 +82,14 @@ describe.skipIf(!ONLINE)('演示数据播种（线上）', () => {
     log.push('客户关系 3 条（转介绍 / 同一公司 / 竞对参照）')
 
     /* ==================== 3. 沟通日志（时间线的素材） ==================== */
-    for (const [k, type, content] of [
-      ['chen', '电话', '二期合同付款节点沟通，对方希望分两笔'],
-      ['chen', '会议', '品牌升级需求评审，确认主视觉方向'],
-      ['lin', '邮件', '年度合作方案反馈，希望增加短视频条数'],
-      ['zhao', '拜访', '内训需求访谈，覆盖 3 个部门约 40 人'],
-      ['zhou', '跟进', '合作意向初步确认，待报价'],
+    for (const [k, content] of [
+      ['chen', '二期合同付款节点沟通，对方希望分两笔'],
+      ['chen', '品牌升级需求评审，确认主视觉方向'],
+      ['lin', '年度合作方案反馈，希望增加短视频条数'],
+      ['zhao', '内训需求访谈，覆盖 3 个部门约 40 人'],
+      ['zhou', '合作意向初步确认，待报价'],
     ] as const) {
-      must(await call('crm_addInteraction', { customerId: ids[k], content, type }), `沟通日志「${content.slice(0, 8)}」`)
+      must(await call('crm_addInteraction', { customerId: ids[k], content }), `沟通日志「${content.slice(0, 8)}」`)
     }
     log.push('沟通日志 5 条')
 

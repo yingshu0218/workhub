@@ -60,7 +60,7 @@ export function boneLabel(e: TimelineEvent): string {
     if (e.status === 'voided') return '作废待办'
     return '新增待办'
   }
-  return e.type
+  return '沟通'
 }
 
 export function boneSub(e: TimelineEvent): string {

@@ -47,7 +47,6 @@ export type AgentEventDeclaration =
 
 const MAX_AMOUNT = 9_999_999_999
 const CHANNELS = ['微信', '支付宝', '银行卡', '现金', '对公转账'] as const
-const INTERACTION_TYPES = ['电话', '会议', '邮件', '拜访', '跟进', '小结', '其他'] as const
 
 /**
  * 记账日期合理下限：2000-01-01（本地时区当天 00:00）。
@@ -151,7 +150,6 @@ export const createCustomerSchema = z.object({
 export const addInteractionSchema = z.object({
   customerId: z.string().min(1, 'customerId 必须由 resolveEntity 消解产出'),
   content: z.string().trim().min(1, '请填写沟通内容'),
-  type: z.enum(INTERACTION_TYPES).default('电话'),
   /** 缺省=now（UI QuickLog 同款） */
   at: z.number().int().positive().optional(),
   projectId: z.string().optional(),

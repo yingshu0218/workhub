@@ -16,7 +16,7 @@ import { txnCustomerIds } from '@/modules/finance/links'
 
 /** 时间轴事件：手写沟通日志 / 关联交易流水 / 关联待办 三源异构记录的统一形态 */
 export type TimelineEvent = { customerId?: string } & (
-  | { kind: 'interaction'; id: string; at: number; type: Interaction['type']; content: string }
+  | { kind: 'interaction'; id: string; at: number; content: string }
   | {
       kind: 'transaction'
       id: string
@@ -63,7 +63,6 @@ export function mergeTimelineEvents(
       kind: 'interaction',
       id: i.id,
       at: i.at,
-      type: i.type,
       content: i.content,
     })),
     ...transactions.map((t): TimelineEvent => ({

@@ -68,10 +68,20 @@ export interface Customer extends SyncMeta {
   intimacy?: CustomerIntimacy
 }
 
+/**
+ * 客户沟通日志 / 项目进展流水（两种用途共用一表，靠 customerId / projectId 区分归属）。
+ *
+ * 原 `type`（电话/会议/邮件/拜访/跟进/小结/其他）已移除。理由：它只被用作**展示标签与 AI 写入枚举**，
+ * 从未进入任何计算口径 —— 健康分只看近 90 天条数（`buildScoreInputFromRows` 的 `.length`）、
+ * 时间轴筛选只分沟通/财务/事件三档，全仓无任何按类型聚合。属于「有维护成本、零消费价值」的字段，
+ * 且每加一个类型要同时改联合类型 + 图标表 + zod 枚举三处。
+ *
+ * 服务端（PB `interactions.type`）与本地库的历史列**保留不删**（不触发 schema 升级、历史值不丢），
+ * 应用层不再读写它 —— 与 customers 遗留的 healthScore/industry/stage 同类处理。
+ */
 export interface Interaction extends SyncMeta {
   id: string
   customerId: string
-  type: '电话' | '会议' | '邮件' | '拜访' | '跟进' | '小结' | '其他'
   content: string
   at: number
   /** 所属项目（进展流水复用 CRM 沟通日志，不另建表） */

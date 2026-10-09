@@ -724,7 +724,7 @@ export async function deleteCustomerCascade(customerId: string): Promise<void> {
  * 故保持原行为（不 emit），与本步骤「不改既有语义、只收口漂移」的边界一致。
  */
 export interface CustomerInitOptions {
-  /** 创建一条 opening 沟通日志（类型=拜访） */
+  /** 创建一条 opening 沟通日志 */
   openingLog?: boolean
   /** 关联已有交易：把该交易的 customerId 指向新客户 */
   linkTransactionId?: string
@@ -757,7 +757,6 @@ export async function createCustomerWithInit(
         const itx = {
           id: newId('itx'),
           customerId: customer.id,
-          type: '拜访' as const,
           content: '客户建档 · 首次建立联系（opening）',
           at: now,
         }

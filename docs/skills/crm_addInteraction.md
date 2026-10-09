@@ -12,7 +12,6 @@
 |---|---|---|---|---|
 | `customerId` | string | 是 | — |  |
 | `content` | string | 是 | — |  |
-| `type` | enum(电话 / 会议 / 邮件 / 拜访 / 跟进 / 小结 / 其他) | 否 | `"电话"` |  |
 | `at` | number | 否 | — |  |
 | `projectId` | string | 否 | — |  |
 
