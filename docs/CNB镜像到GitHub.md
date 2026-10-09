@@ -88,6 +88,14 @@ fi
 | `Prepare` 阶段失败，报 `GetFileContent: not found` | 密钥仓库里**文件不存在或路径不对**。核对：文件名一字不差 `github-sync.yml`、放在**仓库根目录**（不是子目录）、在 `main` 分支上。也可直接在浏览器打开那个 imports URL 看 |
 | `Prepare` 阶段失败，报 `declares allow_images and can only be referenced by plugin tasks` | 密钥仓库文件里**删掉 `allow_images`** 整段（见上文「密钥仓库文件照抄」） |
 | `imports` 取不到变量（变量为空/字面量） | 密钥仓库是否声明了 `allow_slugs: blueteam0715/workhub`；引用者是否对密钥仓库有读权限 |
+| 推送**偶发**失败，报 `Post .../info/lfs/locks/verify: EOF` | 插件每次都会 `git lfs install` 装上 pre-push 钩子，该钩子会去调远端 LFS 锁定 API；本仓库**没有任何 LFS 文件**，纯属被拖累。已在 `ensure-local-main` 里 `git config lfs.locksverify false` 关掉它（写进 `.git/config`，与插件容器共享同一工作区，无需额外提交 `.lfsconfig`），并给 `sync-to-github` 加了 `retry: 2` —— 该任务幂等（force 推同一提交），重试安全 |
+| `verify` 转红但插件日志显示推送成功 | 极少见；`verify` 打印的 `CNB HEAD` 与 `GitHub main` 两个 SHA 会直接给出答案。注意 GitHub 有推送延迟时一般不会导致不一致（`ls-remote` 读的是已确认的 ref） |
+
+## 已知的偶发失败（不是配置问题）
+
+推 GitHub 走公网，实测遇到过**一次** `Post .../info/lfs/locks/verify: EOF`（LFS 锁定 API 的偶发失败），
+随后重跑即成功、未能稳定复现。处置：关掉 LFS 锁校验 + 任务级 `retry: 2`。
+真出现持续失败时，不要急着改配置，先看是不是 GitHub 侧故障。
 | 定时同步不再执行 | CNB 仓库页「定时任务」看负责人：定时任务以**最后修改并推送该 crontab 配置的用户**身份执行，该用户被移出仓库任务即失败 |
 
 ## 怎么临时停掉

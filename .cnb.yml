@@ -22,11 +22,20 @@
     #    "Warning: ... skipping push" 然后 exit 0 —— 流水线全绿但什么都没同步。
     #    用 HEAD 而非 CNB_COMMIT: push 与 crontab 两种事件下 HEAD 都指向本次检出的提交。
     - name: ensure-local-main
-      script: git checkout -B main HEAD
+      script: |
+        git checkout -B main HEAD
+        # 关掉 LFS 锁校验。本仓库没有任何 LFS 文件, 但插件每次都会 git lfs install 装上 pre-push 钩子,
+        # 该钩子会去调远端 LFS 锁定 API —— 实测碰到过一次
+        # "Post https://github.com/.../info/lfs/locks/verify: EOF" 导致推送失败(偶发, 未能稳定复现)。
+        # 写进 .git/config: 与插件容器共享同一份工作区, 插件侧可见, 因此不需要额外提交 .lfsconfig 文件。
+        git config lfs.locksverify false
 
     # ② 官方 Git Sync 插件: 推 main + 全部 tag
+    #    retry: 2 —— 推 GitHub 走公网, 实测出现过偶发的 LFS/网络类失败(见 ensure-local-main 里的说明);
+    #    该任务本身幂等(force 推送同一提交), 重试是安全的, 避免偶发网络抖动直接让镜像停摆。
     - name: sync-to-github
       image: tencentcom/git-sync
+      retry: 2
       settings:
         target_url: https://github.com/yingshu0218/workhub.git
         auth_type: https
