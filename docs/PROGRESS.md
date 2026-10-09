@@ -66,7 +66,7 @@
 | 里程碑 | M1-M6 全部验收 ✅ |
 | 审计问题 | P0×2 / P1×19 / P2×60 **全部清零** |
 | 同步机制完善 | P0-1 墓碑清理竞态修复 + P0-2 推送侧 LWW ✅；P1-3 服务端墓碑 cron ✅；**P1-4 HTTPS 已闭环**（2026-10-09 正式环境 `team.fpigeon.fun` 上线：LE 证书 + `http→https` 301；实测 `/sw.js` 返回 `content-type: text/javascript; charset=utf-8` + `cache-control: no-cache`、`/manifest.webmanifest` 返回 `application/manifest+json` —— MIME 与缓存头是 Service Worker 能注册的硬条件，PWA 前置齐备）；Issue #140 多关联 json 字段已入 `collections.json`（**自托管端需重新导入并重启**，见部署指南） |
-| 正式环境（**已上线**） | **https://team.fpigeon.fun** 已部署运行（2026-10-09）。CNB 制品库 `docker.cnb.cool/blueteam0715/workhub:latest` → 主机 `1204pigeon`(124.221.74.170) 的 `/opt/workhub/`，**单容器全包**（前端 + relay + PocketBase，同源路由；**不含 Tauri 手机端/桌面端**），只绑回环 `127.0.0.1:8790` + 宿主 nginx 反代（acme.sh 单独签发的 TLS）。数据持久化在 `/opt/workhub/data`；资源上限 768m / 1.0 核 / 256 PIDs。流程、端口占用、排错见 `docs/Docker镜像构建与部署.md` |
+| 正式环境（**已上线**） | **https://team.fpigeon.fun** 已部署运行（2026-10-09）。CNB 制品库 `docker.cnb.cool/blueteam0715/workhub:latest` → 主机 `1204pigeon`(124.221.74.170) 的 `/opt/workhub/`，**单容器全包**（前端 + relay + PocketBase，同源路由；**不含 Tauri 手机端/桌面端**），只绑回环 `127.0.0.1:8790` + 宿主 nginx 反代（acme.sh 单独签发的 TLS）。数据持久化在 `/opt/workhub/data`；资源上限 768m / 1.0 核 / 256 PIDs。**已关闭 `users` 集合的公开注册**（PB 默认 `createRule` 为空 = 任何人可自助注册，而业务集合规则是「登录即可读写全部」→ 组合起来等于公网裸奔；现设为 Locked，账号改由超管手工建。⚠️ **该设置只存在数据卷的 `data.db` 里、不在代码里**，换机/重建空库后需重做一次）。流程、端口占用、排错与这条加固步骤见 `docs/Docker镜像构建与部署.md` |
 | Changelog | **已改为版本级**（2026-10-09）：发版本时往根 `CHANGELOG.md` 追加一节，**不再逐条记流水**；日常记录见本文件与 git 提交历史。旧逐条表格（#1~#128）已归档至 `docs/CHANGELOG-详细流水-v1.0.0至v1.2.1.md` |
 
 ## 二、阶段进度（Phase 0-7）

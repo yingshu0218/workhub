@@ -126,6 +126,46 @@ PocketBase 首次启动会**自动建一个 `users` 集合**（不以 `_` 开头
 
 ⚠️ **`/data` 必须挂卷**，PB 的库与上传物都在里面。不挂卷则容器重建即丢数据。
 
+### 5.4 首次部署后必须做的一步：关闭公开注册
+
+PocketBase 会自动创建 `users` 集合，其 **Create rule 默认为空 = 公开注册**。而本项目所有业务
+集合的规则统一是 `@request.auth.id != ''`（登录即可读写全部，团队共用一份数据，**无 per-user 隔离**）。
+两者组合的后果是：**任何能访问该域名的人都能自助注册，注册后立刻能读写全部业务数据。**
+
+自用 / 小团队场景必须关掉（已在本项目正式环境执行，2026-10-09）：
+
+```bash
+# 取超管 token —— 密码让脚本自己在服务器上读，不进命令行、不进日志
+PW=$(sudo grep '^PB_SUPERUSER_PASSWORD=' /opt/workhub/.env | cut -d= -f2-)
+TOKEN=$(curl -s -X POST http://127.0.0.1:8790/api/collections/_superusers/auth-with-password \
+  -H 'content-type: application/json' \
+  -d "{\"identity\":\"deploy@nexus.local\",\"password\":\"$PW\"}" \
+  | python3 -c "import sys,json;print(json.load(sys.stdin)['token'])")
+
+# 把 users.createRule 置为 null（= Locked，仅超管可建记录）
+curl -s -X PATCH http://127.0.0.1:8790/api/collections/users \
+  -H "authorization: $TOKEN" -H 'content-type: application/json' \
+  -d '{"createRule": null}'
+```
+
+管理台等价操作：`/_/` → `users` → **Edit collection** → **API Rules** 标签 → **Create rule**
+清空输入框后点右侧**锁形图标**（变 `Locked`）→ Save。
+
+**验证**（应得 403）——这条要**双向验**才算数：
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' -X POST https://<域名>/api/collections/users/records \
+  -H 'content-type: application/json' \
+  -d '{"email":"x@example.invalid","password":"12345678","passwordConfirm":"12345678"}'
+# 关闭前 → 200（真的建出账号）；关闭后 → 403 "Only superusers can perform this action."
+```
+
+⚠️ **这条设置存在数据卷里（`data.db`），不在代码里** —— 换机器 / 重建空库后会回到「公开注册」，
+需重新执行一次。新增账号改为在管理台 `users` 集合里手工 **New record**。
+
+⚠️ 别忘了核对**副作用**：PATCH 应当只改规则。改完比对 `fields` 与 `indexes` 的数量是否不变
+（本项目的实测结果：字段 10/10、索引 2/2，未变）。
+
 ## 6. 与其它部署通道的关系
 
 | 通道 | 目标 | 怎么更新 |
