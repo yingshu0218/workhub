@@ -1,0 +1,45 @@
+# 构建上下文排除清单
+#
+# ⚠️ 第一条就是本次的硬要求：**手机端 / 桌面端（Tauri）不进镜像**。
+#    `src-tauri/` 是 Rust 原生壳（含 Cargo 依赖、各平台图标），Web 版镜像完全用不到，
+#    排除它既能让上下文变小，也能从物理上保证「容器里不可能出现 Tauri 产物」。
+#
+# ⚠️ **不要**排除 `src/platform/` —— 那是纯 `window` 判定的运行环境探测
+#    （`isTauri()` / `isWeb()`），Web 端也在用，删了会连带 Web 构建一起坏。
+#    它只是「被两端共用」，不是「Tauri 专属」。
+
+# ── 手机端 / 桌面端（Tauri）──
+src-tauri/
+**/src-tauri/
+
+# ── 与运行时无关的大件 ──
+docs/
+design/
+.git/
+.gitattributes
+CHANGELOG.md
+
+# ── 构建产物与依赖（运行阶段会重新 `npm ci` + build）──
+node_modules/
+dist/
+dist-ssr/
+*.tsbuildinfo
+
+# ── 本地环境与 Agent 派生配置（含路径/凭据，且对本机之外无意义）──
+.workbuddy/
+.deploy.env
+.deploy.env.example
+.deploy-state
+.agents/
+.opencode/
+.mcp.json
+CLAUDE.md
+GEMINI.md
+.cursor/
+*.bak-workhub-agent-setup
+
+# ── 杂项 ──
+.DS_Store
+**/.DS_Store
+*.log
+coverage/

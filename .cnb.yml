@@ -93,9 +93,78 @@
         echo "===== CNB 侧 ref (对比用) ====="
         git ls-remote origin "refs/heads/main" "refs/tags/*"
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Web 版 docker 镜像：推送即构建，推到 CNB 制品库，VPS 上 docker pull 部署
+#
+# 只出 **Web 版**：手机端/桌面端（Tauri）由 .dockerignore 挡在构建上下文之外，
+# 且 vite 的 tauriCspPlugin 靠 TAURI_ENV_PLATFORM 自判（这里不设该变量 → 插件空转）。
+#
+# 镜像名 = docker.cnb.cool/<组织>/<仓库>（同仓库同名制品的路径规则）；
+# 推 CNB 自有制品库**不需要任何登录**，用流水线内置凭据即可。
+.build-web-image: &build-web-image
+  name: build-web-image
+  services:
+    - docker
+  # 串行化: 连续 push 时若「旧」构建最后推完, latest 会退回旧镜像（静默陈旧）
+  lock:
+    key: build-web-image
+    wait: true
+    timeout: 1800
+  stages:
+    - name: docker build
+      script: |
+        set -e
+        REPO="${CNB_DOCKER_REGISTRY}/${CNB_REPO_SLUG_LOWERCASE}"
+        # GIT_REVISION 进 OCI 标签, 用于「这个镜像对应哪个提交」的溯源
+        docker build \
+          --build-arg GIT_REVISION="${CNB_COMMIT}" \
+          --build-arg PB_VERSION="${PB_VERSION:-0.40.2}" \
+          -t "${REPO}:latest" \
+          -t "${REPO}:${CNB_COMMIT_SHORT}" \
+          .
+    - name: docker push
+      script: |
+        set -e
+        REPO="${CNB_DOCKER_REGISTRY}/${CNB_REPO_SLUG_LOWERCASE}"
+        # 先推可追溯的 sha, 再推 latest —— 中途失败时 latest 不会指向没推全的镜像
+        docker push "${REPO}:${CNB_COMMIT_SHORT}"
+        docker push "${REPO}:latest"
+
+# 打版本 Tag（v*）时出一版固定 tag 的镜像。
+# ⚠️ 顶层键匹配的是「分支名**或 Tag 名**」: 这里必须写 "v*", 写 main 会变成
+# 「名叫 main 的 Tag」而永不触发（且不报错）。tag 推送**不触发** GitHub 镜像 ——
+# 那是刻意的（见文件开头 mirror 段的说明: tag_push 会把 GitHub 的 main 推回退）。
+"v*":
+  tag_push:
+    - name: release-web-image
+      services:
+        - docker
+      lock:
+        key: build-web-image
+        wait: true
+        timeout: 1800
+      stages:
+        - name: docker build
+          script: |
+            set -e
+            REPO="${CNB_DOCKER_REGISTRY}/${CNB_REPO_SLUG_LOWERCASE}"
+            docker build \
+              --build-arg GIT_REVISION="${CNB_COMMIT}" \
+              --build-arg PB_VERSION="${PB_VERSION:-0.40.2}" \
+              -t "${REPO}:${CNB_BRANCH}" \
+              -t "${REPO}:${CNB_COMMIT_SHORT}" \
+              .
+        - name: docker push
+          script: |
+            set -e
+            REPO="${CNB_DOCKER_REGISTRY}/${CNB_REPO_SLUG_LOWERCASE}"
+            docker push "${REPO}:${CNB_COMMIT_SHORT}"
+            docker push "${REPO}:${CNB_BRANCH}"
+
 main:
   push:
     - <<: *mirror-to-github
+    - <<: *build-web-image
   # crontab 的 key 必须带引号: 不加会因 * 触发 YAML 语法错误
   "crontab: 0 3 * * *":
     - <<: *mirror-to-github
