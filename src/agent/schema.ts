@@ -133,9 +133,8 @@ export const createCustomerSchema = z.object({
   name: z.string().trim().min(1, '请填写客户姓名'),
   company: z.string().optional(),
   title: z.string().optional(),
-  /** 默认值与 CustomerFormDrawer 初值一致（§9.4：决策人 / A / 60） */
+  /** 默认值与 CustomerFormDrawer 初值一致（§9.4：决策人） */
   decisionLevel: z.enum(['决策人', '影响者', '使用者', '把关人']).default('决策人'),
-  tier: z.enum(['S', 'A', 'B', '潜在']).default('A'),
   tags: z.array(z.string()).default([]),
   phone: z.string().optional(),
   wechat: z.string().optional(),
@@ -306,7 +305,6 @@ export const updateCustomerSchema = z
     company: z.string().optional(),
     title: z.string().optional(),
     decisionLevel: z.enum(['决策人', '影响者', '使用者', '把关人']).optional(),
-    tier: z.enum(['S', 'A', 'B', '潜在']).optional(),
     /** 关系档位（Issue #108 健康分单一来源）；显式 null = 清除手动档位、交算法兜底 */
     intimacyLevel: z.enum(['T1', 'T2', 'T3', 'T4', 'T5', 'I6', 'I7']).nullable().optional(),
     tags: z.array(z.string()).optional(),

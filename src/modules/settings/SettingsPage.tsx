@@ -429,11 +429,10 @@ export default function SettingsPage() {
       )
       downloadText(txnCsv, 'text/csv;charset=utf-8', `nexus-transactions-${stamp}.csv`)
       const custCsv = toCsv(
-        ['姓名', '公司', '分层', '电话', '微信', '邮箱', '健康分'],
+        ['姓名', '公司', '电话', '微信', '邮箱', '健康分'],
         customers.map((c) => [
           c.name,
           c.company,
-          c.tier,
           c.phone,
           c.wechat,
           c.email,

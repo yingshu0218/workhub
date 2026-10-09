@@ -4,7 +4,7 @@
 
 ## 能力
 
-编辑客户档案（姓名/公司/职位/tier/健康分档位/联系方式）
+编辑客户档案（姓名/公司/职位/健康分档位/联系方式）
 
 ## 参数
 
@@ -15,7 +15,6 @@
 | `company` | string | 否 | — |  |
 | `title` | string | 否 | — |  |
 | `decisionLevel` | enum(决策人 / 影响者 / 使用者 / 把关人) | 否 | — |  |
-| `tier` | enum(S / A / B / 潜在) | 否 | — |  |
 | `intimacyLevel` | enum(T1 / T2 / T3 / T4 / T5 / I6 / I7) | 否 | — |  |
 | `tags` | array | 否 | — |  |
 | `phone` | string | 否 | — |  |

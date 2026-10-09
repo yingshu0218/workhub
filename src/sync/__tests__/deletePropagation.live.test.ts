@@ -74,7 +74,7 @@ function localCustomer(over: Record<string, unknown>) {
     company: '本地验证',
     title: '',
     decisionLevel: '',
-    tier: 'C',
+    
     tags: [],
     relations: [],
     phone: '',

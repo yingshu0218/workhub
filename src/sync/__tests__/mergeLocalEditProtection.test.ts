@@ -20,7 +20,7 @@ function customer(over: Record<string, unknown>) {
     company: '深蓝科技',
     title: '采购总监',
     decisionLevel: '决策人',
-    tier: 'S',
+    
     tags: [],
     phone: '',
     wechat: '',
@@ -54,7 +54,7 @@ describe('远端合并：本地未推送编辑保护（Issue #130）', () => {
       localId: 'c1',
       name: '严伟强',
       company: '深蓝科技',
-      tier: 'S',
+      
       tags: JSON.stringify([]),
       lastContactAt: 1,
       createdAt: 1,
@@ -90,7 +90,7 @@ describe('远端合并：本地未推送编辑保护（Issue #130）', () => {
         localId: 'c1',
         name: '严伟强',
         company: '深蓝科技',
-        tier: 'S',
+        
         tags: JSON.stringify([]),
         relations: JSON.stringify([{ id: 'rel-remote', targetId: 'c2', label: '项目合作' }]),
         lastContactAt: 1,
@@ -122,7 +122,7 @@ describe('远端合并：本地未推送编辑保护（Issue #130）', () => {
         localId: 'c1',
         name: '严伟强',
         company: '深蓝科技',
-        tier: 'S',
+        
         tags: JSON.stringify([]),
         lastContactAt: 1,
         createdAt: 1,
@@ -216,7 +216,7 @@ describe('端到端：客户详情编辑客户关系并保存后，关系不再�
     // 1. 用户打开客户详情，已有 1 条关系
     await db.customers.put({
       id: 'c1', name: '严伟强', company: '深蓝科技', title: '', decisionLevel: '',
-      tier: 'S', tags: [], phone: '', wechat: '', email: '', address: '',
+      tags: [], phone: '', wechat: '', email: '', address: '',
       lastContactAt: 1, createdAt: 1, updatedAt: 50, deleted: 0, rev: 1,
       relations: [{ id: 'rel-old', targetId: 'c2', label: '同行' }],
     } as never)
@@ -232,7 +232,7 @@ describe('端到端：客户详情编辑客户关系并保存后，关系不再�
 
     // 3. 同步周期先 pull：服务端是旧版本（只有 rel-old），但 updatedAt 更新
     await mergeRemote('customers', {
-      id: 'pbh1', localId: 'c1', name: '严伟强', company: '深蓝科技', tier: 'S',
+      id: 'pbh1', localId: 'c1', name: '严伟强', company: '深蓝科技',
       tags: '[]', relations: JSON.stringify([{ id: 'rel-old', targetId: 'c2', label: '同行' }]),
       lastContactAt: 1, createdAt: 1, updatedAt: 200, deleted: 0, rev: 2,
       server_received_at: 'x',
@@ -244,7 +244,7 @@ describe('端到端：客户详情编辑客户关系并保存后，关系不再�
     // 4. 服务端完成升级后，另一台设备又加了一条关系并由远端拉回 → 三方并集
     await db.syncQueue.clear() // 本地已推送成功
     await mergeRemote('customers', {
-      id: 'pbh1', localId: 'c1', name: '严伟强', company: '深蓝科技', tier: 'S',
+      id: 'pbh1', localId: 'c1', name: '严伟强', company: '深蓝科技',
       tags: '[]',
       relations: JSON.stringify([
         { id: 'rel-old', targetId: 'c2', label: '同行' },
@@ -260,12 +260,12 @@ describe('端到端：客户详情编辑客户关系并保存后，关系不再�
 
   it('保存完推送成功后再 pull，本地关系仍完整（无队列条目情形）', async () => {
     await db.customers.put({
-      id: 'c1', name: 'A', tier: 'S', tags: [], relations: [{ id: 'rel-a', targetId: 'c2', label: 'x' }],
+      id: 'c1', name: 'A', tags: [], relations: [{ id: 'rel-a', targetId: 'c2', label: 'x' }],
       updatedAt: 100, deleted: 0, rev: 1, createdAt: 1, lastContactAt: 1,
     } as never)
     // 服务端已含同上关系（推送成功后的回环），updatedAt 更新
     await mergeRemote('customers', {
-      id: 'pbh1', localId: 'c1', name: 'A', tier: 'S', tags: '[]',
+      id: 'pbh1', localId: 'c1', name: 'A', tags: '[]',
       relations: JSON.stringify([{ id: 'rel-a', targetId: 'c2', label: 'x' }]),
       updatedAt: 200, deleted: 0, rev: 2, createdAt: 1, lastContactAt: 1,
     } as never)

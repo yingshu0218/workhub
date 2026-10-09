@@ -1,5 +1,5 @@
 import { Avatar, Button, Chip } from '@/design-system/ui'
-import { fmtRelative, tierChipTone } from '../shared'
+import { fmtRelative } from '../shared'
 import { useIntimacyConfig } from '../intimacy'
 import { useCustomerScoreRows } from '../hooks'
 import { resolveHealthScoreDisplay } from '../healthScore'
@@ -44,9 +44,6 @@ export default function CustomerInfoCard({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="truncate text-[1rem] font-bold">{customer.name}</span>
-            <Chip tone={tierChipTone(customer.tier)}>
-              {customer.tier === '潜在' ? '潜在' : `${customer.tier} 层`}
-            </Chip>
             {customer.decisionLevel && <Chip tone="gray">{customer.decisionLevel}</Chip>}
             <Chip
               tone={health.manual && health.levelKey === 'I7' ? 'red' : 'amber'}

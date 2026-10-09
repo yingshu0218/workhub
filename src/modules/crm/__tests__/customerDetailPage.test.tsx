@@ -26,7 +26,7 @@ function customer(id: string) {
     company: '深蓝科技',
     title: '总监',
     decisionLevel: '决策人' as const,
-    tier: 'A' as const,
+    
     tags: [],
     lastContactAt: 0,
     createdAt: 0,

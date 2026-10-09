@@ -379,19 +379,6 @@ export default function CustomerTimelinePage() {
                   >
                     {customer.name.slice(0, 6)}
                   </text>
-                  {/* tier 徽章 */}
-                  <g transform={`translate(20,${HEAD_H / 2 - 10})`}>
-                    <rect rx={9} width={52} height={18} fill={tierFill(customer.tier)} />
-                    <text
-                      x={26}
-                      y={13}
-                      textAnchor="middle"
-                      style={{ fontSize: 10, fontWeight: 700 }}
-                      fill="#fff"
-                    >
-                      {customer.tier === '潜在' ? '潜在' : `${customer.tier} 层`}
-                    </text>
-                  </g>
                   {/* 健康分档位（原健康指数环移除，Issue #108）：手动档位原样，算法推断档位加括号标注 */}
                   <g transform={`translate(${HEAD_W - 66},${HEAD_H / 2 - 40})`}>
                     <rect
@@ -506,19 +493,6 @@ export default function CustomerTimelinePage() {
       </Card>
     </div>
   )
-}
-
-function tierFill(tier: 'S' | 'A' | 'B' | '潜在'): string {
-  switch (tier) {
-    case 'S':
-      return '#ba1a1a'
-    case 'A':
-      return '#943700'
-    case '潜在':
-      return '#004ac6'
-    default:
-      return '#4a4458'
-  }
 }
 
 function fmtLastContact(ts: number): string {

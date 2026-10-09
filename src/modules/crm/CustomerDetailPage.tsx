@@ -21,7 +21,7 @@ import { todoPriorityLabel, todoPriorityTone } from '@/modules/todo/priority'
 import CustomerFormDrawer from './CustomerFormDrawer'
 import { useCustomerTodos, useCustomerTransactions } from './hooks'
 import { financeFocusPath } from '@/modules/finance/links'
-import { fmtRelative, tierChipTone } from './shared'
+import { fmtRelative } from './shared'
 import IntimacyPicker from './intimacy/IntimacyPicker'
 import {
   TIMELINE_FILTERS,
@@ -149,9 +149,6 @@ export default function CustomerDetailPage() {
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-[1.2857rem] font-bold">{customer.name}</span>
-              <Chip tone={tierChipTone(customer.tier)}>
-                {customer.tier === '潜在' ? '潜在' : `${customer.tier} 层`}
-              </Chip>
             </div>
             <div className="mt-0.5 text-[0.9286rem] text-on-surface-variant">
               {customer.company || '—'}
@@ -597,7 +594,6 @@ function ProfileTab({
     ['公司', customer.company || '—'],
     ['职位', customer.title || '—'],
     ['决策层级', customer.decisionLevel || '—'],
-    ['客户分层', customer.tier === '潜在' ? '潜在' : `${customer.tier} 层`],
     ['手机号码', customer.phone || '—', true],
     ['企业微信', customer.wechat || '—', true],
     ['工作邮箱', customer.email || '—', true],

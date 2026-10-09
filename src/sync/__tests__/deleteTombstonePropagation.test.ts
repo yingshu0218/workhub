@@ -97,7 +97,7 @@ function customer(over: Record<string, unknown>) {
     company: '深蓝科技',
     title: '',
     decisionLevel: '',
-    tier: 'S',
+    
     tags: [],
     phone: '',
     wechat: '',

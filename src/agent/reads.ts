@@ -201,7 +201,6 @@ function projectCustomer(c: Customer) {
     company: c.company,
     title: c.title,
     decisionLevel: c.decisionLevel,
-    tier: c.tier,
     tags: c.tags,
     lastContactAt: c.lastContactAt,
     /** 关系档位（Issue #108：健康分单一来源；缺省=未设置走算法兜底） */

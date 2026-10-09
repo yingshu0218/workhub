@@ -214,6 +214,20 @@ export class NexusDB extends Dexie {
     this.version(12).stores({
       attachments: 'id, refType, refId, createdAt, updatedAt',
     })
+
+    /**
+     * v13（手动客户分层下线）：customers 索引去掉 `tier`（v5 起为 `id, tier, updatedAt`）。
+     *
+     * `tier`（S/A/B/潜在）已从模型删除，分层语义合并进健康分 `intimacy`。该索引全仓
+     * **无任何 `.where('tier')` 消费点**，去掉它只是清掉死索引，**不涉及数据搬迁**
+     * —— 存量记录上残留的 `tier` 属性会被 Dexie 忽略（不读即不存在）。
+     *
+     * **服务端无需变更**：`customers` 集合从来没有过 tier 列（这正是线上该字段一直为空的原因），
+     * 故不触发部署指南里的 Schema 升级流程。
+     */
+    this.version(13).stores({
+      customers: 'id, updatedAt',
+    })
   }
 }
 

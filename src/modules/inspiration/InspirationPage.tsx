@@ -2,7 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Icon } from '@/design-system/Icon'
 import { useNavigate } from 'react-router-dom'
 import { useCollection } from '@/queries/hooks'
-import type { Customer, Todo, Transaction, Note } from '@/db/types'
+import type { Customer, IntimacyLevel, Todo, Transaction, Note } from '@/db/types'
+import { intimacyLevelName, resolveIntimacyLevel, useIntimacyConfig } from '@/modules/crm/intimacy'
+import { useCustomerScoreRows } from '@/modules/crm/hooks'
 import { toggleTodoDone } from '@/modules/todo/toggle'
 import { registerShortcut } from '@/shared/shortcuts'
 import { useFocusStore } from '@/stores/focus'
@@ -111,12 +113,27 @@ export default function InspirationPage() {
     note: true,
   })
 
+  // 久未跟进客户的排序权重按**健康分档位**取值（原手动分层已并入健康分）：
+  // 与客户列表/详情页同一套解析口径（手动优先 → 算法兜底），不在本页另算一套。
+  const intimacyCfg = useIntimacyConfig()
+  const scoreInputs = useCustomerScoreRows(
+    customers.filter((c) => !c.intimacy?.level).map((c) => c.id),
+  )
+  const customerLevels = useMemo(() => {
+    const map: Record<string, { level: IntimacyLevel; name: string }> = {}
+    for (const c of customers) {
+      const { level } = resolveIntimacyLevel(c, intimacyCfg, scoreInputs[c.id] ?? null)
+      map[c.id] = { level, name: intimacyLevelName(intimacyCfg, level) }
+    }
+    return map
+  }, [customers, intimacyCfg, scoreInputs])
+
   const candidates = useMemo(
     () =>
-      buildCandidates({ todos, transactions, customers, notes }).filter(
+      buildCandidates({ todos, transactions, customers, notes, customerLevels }).filter(
         (c) => pools[poolOfKind(c.kind)],
       ),
-    [todos, transactions, customers, notes, pools],
+    [todos, transactions, customers, notes, customerLevels, pools],
   )
   const [idx, setIdx] = useState(0)
   const [reminderMsg, setReminderMsg] = useState<string | null>(null)

@@ -47,7 +47,7 @@ function newTxn(id: string, over: Partial<Transaction> = {}): Transaction {
 
 function newCustomer(id: string, over: Partial<Customer> = {}): Customer {
   return {
-    id, name: '王五', company: '深蓝科技', title: '采购经理', decisionLevel: '决策人', tier: 'A',
+    id, name: '王五', company: '深蓝科技', title: '采购经理', decisionLevel: '决策人',
     tags: [], phone: '', wechat: '', email: '', address: '', lastContactAt: 0, createdAt: 1,
     updatedAt: 0, deleted: 0, rev: 0, ...over,
   } as Customer

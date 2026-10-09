@@ -78,7 +78,7 @@ describe('⌘K 搜索深链：财务流水 / 待办结果可直达详情', () =>
           company: '',
           title: '',
           decisionLevel: '决策人',
-          tier: 'A',
+          
           tags: [],
           lastContactAt: 0,
           createdAt: 0,

@@ -1,12 +1,13 @@
 import dayjs from 'dayjs'
-import type { Customer, Todo, Transaction, Note } from '@/db/types'
+import type { Customer, IntimacyLevel, Todo, Transaction, Note } from '@/db/types'
 import { normalizeTodoPriority, todoPriorityFullLabel } from '@/modules/todo/priority'
 import { isTodoOpen } from '@/modules/todo/domain'
 import { txnCustomerIds } from '@/modules/finance/links'
 
 /**
  * 灵感闪现规则引擎（Phase 6 · 戒点①：权重一律从源记录推导，不存快照）
- * 候选源：逾期待办（高/重要紧急权重最高）/ 到期日程 / 待对账交易 / 久未跟进客户（距今天数 × 分层权重 S>A>B）/ 沉睡笔记（30 天未更新）
+ * 候选源：逾期待办（高/重要紧急权重最高）/ 到期日程 / 待对账交易 /
+ *        久未跟进客户（距今天数 × **健康分档位**权重；原手动分层已并入健康分）/ 沉睡笔记（30 天未更新）
  * 每类候选输出 理由文案 + 关联实体上下文 + 匹配合度%（原始分对最高分归一化）
  */
 
@@ -60,14 +61,25 @@ const PRIORITY_IMPACT_HINT: Record<Todo['priority'], string> = {
   low: '催得急但价值有限，能交就交',
   none: '不催办，有空再处理即可',
 }
-/** 客户分层权重：S > A > B（潜在不计入） */
-const TIER_WEIGHT: Record<string, number> = { S: 6, A: 4, B: 2.5 }
+/**
+ * 客户权重改由**健康分档位**表达（原手动 `tier` 的 S>A>B 已删除，两套分层合并为一套）：
+ * T1 核心 > T2 信赖 > T3 合作，其余档位走兜底 2。
+ * I6 疏远 / I7 黑名单是「明确不想有交集」，直接不计入跟进提醒（替代原「潜在不计入」）。
+ */
+const LEVEL_WEIGHT: Record<string, number> = { T1: 6, T2: 4, T3: 2.5 }
+const SILENT_LEVELS = new Set(['I6', 'I7'])
 
 export interface EngineInput {
   todos: Todo[]
   transactions: Transaction[]
   customers: Customer[]
   notes: Note[]
+  /**
+   * 各客户的健康分档位（**必填**，由调用方解析后传入 —— 引擎保持纯函数，不做 I/O 与配置读取）。
+   * 调用方用 `resolveIntimacyLevel` + `intimacyLevelName` 解析：手动档位优先、未设置走算法兜底。
+   * 缺失条目的客户按「无档位」处理（兜底权重 2），不会静默丢候选。
+   */
+  customerLevels: Record<string, { level: IntimacyLevel; name: string }>
 }
 
 function buildCandidates(input: EngineInput): InspirationCandidate[] {
@@ -171,17 +183,20 @@ function buildCandidates(input: EngineInput): InspirationCandidate[] {
     })
   }
 
-  // ── 久未跟进客户：距今天数 × 分层权重（≥7 天才进入候选） ──
+  // ── 久未跟进客户：距今天数 × 健康分档位权重（≥7 天才进入候选） ──
   for (const c of input.customers) {
-    if (c.tier === '潜在') continue
+    const lv = input.customerLevels[c.id]
+    // 疏远 / 黑名单：明确不想有交集，不进「该去跟进」的提醒
+    if (lv && SILENT_LEVELS.has(lv.level)) continue
     const days = Math.floor((now - c.lastContactAt) / 86400_000)
     if (days < 7) continue
-    const score = Math.min(90, days * (TIER_WEIGHT[c.tier] ?? 2))
+    const score = Math.min(90, days * (lv ? (LEVEL_WEIGHT[lv.level] ?? 2) : 2))
+    const levelName = lv?.name ?? '未分层'
     const context: CandidateContext[] = [
       {
         icon: 'badge',
-        label: '客户分层',
-        value: `${c.tier} 层客户`
+        label: '健康分',
+        value: levelName,
       },
     ]
     const note = input.notes.find((n) =>
@@ -192,7 +207,7 @@ function buildCandidates(input: EngineInput): InspirationCandidate[] {
       id: `cand-customer-${c.id}`,
       kind: 'stale-customer',
       title: `跟进 ${c.name}（${c.company}）`,
-      reason: `${c.tier} 层客户已 ${days} 天未跟进 · 距上次沟通联系窗口拉大`,
+      reason: `健康分「${levelName}」客户已 ${days} 天未跟进 · 距上次沟通联系窗口拉大`,
       score,
       match: 0,
       customerId: c.id,

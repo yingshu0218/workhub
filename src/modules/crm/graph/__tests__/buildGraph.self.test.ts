@@ -14,7 +14,7 @@ const makeGraph = (): CanvasGraph => ({
       id: 'c1',
       name: '严伟强',
       company: '深蓝科技',
-      tier: 'S',
+      
       lastContactAt: 1000,
       relations: [{ targetId: 'c2', label: '项目合作', category: 'project' }],
     },
@@ -22,11 +22,11 @@ const makeGraph = (): CanvasGraph => ({
       id: 'c2',
       name: '林晓棠',
       company: '云上文创',
-      tier: 'A',
+      
       lastContactAt: 900,
       relations: [{ targetId: 'c1', label: '项目合作', category: 'project' }],
     },
-    { id: 'c3', name: '赵屹峰', company: '启衡咨询', tier: 'B', lastContactAt: 800, relations: [] },
+    { id: 'c3', name: '赵屹峰', company: '启衡咨询', lastContactAt: 800, relations: [] },
   ],
   projects: [],
   transactions: [],

@@ -64,7 +64,7 @@ function newCustomer(id: string, name: string, over: Record<string, unknown> = {
     company: '',
     title: '',
     decisionLevel: '决策人',
-    tier: 'A',
+    
     tags: [],
     phone: '',
     wechat: '',
@@ -419,7 +419,7 @@ describe('P1 第 7 步 E2E 主干验收（§9.8）', () => {
 
   it('⑤ P2 扩面动作经 relay 全链路可跑通（改档位 → 归档项目 → 记/改笔记 → 删待办）', async () => {
     /* 建客户（中风险，走 preview → confirm → execute） */
-    const createArgs = { name: '赵六', company: '远山设计', tier: 'B' as const }
+    const createArgs = { name: '赵六', company: '远山设计' }
     const createPreview = await mcp.callTool('crm_createCustomer', createArgs)
     expect((createPreview.data as { preview?: boolean }).preview).toBe(true)
     const created = await mcp.callTool('crm_createCustomer', createArgs, previewToken(createPreview))
@@ -427,13 +427,12 @@ describe('P1 第 7 步 E2E 主干验收（§9.8）', () => {
     const customerId = (created.data as { customerId: string }).customerId
 
     /* 编辑客户档案 + 设置健康分档位（medium） */
-    const upArgs = { customerId, tier: 'S' as const, intimacyLevel: 'T2' as const }
+    const upArgs = { customerId, intimacyLevel: 'T2' as const }
     const upPreview = await mcp.callTool('crm_updateCustomer', upArgs)
     expect((upPreview.data as { preview?: boolean }).preview).toBe(true)
     const up = await mcp.callTool('crm_updateCustomer', upArgs, previewToken(upPreview))
     expect(up.ok, up.text).toBe(true)
     const after = await db.customers.get(customerId)
-    expect(after!.tier).toBe('S')
     expect(after!.intimacy?.level).toBe('T2')
 
     /* 建项目（low，免预览）→ 挂到客户 → 归档 */

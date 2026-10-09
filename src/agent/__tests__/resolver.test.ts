@@ -20,7 +20,7 @@ beforeEach(async () => {
 
 describe('纪律①：候选池只走活记录', () => {
   it('软删客户不参与消解', async () => {
-    await db.customers.put({ ...base, id: 'c1', name: '王五', company: '深蓝科技', title: '', decisionLevel: '决策人', tier: 'A', tags: [], phone: '', wechat: '', email: '', address: '', lastContactAt: 0, createdAt: 0, deleted: 1 })
+    await db.customers.put({ ...base, id: 'c1', name: '王五', company: '深蓝科技', title: '', decisionLevel: '决策人', tags: [], phone: '', wechat: '', email: '', address: '', lastContactAt: 0, createdAt: 0, deleted: 1 })
     const r = await resolveEntity('王五', 'customer')
     expect(r.status).toBe('ambiguous')
     expect(r.candidates).toHaveLength(0)
@@ -31,7 +31,7 @@ describe('纪律①：候选池只走活记录', () => {
 describe('纪律②：按 id 去重后再数唯一（重名必反问）', () => {
   it('同 label 不同 id 的重名客户不得被误判为候选唯一', async () => {
     const mk = (id: string, name: string, company: string) => ({
-      ...base, id, name, company, title: '', decisionLevel: '决策人' as const, tier: 'A' as const,
+      ...base, id, name, company, title: '', decisionLevel: '决策人' as const,
       tags: [], phone: '', wechat: '', email: '', address: '', lastContactAt: 0, createdAt: 0,
     })
     await db.customers.bulkPut([
@@ -48,7 +48,7 @@ describe('纪律②：按 id 去重后再数唯一（重名必反问）', () => 
   it('去重后唯一 id 才静默消解', async () => {
     await db.customers.put({
       ...base, id: 'c1', name: '王五', company: '深蓝科技', title: '采购经理',
-      decisionLevel: '决策人', tier: 'A', tags: [], phone: '', wechat: '', email: '', address: '',
+      decisionLevel: '决策人', tags: [], phone: '', wechat: '', email: '', address: '',
       lastContactAt: 0, createdAt: 0,
     })
     const r = await resolveEntity('深蓝', 'customer')
@@ -128,7 +128,7 @@ describe('§9.7 第 1 步注：归档映射一致性对照断言', () => {
 
 describe('消解投影白名单（§2.2）', () => {
   it('候选项只含 id/type/label/sub/archived，不含实体全字段与 relations', async () => {
-    await db.customers.put({ ...base, id: 'c1', name: '王五', company: '深蓝', title: '经理', decisionLevel: '决策人', tier: 'S', tags: ['x'], phone: '138', wechat: 'w', email: 'e', address: 'a', lastContactAt: 1, createdAt: 0, relations: [{ id: 'r1', targetId: 'c2', label: '同事' }] })
+    await db.customers.put({ ...base, id: 'c1', name: '王五', company: '深蓝', title: '经理', decisionLevel: '决策人', tags: ['x'], phone: '138', wechat: 'w', email: 'e', address: 'a', lastContactAt: 1, createdAt: 0, relations: [{ id: 'r1', targetId: 'c2', label: '同事' }] })
     const r = await resolveEntity('王五', 'customer')
     expect(Object.keys(r.candidates[0]).sort()).toEqual(['id', 'label', 'sub', 'type'])
   })

@@ -247,10 +247,11 @@ export async function runToolSweep(mcp: McpClient, deps: SweepDeps = {}): Promis
 
   await kase('crm_addRelation', () => ({ customerId: g('customerId'), targetId: g('customer2Id'), label: '同一公司' }))
 
-  await kase('crm_updateCustomer', () => ({ customerId: g('customerId'), tier: 'S', intimacyLevel: 'T2' }), async () => {
+  await kase('crm_updateCustomer', () => ({ customerId: g('customerId'), intimacyLevel: 'T2' }), async () => {
     const c = await invoke('getCustomer', { id: g('customerId') })
     const d = c.data as ReadEnvelope<Record<string, unknown>>
-    need(d.items?.[0]?.tier === 'S', `tier 期望 S，实际 ${String(d.items?.[0]?.tier)}`)
+    const inti = d.items?.[0]?.intimacy as { level?: string } | undefined
+    need(inti?.level === 'T2', `健康分档位期望 T2，实际 ${String(inti?.level)}`)
   })
 
   await kase('project_updateProject', () => ({ projectId: g('projectId'), status: 'archived' }), async () => {
@@ -405,7 +406,7 @@ export async function runToolSweep(mcp: McpClient, deps: SweepDeps = {}): Promis
   // A. 幽灵记录
   await probe('fin_recordTransaction', 'A1 记账→账本不存在', { ledgerId: 'ldg-not-exist', summary: 'x', amount: 1 }, 'error')
   await probe('crm_addInteraction', 'A2 记沟通→客户不存在', { customerId: 'cus-not-exist', content: 'x' }, 'error')
-  await probe('crm_updateCustomer', 'A3 改客户→客户不存在', { customerId: 'cus-not-exist', tier: 'S' }, 'error')
+  await probe('crm_updateCustomer', 'A3 改客户→客户不存在', { customerId: 'cus-not-exist' }, 'error')
   await probe('todo_updateTodo', 'A4 改待办→待办不存在', { todoId: 'td-not-exist', priority: 'low' }, 'error')
   await probe('todo_deleteTodo', 'A5 删待办→待办不存在', { todoId: 'td-not-exist' }, 'error')
   await probe('note_updateNote', 'A6 改笔记→笔记不存在', { noteId: 'nt-not-exist', title: 'x' }, 'error')

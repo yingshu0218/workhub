@@ -1,23 +1,9 @@
-import type { Chip } from '@/design-system/ui'
+/**
+ * CRM 页面间共享的轻量展示工具（相对时间等）。
+ * 注：原「分层配色 `tierChipTone`」已随手动 `tier` 字段一并移除；健康分档位的展示口径
+ * 已收口在 `healthScore.ts` 的 `resolveHealthScoreDisplay`，不要再在这里另起一套。
+ */
 import dayjs from 'dayjs'
-
-/** CRM 页面间共享的轻量展示工具（分层配色 / 相对时间） */
-
-export type ChipTone = React.ComponentProps<typeof Chip>['tone']
-
-/** 分层 Chip 配色：S=红（核心）/ A=琥珀（重点）/ B=灰 / 潜在=蓝 */
-export function tierChipTone(tier: 'S' | 'A' | 'B' | '潜在'): ChipTone {
-  switch (tier) {
-    case 'S':
-      return 'red'
-    case 'A':
-      return 'amber'
-    case '潜在':
-      return 'blue'
-    default:
-      return 'gray'
-  }
-}
 
 /** 相对时间（本地推导，避免引入 relativeTime 插件） */
 export function fmtRelative(ts: number): string {

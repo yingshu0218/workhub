@@ -196,7 +196,6 @@ export async function crm_createCustomer(input: unknown): Promise<AgentOpResult>
     company: d.company ?? '',
     title: d.title ?? '',
     decisionLevel: d.decisionLevel,
-    tier: d.tier,
     tags: d.tags,
     phone: d.phone ?? '',
     wechat: d.wechat ?? '',
@@ -544,7 +543,7 @@ export async function crm_updateCustomer(input: unknown): Promise<AgentOpResult>
   const prev = found.record
 
   const patch: Partial<Customer> = {}
-  for (const k of ['name', 'company', 'title', 'decisionLevel', 'tier', 'tags', 'phone', 'wechat', 'email', 'address'] as const) {
+  for (const k of ['name', 'company', 'title', 'decisionLevel', 'tags', 'phone', 'wechat', 'email', 'address'] as const) {
     if (d[k] !== undefined) (patch as Record<string, unknown>)[k] = d[k]
   }
   // 关系档位：显式 null = 清除手动档位（交算法兜底，Issue #108 单一来源口径）

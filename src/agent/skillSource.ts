@@ -165,7 +165,7 @@ export const WRITE_TOOL_SKILLS: ToolSkillMeta[] = [
   },
   {
     name: 'crm_updateCustomer',
-    summary: '编辑客户档案（姓名/公司/职位/tier/健康分档位/联系方式）',
+    summary: '编辑客户档案（姓名/公司/职位/健康分档位/联系方式）',
     schema: updateCustomerSchema,
     sideEffect: '更新客户字段（customers）。`intimacyLevel: null` 表示清除手动健康分档位、交算法兜底。无领域事件。',
     idempotency: '幂等：同一组字段重复提交结果一致。',

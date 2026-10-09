@@ -12,7 +12,7 @@ const seedLike = (): CanvasGraph => ({
       id: 'c1',
       name: '严伟强',
       company: '深蓝科技',
-      tier: 'S',
+      
       lastContactAt: 1,
       relations: [
         { targetId: 'c2', label: '项目合作', category: 'project' },
@@ -23,7 +23,7 @@ const seedLike = (): CanvasGraph => ({
       id: 'c2',
       name: '林晓棠',
       company: '云上文创',
-      tier: 'A',
+      
       lastContactAt: 1,
       relations: [
         { targetId: 'c1', label: '项目合作', category: 'project' },
@@ -34,7 +34,7 @@ const seedLike = (): CanvasGraph => ({
       id: 'c3',
       name: '赵屹峰',
       company: '启衡咨询',
-      tier: 'B',
+      
       lastContactAt: 1,
       relations: [
         { targetId: 'c1', label: '同行伙伴', category: 'person' },

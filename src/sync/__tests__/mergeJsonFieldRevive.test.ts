@@ -25,7 +25,7 @@ function localCustomer(over: Record<string, unknown> = {}) {
     company: '深蓝科技',
     title: '采购总监',
     decisionLevel: '决策人',
-    tier: 'S',
+    
     tags: ['高客单'],
     phone: '',
     wechat: '',
@@ -79,7 +79,7 @@ describe('pull 落库后字段类型与本地写入一致', () => {
       localId: 'c1',
       name: '严伟强',
       company: '深蓝科技',
-      tier: 'S',
+      
       tags: JSON.stringify(['高客单', '关键决策者']),
       relations: JSON.stringify([{ id: 'r1', targetId: 'c2', label: '转介绍人' }]),
       intimacy: JSON.stringify({ level: 'T1' }),

@@ -32,7 +32,6 @@ function resolveTarget(
 }
 
 const DECISION_LEVELS: Customer['decisionLevel'][] = ['决策人', '影响者', '使用者', '把关人']
-const TIERS: Customer['tier'][] = ['S', 'A', 'B', '潜在']
 
 /** 新建/编辑客户抽屉（复用；编辑以旧记录展开为基底，仅覆盖表单字段 —— 审计戒点 P0-2） */
 export default function CustomerFormDrawer({
@@ -49,7 +48,6 @@ export default function CustomerFormDrawer({
   const [company, setCompany] = useState('')
   const [title, setTitle] = useState('')
   const [decisionLevel, setDecisionLevel] = useState<Customer['decisionLevel']>('决策人')
-  const [tier, setTier] = useState<Customer['tier']>('A')
   const [tags, setTags] = useState<string[]>([])
   /** 标签输入框里尚未敲下分隔符的草稿（保存时一并结算，避免「输了没回车就点保存」丢标签） */
   const [pendingTags, setPendingTags] = useState('')
@@ -90,7 +88,6 @@ export default function CustomerFormDrawer({
       setCompany(customer?.company ?? '')
       setTitle(customer?.title ?? '')
       setDecisionLevel(customer?.decisionLevel ?? '决策人')
-      setTier(customer?.tier ?? 'A')
       setTags(customer?.tags ?? [])
       setPhone(customer?.phone ?? '')
       setWechat(customer?.wechat ?? '')
@@ -222,7 +219,6 @@ export default function CustomerFormDrawer({
         company: company.trim(),
         title: title.trim(),
         decisionLevel,
-        tier,
         tags: settled.tags,
         phone: phone.trim(),
         wechat: wechat.trim(),
@@ -237,7 +233,6 @@ export default function CustomerFormDrawer({
         company: company.trim(),
         title: title.trim(),
         decisionLevel,
-        tier,
         tags: settled.tags,
         phone: phone.trim(),
         wechat: wechat.trim(),
@@ -301,24 +296,7 @@ export default function CustomerFormDrawer({
             </select>
           </Field>
         </div>
-        <StepHeader n={2} title="分层与标签" />
-        <Field label="客户分层">
-          <div className="flex gap-2">
-            {TIERS.map((t) => (
-              <button
-                key={t}
-                onClick={() => setTier(t)}
-                className={`flex-1 rounded-lg border px-2 py-1.5 text-[0.9286rem] transition-colors ${
-                  tier === t
-                    ? 'border-primary bg-primary-fixed font-semibold text-primary'
-                    : 'border-outline-variant text-on-surface-variant'
-                }`}
-              >
-                {t === '潜在' ? '潜在' : `${t} 层`}
-              </button>
-            ))}
-          </div>
-        </Field>
+        <StepHeader n={2} title="标签" />
         <Field label="标签（回车或逗号即固化）">
           <ChipTagInput
             value={tags}

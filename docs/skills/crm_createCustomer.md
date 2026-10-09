@@ -14,7 +14,6 @@
 | `company` | string | 否 | — |  |
 | `title` | string | 否 | — |  |
 | `decisionLevel` | enum(决策人 / 影响者 / 使用者 / 把关人) | 否 | `"决策人"` |  |
-| `tier` | enum(S / A / B / 潜在) | 否 | `"A"` |  |
 | `tags` | array | 否 | `[]` |  |
 | `phone` | string | 否 | — |  |
 | `wechat` | string | 否 | — |  |

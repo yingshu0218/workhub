@@ -242,7 +242,7 @@ describe('删除类：软删 + 副作用清单 + 幂等', () => {
 })
 
 describe('crm_updateCustomer：档案编辑与档位三态', () => {
-  it('改 tier/decisionLevel 生效，intimacyLevel=null 清除手动档位', async () => {
+  it('改 decisionLevel 生效，intimacyLevel=null 清除手动档位', async () => {
     const id = 'cus:1'
     await db.customers.put({
       id,
@@ -250,7 +250,6 @@ describe('crm_updateCustomer：档案编辑与档位三态', () => {
       company: '深蓝科技',
       title: '',
       decisionLevel: '影响者',
-      tier: 'B',
       tags: [],
       phone: '',
       wechat: '',
@@ -267,13 +266,11 @@ describe('crm_updateCustomer：档案编辑与档位三态', () => {
 
     const r = await dispatchAgentTool('crm_updateCustomer', {
       customerId: id,
-      tier: 'S',
       decisionLevel: '决策人',
       intimacyLevel: null,
     })
     expect(r.ok).toBe(true)
     const after = await db.customers.get(id)
-    expect(after!.tier).toBe('S')
     expect(after!.decisionLevel).toBe('决策人')
     expect(after!.intimacy).toBeUndefined()
   })
@@ -286,7 +283,7 @@ describe('crm_updateCustomer：档案编辑与档位三态', () => {
       company: '',
       title: '',
       decisionLevel: '决策人',
-      tier: 'A',
+      
       tags: [],
       phone: '',
       wechat: '',

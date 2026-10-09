@@ -50,20 +50,20 @@ describe.skipIf(!ONLINE)('演示数据播种（线上）', () => {
       return r.data as Record<string, string>
     }
 
-    /* ==================== 1. 客户（含决策角色与 tier 分层） ==================== */
+    /* ==================== 1. 客户（含决策角色） ==================== */
     const customers: { key: string; args: Record<string, unknown> }[] = [
-      { key: 'chen', args: { name: '陈致远', company: '星野科技', title: '品牌总监', decisionLevel: '决策人', tier: 'S', tags: ['重点客户', '长期合作'], phone: '13800000001', wechat: 'chen_zy' } },
-      { key: 'lin', args: { name: '林晓棠', company: '云上文创', title: '内容主理人', decisionLevel: '影响者', tier: 'A', tags: ['转介绍'] } },
-      { key: 'zhao', args: { name: '赵屹峰', company: '启衡咨询', title: '合伙人', decisionLevel: '把关人', tier: 'A', tags: ['咨询'] } },
-      { key: 'zhou', args: { name: '周敏', company: '南禾文化', title: '项目经理', decisionLevel: '使用者', tier: 'B' } },
-      { key: 'wu', args: { name: '吴迪', company: '蓝湖数据', title: '市场负责人', decisionLevel: '决策人', tier: '潜在', tags: ['竞品调研'] } },
-      { key: 'sun', args: { name: '孙博', company: '极光传媒', title: '创意总监', decisionLevel: '影响者', tier: 'A', tags: ['VIP'] } },
-      { key: 'qian', args: { name: '钱琳', company: '麦田教育', title: '市场经理', decisionLevel: '使用者', tier: 'B', tags: ['VIP', '华东'] } },
-      { key: 'he', args: { name: '何军', company: '潮汐科技', title: '技术负责人', decisionLevel: '把关人', tier: 'A', tags: ['长期合作'] } },
-      { key: 'lu', args: { name: '陆一鸣', company: '橙子影视', title: '制片人', decisionLevel: '决策人', tier: 'S', tags: ['重点客户'] } },
-      { key: 'tan', args: { name: '谭雅', company: '云翼航空', title: '品牌经理', decisionLevel: '影响者', tier: 'B', tags: ['华东'] } },
-      { key: 'fan', args: { name: '范伟', company: '星辰互娱', title: '商务总监', decisionLevel: '决策人', tier: 'A', tags: ['转介绍', '华东'] } },
-      { key: 'xu', args: { name: '徐宁', company: '木棉设计', title: '主理人', decisionLevel: '使用者', tier: '潜在', tags: ['竞品调研'] } },
+      { key: 'chen', args: { name: '陈致远', company: '星野科技', title: '品牌总监', decisionLevel: '决策人', tags: ['重点客户', '长期合作'], phone: '13800000001', wechat: 'chen_zy' } },
+      { key: 'lin', args: { name: '林晓棠', company: '云上文创', title: '内容主理人', decisionLevel: '影响者', tags: ['转介绍'] } },
+      { key: 'zhao', args: { name: '赵屹峰', company: '启衡咨询', title: '合伙人', decisionLevel: '把关人', tags: ['咨询'] } },
+      { key: 'zhou', args: { name: '周敏', company: '南禾文化', title: '项目经理', decisionLevel: '使用者' } },
+      { key: 'wu', args: { name: '吴迪', company: '蓝湖数据', title: '市场负责人', decisionLevel: '决策人', tags: ['竞品调研'] } },
+      { key: 'sun', args: { name: '孙博', company: '极光传媒', title: '创意总监', decisionLevel: '影响者', tags: ['VIP'] } },
+      { key: 'qian', args: { name: '钱琳', company: '麦田教育', title: '市场经理', decisionLevel: '使用者', tags: ['VIP', '华东'] } },
+      { key: 'he', args: { name: '何军', company: '潮汐科技', title: '技术负责人', decisionLevel: '把关人', tags: ['长期合作'] } },
+      { key: 'lu', args: { name: '陆一鸣', company: '橙子影视', title: '制片人', decisionLevel: '决策人', tags: ['重点客户'] } },
+      { key: 'tan', args: { name: '谭雅', company: '云翼航空', title: '品牌经理', decisionLevel: '影响者', tags: ['华东'] } },
+      { key: 'fan', args: { name: '范伟', company: '星辰互娱', title: '商务总监', decisionLevel: '决策人', tags: ['转介绍', '华东'] } },
+      { key: 'xu', args: { name: '徐宁', company: '木棉设计', title: '主理人', decisionLevel: '使用者', tags: ['竞品调研'] } },
     ]
     for (const c of customers) {
       const d = must(await call('crm_createCustomer', c.args), `建客户 ${String(c.args.name)}`)

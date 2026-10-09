@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Icon } from '@/design-system/Icon'
 import { useNavigate } from 'react-router-dom'
 import { useCollection } from '@/queries/hooks'
-import type { Customer, CustomerGroup } from '@/db/types'
+import type { Customer, CustomerGroup, IntimacyLevel } from '@/db/types'
 import { matchGroup } from '@/db/types'
 import {
   Avatar,
@@ -17,7 +17,7 @@ import {
   inputCls,
 } from '@/design-system/ui'
 import CustomerFormDrawer from './CustomerFormDrawer'
-import { fmtRelative, normalizeTags, tierChipTone } from './shared'
+import { fmtRelative, normalizeTags } from './shared'
 import { filterBlacklisted, useIntimacyConfig, resolveIntimacyLevel } from './intimacy'
 import { resolveHealthScoreDisplay } from './healthScore'
 import {
@@ -36,7 +36,8 @@ import {
 export default function CrmPage() {
   const customers = useCollection<Customer>('customers')
   const navigate = useNavigate()
-  const [group, setGroup] = useState<'all' | Customer['tier']>('all')
+  // 左侧分层维度：原手动 tier 已并入健康分，分组直接按健康分档位（key 取自配置，档位名随配置可变）
+  const [group, setGroup] = useState<'all' | IntimacyLevel>('all')
   const [keyword, setKeyword] = useState('')
   const [formOpen, setFormOpen] = useState(false)
   // 自定义分组（Issue #63）：选中分组 id 与编辑弹层
@@ -62,26 +63,34 @@ export default function CrmPage() {
   const groupCounts = useCustomerGroupCounts(visibleCustomers, customGroups)
   const selectedGroup = customGroups.find((g) => g.id === selectedGroupId) ?? null
 
-  const counts = {
-    total: visibleCustomers.length,
-    s: visibleCustomers.filter((c) => c.tier === 'S').length,
-    a: visibleCustomers.filter((c) => c.tier === 'A').length,
-    b: visibleCustomers.filter((c) => c.tier === 'B').length,
-    potential: visibleCustomers.filter((c) => c.tier === '潜在').length,
+  /**
+   * 每客户解析出的健康分档位（手动优先 → 算法兜底）—— 分组、统计与行内 chip 共用这一份口径。
+   * 原手动 `tier` 已删除，分层维度统一由健康分承担（两套分层合并为一套）。
+   */
+  const levelOf = (c: Customer): IntimacyLevel =>
+    resolveIntimacyLevel(c, intimacyCfg, scoreInputs[c.id] ?? null).level
+
+  /** 各健康分档位人数（key 从配置派生，档位名随配置可变） */
+  const counts: Record<string, number> = { total: visibleCustomers.length }
+  for (const lv of intimacyCfg.levels) counts[lv.key] = 0
+  for (const c of visibleCustomers) {
+    const key = levelOf(c)
+    counts[key] = (counts[key] ?? 0) + 1
   }
 
-  /** 左侧分组项：全部 + 各分层 */
-  const groups: { key: 'all' | Customer['tier']; label: string; icon: string }[] = [
+  /** 左侧分组项：全部 + 各健康分档位 */
+  const groups: { key: 'all' | IntimacyLevel; label: string; icon: string }[] = [
     { key: 'all', label: '全部客户', icon: 'group' },
-    { key: 'S', label: 'S 层 · 核心战略', icon: 'workspace_premium' },
-    { key: 'A', label: 'A 层 · 重点', icon: 'star' },
-    { key: 'B', label: 'B 层 · 常规', icon: 'person' },
-    { key: '潜在', label: '潜在客户', icon: 'trending_up' },
+    ...intimacyCfg.levels.map((lv) => ({
+      key: lv.key,
+      label: `${lv.key} · ${lv.name}`,
+      icon: 'favorite',
+    })),
   ]
 
   const list = visibleCustomers
     .filter((c) => {
-      if (group !== 'all' && c.tier !== group) return false
+      if (group !== 'all' && levelOf(c) !== group) return false
       if (selectedGroup && !matchGroup(c, selectedGroup)) return false
       if (keyword.trim()) {
         const kw = keyword.trim().toLowerCase()
@@ -94,16 +103,8 @@ export default function CrmPage() {
     })
     .sort((a, b) => b.lastContactAt - a.lastContactAt)
 
-  const groupCount = (g: (typeof groups)[number]['key']) =>
-    g === 'all'
-      ? counts.total
-      : g === 'S'
-        ? counts.s
-        : g === 'A'
-          ? counts.a
-          : g === 'B'
-            ? counts.b
-            : counts.potential
+  const groupCount = (g: 'all' | IntimacyLevel) =>
+    g === 'all' ? visibleCustomers.length : (counts[g] ?? 0)
 
   return (
     <div className="mx-auto max-w-[1200px]">
@@ -250,36 +251,28 @@ export default function CrmPage() {
 
         {/* 右侧：统计 + 列表 */}
         <div className="min-w-0 flex-1">
-          {/* 顶部统计 */}
+          {/* 顶部统计：总数 + 健康分前 3 档（档位名/顺序/说明全部从配置派生。
+              原「S/A/B 分层」四张卡已合并到此 —— 手动分层并入健康分后不再有第二套维度） */}
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             <StatCard
               label="客户总数"
               icon="group"
               iconCls="bg-primary-fixed text-primary"
-              value={counts.total}
+              value={visibleCustomers.length}
               sub="全部活跃档案"
             />
-            <StatCard
-              label="S 层 · 核心战略"
-              icon="workspace_premium"
-              iconCls="bg-danger-container text-danger"
-              value={counts.s}
-              sub="最高优先跟进"
-            />
-            <StatCard
-              label="A 层 · 重点"
-              icon="star"
-              iconCls="bg-warning-container text-warning"
-              value={counts.a}
-              sub="重点客户池"
-            />
-            <StatCard
-              label="B 层 · 常规"
-              icon="person"
-              iconCls="bg-surface-container-high text-on-surface-variant"
-              value={counts.b}
-              sub="常规维护节奏"
-            />
+            {intimacyCfg.levels.slice(0, 3).map((lv, i) => (
+              <StatCard
+                key={lv.key}
+                label={`${lv.key} · ${lv.name}`}
+                icon={TOP_LEVEL_ICONS[i]?.icon ?? 'favorite'}
+                iconCls={
+                  TOP_LEVEL_ICONS[i]?.cls ?? 'bg-surface-container-high text-on-surface-variant'
+                }
+                value={counts[lv.key] ?? 0}
+                sub={lv.desc}
+              />
+            ))}
           </div>
 
           {/* 筛选工具栏：关键字 */}
@@ -334,6 +327,13 @@ export default function CrmPage() {
     </div>
   )
 }
+
+/** 顶部健康分统计卡的图标与配色（按档位序取，第 4 档起用兜底样式） */
+const TOP_LEVEL_ICONS = [
+  { icon: 'workspace_premium', cls: 'bg-danger-container text-danger' },
+  { icon: 'star', cls: 'bg-warning-container text-warning' },
+  { icon: 'person', cls: 'bg-surface-container-high text-on-surface-variant' },
+]
 
 function StatCard({
   label,
@@ -390,7 +390,6 @@ function CustomerRow({
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span className="truncate text-[1rem] font-semibold">{c.name}</span>
-          <Chip tone={tierChipTone(c.tier)}>{c.tier === '潜在' ? '潜在' : `${c.tier} 层`}</Chip>
         </div>
         <div className="mt-0.5 truncate text-[0.8571rem] text-on-surface-variant">
           {c.company || '—'}

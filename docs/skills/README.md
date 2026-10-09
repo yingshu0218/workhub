@@ -30,7 +30,7 @@
 | [`habit_checkin`](./habit_checkin.md) | habit | low | 习惯打卡 / 取消打卡 |
 | [`todo_updateTodo`](./todo_updateTodo.md) | todo | low | 编辑待办（正文/优先级/截止时间/关联） |
 | [`todo_deleteTodo`](./todo_deleteTodo.md) | todo | high | 删除待办（不可逆，顺带解绑流水关联） |
-| [`crm_updateCustomer`](./crm_updateCustomer.md) | crm | medium | 编辑客户档案（姓名/公司/职位/tier/健康分档位/联系方式） |
+| [`crm_updateCustomer`](./crm_updateCustomer.md) | crm | medium | 编辑客户档案（姓名/公司/职位/健康分档位/联系方式） |
 | [`project_createProject`](./project_createProject.md) | project | low | 新建项目 |
 | [`project_updateProject`](./project_updateProject.md) | project | medium | 编辑项目（改名/归档/搁置/挂靠客户/预算） |
 | [`note_createNote`](./note_createNote.md) | note | low | 新建笔记 |

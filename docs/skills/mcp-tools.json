@@ -224,16 +224,6 @@
             ],
             "default": "决策人"
           },
-          "tier": {
-            "type": "string",
-            "enum": [
-              "S",
-              "A",
-              "B",
-              "潜在"
-            ],
-            "default": "A"
-          },
           "tags": {
             "type": "array",
             "items": {
@@ -537,7 +527,7 @@
     },
     {
       "name": "crm_updateCustomer",
-      "description": "编辑客户档案（姓名/公司/职位/tier/健康分档位/联系方式）",
+      "description": "编辑客户档案（姓名/公司/职位/健康分档位/联系方式）",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -560,15 +550,6 @@
               "影响者",
               "使用者",
               "把关人"
-            ]
-          },
-          "tier": {
-            "type": "string",
-            "enum": [
-              "S",
-              "A",
-              "B",
-              "潜在"
             ]
           },
           "intimacyLevel": {

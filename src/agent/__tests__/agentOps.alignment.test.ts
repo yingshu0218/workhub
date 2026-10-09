@@ -98,7 +98,7 @@ describe('消解纪律：写工具拒绝未经 resolveEntity 的字符串关联'
 
 describe('§9.5 bug2 对齐：agentOps 记沟通日志统一 emit customer:contacted', () => {
   it('含项目跟进场景（projectId）也 emit（UI 侧由事件下沉步骤统一）', async () => {
-    await db.customers.put({ id: 'c1', name: '王五', company: '', title: '', decisionLevel: '决策人', tier: 'A', tags: [], phone: '', wechat: '', email: '', address: '', lastContactAt: 0, createdAt: 1, updatedAt: 0, deleted: 0, rev: 0 })
+    await db.customers.put({ id: 'c1', name: '王五', company: '', title: '', decisionLevel: '决策人', tags: [], phone: '', wechat: '', email: '', address: '', lastContactAt: 0, createdAt: 1, updatedAt: 0, deleted: 0, rev: 0 })
     const events: unknown[] = []
     const orig = eventBus.emit.bind(eventBus)
     eventBus.emit = (event, payload) => { if (event === 'customer:contacted') events.push(payload); orig(event, payload) }
@@ -117,7 +117,7 @@ describe('§9.5 bug2 对齐：agentOps 记沟通日志统一 emit customer:conta
  */
 describe('契约变更：crm_addInteraction 已无 type，但老调用不失败', () => {
   it('继续传 type 被忽略、落库成功，且记录里不出现 type 字段', async () => {
-    await db.customers.put({ id: 'c1', name: '王五', company: '', title: '', decisionLevel: '决策人', tier: 'A', tags: [], phone: '', wechat: '', email: '', address: '', lastContactAt: 0, createdAt: 1, updatedAt: 0, deleted: 0, rev: 0 })
+    await db.customers.put({ id: 'c1', name: '王五', company: '', title: '', decisionLevel: '决策人', tags: [], phone: '', wechat: '', email: '', address: '', lastContactAt: 0, createdAt: 1, updatedAt: 0, deleted: 0, rev: 0 })
     const r = await crm_addInteraction({ customerId: 'c1', content: '老调用方仍在传类型', type: '会议' })
     expect(r.ok).toBe(true)
     const itx = await db.interactions.get((r.data as { interactionId: string }).interactionId)
@@ -131,12 +131,13 @@ describe('契约变更：crm_addInteraction 已无 type，但老调用不失败'
 })
 
 describe('CRM / Todo 工具面', () => {
-  it('建客户默认口径与 UI 一致（tier=A / 决策人），openingLog 建首联日志', async () => {
+  it('建客户默认口径与 UI 一致（决策人），openingLog 建首联日志', async () => {
     const r = await crm_createCustomer({ name: '王五' })
     expect(r.ok).toBe(true)
     const c = await db.customers.get((r.data as { customerId: string }).customerId)
-    expect(c?.tier).toBe('A')
     expect(c?.decisionLevel).toBe('决策人')
+    // 手动分层 tier 已删除（并入健康分）：建客户不应再落任何分层字段
+    expect(c).not.toHaveProperty('tier')
   })
 
   it('relations 双向落两侧', async () => {

@@ -30,7 +30,7 @@ const ledger = {
 }
 const customer = {
   id: 'c1', name: '张三', company: '深蓝科技', title: '总监', decisionLevel: '决策人' as const,
-  tier: 'A' as const, tags: [], lastContactAt: 0, createdAt: 0, updatedAt: 0, deleted: 0 as const, rev: 0,
+  tags: [], lastContactAt: 0, createdAt: 0, updatedAt: 0, deleted: 0 as const, rev: 0,
 }
 const txn = (over: Record<string, unknown> = {}) => ({
   id: 't1', ledgerId: 'l1', type: 'expense' as const, amount: 1234, summary: '二期平台开发款',

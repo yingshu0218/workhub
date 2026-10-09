@@ -48,13 +48,22 @@ export interface CustomerRelation {
   category?: RelationCategory
 }
 
+/**
+ * 客户档案。
+ *
+ * 原手动 `tier`（S/A/B/潜在 四档分层）已删除，分层语义**合并进健康分 `intimacy`**：
+ * 两者本是重叠的两套分层，而健康分那套是自动算的（4 因子加权 + 手动可锁定），
+ * 保留手动那套只增加复杂度。
+ *
+ * 注：服务端 `customers` 集合**从来没有过 tier 列**（PB 对未声明字段静默丢弃），
+ * 所以线上该字段一直是空的、按它分组与统计恒为 0 —— 删除不涉及任何服务端变更。
+ */
 export interface Customer extends SyncMeta {
   id: string
   name: string
   company: string
   title: string
   decisionLevel: '决策人' | '影响者' | '使用者' | '把关人'
-  tier: 'S' | 'A' | 'B' | '潜在'
   tags: string[]
   phone: string
   wechat: string

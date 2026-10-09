@@ -46,7 +46,7 @@ async function seedCustomer(id: string, name: string) {
     company: '深蓝科技',
     title: '采购总监',
     decisionLevel: '决策人',
-    tier: 'S',
+    
     tags: [],
     lastContactAt: 0,
     createdAt: 0,
