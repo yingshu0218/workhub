@@ -69,11 +69,20 @@
         # 验收用: 把两侧 ref 清单打进日志, 便于核对
         #  - GitHub 侧 refs/heads 只应有 main (不应出现 auto/* 等临时分支)
         #  - refs/tags 应与 CNB 侧逐条一致
+        # 注意: 这里必须用 --heads/--tags 或带通配的 "refs/tags/*"。
+        # ls-remote 的模式是全名匹配、不是前缀匹配 —— 写 "refs/tags" 会静默返回空
+        # (踩过: 打印了个空清单, 流水线却是绿的, 正是本项目最忌讳的假阳性)
         echo
         echo "===== GitHub 侧 ref ====="
-        git ls-remote "$REMOTE" refs/heads refs/tags
+        git ls-remote --heads --tags "$REMOTE"
+        echo "heads 数 = $(git ls-remote --heads "$REMOTE" | wc -l) / tags 行数 = $(git ls-remote --tags "$REMOTE" | wc -l)"
+        EXTRA_HEADS="$(git ls-remote --heads "$REMOTE" | grep -v 'refs/heads/main$' || true)"
+        if [ -n "$EXTRA_HEADS" ]; then
+          echo "WARNING: GitHub 侧出现 main 之外的分支, 只读镜像本不该有:" >&2
+          echo "$EXTRA_HEADS" >&2
+        fi
         echo "===== CNB 侧 ref (对比用) ====="
-        git ls-remote origin refs/heads/main refs/tags
+        git ls-remote origin "refs/heads/main" "refs/tags/*"
 
 main:
   push:
