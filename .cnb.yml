@@ -47,7 +47,10 @@
         export GIT_TERMINAL_PROMPT=0
         export HOME="${HOME:-/root}"
         # 凭据落 credential store: token 只进文件、不进命令行, 日志里只会看到变量名
-        printf 'https://%s:%s@github.com\n' "$GIT_USERNAME" "$GIT_ACCESS_TOKEN" > "$HOME/.git-credentials"
+        # 必须先开 helper, 否则 ~/.git-credentials 不会被读（会退化成提示输密码, 而 GIT_TERMINAL_PROMPT=0 直接失败）
+        # 用 echo 而非 printf: 不经任何 \n 转义(CNB 配置链路会解码反斜杠转义, 曾把一行劈成两行)
+        git config --global credential.helper store
+        echo "https://$GIT_USERNAME:$GIT_ACCESS_TOKEN@github.com" > "$HOME/.git-credentials"
         chmod 600 "$HOME/.git-credentials" 2>/dev/null || true
 
         REMOTE="https://github.com/yingshu0218/workhub.git"
@@ -62,6 +65,15 @@
           exit 1
         fi
         echo "OK: GitHub main == CNB HEAD"
+
+        # 验收用: 把两侧 ref 清单打进日志, 便于核对
+        #  - GitHub 侧 refs/heads 只应有 main (不应出现 auto/* 等临时分支)
+        #  - refs/tags 应与 CNB 侧逐条一致
+        echo
+        echo "===== GitHub 侧 ref ====="
+        git ls-remote "$REMOTE" refs/heads refs/tags
+        echo "===== CNB 侧 ref (对比用) ====="
+        git ls-remote origin refs/heads/main refs/tags
 
 main:
   push:

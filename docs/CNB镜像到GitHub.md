@@ -16,6 +16,28 @@
 
 > ⚠️ 变量优先级是「仓库 CI 环境变量 > `env` > `imports`」。所以 `.cnb.yml` 里**绝不能**再定义同名的 `env`，否则会压过密钥仓库的值。
 
+### 密钥仓库文件照抄（`github-sync.yml`，放仓库根目录）
+
+```yaml
+GIT_USERNAME: yingshu0218
+GIT_ACCESS_TOKEN: <GitHub PAT>
+
+allow_slugs:
+  - blueteam0715/workhub
+```
+
+> ⚠️ **绝对不要在这里声明 `allow_images`** —— 踩过一次（构建 `cnb-p0g-1k4fe3p6p`）：
+> 一旦声明 `allow_images`，CNB 就认为该文件**只能被「插件任务」引用**，而本项目把 `imports` 放在 **pipeline 级**
+> （因为 `verify-github-mirror` 是脚本任务，也要用这两个变量），于是 `Prepare` 阶段直接失败：
+>
+> ```
+> Pipeline init error: The file: ... declares allow_images and can only be referenced by plugin tasks.
+> ```
+>
+> 官方两个示例也印证了这条：环境变量引用那节给的例子**只有 `allow_slugs`**（配 pipeline 级 `imports`）；
+> 带 `allow_images` 的例子配的是**插件任务自己的 `imports`**（npm 插件）。
+> 只留 `allow_slugs` 时，引用范围已经锁死到本仓库，安全性足够。
+
 ## 流水线结构
 
 ```
@@ -63,7 +85,9 @@ fi
 | 流水线绿但 GitHub 没更新 | 不可能 —— 校验 stage 会转红。若真出现，说明校验 stage 也被跳过了，先看构建日志里有没有走到第 3 个 stage |
 | `verify` 转红 | 构建日志里会打印 `CNB HEAD=` 与 `GitHub main=` 两个 SHA，对比即可判断是没推上去还是推错了 |
 | 认证失败 | 密钥仓库 `github-sync.yml` 里的 PAT 是否过期；PAT 权限是否够（私有仓库需 classic `repo` 或 fine-grained `Contents: RW`） |
-| `imports` 取不到变量 | 密钥仓库是否声明了 `allow_slugs: blueteam0715/workhub`；引用者是否对密钥仓库有读权限 |
+| `Prepare` 阶段失败，报 `GetFileContent: not found` | 密钥仓库里**文件不存在或路径不对**。核对：文件名一字不差 `github-sync.yml`、放在**仓库根目录**（不是子目录）、在 `main` 分支上。也可直接在浏览器打开那个 imports URL 看 |
+| `Prepare` 阶段失败，报 `declares allow_images and can only be referenced by plugin tasks` | 密钥仓库文件里**删掉 `allow_images`** 整段（见上文「密钥仓库文件照抄」） |
+| `imports` 取不到变量（变量为空/字面量） | 密钥仓库是否声明了 `allow_slugs: blueteam0715/workhub`；引用者是否对密钥仓库有读权限 |
 | 定时同步不再执行 | CNB 仓库页「定时任务」看负责人：定时任务以**最后修改并推送该 crontab 配置的用户**身份执行，该用户被移出仓库任务即失败 |
 
 ## 怎么临时停掉
