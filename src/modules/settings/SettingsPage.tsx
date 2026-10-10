@@ -42,6 +42,7 @@ import { pbPing, isSyncConfigured, enqueueAllForPush } from '@/sync/pocketbaseAd
 import { syncEngine } from '@/sync/engine'
 import { migrateLegacyTodoPriority } from '@/modules/todo/domain'
 import { useSyncStore } from '@/sync/store'
+import { deriveSyncBadge, SYNC_TONE_TEXT_CLASS } from '@/sync/badge'
 import { useNoteFolders } from '@/modules/notes/hooks'
 import { moduleConfigRepo } from '@/repositories'
 import { DEFAULT_IDENTITY, resetIdentity, setIdentity, useIdentity } from '@/modules/identity'
@@ -278,6 +279,19 @@ export default function SettingsPage() {
   const [pingMsg, setPingMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [pushingAll, setPushingAll] = useState(false)
   const syncStatus = useSyncStore()
+  // 同步状态的图标 / 文案 / 色调与顶栏徽章**共用同一份派生**（src/sync/badge.ts），
+  // 避免两处各写一套 status 判断而互相打脸（例：徽章说连不上、这里说已同步）。
+  // 注意读的是**已保存的实际状态**，不是输入框里的草稿 —— 改完要点「保存」才会变。
+  const syncView = deriveSyncBadge({
+    status: syncStatus.status,
+    pendingCount: syncStatus.pendingCount,
+    target: syncStatus.target,
+    reachability: syncStatus.reachability,
+    lastSyncAt: syncStatus.lastSyncAt,
+    lastError: syncStatus.lastError,
+    serverUrl: syncStatus.serverUrl,
+    now: Date.now(),
+  })
   const toast = useToast()
   // 应用风格确认弹窗（替代 window.confirm）：pendingConfirm 持有待执行动作
   const [pendingConfirm, setPendingConfirm] = useState<{
@@ -556,6 +570,9 @@ export default function SettingsPage() {
     try {
       const saved = await settingsRepo.save({ sync: { ...syncForm, serverUrl: url } })
       setSyncForm(saved.sync)
+      // 地址/凭据刚变，立刻重探一次连通性 —— 否则顶栏徽章要等满一个 30s 心跳才更新，
+      // 用户会以为「保存了但没生效」。
+      void syncEngine.refreshConnectivity()
       setPinging(true)
       const result = await pbPing()
       setPingMsg({ ok: result.ok, text: result.message })
@@ -1225,36 +1242,11 @@ export default function SettingsPage() {
             <div className="mb-4 flex items-center justify-between surface-card-low rounded-xl/60 px-4 py-3">
               <div className="flex items-center gap-3">
                 <Icon
-                  name={
-                    isSyncConfigured(syncForm)
-                      ? syncStatus.status === 'synced'
-                        ? 'cloud_done'
-                        : syncStatus.status === 'syncing'
-                          ? 'cloud_sync'
-                          : 'cloud_off'
-                      : 'cloud_off'
-                  }
-                  fill
-                  className={`text-[1.4286rem] ${
-                    isSyncConfigured(syncForm)
-                      ? syncStatus.status === 'synced'
-                        ? 'text-success'
-                        : syncStatus.status === 'syncing'
-                          ? 'text-primary'
-                          : 'text-warning'
-                      : 'text-outline'
-                  }`}
+                  name={syncView.icon}
+                  className={`text-[1.4286rem] ${SYNC_TONE_TEXT_CLASS[syncView.tone]}`}
                 />
                 <div>
-                  <div className="text-[0.9286rem] font-semibold">
-                    {isSyncConfigured(syncForm)
-                      ? syncStatus.status === 'synced'
-                        ? '已连接 · 已同步'
-                        : syncStatus.status === 'syncing'
-                          ? '同步中…'
-                          : `离线待同步（${syncStatus.pendingCount} 条待传）`
-                      : '本地模式（数据仅存本机）'}
-                  </div>
+                  <div className="text-[0.9286rem] font-semibold">{syncView.summary}</div>
                   <div className="mt-0.5 text-[0.8214rem] text-on-surface-variant">
                     {syncStatus.lastSyncAt
                       ? `上次同步：${new Date(syncStatus.lastSyncAt).toLocaleString('zh-CN')}`
@@ -1264,14 +1256,12 @@ export default function SettingsPage() {
               </div>
               <span
                 className={`rounded px-2.5 py-1 text-[0.8214rem] font-semibold ${
-                  isSyncConfigured(syncForm)
-                    ? syncStatus.status === 'synced'
-                      ? 'bg-success-container/60 text-success'
-                      : 'bg-primary-fixed text-primary'
-                    : 'bg-surface-container text-outline'
+                  syncStatus.target === 'none'
+                    ? 'bg-surface-container text-outline'
+                    : 'bg-primary-fixed text-primary'
                 }`}
               >
-                {isSyncConfigured(syncForm) ? '● 已配置' : '○ 本地模式'}
+                {syncStatus.target === 'none' ? '○ 未配置' : '● 已配置'}
               </span>
             </div>
 

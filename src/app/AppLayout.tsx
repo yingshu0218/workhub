@@ -3,6 +3,7 @@ import { Icon } from '@/design-system/Icon'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { Avatar, Chip } from '@/design-system/ui'
 import { useSyncStore } from '@/sync/store'
+import { deriveSyncBadge } from '@/sync/badge'
 import { registerShortcut } from '@/shared/shortcuts'
 import CommandPalette from './CommandPalette'
 import TrophyUnlockToast from './TrophyUnlockToast'
@@ -74,24 +75,33 @@ const WORKSPACES = [
   { id: 'ws-personal', role: 'Personal', sub: '个人空间 · Personal' },
 ]
 
+/**
+ * 顶栏同步徽章。
+ *
+ * 只负责渲染 —— 状态判定统一收口在 `src/sync/badge.ts`（顶栏与设置页共用同一份派生，
+ * 否则出现「徽章说连不上、设置说已同步」这类互相打脸）。
+ *
+ * 悬浮提示里摊开徽章塞不下的事实：同步中心地址、待推送条数、上次同步、最近错误。
+ */
 function SyncBadge() {
-  const { status, pendingCount } = useSyncStore()
-  if (status === 'syncing')
-    return (
-      <Chip tone="blue" icon="sync">
-        同步中
-      </Chip>
-    )
-  if (status === 'offline' || pendingCount > 0)
-    return (
-      <Chip tone="amber" icon="cloud_off">
-        离线待同步{pendingCount > 0 ? ` · ${pendingCount}` : ''}
-      </Chip>
-    )
+  const { status, pendingCount, target, reachability, lastSyncAt, lastError, serverUrl } =
+    useSyncStore()
+  const view = deriveSyncBadge({
+    status,
+    pendingCount,
+    target,
+    reachability,
+    lastSyncAt,
+    lastError,
+    serverUrl,
+    now: Date.now(),
+  })
   return (
-    <Chip tone="green" icon="cloud_done">
-      已同步
-    </Chip>
+    <span title={view.title} className="cursor-default">
+      <Chip tone={view.tone} icon={view.icon}>
+        {view.label}
+      </Chip>
+    </span>
   )
 }
 

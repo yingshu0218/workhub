@@ -16,7 +16,10 @@
     "relay:stdio": "node relay/index.mjs --stdio",
     "gen:skills": "node scripts/gen-skills.mjs",
     "agent:setup": "node scripts/agent-setup.mjs",
-    "serve": "node scripts/serve.mjs"
+    "serve": "node scripts/serve.mjs",
+    "app:dev": "tauri dev",
+    "app:build": "tauri build",
+    "app:android": "tauri android build"
   },
   "dependencies": {
     "@codemirror/commands": "^6.11.0",
@@ -25,6 +28,7 @@
     "@codemirror/state": "^6.7.4",
     "@codemirror/view": "^6.43.11",
     "@material-symbols/svg-400": "^0.47.1",
+    "@tauri-apps/api": "^2.12.2",
     "d3-force": "^3.0.0",
     "dayjs": "^1.11.13",
     "dexie": "^4.0.8",
@@ -41,6 +45,7 @@
   "devDependencies": {
     "@material-symbols/svg-400": "^0.47.1",
     "@tailwindcss/vite": "^4.0.0",
+    "@tauri-apps/cli": "^2.12.1",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.3",
     "@testing-library/user-event": "^14.6.7",

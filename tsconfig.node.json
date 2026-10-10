@@ -12,5 +12,5 @@
     "strict": true,
     "types": ["node"]
   },
-  "include": ["vite.config.ts", "scripts/vite-relay-plugin.d.mts"]
+  "include": ["vite.config.ts", "scripts/vite-relay-plugin.d.mts", "scripts/vite-tauri-plugin.d.mts"]
 }

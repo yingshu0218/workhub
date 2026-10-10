@@ -4,13 +4,18 @@ import tailwindcss from '@tailwindcss/vite'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { relayPlugin } from './scripts/vite-relay-plugin.mjs'
+import { tauriCspPlugin } from './scripts/vite-tauri-plugin.mjs'
 
 const dirname = path.dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig({
   // Relay 内嵌进 dev/preview server（Issue #33）：同源 `/relay`，一条命令跑通，无需第二个进程/端口。
   // 同源 → 现有 CSP `connect-src 'self'` 本身即覆盖 ws/wss 同源，**不再需要注入额外 ws 源**。
-  plugins: [react(), tailwindcss(), relayPlugin()],
+  //
+  // tauriCspPlugin：仅在 Tauri 原生壳构建时生效（靠 TAURI_ENV_PLATFORM 判定），
+  // 给页面 CSP 的 connect-src 追加 `ipc:` / `http://ipc.localhost`。
+  // 不加会「页面正常但所有原生 invoke 被 CSP 静默拦掉」，原因见该插件头部注释。
+  plugins: [react(), tailwindcss(), relayPlugin(), tauriCspPlugin()],
   resolve: {
     alias: { '@': path.resolve(dirname, 'src') },
   },

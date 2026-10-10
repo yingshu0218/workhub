@@ -111,6 +111,17 @@ export function isSyncConfigured(cfg?: SyncSettingsView): boolean {
   return !!cfg?.serverUrl && !!cfg.username && !!cfg.password
 }
 
+/**
+ * 当前配置的同步中心地址（未配置为空串）。
+ *
+ * 供顶栏连通性徽章使用。刻意返回**地址**而不是 `isSyncConfigured()` 的布尔：
+ * 只填了地址、还没填账号密码时，徽章应当显示「无法连接」（地址是死的），
+ * 而不是「仅本机」（那会让用户以为同步中心压根没配）。
+ */
+export async function getSyncServerUrl(): Promise<string> {
+  return (await readSyncSettings()).serverUrl
+}
+
 // ─────────────────────────── HTTP 基座 ───────────────────────────
 
 function baseUrl(cfg: SyncSettingsView): string {
