@@ -211,16 +211,16 @@ apps/web/  apps/desktop/  apps/mobile/
 | 包元信息 | ✅ `CFBundleIdentifier = fun.fpigeon.nexus`、版本 0.1.0 |
 | 打包产物的 CSP | ✅ `dist/index.html` 含 `ipc: http://ipc.localhost` |
 | 应用启动 | ✅ 进程存活、LaunchServices 已注册、WebKit 为该应用建好独立 origin 数据目录 |
-| **页面是否正常渲染** | ⚠️ **未能独立确认**（读不到 GUI 画面）→ 需人工看一眼窗口 |
+| **页面是否正常渲染** | ⚠️ **未能独立确认**（读不到 GUI 画面）→ **仍待人工看一眼窗口**（2026-10-12 重打后未验，清单见 §11） |
 | **原生端 IndexedDB 是否可用** | ✅ **已确认可用**：`IndexedDB.sqlite3` 落盘 94 KB，内含 4 个数据库 / **22 个对象库** / 87 条索引记录 → 阶段 2 保持「优化」定位，**不阻塞** |
-| **一次真实同步** | ⏸ 未做 —— 需要测试站凭据（`demo@nexus.local` 密码） |
+| **一次真实同步** | ⏸ 未做 —— 待人工在客户端内填 **`https://team.fpigeon.fun`**（正式站）+ 账号密码后测（清单见 §11） |
 
 ### 遗留问题
 
 1. **Agent 桥（relay）在桌面端不可用**：`relay` 由 Vite dev server / `scripts/serve.mjs` 提供，而 Tauri 生产包从 `tauri://localhost` 提供静态资源，**没有 HTTP 服务** → `/relay` 不存在。桥默认关闭（`settings.ai` 缺省关），所以不会报错，但桌面端若要保留桥，就得单独给它起一个本地 HTTP/WS 端点。**待拍板**。
-2. **`.dmg` 未打**：dmg 打包会用 AppleScript 调 GUI 排版，无图形会话时容易挂住；需要时单独跑 `npm run app:build -- --bundles dmg`。
-3. **Android 未构建**：需要 JDK 17 + Android SDK/NDK（尚未安装）。
-4. **未提交**：按 AGENTS.md §7，提交时须同时更新 `docs/PROGRESS.md` 与 README 的 Changelog 表。
+2. ~~**`.dmg` 未打**~~ → **已打（2026-10-12）**：`npm run app:build -- --bundles dmg` 在图形会话下**一次成功**（3.76 MiB，`hdiutil verify` 通过）。注意**打 dmg 会把 `bundle/macos/` 下的 `.app` 清掉**，之后需补跑一次 `--bundles app`。详见 §11。
+3. **Android 未构建**：需要 JDK 17 + Android SDK/NDK（尚未安装）。属**本轮范围外**（只交付 macOS）。
+4. ~~**未提交**~~ → **已于 2026-10-10 提交并推送**（`20dac51`）。该 commit 同时含「Tauri 加壳」与「同步中心连通性探测」两条独立工作线 —— 违反 AGENTS.md §7「一次提交只做一件事」，系**并发会话合并工作区所致**；已推送，故不改写历史。
 5. `productName` 用 ASCII `Nexus Workspace`（窗口标题与 PWA 名仍是中文）；若要让访达/程序坞显示中文名，需后续做本地化。
 
 ### 施工踩坑
@@ -280,6 +280,60 @@ Android / iOS 的窗口生命周期由系统管（返回键、后台回收、电
 
 - ✅ 构建通过（20 秒、零 error 零 warning）、应用能启动
 - ⏸ **交互行为待人工验证**：点关闭按钮是否真的收进托盘，需要手动点一次。键盘无法代点，且不该为验证擅自触发 AppleScript 的辅助功能授权弹窗。
+
+---
+
+## 11. macOS 收尾记录（2026-10-12）
+
+### 产物
+
+| 项 | 结果 |
+|---|---|
+| `Nexus Workspace.app` | ✅ **9.42 MiB** / Mach-O thin (arm64) / `Signature=adhoc` / `TeamIdentifier=not set` / `CFBundleIdentifier = fun.fpigeon.nexus` / 版本 0.1.0 |
+| `Nexus Workspace_0.1.0_aarch64.dmg` | ✅ **3.76 MiB**；`hdiutil verify` → **checksum VALID**；挂载后含 `Nexus Workspace.app` + `Applications` 软链（标准拖拽安装布局） |
+| 产物新鲜度证据 | ✅ 包内嵌资源名 `assets/index-DzzIBqeR.js` 与当前 `dist/assets/` **逐字一致** |
+
+⚠️ **不要在 `.app` 二进制里 `strings \| grep` 校验 CSP**：实测对 `connect-src` / `default-src` 命中 **0**（Tauri 把资源压缩内嵌），只能查到资源名。**CSP 一律以 `dist/index.html` 为准。**
+
+### 命令与三条不可省的判据
+
+```bash
+source "$HOME/.cargo/env"                 # ~/.cargo/bin 不在非交互 shell 的 PATH
+npm run build                             # 硬判据：必须看到 ✓ built in <N>s
+npm run app:build -- --bundles app        # beforeBuildCommand 会再跑一次 build（注入 TAURI_ENV_PLATFORM）
+grep -o "connect-src 'self' blob: https: http: ipc: http://ipc.localhost" dist/index.html
+npm run app:build -- --bundles dmg
+npm run app:build -- --bundles app        # ← 补回被 dmg 清理掉的 .app
+```
+
+1. **`npm run build` 失败会静默留下上一版 `dist/`**（`check-icons` / `tsc -b` 挂掉时 `vite build` 根本不跑）→ **必须看到 `✓ built in` 才继续**。
+2. **`--bundles` 必须显式传**：`bundle.targets: "all"` 在 macOS 上含 `dmg`，裸跑会顺带打 dmg。
+3. **打 dmg 会清掉 `.app`**：日志里 `Running bundle_dmg.sh` 之后是 `Cleaning …/bundle/macos/Nexus Workspace.app`（实测 `bundle/macos/` 变空）→ 需要 `.app` 就得再补一次 `--bundles app`。
+
+### dmg 卡死判别与兜底（本次未触发）
+
+`bundle_dmg.sh` 用 AppleScript 驱动 Finder 排版，无图形会话时可能阻塞。**判别挂住**：`ps -axo pid,ppid,etime,%cpu,command | grep -Ei 'tauri|osascript|hdiutil'` —— 出现 `osascript` 且 **%CPU≈0、etime>90s、日志不再新增任何行** = 挂住。
+**兜底**：① `CI=true npm run app:build -- --bundles dmg`（跳过 GUI 排版）；② `hdiutil create -volname "Nexus Workspace" -srcfolder "<app>" -ov -format UDZO <out>.dmg`（无 GUI 依赖，代价是没有拖拽箭头/背景图）。本次在图形会话下**一次成功**，走的是 Tauri 内置 create-dmg（`bundle/share/create-dmg`）。
+
+### 分发出货口径
+
+本客户端走 **ad-hoc 签名**（自用路径）：本机双击即开；拷到别的 Mac 后因带 quarantine，需**右键→打开**，或 `xattr -dr com.apple.quarantine "…/Nexus Workspace.app"`。
+要给别人无感安装才需要完全签名 + 公证（`notarize` + `stapler`）+ hardened runtime，**当前不做** —— 项目自述「开发阶段、不可用于生产」，2 人团队自用不为此引入年费与流水线。`tauri.conf.json` 因此**未加任何 `bundle.macOS` 签名块**。
+
+### 人工验收（**尚待执行**，键盘代替不了点击）
+
+在**重打后的包**上逐项确认：
+
+- [ ] 双击能起窗口、标题 `寻鸽工作台 · Nexus Workspace`、默认 1440×900；**工作台正常渲染**（不是白屏、不卡在"加载中"）
+- [ ] 托盘**左键**唤起/聚焦窗口；**右键**菜单含「显示主窗口」「退出寻鸽工作台」
+- [ ] 点关闭按钮 → 窗口收起、**应用不退出**（Dock 与托盘图标仍在）；点 **Dock 图标** → 窗口唤回；菜单退出 → 进程真退出
+- [ ] 原生端**未注册 Service Worker**：`find ~/Library/WebKit ~/Library/Containers ~/Library/Application\ Support -iname '*ServiceWorker*' -path '*fpigeon*'` 期望**无输出**
+- [ ] 原生端 IndexedDB 可用（`fun.fpigeon.nexus` 数据目录下有 `IndexedDB.sqlite3` 且含对象库）
+- [ ] **一次真实同步**：设置 → 同步中心填 **`https://team.fpigeon.fun`**（**正式站，不是测试站** `http://8.153.19.221:9001`；且**地址每台设备本地各填一次、无编译期默认值**）→ 用正式站账号登录 → 新建/改一条记录 → 在 Web 端确认已落地
+
+### 本机环境插曲（**非项目缺陷**）
+
+一次 `npm run build` 以 `error during build: [safe-delete][SAFE_DELETE_BULK_GUARD_ERROR] state lock timeout` 失败，栈指向运行时注入的 `node-safe-delete-shim.cjs`（把 `fs.rmSync` 改成移入回收站）在 vite `emptyOutDir` 清理 `dist/` 时取锁超时。**同一命令在同一会话内已成功 4 次**（含两次作为 `app:build` 的 `beforeBuildCommand`）→ 属**环境侧**问题；遇到时重开一次运行上下文即可，**不要误判成项目回归**。
 
 
 
