@@ -13,6 +13,7 @@ import {
 import { useIntimacyConfig } from '../intimacy'
 import { IDENTITY_VIEW, usePanZoom } from '../usePanZoom'
 import { useForceGraph } from './useForceGraph'
+import { computeFitView } from './fitView'
 import { GRAPH_COLORS, type GraphNode } from './types'
 import CustomerInfoCard from './CustomerInfoCard'
 import type { CanvasGraph } from '../hooks'
@@ -129,6 +130,9 @@ export default function GraphCanvas({
 
   function onNodePointerDown(e: React.PointerEvent, node: GraphNode) {
     e.stopPropagation()
+    // 「我」是画布中心基准锚点：不可拖拽。此前它和客户一样可拖，pointerup 会把 fx/fy 置 null，
+    // 中心锁定被解除、视图锚定失去基准（2026-10-12 修复）。自节点只作基准，不参与交互。
+    if (node.kind === 'self') return
     e.preventDefault()
     dragIdRef.current = node.id
     pointerStartRef.current = { x: e.clientX, y: e.clientY }
@@ -175,36 +179,17 @@ export default function GraphCanvas({
   // 触摸拖拽被系统手势/来电等中断时：pointerup 不会派发，必须用 pointercancel 兜底清理 fx/fy
   const onPointerCancel = onPointerUp
 
-  // 「适应画布」：重置缩放平移，使全部节点落在视口内并居中（fitView 收进公共组件）
+  // 「适应画布」：重置缩放平移，使全部节点落在视口内并居中。
+  // 数学已抽到 graph/fitView.ts（纯函数 + 单测），这里只做兜底：
+  // 无坐标节点/尺寸为 0 时回到单位视图，避免停在上一帧的错位视图上。
   function fitView() {
-    const visible = nodes.filter((n) => n.x != null && n.y != null)
-    if (visible.length === 0 || size.w === 0 || size.h === 0) {
-      panZoom.setView(IDENTITY_VIEW)
-      return
-    }
-    const pad = 48
-    let minX = Infinity
-    let minY = Infinity
-    let maxX = -Infinity
-    let maxY = -Infinity
-    for (const n of visible) {
-      minX = Math.min(minX, n.x! - n.radius)
-      minY = Math.min(minY, n.y! - n.radius)
-      maxX = Math.max(maxX, n.x! + n.radius)
-      maxY = Math.max(maxY, n.y! + n.radius)
-    }
-    const bw = Math.max(maxX - minX, 1)
-    const bh = Math.max(maxY - minY, 1)
-    const scale = Math.min((size.w - pad * 2) / bw, (size.h - pad * 2) / bh)
-    panZoom.setView({
-      scale: Math.min(2, Math.max(0.5, scale)),
-      tx: size.w / 2 - ((minX + maxX) / 2) * scale,
-      ty: size.h / 2 - ((minY + maxY) / 2) * scale,
-    })
+    panZoom.setView(computeFitView(nodes, size) ?? IDENTITY_VIEW)
   }
 
   function reheat() {
     nodes.forEach((n) => {
+      // 「我」是布局基准：重新布局只释放客户，不能解除中心锁定，否则视图锚定的基准随之失效
+      if (n.kind === 'self') return
       n.fx = null
       n.fy = null
     })
@@ -383,28 +368,6 @@ export default function GraphCanvas({
                         y2={t.y}
                         stroke={s.kind === 'customer' ? '#c3c6d7' : '#e2e8f0'}
                         strokeWidth={s.kind === 'customer' ? 1.4 : 1}
-                      />
-                    )
-                  })}
-              </g>
-              {/* 「我」辐条（Issue #123）：细实线 → 每个客户，形成以我为中心的星型；弱于客户↔客户关系边 */}
-              <g>
-                {links
-                  .filter((l) => l.kind === 'self')
-                  .map((l, i) => {
-                    const s = l.source as GraphNode
-                    const t = l.target as GraphNode
-                    if (s?.x == null || t?.x == null || s?.y == null || t?.y == null) return null
-                    return (
-                      <line
-                        key={`s${i}`}
-                        x1={s.x}
-                        y1={s.y}
-                        x2={t.x}
-                        y2={t.y}
-                        stroke={GRAPH_COLORS.selfLink.stroke}
-                        strokeWidth={1.2}
-                        opacity={0.5}
                       />
                     )
                   })}

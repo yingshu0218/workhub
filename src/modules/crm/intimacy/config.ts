@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { db } from '@/db/db'
 import { useQuery } from '@/queries/hooks'
 import { newId } from '@/repositories'
@@ -68,14 +69,26 @@ export async function getIntimacyConfig(): Promise<ModuleConfigIntimacy> {
   return mergeIntimacyPayload(rec?.payload)
 }
 
-/** 响应式订阅配置（设置页/选择器/图谱图例实时刷新） */
+/**
+ * 响应式订阅配置（设置页/选择器/图谱图例实时刷新）
+ *
+ * ⚠️ 必须 useMemo 缓存返回值（2026-10-12 修复）：`mergeIntimacyPayload` 每次都构造**全新对象**
+ * （含嵌套 levels/blacklist/algorithm），而它此前是「存过配置记录就每次渲染返回新引用」。
+ * 消费方把它放进 `useEffect` / `useMemo` 依赖时会被打成**每帧重算**——最典型的受害者是
+ * 客户关系画布：`useForceGraph` 依赖 intimacyCfg → 每次 tick 的 setState 引发重渲染 →
+ * 新 cfg 引用 → 仿真被整体重建 → 布局永远收敛不了、`sim.on('end')` 不触发、以我为心的锚定失效。
+ * 表现为「没配过健康分时正常、一旦在设置里存过配置画布就抽风」。这里按 `rec` 引用缓存，
+ * 只有记录本身变化（真正改了配置）才产出新对象。
+ */
 export function useIntimacyConfig(): ModuleConfigIntimacy {
   const rec = useQuery<ModuleConfig | undefined>(
     async () => (await db.moduleConfigs.get(INTIMACY_CONFIG_ID)) as ModuleConfig | undefined,
     [],
   )
-  if (!rec || rec.deleted) return DEFAULT_INTIMACY_CONFIG
-  return mergeIntimacyPayload(rec.payload)
+  return useMemo(
+    () => (!rec || rec.deleted ? DEFAULT_INTIMACY_CONFIG : mergeIntimacyPayload(rec.payload)),
+    [rec],
+  )
 }
 
 /** 保存配置 patch：单事务读并写 + 同步入队，写后广播 moduleConfig:changed */

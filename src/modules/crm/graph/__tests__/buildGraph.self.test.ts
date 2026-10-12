@@ -3,9 +3,10 @@ import { buildGraph, SELF_NODE_ID } from '../buildGraph'
 import type { CanvasGraph } from '../../hooks'
 
 /**
- * 「我」自节点契约（Issue #123）：
+ * 「我」自节点契约（Issue #123，2026-10-12 修订）：
  * - customer-only 模式下画布中心必须且仅有一个 kind='self' 节点，坐标锁定画布中心（fx/fy）
- * - 每个可见客户都有一条 kind='self' 辐条连到「我」，形成以我为中心的星型
+ * - 「我」**不与任何节点连线**（用户裁决）：以我为中心是布局/视图概念，不由连线表达；
+ *   因此自节点是孤立节点 —— 这是预期形态，不是缺陷
  * - 「我」的文案取当前用户身份名（默认阿蓝），不再是「挑一个客户打补丁冒充我」
  */
 const makeGraph = (): CanvasGraph => ({
@@ -52,25 +53,21 @@ describe('buildGraph customer-only「我」自节点', () => {
     expect(selves[0].fy).toBe(center.y)
   })
 
-  it('每个客户都有一条从「我」连出的辐条', () => {
+  it('「我」不与任何节点连线（中心基准 = 孤立节点）', () => {
     const { nodes, links } = buildGraph(makeGraph(), {
       mode: 'customer-only',
       center,
       selfName: '阿蓝',
     })
-    const customerIds = nodes.filter((n) => n.kind === 'customer').map((n) => n.id)
-    const selfLinks = links.filter((l) => l.kind === 'self')
-    expect(customerIds).toHaveLength(3)
-    expect(selfLinks).toHaveLength(3)
-    for (const cid of customerIds) {
-      expect(
-        selfLinks.some(
-          (l) =>
-            l.source === SELF_NODE_ID &&
-            String(typeof l.target === 'string' ? l.target : l.target.id) === cid,
-        ),
-      ).toBe(true)
-    }
+    const endId = (v: string | { id: string }) => (typeof v === 'string' ? v : v.id)
+    const touching = links.filter(
+      (l) => endId(l.source) === SELF_NODE_ID || endId(l.target) === SELF_NODE_ID,
+    )
+    expect(touching).toHaveLength(0)
+    // 且不存在任何 kind='self' 的边（该边类型已从契约中移除）
+    expect(links.some((l) => (l.kind as string) === 'self')).toBe(false)
+    // 客户节点自身仍全部作为节点存在，只是不与「我」相连
+    expect(nodes.filter((n) => n.kind === 'customer')).toHaveLength(3)
   })
 
   it('未传 selfName 时回落「我」，不产生空文案节点', () => {

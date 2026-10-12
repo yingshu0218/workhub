@@ -3,8 +3,9 @@ import { buildGraph, SELF_NODE_ID } from '../buildGraph'
 import type { CanvasGraph } from '../../hooks'
 
 /**
- * 演示可见性契约（Issue #123）：种子里的 3 位客户之间必须有连线，
- * 演示时画布不出现孤立点：每个客户既连到「我」，客户之间也有语义关系边。
+ * 演示可见性契约（Issue #123，2026-10-12 修订）：种子里的 3 位客户之间必须有连线，
+ * 演示时**客户之间**不出现孤立点（客户两两有语义关系边）。
+ * 「我」是中心基准但不与任何节点连线，「我与客户相连」这条旧契约已废止。
  */
 const seedLike = (): CanvasGraph => ({
   customers: [
@@ -76,12 +77,17 @@ describe('演示可见性：人人有连线', () => {
     expect(l13?.categories).toEqual(['person'])
   })
 
-  it('「我」连到全部 3 位客户', () => {
+  it('「我」不与任何客户连线，且客户之间仍人人有边（无孤立点）', () => {
     const { links } = buildGraph(seedLike(), { mode: 'customer-only', center: { x: 0, y: 0 } })
-    const selfTargets = links
-      .filter((l) => l.kind === 'self' && l.source === SELF_NODE_ID)
-      .map((l) => String(l.target))
-      .sort()
-    expect(selfTargets).toEqual(['c1', 'c2', 'c3'])
+    const endId = (v: string | { id: string }) => (typeof v === 'string' ? v : v.id)
+    // 中心节点（我）是孤立基准：没有任何边端点落在它身上（2026-10-12 用户裁决）
+    expect(
+      links.filter((l) => endId(l.source) === SELF_NODE_ID || endId(l.target) === SELF_NODE_ID),
+    ).toHaveLength(0)
+    // 但客户之间仍两两相连 —— 演示不出现孤立点这条契约不变
+    const pairs = links
+      .filter((l) => l.kind === 'relation')
+      .map((l) => [endId(l.source), endId(l.target)].sort().join('~'))
+    expect(new Set(pairs).size).toBe(3)
   })
 })

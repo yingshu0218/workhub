@@ -5,6 +5,8 @@ import {
   forceLink,
   forceManyBody,
   forceSimulation,
+  forceX,
+  forceY,
   type Simulation,
 } from 'd3-force'
 import type { RelationCategory, ModuleConfigIntimacy } from '@/db/types'
@@ -16,7 +18,15 @@ import type { GraphLink, GraphNode } from './types'
  * d3-force 仿真 hook（GraphCanvas 专用，从 CrmCanvasPage 抽出）
  * 性能纪律（Issue #22 评审）：tick 回调节流到 requestAnimationFrame，
  * 且只在布局未稳定时 setState；仿真 alpha 低后停止重渲染。
+ *
+ * ⚠️ 依赖数组里的每个引用都必须是**稳定引用**（2026-10-12 修复）：
+ * 本 effect 一旦重跑就会 `forceSimulation` 整体重建、节点回到初始坐标，布局永远收敛不了。
+ * 由此曾出过真实缺陷——`useIntimacyConfig()` 每帧返回新对象，把整张画布打成「一直抖、不收敛、
+ * onGraphReady 不触发、以我为心的视图锚定失效」。传参前先确认来源被 useMemo 包裹。
  */
+
+/** customer-only 模式：客户云向「我」（画布中心）收拢的向心强度 */
+const SELF_CENTER_STRENGTH = 0.08
 
 export interface ForceGraphOptions {
   graph: CanvasGraph
@@ -75,6 +85,7 @@ export function useForceGraph({
       setNodes([...ns])
       setLinks([...ls])
     }
+    const isCustomerOnly = mode === 'customer-only'
     const sim = forceSimulation<GraphNode>(ns)
       .force(
         'link',
@@ -82,8 +93,6 @@ export function useForceGraph({
           .id((d) => d.id)
           // 客户↔客户关系边给更小 distance：让有关联的客户在布局上聚拢，关系结构可读
           .distance((l) => {
-            // 「我」辐条（Issue #123）：给中等距离，客户沿外围成环，星型层次一眼可读
-            if (l.kind === 'self') return 150
             if (l.kind === 'relation') return 60
             // 二跳桥接弱边：距离放宽，让主线结构优先、桥接不抢布局
             if (l.kind === 'bridge') return 110
@@ -100,7 +109,6 @@ export function useForceGraph({
           }),
       )
       .force('charge', forceManyBody().strength(-320))
-      .force('center', forceCenter(size.w / 2, size.h / 2))
       .force(
         'collide',
         forceCollide<GraphNode>().radius((d) => d.radius + 14),
@@ -109,6 +117,20 @@ export function useForceGraph({
       // alphaMin 提到 0.06：仿真自然收敛更快（默认 0.001 要 ~300 tick，约 5s 才稳定，
       // 首屏期间节点长漂移导致 fit 追不上「丢失焦点」；0.06 时 ~90 tick 内收敛，仍足以摊开重叠）
       .alphaMin(0.06)
+
+    if (isCustomerOnly) {
+      // 「以我为中心」但不画连线（2026-10-12 用户裁决）：改用**逐点向心力**替代 forceCenter。
+      // 为什么不能继续用 forceCenter：它只把「全节点均值」搬到画布中心，而「我」被 fx/fy 钉死在
+      // 中心并每 tick 复位，于是平衡解被约束成「客户均值 ≠ 中心」不行 → 客户均值必须正好落在中心；
+      // 只有 1 个客户时该解要求客户坐标 == 中心（与「我」完全重合，中心节点被吃掉）。
+      // forceX/forceY 对每个节点独立施加向心弹性，与 charge 斥力平衡出稳定的外围环带：
+      // 既不与「我」重叠，也不会在无连线可拽时飞散出视口。
+      sim
+        .force('selfX', forceX<GraphNode>(size.w / 2).strength(SELF_CENTER_STRENGTH))
+        .force('selfY', forceY<GraphNode>(size.h / 2).strength(SELF_CENTER_STRENGTH))
+    } else {
+      sim.force('center', forceCenter(size.w / 2, size.h / 2))
+    }
     sim.on('end', () => {
       // 仿真自然收敛：通知调用方做首屏适应/锁定焦点（只此一次）
       onSettledRef.current?.()

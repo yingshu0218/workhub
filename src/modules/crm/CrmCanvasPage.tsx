@@ -36,7 +36,7 @@ export default function CrmCanvasPage() {
         title="客户关系画布"
         subtitle={
           mode === 'customer-only'
-            ? '客户关系网 · 主节点为客户，连线为分类关联与桥接弱边，单击节点查看缩略卡'
+            ? '以我为画布中心 · 我不与任何节点连线，客户围绕中心按健康分/关系分布，连线为客户间分类关联与桥接弱边'
             : '力导向关系图 · 实线从属、虚线关联与桥接弱边；单击客户节点弹缩略卡，双击交易/待办/笔记穿透至详情'
         }
         actions={
@@ -118,21 +118,7 @@ export default function CrmCanvasPage() {
           <span className="ml-2 inline-flex flex-wrap items-center gap-2 text-[0.7857rem] text-outline">
             <span className="inline-flex items-center gap-1">
               <span className="h-2.5 w-2.5 rounded-full" style={{ background: '#004ac6' }} />
-              我（{userName}）
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <svg width="22" height="8" className="inline-block">
-                <line
-                  x1="0"
-                  y1="4"
-                  x2="22"
-                  y2="4"
-                  stroke="#7f8cae"
-                  strokeWidth="1.2"
-                  opacity="0.7"
-                />
-              </svg>
-              我与客户
+              我（{userName}）· 画布中心（不连线）
             </span>
             <span className="inline-flex items-center gap-1">
               <span className="h-2 w-2 rounded-full" style={{ background: '#6d43c4' }} />

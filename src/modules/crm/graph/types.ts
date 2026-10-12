@@ -18,7 +18,11 @@ export interface GraphNode extends SimulationNodeDatum {
   to?: string
 }
 
-export type GraphLinkKind = 'belongs' | 'relation' | 'bridge' | 'self'
+/**
+ * 边类型。**注意：不存在 'self' 边**（2026-10-12 用户裁决：以我为中心，但「我」不与任何节点连线）。
+ * 「我」是孤立中心基准节点，其中心地位由力场与视图锚定表达，不靠连线表达。
+ */
+export type GraphLinkKind = 'belongs' | 'relation' | 'bridge'
 
 export interface GraphLink {
   source: string | GraphNode
@@ -35,8 +39,6 @@ export interface GraphLink {
 export const GRAPH_COLORS = {
   /** 「我」自节点（Issue #123）：品牌主色实心，与客户节点形态明显区分 */
   self: { stroke: '#004ac6', fill: '#004ac6', text: '#ffffff' },
-  /** 「我」→ 客户的归属辐条：细实线，弱于客户↔客户关系边 */
-  selfLink: { stroke: '#7f8cae' },
   customer: { stroke: '#004ac6', fill: '#dbe1ff', text: '#004ac6' },
   project: { stroke: '#6d43c4', fill: '#e9ddff', text: '#6d43c4' },
   income: { stroke: '#006c49', fill: '#6cf8bb', text: '#006c49' },

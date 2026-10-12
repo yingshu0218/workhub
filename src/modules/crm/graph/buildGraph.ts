@@ -238,7 +238,10 @@ export function buildGraph(
       }
     }
     // 「我」自节点（Issue #123）：固定在画布中心（fx/fy 锁死，不参与力导向漂移），
-    // 文案取当前用户身份名（默认阿蓝）；不与任何客户共用节点，星型拓扑的真正中心
+    // 文案取当前用户身份名（默认阿蓝）；不与任何客户共用节点，是布局的**基准锚点**。
+    // ⚠️ 已移除「我→客户」归属辐条（2026-10-12 用户裁决）：以我为中心，但我不与任何节点连线。
+    // 「中心」由力场（forceX/forceY 把客户云收拢到中心）+ 视图锚定表达，不再靠连线表达；
+    // 因此自节点在图上是孤立节点，这是**预期形态**，不是渲染缺陷。
     const selfId = opts.selfId ?? SELF_NODE_ID
     const selfNode: GraphNode = {
       id: selfId,
@@ -266,12 +269,7 @@ export function buildGraph(
         y: opts.center.y + Math.sin(i * 2.4) * 90,
       }
     })
-    // 归属辐条：每个客户从「我」连一条 kind='self' 的细实线，形成以我为中心的星型
-    const selfLinks: GraphLink[] = customerNodes.map((c) => ({
-      source: selfId,
-      target: c.id,
-      kind: 'self' as const,
-    }))
+    // 无「我→客户」辐条：自节点仅作中心基准，不参与任何连线（2026-10-12）
     const ns: GraphNode[] = [selfNode, ...customerNodes]
     const ids = new Set(ns.map((n) => n.id))
     const cats = opts.categories
@@ -287,7 +285,7 @@ export function buildGraph(
         ids.has(String(typeof l.target === 'string' ? l.target : l.target.id))
       )
     })
-    return { nodes: ns, links: [...ls, ...selfLinks] }
+    return { nodes: ns, links: ls }
   }
 
   const { nodes, links } = assemble(graph)
