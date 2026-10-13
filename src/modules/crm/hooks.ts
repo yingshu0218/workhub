@@ -62,6 +62,15 @@ export interface CanvasGraph {
   /** 项目状态投影（Issue #34 算法亲密度：active 项目双倍权重） */
   projectStatuses: Record<string, 'active' | 'paused' | 'archived'>
   notes: { id: string; customerId: string; title: string }[]
+  /**
+   * 悬挂关系条数：`relations[].targetId` 指向不存在/已删除客户、被投影层过滤掉的条目数。
+   *
+   * 为什么必须带出来（2026-10-13 用户反馈驱动）：这些条目此前被**静默丢弃**，于是
+   * 「本来就没有关系」与「关系全部指错了客户」在画布上长得一模一样 —— 都是一条线都没有。
+   * 实测踩到：测试服 16 个客户 / 12 条关系 / 有效 0 条，画布表现为一组孤立点，排查成本很高。
+   * 消费方（`CrmCanvasPage`）据此显式提示，不让数据坏掉这件事伪装成「没有关系」。
+   */
+  danglingRelations?: number
 }
 
 const EMPTY_GRAPH: CanvasGraph = {
@@ -104,6 +113,12 @@ export function useCanvasGraph(): CanvasGraph {
           (n.mentions ?? []).some((m) => m.type === 'customer' && customerIds.has(m.id)),
       )
       .toArray()
+    // 悬挂关系计数：独立于下面那份投影数一遍（不改投影本身，diff 最小且口径一目了然）。
+    // 投影里的 filter 是「防御」，这里是「可见性」——两者必须同源，改一处必须改另一处。
+    const danglingRelations = customers.reduce(
+      (n, c) => n + (c.relations ?? []).filter((r) => !customerIds.has(r.targetId)).length,
+      0,
+    )
     return {
       customers: customers.map((c) => ({
         id: c.id,
@@ -116,6 +131,7 @@ export function useCanvasGraph(): CanvasGraph {
           ? { level: c.intimacy.level, note: c.intimacy.note, updatedAt: c.intimacy.updatedAt }
           : undefined,
       })),
+      danglingRelations,
       projects: projects.map((p) => ({ id: p.id, name: p.name, customerId: p.customerId ?? '' })),
       projectStatuses: Object.fromEntries(projects.map((p) => [p.id, p.status])),
       // 建边投影保持单值口径（Issue #140）：多关联的一笔流水对每个关联客户各出一份投影，

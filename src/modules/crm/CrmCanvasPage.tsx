@@ -73,6 +73,14 @@ export default function CrmCanvasPage() {
       {/* 图例 + 节点统计 */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <Chip tone="blue" icon="person">{`客户 ${graph.customers.length}`}</Chip>
+        {/* 悬挂关系提示（2026-10-13）：关系条目指向已删除客户时会被投影层过滤，画布一条线都不画。
+            不提示的话，「没有关系」与「关系全指错了」在界面上完全一样 —— 典型的假绿。
+            两种视图都提示（数据健康与视角无关）。 */}
+        {(graph.danglingRelations ?? 0) > 0 && (
+          <span title="这些关系条目指向的客户已被删除或不存在，图谱不会为它们画线。到「客户档案 → 关系」里重新关联即可">
+            <Chip tone="red" icon="link_off">{`${graph.danglingRelations} 条关系指向已删除客户`}</Chip>
+          </span>
+        )}
         {mode === 'customer-only' && (
           <Chip tone="green" icon="my_location">{`我：${userName}`}</Chip>
         )}
