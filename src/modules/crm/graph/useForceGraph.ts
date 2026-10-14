@@ -4,14 +4,14 @@ import {
   forceCollide,
   forceLink,
   forceManyBody,
+  forceRadial,
   forceSimulation,
-  forceX,
-  forceY,
   type Simulation,
 } from 'd3-force'
 import type { RelationCategory, ModuleConfigIntimacy } from '@/db/types'
 import type { CanvasGraph } from '../hooks'
 import { buildGraph, type GraphMode } from './buildGraph'
+import { COLLIDE_PADDING, ringRadius } from './presentation'
 import type { GraphLink, GraphNode } from './types'
 
 /**
@@ -25,8 +25,8 @@ import type { GraphLink, GraphNode } from './types'
  * onGraphReady 不触发、以我为心的视图锚定失效」。传参前先确认来源被 useMemo 包裹。
  */
 
-/** customer-only 模式：客户云向「我」（画布中心）收拢的向心强度 */
-const SELF_CENTER_STRENGTH = 0.08
+/** customer-only 模式：客户落回圈层（以「我」为圆心）的强度 */
+const RING_STRENGTH = 0.32
 
 export interface ForceGraphOptions {
   graph: CanvasGraph
@@ -111,7 +111,7 @@ export function useForceGraph({
       .force('charge', forceManyBody().strength(-320))
       .force(
         'collide',
-        forceCollide<GraphNode>().radius((d) => d.radius + 14),
+        forceCollide<GraphNode>().radius((d) => d.radius + COLLIDE_PADDING),
       )
       .alphaDecay(0.03)
       // alphaMin 提到 0.06：仿真自然收敛更快（默认 0.001 要 ~300 tick，约 5s 才稳定，
@@ -119,15 +119,23 @@ export function useForceGraph({
       .alphaMin(0.06)
 
     if (isCustomerOnly) {
-      // 「以我为中心」但不画连线（2026-10-12 用户裁决）：改用**逐点向心力**替代 forceCenter。
-      // 为什么不能继续用 forceCenter：它只把「全节点均值」搬到画布中心，而「我」被 fx/fy 钉死在
-      // 中心并每 tick 复位，于是平衡解被约束成「客户均值 ≠ 中心」不行 → 客户均值必须正好落在中心；
-      // 只有 1 个客户时该解要求客户坐标 == 中心（与「我」完全重合，中心节点被吃掉）。
-      // forceX/forceY 对每个节点独立施加向心弹性，与 charge 斥力平衡出稳定的外围环带：
-      // 既不与「我」重叠，也不会在无连线可拽时飞散出视口。
-      sim
-        .force('selfX', forceX<GraphNode>(size.w / 2).strength(SELF_CENTER_STRENGTH))
-        .force('selfY', forceY<GraphNode>(size.h / 2).strength(SELF_CENTER_STRENGTH))
+      // 「以我为中心」= **圈层**（2026-10-14 用户裁决：仍以我为中心，但不能重叠、不能挤在一侧）。
+      //
+      // 演进史（每一版都是被真实观感推翻的）：
+      // ① forceCenter：只搬「全节点均值」，而「我」被 fx/fy 钉住并每 tick 复位 → 平衡解要求
+      //    「客户均值正好落在中心」，单客户时该解要求客户坐标 == 中心（中心节点被吃掉）。
+      // ② forceX/forceY（逐点向心）：解决了重合，但它们只把每个节点往中心**拉**，
+      //    客户受斥力与连线影响会整体偏到一侧 —— 实测 3 个客户全挤在「我」右边，
+      //    「以我为中心」名存实亡，而且严伟强的圈几乎贴到「我」的圈上。
+      // ③ forceRadial（本版）：把每个客户放到**以「我」为圆心的环**上，环半径随客户数增长；
+      //    环上再由 charge 与 collide 均匀摊开 → 居中、不重叠、不偏侧，三件事同时成立。
+      const customerCount = ns.filter((d) => d.kind === 'customer').length
+      sim.force(
+        'ring',
+        forceRadial<GraphNode>(ringRadius(customerCount), size.w / 2, size.h / 2).strength(
+          RING_STRENGTH,
+        ),
+      )
     } else {
       sim.force('center', forceCenter(size.w / 2, size.h / 2))
     }

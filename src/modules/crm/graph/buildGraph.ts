@@ -5,6 +5,7 @@ import { buildScoreInput, resolveIntimacyLevel, isBlacklistHidden } from '../int
 import type { ModuleConfigIntimacy } from '@/db/types'
 import type { GraphLink, GraphNode } from './types'
 import { GRAPH_COLORS } from './types'
+import { ringRadius } from './presentation'
 
 /**
  * graph 投影 → 节点/边 纯函数（无 React / d3 副作用，单测可覆盖）
@@ -255,6 +256,10 @@ export function buildGraph(
       fx: opts.center.x,
       fy: opts.center.y,
     }
+    // 初值直接落在**圈层环**上、均匀分角（与 useForceGraph 的 forceRadial 同源）：
+    // 首帧就已经「以我为中心、彼此不挤」，仿真只需微调角度，不会出现先挤成一团再炸开的观感
+    const ring = ringRadius(visible.length)
+    const step = (Math.PI * 2) / Math.max(visible.length, 1)
     const customerNodes: GraphNode[] = visible.map((c, i) => {
       const lv = levelOf.get(c.id) ?? null
       const visual = lv ? INTIMACY_VISUAL[lv] : null
@@ -265,8 +270,8 @@ export function buildGraph(
         color: visual?.color ?? GRAPH_COLORS.customer.stroke,
         fill: GRAPH_COLORS.customer.fill,
         radius: visual?.radius ?? 24,
-        x: opts.center.x + Math.cos(i * 2.4) * 120,
-        y: opts.center.y + Math.sin(i * 2.4) * 90,
+        x: opts.center.x + Math.cos(i * step) * ring,
+        y: opts.center.y + Math.sin(i * step) * ring,
       }
     })
     // 无「我→客户」辐条：自节点仅作中心基准，不参与任何连线（2026-10-12）

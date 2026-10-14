@@ -14,7 +14,8 @@ import { useIntimacyConfig } from '../intimacy'
 import { IDENTITY_VIEW, usePanZoom } from '../usePanZoom'
 import { useForceGraph } from './useForceGraph'
 import { computeFitView } from './fitView'
-import { GRAPH_COLORS, type GraphNode } from './types'
+import { relationEdgeInfo } from './presentation'
+import { GRAPH_COLORS, type GraphLink, type GraphNode } from './types'
 import CustomerInfoCard from './CustomerInfoCard'
 import type { CanvasGraph } from '../hooks'
 
@@ -71,6 +72,12 @@ export default function GraphCanvas({
   const [selectedScreen, setSelectedScreen] = useState({ x: 0, y: 0 })
   // 关系归类筛选（仅 customer-only 模式展示）
   const [activeCats, setActiveCats] = useState<RelationCategory[]>([])
+  // 关系边悬浮框（2026-10-14）：连线不再直接写文字（多条语义叠在一起必然互相压字），
+  // 改为「移到线上」时在光标旁弹一个小框给出关联字段（语义 + 归类）
+  const [edgeHover, setEdgeHover] = useState<{ link: GraphLink; x: number; y: number } | null>(null)
+  // 每次仿真收敛自增：让「以我为心」的视图锚定在**数据变化后的重新布局**上也重新生效
+  // （原先锚定是一次性的，新增关系 → 布局重算 → 「我」就漂出视口中心，正是用户报的观感）
+  const [settleTick, setSettleTick] = useState(0)
   // 亲密度配置：调用方注入优先，缺省内部订阅（moduleConfigs 变更经 useLiveQuery 实时刷新）
   const cfgFromDb = useIntimacyConfig()
   const intimacyCfg = intimacyCfgProp ?? (mode === 'customer-only' ? cfgFromDb : undefined)
@@ -82,8 +89,12 @@ export default function GraphCanvas({
     categories: mode === 'customer-only' ? activeCats : undefined,
     intimacyCfg: mode === 'customer-only' ? intimacyCfg : undefined,
     selfName,
-    onLayoutSettled: onGraphReady,
+    onLayoutSettled: () => {
+      setSettleTick((t) => t + 1)
+      onGraphReady?.()
+    },
   })
+  const edgeInfo = edgeHover ? relationEdgeInfo(edgeHover.link) : null
 
   // customer-only 模式：仅在有关系的客户对上展示归类筛选 chips（无任何归类数据时隐藏）
   const showCatFilter =
@@ -126,6 +137,13 @@ export default function GraphCanvas({
     const p = toSvgPoint(clientX, clientY)
     if (!p) return null
     return { x: (p.x - view.tx) / view.scale, y: (p.y - view.ty) / view.scale }
+  }
+
+  /** 关系边悬浮：记下命中的边 + 光标在容器内的位置（浮框用绝对定位贴着光标走） */
+  function hoverEdgeAt(e: React.PointerEvent, link: GraphLink) {
+    const r = sizeElRef.current?.getBoundingClientRect()
+    if (!r) return
+    setEdgeHover({ link, x: e.clientX - r.left, y: e.clientY - r.top })
   }
 
   function onNodePointerDown(e: React.PointerEvent, node: GraphNode) {
@@ -266,7 +284,9 @@ export default function GraphCanvas({
   // 保证「一进入视图就锁定焦点主体」——聚焦页由 CustomerGraphPage 在 onGraphReady 后传入焦点 id。
   // 锚定前先取消 pending fit 并上锁，杜绝迟到 fit 在锚定后把焦点客户挤离中心（Issue #87）
   const anchoredKeyRef = useRef<string | null>(null)
-  const anchorKey = fitAnchorId ?? ''
+  // 锚点键带上 settleTick：每次仿真收敛（含数据变化后的重新布局）都重新把锚点居中，
+  // 否则锚定只在首次生效，「我」会随着重新布局漂到视口边角（2026-10-14 修复的观感问题）
+  const anchorKey = fitAnchorId ? `${fitAnchorId}#${settleTick}` : ''
   useEffect(() => {
     if (!anchorKey || anchoredKeyRef.current === anchorKey) return
     const n = nodes.find((x) => x.id === anchorKey)
@@ -303,6 +323,8 @@ export default function GraphCanvas({
   if (lastViewKey.current !== viewKey) {
     lastViewKey.current = viewKey
     if (selectedId) setSelectedId(null)
+    // 悬浮框锚在屏幕坐标上：视图一动就失准，直接收掉（与缩略卡同一口径）
+    if (edgeHover) setEdgeHover(null)
   }
 
   const empty = graph.customers.length === 0
@@ -395,46 +417,30 @@ export default function GraphCanvas({
                         ? (RELATION_CATEGORIES.find((c) => c.id === cats[0])?.color ??
                           GRAPH_COLORS.relation.stroke)
                         : GRAPH_COLORS.relation.stroke
+                    const path = `M${s.x},${s.y} Q${cx},${cy} ${t.x},${t.y}`
                     return (
                       <g key={`r${i}`}>
                         <path
-                          d={`M${s.x},${s.y} Q${cx},${cy} ${t.x},${t.y}`}
+                          d={path}
                           fill="none"
                           stroke={edgeColor}
                           strokeWidth={1.5}
                           strokeDasharray="5 4"
                           opacity={0.85}
                         />
-                        {/* 语义标签（Issue #39）：把该对客户的全部关系文字完整呈现，而非仅靠颜色区分。
-                            每条语义单独一行、加白描边光晕保证跨线可读；同对客户多条关系时逐行展示 */}
-                        {(() => {
-                          const lines = l.labels ?? (l.label ? [l.label] : [])
-                          const n = lines.length
-                          // 弧顶点位置（cx,cy 已垂直偏移），文字沿曲线法线稍移，避免压在路径上
-                          const tx = cx + ((cx - mx) / 24) * 6
-                          const ty = cy + ((cy - my) / 24) * 6
-                          const fs = 10
-                          const gap = fs + 3
-                          const startY = ty - ((n - 1) * gap) / 2
-                          return (
-                            <g>
-                              {lines.map((ln, li) => (
-                                <text
-                                  key={li}
-                                  x={tx}
-                                  y={startY + li * gap + fs / 3}
-                                  textAnchor="middle"
-                                  style={{ fontSize: fs, fontWeight: 700, paintOrder: 'stroke' }}
-                                  stroke="#ffffff"
-                                  strokeWidth={3}
-                                  fill={edgeColor}
-                                >
-                                  {ln}
-                                </text>
-                              ))}
-                            </g>
-                          )
-                        })()}
+                        {/* 命中区（2026-10-14）：连线本身只有 1.5px，光标根本压不上，
+                            所以叠一条**透明加粗**的同形状 path 专门接指针事件；
+                            不改 pointerdown 行为（不加 stopPropagation）→ 按在线上拖拽仍是平移画布 */}
+                        <path
+                          d={path}
+                          fill="none"
+                          stroke="transparent"
+                          strokeWidth={14}
+                          style={{ cursor: 'pointer' }}
+                          onPointerEnter={(e) => hoverEdgeAt(e, l)}
+                          onPointerMove={(e) => hoverEdgeAt(e, l)}
+                          onPointerLeave={() => setEdgeHover(null)}
+                        />
                       </g>
                     )
                   })}
@@ -528,26 +534,17 @@ export default function GraphCanvas({
                           strokeWidth={n.kind === 'customer' ? 1.8 : 1.3}
                         />
                         {n.kind === 'self' ? (
-                          /* 「我」自节点（Issue #123）：主色实心 + 白字用户名，用户一眼认出画布上的自己。
-                             与客户节点互斥（不再是「挑一个客户打标」），固定画布中心 */
-                          <>
-                            <circle
-                              r={n.radius + 7}
-                              fill="none"
-                              stroke={GRAPH_COLORS.self.stroke}
-                              strokeWidth={1.6}
-                              strokeDasharray="4 3"
-                              opacity={0.65}
-                            />
-                            <text
-                              textAnchor="middle"
-                              dy="4"
-                              style={{ fontSize: 12, fontWeight: 700 }}
-                              fill={GRAPH_COLORS.self.text}
-                            >
-                              {n.label}
-                            </text>
-                          </>
+                          /* 「我」自节点：主色实心 + 虚线外圈，固定画布中心、不与任何节点连线。
+                             名字不再画在圈内（2026-10-14 用户裁决：最中心节点不显示名字）——
+                             中心那颗实心主色圆就是「我」，靠位置与形态识别，不靠文字。 */
+                          <circle
+                            r={n.radius + 7}
+                            fill="none"
+                            stroke={GRAPH_COLORS.self.stroke}
+                            strokeWidth={1.6}
+                            strokeDasharray="4 3"
+                            opacity={0.65}
+                          />
                         ) : n.kind === 'customer' ? (
                           <>
                             {(n.id === focusId || n.id === fitAnchorId) && (
@@ -728,6 +725,27 @@ export default function GraphCanvas({
               <Icon name="settings_backup_restore" size={14} />
               适应画布
             </button>
+          </div>
+        )}
+
+        {/* 关系边悬浮框（2026-10-14）：连线上的文字全部收起，关联字段改在这里给全。
+            贴着光标、带安全边距（不越出画布右/下边界），pointer-events-none 不挡后续命中 */}
+        {edgeInfo && edgeHover && (
+          <div
+            className="pointer-events-none absolute z-20 max-w-[240px] rounded-lg border border-outline-variant/40 bg-surface-container-lowest/95 px-2.5 py-1.5 shadow-lg backdrop-blur"
+            style={{
+              left: Math.min(edgeHover.x + 14, Math.max(0, size.w - 250)),
+              top: Math.min(edgeHover.y + 14, Math.max(0, size.h - 64)),
+            }}
+          >
+            <div className="text-[0.8571rem] font-semibold text-on-surface">
+              {edgeInfo.labels.join(' / ') || '（未填语义）'}
+            </div>
+            {edgeInfo.categories.length > 0 && (
+              <div className="mt-0.5 text-[0.7857rem] text-on-surface-variant">
+                归类：{edgeInfo.categories.join(' / ')}
+              </div>
+            )}
           </div>
         )}
 
