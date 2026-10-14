@@ -1,6 +1,6 @@
 import dayjs from 'dayjs'
 import { db, DEFAULT_WORKSPACE_ID } from './db'
-import { habitLogId } from '@/repositories'
+import { addCustomerRelation, habitLogId } from '@/repositories'
 import type {
   Workspace,
   Customer,
@@ -15,6 +15,7 @@ import type {
   Interaction,
   Project,
   ProjectMilestone,
+  RelationCategory,
 } from './types'
 
 /**
@@ -431,4 +432,45 @@ export async function seedIfEmpty(): Promise<boolean> {
     },
   )
   return true
+}
+
+/* ────────────────── 演示关系自愈（2026-10-14） ────────────────── */
+
+/** 种子演示客户的固定 id：下面自愈逻辑的**唯一**作用范围（真实用户的库里不会有这些 id） */
+export const SEED_DEMO_CUSTOMER_IDS = ['c1', 'c2', 'c3'] as const
+
+/**
+ * 补齐老本地库的**演示客户关系**。
+ *
+ * 为什么需要它：`seedIfEmpty()` 只检查「有没有客户」，所以**更早播种的库永远补不上后来新增的
+ * 演示数据**（种子的 relations 是 Issue #123 前后才加的）。表现就是画布上一条线都没有，
+ * 而界面上「本来没有关系」和「关系坏了」长得一模一样 —— 这个坑真实吃掉了好几轮排查成本。
+ *
+ * 安全边界（三重，缺一不做）：
+ * ① 只认**应用自己种的那三个 id**（c1/c2/c3）：真实用户库里没有它们 → 直接 no-op；
+ * ② 三者必须都存在且未删除，否则认为「这不是这份种子数据」，不动；
+ * ③ 三者**当前必须一条关系都没有** —— 只要有任何一条，就认为用户已经自己管过关系，绝不掺和
+ *    （幂等：补齐后再跑一次会因第 ③ 条直接返回 0）。
+ *
+ * 写入一律走 `repositories.addCustomerRelation` —— UI 与 agentOps 的同一入口
+ * （双向落两侧 + 同步队列 + 触发同步），不在这里手写盖章/入队。
+ *
+ * @returns 实际补齐的**关系对数**（0 = 无需补齐/不满足边界）
+ */
+export async function backfillDemoRelations(): Promise<number> {
+  const rows = await Promise.all(SEED_DEMO_CUSTOMER_IDS.map((id) => db.customers.get(id)))
+  if (rows.some((c) => !c || c.deleted)) return 0
+  if (rows.some((c) => (c!.relations ?? []).length > 0)) return 0
+
+  // 与 seedIfEmpty 里的演示关系**同源**：同一对客户、同一语义、同一归类
+  const [c1, c2, c3] = SEED_DEMO_CUSTOMER_IDS
+  const pairs: [string, string, string, RelationCategory][] = [
+    [c1, c2, '项目合作', 'project'],
+    [c2, c3, '转介绍人', 'person'],
+    [c1, c3, '同行伙伴', 'person'],
+  ]
+  for (const [a, b, label, category] of pairs) {
+    await addCustomerRelation(a, b, label, category)
+  }
+  return pairs.length
 }

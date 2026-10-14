@@ -4,7 +4,7 @@ import 'dayjs/locale/zh-cn'
 import dayjs from 'dayjs'
 import AppRouter from './app/router'
 import './styles/index.css'
-import { seedIfEmpty } from './db/seed'
+import { backfillDemoRelations, seedIfEmpty } from './db/seed'
 import { backfillTodoCompletedAt, backfillTodoVoidedAt } from './modules/todo/domain'
 import { syncEngine } from './sync/engine'
 import { installKeyboardListener } from './shared/shortcuts'
@@ -36,6 +36,11 @@ function Bootstrap() {
       .then(() => backfillTodoVoidedAt())
       .then((n) => {
         if (n) console.info(`[migrate] 补齐 ${n} 条待办的 voidedAt`)
+      })
+      // 存量兜底：老本地库补上演示客户关系（种子是后来才加的关系；三重边界见 seed.ts）
+      .then(() => backfillDemoRelations())
+      .then((n) => {
+        if (n) console.info(`[seed] 补齐 ${n} 对演示客户关系（老本地库自愈）`)
       })
     syncEngine.start()
     installKeyboardListener()
