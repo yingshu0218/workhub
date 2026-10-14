@@ -8,7 +8,9 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="寻鸽工作台" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover：刘海/圆角屏才拿得到 env(safe-area-inset-*)，
+         移动端底部导航与悬浮按钮据此避让 Home Indicator（见 styles/index.css 的移动壳段）。 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <!-- CSP 纵深防御：禁止外链脚本/内联事件执行（审计 P2-12；style 允许内联因 Tailwind 运行时注入） -->
     <meta
       http-equiv="Content-Security-Policy"

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Icon } from '@/design-system/Icon'
 import { useNavigate } from 'react-router-dom'
 import { useCollection } from '@/queries/hooks'
+import { useIsMobile } from '@/shared/useIsMobile'
 import type { Customer, CustomerGroup, IntimacyLevel, ModuleConfigIntimacy } from '@/db/types'
 import { INTIMACY_VISUAL, matchGroup } from '@/db/types'
 import {
@@ -48,6 +49,19 @@ const filterChipIdle =
 export default function CrmPage() {
   const customers = useCollection<Customer>('customers')
   const navigate = useNavigate()
+  /**
+   * 桌面 / 窄屏互斥渲染的开关。
+   *
+   * 为什么不用「两份 DOM + `hidden md:*` / `md:hidden` 互斥」这套 CSS 断点写法（本次适配
+   * 最初就是这么做的）：CSS 断点只在真实浏览器里生效，jsdom **不执行媒体查询** —— 两份内容
+   * 会同时留在 DOM 里，同一个客户名被渲染两次，`findByText` / `getByText` 直接抛
+   * 「Found multiple elements」；而且就算抛开测试，重复 DOM 本身也会让无障碍树多出一份同名
+   * 节点、并付出双倍渲染开销。
+   *
+   * 所以凡结构真的不同处（页头、分组入口、工具栏、客户列表）都改由这里二选一，
+   * `isMobile` 为 false 的一侧即本次适配前的原实现。
+   */
+  const isMobile = useIsMobile()
   /**
    * 筛选维度（改版）：**健康分/亲密度分层不再进左栏**。
    * 左栏只承载「用户自己加的分组」；分层收进工具栏浮层，并作为**与自定义分组正交的筛选条件**
@@ -111,49 +125,42 @@ export default function CrmPage() {
 
   return (
     <div className="mx-auto max-w-[1200px]">
-      {/* 桌面页头（≥768px）：原样保留，包一层 block 只是为了窄屏能整块撤掉 */}
-      <div className="hidden md:block">
-        <PageHeader
-          title="客户管理"
-          actions={
-            <>
-              <Button variant="ghost" icon="hub" onClick={() => navigate('/crm/canvas')}>
-                关系画布
-              </Button>
-              <Button icon="person_add" onClick={() => setFormOpen(true)}>
-                新建客户
-              </Button>
-            </>
-          }
-        />
-      </div>
+      {/* 桌面页头（≥768px）：原样保留 */}
+      {!isMobile && (
+        <div className="hidden md:block">
+          <PageHeader
+            title="客户管理"
+            actions={
+              <>
+                <Button variant="ghost" icon="hub" onClick={() => navigate('/crm/canvas')}>
+                  关系画布
+                </Button>
+                <Button icon="person_add" onClick={() => setFormOpen(true)}>
+                  新建客户
+                </Button>
+              </>
+            }
+          />
+        </div>
+      )}
 
-      {/* 移动页头（<768px，原型 03）：标题压到两字、两个入口图标化 ——
-          桌面那两个带文字的按钮（关系画布 / 新建客户）并排约 250px，
-          在 390px 里挤掉标题后只剩一行「客户…/关…」，所以窄屏只留图标。 */}
-      <header className="mb-4 flex items-center justify-between gap-3 md:hidden">
-        <h1 className="min-w-0 truncate text-[1.2857rem] font-bold tracking-[-0.01em]">客户</h1>
-        <div className="flex shrink-0 items-center gap-1.5">
-          <button
-            type="button"
-            aria-label="关系画布"
-            title="关系画布"
-            onClick={() => navigate('/crm/canvas')}
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-outline-variant text-on-surface-variant transition-colors hover:border-primary hover:text-primary"
-          >
-            <Icon name="hub" size={18} />
-          </button>
+      {/* 移动页头（<768px，原型 03）：标题压到两字、新建图标化 ——
+          桌面那个带文字的「新建客户」按钮约 96px，加上标题与画布入口在 390px 里会撑破一行；
+          关系画布入口另有落位，见列表上方的次级操作行。 */}
+      {isMobile && (
+        <header className="mb-4 flex items-center justify-between gap-3 md:hidden">
+          <h1 className="min-w-0 truncate text-[1.2857rem] font-bold tracking-[-0.01em]">客户</h1>
           <button
             type="button"
             aria-label="新建客户"
             title="新建客户"
             onClick={() => setFormOpen(true)}
-            className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-on-primary transition-colors hover:bg-primary-container"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary text-on-primary transition-colors hover:bg-primary-container"
           >
             <Icon name="person_add" size={18} />
           </button>
-        </div>
-      </header>
+        </header>
+      )}
 
       <div className="flex items-start gap-4">
         {/* 左栏：客户分组菜单（改版：只放「用户自己加的分组」—— 分层是算法推断、用户改不了，
@@ -162,17 +169,19 @@ export default function CrmPage() {
             窄屏（<768px）整栏撤掉：它是固定 240px 的兄弟列，留在 390px 里会把主列挤到
             100px 出头，必然横向溢出。分组是用户自己维护的筛选维度、不能一起砍掉，
             所以改由右侧列里的 <details> 折叠入口承载，两者共用同一个 CustomerGroupNav。 */}
-        <Card className="hidden w-60 shrink-0 self-start p-4 md:block">
-          <CustomerGroupNav
-            groups={customGroups}
-            counts={groupCounts}
-            totalCount={visibleCustomers.length}
-            selectedGroupId={selectedGroupId}
-            onSelectGroup={setSelectedGroupId}
-            onEditGroup={setEditorGroup}
-            onCreateGroup={() => setEditorGroup('new')}
-          />
-        </Card>
+        {!isMobile && (
+          <Card className="hidden w-60 shrink-0 self-start p-4 md:block">
+            <CustomerGroupNav
+              groups={customGroups}
+              counts={groupCounts}
+              totalCount={visibleCustomers.length}
+              selectedGroupId={selectedGroupId}
+              onSelectGroup={setSelectedGroupId}
+              onEditGroup={setEditorGroup}
+              onCreateGroup={() => setEditorGroup('new')}
+            />
+          </Card>
+        )}
 
         {/* 右侧：统计 + 列表 */}
         <div className="min-w-0 flex-1">
@@ -212,108 +221,126 @@ export default function CrmPage() {
           {/* 移动工具栏（<768px）：搜索占满整行 + 健康分筛选 chips。
               桌面的「输入框 w-56 + 下拉浮层 + 计数」三件套在 390px 里排不下（合计约 460px，
               换行后会散成两三行），所以窄屏换成上下两段。 */}
-          <div className="mb-3 mt-4 md:hidden">
-            <input
-              className={inputCls}
-              value={keyword}
-              onChange={(e) => setKeyword(e.target.value)}
-              placeholder="按姓名、公司、职位、标签检索…"
-            />
-            {/* 横向滚动而不是 flex-wrap：档位数由配置决定（可能 7 档），换行会把工具栏
-                挤成三四排、把列表压到屏幕外。滚动条在触摸端没有操作价值，一并隐藏。 */}
-            <div className="mt-2.5 -mx-4 flex gap-2 overflow-x-auto px-4 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              <button
-                type="button"
-                onClick={() => setLevelFilter('all')}
-                className={`${filterChip} ${
-                  levelFilter === 'all'
-                    ? 'border-primary bg-primary-fixed font-medium text-primary'
-                    : filterChipIdle
-                }`}
-              >
-                全部 · {visibleCustomers.length}
-              </button>
-              {intimacyCfg.levels.map((lv) => {
-                const on = levelFilter === lv.key
-                return (
-                  <button
-                    key={lv.key}
-                    type="button"
-                    onClick={() => setLevelFilter(lv.key)}
-                    /* 选中态沿用图谱圈层色（INTIMACY_VISUAL）：档位→颜色是同一个语义，
-                       在此另写一套色板必然与图谱漂移 */
-                    style={
-                      on
-                        ? {
-                            borderColor: INTIMACY_VISUAL[lv.key].color,
-                            color: INTIMACY_VISUAL[lv.key].color,
-                            background: `${INTIMACY_VISUAL[lv.key].color}1f`,
-                          }
-                        : undefined
-                    }
-                    className={`${filterChip} ${on ? 'font-medium' : filterChipIdle}`}
-                  >
-                    {lv.name} · {counts[lv.key] ?? 0}
-                  </button>
-                )
-              })}
-            </div>
-            <div className="mt-2 text-[0.8571rem] text-on-surface-variant">
-              共 {list.length} 位客户
-            </div>
-          </div>
-
-          {/* 筛选工具栏（≥768px）：关键字 + 亲密度（分层从左侧分组移出后的落位，二者可叠加） */}
-          <div className="mb-3 mt-5 hidden flex-wrap items-center gap-2 md:flex">
-            <div className="w-56">
+          {isMobile && (
+            <div className="mb-3 mt-4 md:hidden">
               <input
                 className={inputCls}
                 value={keyword}
                 onChange={(e) => setKeyword(e.target.value)}
                 placeholder="按姓名、公司、职位、标签检索…"
               />
+              {/* 横向滚动而不是 flex-wrap：档位数由配置决定（可能 7 档），换行会把工具栏
+                  挤成三四排、把列表压到屏幕外。滚动条在触摸端没有操作价值，一并隐藏。 */}
+              <div className="mt-2.5 -mx-4 flex gap-2 overflow-x-auto px-4 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <button
+                  type="button"
+                  onClick={() => setLevelFilter('all')}
+                  className={`${filterChip} ${
+                    levelFilter === 'all'
+                      ? 'border-primary bg-primary-fixed font-medium text-primary'
+                      : filterChipIdle
+                  }`}
+                >
+                  全部 · {visibleCustomers.length}
+                </button>
+                {intimacyCfg.levels.map((lv) => {
+                  const on = levelFilter === lv.key
+                  return (
+                    <button
+                      key={lv.key}
+                      type="button"
+                      onClick={() => setLevelFilter(lv.key)}
+                      /* 选中态沿用图谱圈层色（INTIMACY_VISUAL）：档位→颜色是同一个语义，
+                         在此另写一套色板必然与图谱漂移 */
+                      style={
+                        on
+                          ? {
+                              borderColor: INTIMACY_VISUAL[lv.key].color,
+                              color: INTIMACY_VISUAL[lv.key].color,
+                              background: `${INTIMACY_VISUAL[lv.key].color}1f`,
+                            }
+                          : undefined
+                      }
+                      className={`${filterChip} ${on ? 'font-medium' : filterChipIdle}`}
+                    >
+                      {lv.name} · {counts[lv.key] ?? 0}
+                    </button>
+                  )
+                })}
+              </div>
+              <div className="mt-2 text-[0.8571rem] text-on-surface-variant">
+                共 {list.length} 位客户
+              </div>
             </div>
-            <IntimacyFilterMenu
-              cfg={intimacyCfg}
-              counts={counts}
-              total={visibleCustomers.length}
-              value={levelFilter}
-              onChange={setLevelFilter}
-            />
-            <span className="ml-auto text-[0.8571rem] text-on-surface-variant">
-              共 {list.length} 位客户
-            </span>
-          </div>
+          )}
 
-          {/* 移动端分组入口（<768px）：默认收起，避免把列表推下去；展开后就是左栏那一份
-              分组菜单（同一个组件，含新建/改名/改规则/删）。 */}
-          <details className="group mb-3 md:hidden">
-            <summary className="card flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 [&::-webkit-details-marker]:hidden">
-              <Icon name="group" size={16} className="text-outline" />
-              <span className="min-w-0 flex-1 truncate text-[0.9286rem] font-medium">
-                客户分组 · {selectedGroup?.name ?? '全部客户'}
+          {/* 筛选工具栏（≥768px）：关键字 + 亲密度（分层从左侧分组移出后的落位，二者可叠加） */}
+          {!isMobile && (
+            <div className="mb-3 mt-5 hidden flex-wrap items-center gap-2 md:flex">
+              <div className="w-56">
+                <input
+                  className={inputCls}
+                  value={keyword}
+                  onChange={(e) => setKeyword(e.target.value)}
+                  placeholder="按姓名、公司、职位、标签检索…"
+                />
+              </div>
+              <IntimacyFilterMenu
+                cfg={intimacyCfg}
+                counts={counts}
+                total={visibleCustomers.length}
+                value={levelFilter}
+                onChange={setLevelFilter}
+              />
+              <span className="ml-auto text-[0.8571rem] text-on-surface-variant">
+                共 {list.length} 位客户
               </span>
-              <Icon
-                name="keyboard_arrow_down"
-                size={18}
-                className="text-outline transition-transform group-open:rotate-180"
-              />
-            </summary>
-            <div className="card mt-2 p-3">
-              <CustomerGroupNav
-                groups={customGroups}
-                counts={groupCounts}
-                totalCount={visibleCustomers.length}
-                selectedGroupId={selectedGroupId}
-                onSelectGroup={setSelectedGroupId}
-                onEditGroup={setEditorGroup}
-                onCreateGroup={() => setEditorGroup('new')}
-                touch
-              />
             </div>
-          </details>
+          )}
 
-          {/* 客户列表：窄屏卡片、桌面原表格行，两套结构并存（各自被 md: 断点关掉一套） */}
+          {/* 移动端次级操作行（<768px）：分组折叠入口 + 关系画布。
+              两项都从主位降下来 —— 分组原是 240px 的左栏（窄屏放不下），画布原是带文字的页头按钮
+              （窄屏与标题抢行）。展开后就是左栏那一份分组菜单（同一个组件，含新建/改名/改规则/删）。 */}
+          {isMobile && (
+            <div className="mb-3 flex items-start gap-2 md:hidden">
+              <details className="group min-w-0 flex-1">
+                <summary className="card flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 [&::-webkit-details-marker]:hidden">
+                  <Icon name="group" size={16} className="text-outline" />
+                  <span className="min-w-0 flex-1 truncate text-[0.9286rem] font-medium">
+                    客户分组 · {selectedGroup?.name ?? '全部客户'}
+                  </span>
+                  <Icon
+                    name="keyboard_arrow_down"
+                    size={18}
+                    className="text-outline transition-transform group-open:rotate-180"
+                  />
+                </summary>
+                <div className="card mt-2 p-3">
+                  <CustomerGroupNav
+                    groups={customGroups}
+                    counts={groupCounts}
+                    totalCount={visibleCustomers.length}
+                    selectedGroupId={selectedGroupId}
+                    onSelectGroup={setSelectedGroupId}
+                    onEditGroup={setEditorGroup}
+                    onCreateGroup={() => setEditorGroup('new')}
+                    touch
+                  />
+                </div>
+              </details>
+              <button
+                type="button"
+                title="关系画布"
+                onClick={() => navigate('/crm/canvas')}
+                className="card flex shrink-0 items-center gap-1 px-3 py-2.5 text-[0.9286rem] text-on-surface-variant transition-colors hover:text-primary"
+              >
+                <Icon name="hub" size={16} />
+                画布
+              </button>
+            </div>
+          )}
+
+          {/* 客户列表：桌面一行一表格行、窄屏一行一卡，两套结构由 isMobile 二选一 */}
           {list.length === 0 ? (
             <Card className="p-6">
               <EmptyState
@@ -329,30 +356,34 @@ export default function CrmPage() {
           ) : (
             <>
               {/* 桌面（≥768px）：原结构逐像素不变 */}
-              <Card className="hidden divide-y divide-outline-variant/30 px-5 md:block">
-                {list.map((c) => (
-                  <CustomerRow
-                    key={c.id}
-                    customer={c}
-                    intimacyCfg={intimacyCfg}
-                    scoreInputs={scoreInputs}
-                    onOpen={() => navigate(`/crm/${c.id}`)}
-                  />
-                ))}
-              </Card>
+              {!isMobile && (
+                <Card className="hidden divide-y divide-outline-variant/30 px-5 md:block">
+                  {list.map((c) => (
+                    <CustomerRow
+                      key={c.id}
+                      customer={c}
+                      intimacyCfg={intimacyCfg}
+                      scoreInputs={scoreInputs}
+                      onOpen={() => navigate(`/crm/${c.id}`)}
+                    />
+                  ))}
+                </Card>
+              )}
               {/* 移动（<768px）：一行一卡 —— 桌面行把健康分/最近联系放在 w-32/w-28 的固定列里，
                   390px 下这两列没有摆放空间（连名带公司都会截断），所以整体换成卡片。 */}
-              <div className="flex flex-col gap-2 md:hidden">
-                {list.map((c) => (
-                  <CustomerCard
-                    key={c.id}
-                    customer={c}
-                    intimacyCfg={intimacyCfg}
-                    scoreInputs={scoreInputs}
-                    onOpen={() => navigate(`/crm/${c.id}`)}
-                  />
-                ))}
-              </div>
+              {isMobile && (
+                <div className="flex flex-col gap-2 md:hidden">
+                  {list.map((c) => (
+                    <CustomerCard
+                      key={c.id}
+                      customer={c}
+                      intimacyCfg={intimacyCfg}
+                      scoreInputs={scoreInputs}
+                      onOpen={() => navigate(`/crm/${c.id}`)}
+                    />
+                  ))}
+                </div>
+              )}
             </>
           )}
         </div>
