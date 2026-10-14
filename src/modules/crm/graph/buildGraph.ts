@@ -1,8 +1,6 @@
-import type { IntimacyLevel, RelationCategory } from '@/db/types'
-import { INTIMACY_LEVELS, INTIMACY_VISUAL } from '@/db/types'
+import type { RelationCategory, ModuleConfigIntimacy } from '@/db/types'
 import type { CanvasGraph } from '../hooks'
-import { buildScoreInput, resolveIntimacyLevel, isBlacklistHidden } from '../intimacy'
-import type { ModuleConfigIntimacy } from '@/db/types'
+import { isBlacklistHidden } from '../intimacy'
 import type { GraphLink, GraphNode } from './types'
 import { GRAPH_COLORS } from './types'
 import { NODE_RADIUS, orderByRelation, ringRadius, ringSlots } from './presentation'
@@ -24,7 +22,7 @@ export interface BuildGraphOptions {
   categories?: RelationCategory[]
   /** 初始打散锚点（画布中心） */
   center: { x: number; y: number }
-  /** 亲密度配置（Issue #34）：传入即启用黑名单过滤 + customer-only 模式下圈层布局 */
+  /** 亲密度配置（Issue #34）：传入即启用**黑名单可见性过滤**（不再影响节点大小/颜色/布局，见 customer-only 分支注释） */
   intimacyCfg?: ModuleConfigIntimacy
   /** 「我」自节点显示名（Issue #123）：默认取当前用户身份名（阿蓝），画布中心节点的唯一文案 */
   selfName?: string
@@ -226,25 +224,22 @@ export function buildGraph(
 
   // ── customer-only 模式（Issue #34）：纯客户节点 + 分类关系边 + 桥接弱边，业务实体节点不参与 ──
   if (opts.mode === 'customer-only') {
-    // 黑名单过滤（Issue #34）：hideInGraph 开启时 I7 客户不渲染（图谱是经营视图，默认屏蔽）
+    // ⚠️ 2026-10-14 用户裁决：**健康分不参与画布节点的任何视觉编码** ——
+    // 大小统一（NODE_RADIUS）、颜色一律 GRAPH_COLORS.customer.stroke，都与档位无关；
+    // 档位只活在「客户信息」里（列表页的档位点、详情页的档位说明）。
+    // 这里**唯一保留**的档位相关行为是黑名单**可见性开关**（hideInGraph）：那是用户显式配置的
+    // 屏蔽策略，与「档位展示」不是一回事（要一并撤掉得连那个开关一起拿走，属另一个决定）。
+    // 黑名单过滤（Issue #34）：hideInGraph 开启时 I7 客户不渲染
     const visible = opts.intimacyCfg
       ? graph.customers.filter((c) => !isBlacklistHidden(c, opts.intimacyCfg!, 'hideInGraph'))
       : graph.customers
-    // 亲密度档位解析（手动最优先 → 算法兜底）：档位驱动节点大小（远近即大小，二者天然一致）
-    const levelOf = new Map<string, IntimacyLevel | null>()
-    if (opts.intimacyCfg) {
-      for (const c of visible) {
-        const input = opts.intimacyCfg.algorithm.enabled ? buildScoreInput(graph, c.id) : null
-        levelOf.set(c.id, resolveIntimacyLevel(c, opts.intimacyCfg, input).level)
-      }
-    }
     // 「我」自节点（Issue #123）：固定在画布中心（fx/fy 锁死，不参与力导向漂移），
     // 文案取当前用户身份名（默认阿蓝）；不与任何客户共用节点，是布局的**基准锚点**。
     // ⚠️ 已移除「我→客户」归属辐条（2026-10-12 用户裁决）：以我为中心，但我不与任何节点连线。
     // 「中心」由力场（forceX/forceY 把客户云收拢到中心）+ 视图锚定表达，不再靠连线表达；
     // 因此自节点在图上是孤立节点，这是**预期形态**，不是渲染缺陷。
     const selfId = opts.selfId ?? SELF_NODE_ID
-    // 节点尺寸**统一**（2026-10-14 用户裁决）：档位只编码颜色，不再编码大小（理由见 presentation.NODE_RADIUS）
+    // 节点尺寸与颜色**都与档位无关**（2026-10-14 用户裁决：健康分不上画布）
     const selfNode: GraphNode = {
       id: selfId,
       kind: 'self',
@@ -272,15 +267,12 @@ export function buildGraph(
     )
     const slotOf = new Map(slots.map((s) => [s.id, s]))
     const customerNodes: GraphNode[] = visible.map((c) => {
-      const lv = levelOf.get(c.id) ?? null
-      const visual = lv ? INTIMACY_VISUAL[lv] : null
       const slot = slotOf.get(c.id)
       return {
         id: c.id,
         kind: 'customer' as const,
         label: c.name,
-        // 档位只决定颜色（统一大小后不再有「越亲近越大」这条编码）
-        color: visual?.color ?? GRAPH_COLORS.customer.stroke,
+        color: GRAPH_COLORS.customer.stroke,
         fill: GRAPH_COLORS.customer.fill,
         radius: NODE_RADIUS,
         x: slot?.x ?? opts.center.x,
@@ -360,43 +352,3 @@ export function buildGraph(
   return { nodes: keptNodes, links: keptLinks }
 }
 
-/**
- * 核心客户选取（Issue #94 原「我」锚点，Issue #123 语义收窄）：
- * 仅供**聚焦视图的初始取景建议**使用，不再冒充「我」——真正的「我」是 customer-only 模式下
- * 由 buildGraph 产出的 kind='self' 自节点（与客户节点互斥，固定画布中心）。
- * 口径保持确定性：亲密度档位（T1 优先，I7 黑名单剔除，未配置按 T5 基线）
- * → 连接度（relations 数量）→ 最近联系时间新者优先；无客户时返回 null。
- */
-export function pickCoreCustomer(
-  graph: CanvasGraph,
-  intimacyCfg?: ModuleConfigIntimacy,
-): string | null {
-  if (graph.customers.length === 0) return null
-  const degree = new Map<string, number>()
-  for (const c of graph.customers) degree.set(c.id, 0)
-  for (const c of graph.customers) {
-    for (const r of c.relations) {
-      // 悬挂引用不计入连接度（指向已删除客户）
-      if (degree.has(r.targetId)) {
-        degree.set(c.id, (degree.get(c.id) ?? 0) + 1)
-        degree.set(r.targetId, (degree.get(r.targetId) ?? 0) + 1)
-      }
-    }
-  }
-  const levelRank = (c: CanvasGraph['customers'][number]): number => {
-    if (!intimacyCfg) return 4
-    const input = intimacyCfg.algorithm.enabled ? buildScoreInput(graph, c.id) : null
-    const lv = resolveIntimacyLevel(c, intimacyCfg, input).level
-    return INTIMACY_LEVELS.indexOf(lv) // T1=0 … I7=6，越小越核心
-  }
-  const best = [...graph.customers]
-    .filter((c) => !(intimacyCfg && isBlacklistHidden(c, intimacyCfg, 'hideInGraph')))
-    .sort((a, b) => {
-      const d = levelRank(a) - levelRank(b)
-      if (d !== 0) return d
-      const deg = (degree.get(b.id) ?? 0) - (degree.get(a.id) ?? 0)
-      if (deg !== 0) return deg
-      return b.lastContactAt - a.lastContactAt
-    })
-  return best[0]?.id ?? null
-}

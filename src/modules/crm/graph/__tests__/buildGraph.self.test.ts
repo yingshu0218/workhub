@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { buildGraph, SELF_NODE_ID } from '../buildGraph'
 import { NODE_RADIUS } from '../presentation'
-import { DEFAULT_INTIMACY_CONFIG, INTIMACY_VISUAL } from '@/db/types'
+import { GRAPH_COLORS } from '../types'
+import { DEFAULT_INTIMACY_CONFIG } from '@/db/types'
 import type { CanvasGraph } from '../../hooks'
 
 /**
@@ -94,8 +95,8 @@ describe('buildGraph customer-only「我」自节点', () => {
     expect(nodes.some((n) => n.kind === 'self')).toBe(false)
   })
 
-  it('所有节点统一大小：档位只影响颜色，不再影响半径（2026-10-14 用户裁决）', () => {
-    // 三个客户刻意给不同档位（T1 / T3 / T5）——半径必须仍然完全一致
+  it('健康分不上画布：节点大小与颜色都与档位无关（2026-10-14 用户裁决）', () => {
+    // 三个客户刻意给不同档位（T1 / T3 / T5）——大小与描边色都必须完全一致
     const g = makeGraph()
     g.customers[0]!.intimacy = { level: 'T1', note: '', updatedAt: 0 }
     g.customers[1]!.intimacy = { level: 'T3', note: '', updatedAt: 0 }
@@ -107,11 +108,11 @@ describe('buildGraph customer-only「我」自节点', () => {
       intimacyCfg: DEFAULT_INTIMACY_CONFIG,
     })
     expect(nodes.length).toBeGreaterThan(1)
-    // 唯一值集合只有一个元素 = 全场同半径（含「我」）
     expect(new Set(nodes.map((n) => n.radius))).toEqual(new Set([NODE_RADIUS]))
-    // 但档位没有失去表达力：颜色仍按档位走
+    // 描边色只有一个取值 = 档位在画布上不产生任何视觉差异（含「我」）
+    expect(new Set(nodes.map((n) => n.color)).size).toBe(1)
     const byId = new Map(nodes.map((n) => [n.id, n]))
-    expect(byId.get('c1')!.color).toBe(INTIMACY_VISUAL.T1.color)
-    expect(byId.get('c2')!.color).toBe(INTIMACY_VISUAL.T3.color)
+    expect(byId.get('c1')!.color).toBe(GRAPH_COLORS.customer.stroke)
+    expect(byId.get('c2')!.color).toBe(GRAPH_COLORS.customer.stroke)
   })
 })

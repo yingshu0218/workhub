@@ -5,7 +5,6 @@ import type { Customer } from '@/db/types'
 import { Card, Chip, EmptyState } from '@/design-system/ui'
 import { Icon } from '@/design-system/Icon'
 import {
-  INTIMACY_VISUAL,
   RELATION_CATEGORIES,
   type RelationCategory,
   type ModuleConfigIntimacy,
@@ -670,40 +669,10 @@ export default function GraphCanvas({
           </div>
         ) : null}
 
-        {/* 健康分图例（原亲密度，Issue #108 改名，仅 customer-only 模式启用）。
-            ⚠️ 2026-10-14：节点尺寸已统一，档位只由**颜色**表达 —— 图例圆点也必须等大，
-            否则「点大 = 档位高」的暗示还在，等于图例在说一件已经不成立的事（假绿）。
-            标题同步由「圈层」改为「档位」：圈层指环上位置/大小分层，这里只剩颜色了 */}
-        {mode === 'customer-only' && intimacyCfg && (
-          <div
-            className="absolute right-3 top-3 z-10 flex max-w-[240px] flex-wrap items-center justify-end gap-x-2 gap-y-1"
-            onPointerDown={(e) => e.stopPropagation()}
-          >
-            <span className="text-[0.7143rem] font-medium uppercase tracking-wide text-outline">
-              健康分档位
-            </span>
-            {intimacyCfg.levels.map((l) => {
-              const v = INTIMACY_VISUAL[l.key]
-              const hidden = l.key === 'I7' && intimacyCfg.blacklist.hideInGraph
-              return (
-                <span
-                  key={l.key}
-                  className={`inline-flex items-center gap-1 text-[0.75rem] ${hidden ? 'text-outline line-through' : 'text-on-surface-variant'}`}
-                  title={hidden ? '黑名单已在图谱隐藏' : l.desc}
-                >
-                  <span
-                    className="inline-block h-2.5 w-2.5 rounded-full"
-                    style={{
-                      background: v.color,
-                      opacity: hidden ? 0.35 : 0.85,
-                    }}
-                  />
-                  {l.name}
-                </span>
-              )
-            })}
-          </div>
-        )}
+        {/* ⚠️ 「健康分档位」色卡已于 2026-10-14 移除：健康分**不再影响画布节点的任何视觉**
+            （大小统一、颜色统一，见 buildGraph 的 customer-only 分支注释），
+            档位只活在「客户信息」里（列表页档位点 / 详情页档位）。没有编码就不该留图例 ——
+            留着等于图例在解释一件画布上不存在的事。 */}
 
         {/* 左下角「重新布局」：释放全部固定点并 reheat 仿真 */}
         {!empty && showReheat && (
