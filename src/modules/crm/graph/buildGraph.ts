@@ -1,6 +1,5 @@
-import type { RelationCategory, ModuleConfigIntimacy } from '@/db/types'
+import type { RelationCategory } from '@/db/types'
 import type { CanvasGraph } from '../hooks'
-import { isBlacklistHidden } from '../intimacy'
 import type { GraphLink, GraphNode } from './types'
 import { GRAPH_COLORS } from './types'
 import { NODE_RADIUS, orderByRelation, ringRadius, ringSlots } from './presentation'
@@ -22,8 +21,6 @@ export interface BuildGraphOptions {
   categories?: RelationCategory[]
   /** 初始打散锚点（画布中心） */
   center: { x: number; y: number }
-  /** 亲密度配置（Issue #34）：传入即启用**黑名单可见性过滤**（不再影响节点大小/颜色/布局，见 customer-only 分支注释） */
-  intimacyCfg?: ModuleConfigIntimacy
   /** 「我」自节点显示名（Issue #123）：默认取当前用户身份名（阿蓝），画布中心节点的唯一文案 */
   selfName?: string
   /** 「我」自节点 id（Issue #123）：缺省 SELF_NODE_ID */
@@ -224,15 +221,12 @@ export function buildGraph(
 
   // ── customer-only 模式（Issue #34）：纯客户节点 + 分类关系边 + 桥接弱边，业务实体节点不参与 ──
   if (opts.mode === 'customer-only') {
-    // ⚠️ 2026-10-14 用户裁决：**健康分不参与画布节点的任何视觉编码** ——
-    // 大小统一（NODE_RADIUS）、颜色一律 GRAPH_COLORS.customer.stroke，都与档位无关；
-    // 档位只活在「客户信息」里（列表页的档位点、详情页的档位说明）。
-    // 这里**唯一保留**的档位相关行为是黑名单**可见性开关**（hideInGraph）：那是用户显式配置的
-    // 屏蔽策略，与「档位展示」不是一回事（要一并撤掉得连那个开关一起拿走，属另一个决定）。
-    // 黑名单过滤（Issue #34）：hideInGraph 开启时 I7 客户不渲染
-    const visible = opts.intimacyCfg
-      ? graph.customers.filter((c) => !isBlacklistHidden(c, opts.intimacyCfg!, 'hideInGraph'))
-      : graph.customers
+    // ⚠️ 2026-10-14 用户裁决：**健康分与画布彻底解耦** ——
+    // 客户节点的大小、颜色、**存在与否**都不再由档位/黑名单决定（原先的 hideInGraph 过滤已撤）：
+    // 画布是关系视图，不该因为「健康分把某人判成 I7」而少一个人。
+    // 于是本函数**不再需要亲密度配置**（参数已移除），档位只活在「客户信息」里
+    // （列表页档位点、详情页档位说明；搜索/选择器/时间线的屏蔽见 intimacy 的三个场景）。
+    const visible = graph.customers
     // 「我」自节点（Issue #123）：固定在画布中心（fx/fy 锁死，不参与力导向漂移），
     // 文案取当前用户身份名（默认阿蓝）；不与任何客户共用节点，是布局的**基准锚点**。
     // ⚠️ 已移除「我→客户」归属辐条（2026-10-12 用户裁决）：以我为中心，但我不与任何节点连线。

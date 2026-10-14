@@ -15,7 +15,7 @@ import { Section, Toggle } from './parts'
  * 承载 CRM·客户 的三个配置区（配置本体自设置页「数据管理」Tab 原样迁入，业务逻辑零改写；
  * Section / Toggle 容器抽到 parts.tsx，供后续模块配置面板复用）：
  * ① 健康分等级维护（7 档 key 固定不可增删，name/desc 可编辑，改名零迁移）
- * ② 黑名单全局屏蔽（开关矩阵，默认只开图谱隐藏，副作用渐进开放）
+ * ② 黑名单全局屏蔽（开关矩阵；2026-10-14 起画布不再参与屏蔽，剩搜索/选择器/时间线三面）
  * ③ 算法兜底与权重（总开关 + 4 因子滑杆 + 切档阈值，保存时归一化与单调性校验）
  * 配置写 moduleConfigs（同步表 crm.intimacy），改动即时落库广播 moduleConfig:changed。
  */
@@ -237,16 +237,11 @@ export default function CrmIntimacyConfig() {
       <Section
         icon="block"
         title="黑名单全局屏蔽"
-        desc="黑名单（I7）在各功能面的屏蔽范围。默认只开图谱隐藏（图谱是经营视图）；档案页/关联区始终保留，不丢数据"
+        desc="黑名单（I7）在各功能面的屏蔽范围。关系画布不参与屏蔽（画布与健康分已解耦，谁都不会被画布隐藏）；档案页/关联区始终保留，不丢数据"
       >
         <div className="space-y-3">
           {(
             [
-              {
-                key: 'hideInGraph',
-                label: '关系图谱隐藏',
-                desc: '黑名单客户不再出现在客户关系画布',
-              },
               { key: 'hideInSearch', label: '全局搜索屏蔽', desc: '⌘K 搜索与全局搜索结果中隐藏' },
               {
                 key: 'excludeFromPicker',

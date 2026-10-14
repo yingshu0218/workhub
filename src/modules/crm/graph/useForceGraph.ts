@@ -9,7 +9,7 @@ import {
   forceY,
   type Simulation,
 } from 'd3-force'
-import type { RelationCategory, ModuleConfigIntimacy } from '@/db/types'
+import type { RelationCategory } from '@/db/types'
 import type { CanvasGraph } from '../hooks'
 import { buildGraph, type GraphMode } from './buildGraph'
 import { COLLIDE_PADDING, orderByRelation, ringRadius, ringSlots } from './presentation'
@@ -37,8 +37,6 @@ export interface ForceGraphOptions {
   mode?: GraphMode
   /** 关系归类筛选（customer-only 模式生效） */
   categories?: RelationCategory[]
-  /** 亲密度配置（Issue #34）：传入启用黑名单过滤 + 亲密度圈层布局 */
-  intimacyCfg?: ModuleConfigIntimacy
   /** 「我」自节点显示名（Issue #123）：customer-only 模式画布中心节点文案 */
   selfName?: string
   /** 布局稳定回调（仿真自然收敛时触发一次，供调用方做首屏适应/聚焦，Issue #34） */
@@ -51,7 +49,6 @@ export function useForceGraph({
   focusId,
   mode,
   categories,
-  intimacyCfg,
   selfName,
   onLayoutSettled,
 }: ForceGraphOptions) {
@@ -69,7 +66,6 @@ export function useForceGraph({
       focusId,
       mode,
       categories,
-      intimacyCfg,
       selfName,
       center: { x: size.w / 2, y: size.h / 2 },
     })
@@ -186,7 +182,7 @@ export function useForceGraph({
         rafRef.current = null
       }
     }
-  }, [graph, size.w, size.h, focusId, mode, categories, intimacyCfg, selfName])
+  }, [graph, size.w, size.h, focusId, mode, categories, selfName])
 
   return { nodes, links, setNodes, setLinks, simRef }
 }

@@ -18,7 +18,7 @@ export function isCustomerBlacklisted(customer: Pick<Customer, 'intimacy'> | und
   return customer?.intimacy?.level === 'I7'
 }
 
-/** 黑名单屏蔽开关命中（开关矩阵来自 moduleConfigs，默认只开图谱隐藏） */
+/** 黑名单屏蔽开关命中（开关矩阵来自 moduleConfigs；图谱已于 2026-10-14 与健康分解耦，不再有图谱场景） */
 export function isBlacklistHidden(
   customer: Pick<Customer, 'intimacy'> | undefined,
   cfg: ModuleConfigIntimacy,

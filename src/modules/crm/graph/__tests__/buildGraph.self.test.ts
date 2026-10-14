@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import { buildGraph, SELF_NODE_ID } from '../buildGraph'
 import { NODE_RADIUS } from '../presentation'
 import { GRAPH_COLORS } from '../types'
-import { DEFAULT_INTIMACY_CONFIG } from '@/db/types'
 import type { CanvasGraph } from '../../hooks'
 
 /**
@@ -95,6 +94,19 @@ describe('buildGraph customer-only「我」自节点', () => {
     expect(nodes.some((n) => n.kind === 'self')).toBe(false)
   })
 
+  it('画布不屏蔽任何客户：I7 客户照样出现在画布上（健康分与画布彻底解耦）', () => {
+    // 2026-10-14 用户裁决：画布是关系视图，不该因为「健康分把某人判成 I7」而少一个人。
+    // 原先的 hideInGraph 过滤已删除 —— 这条用例就是那个决定的反回退锁。
+    const g = makeGraph()
+    g.customers[2]!.intimacy = { level: 'I7', note: '', updatedAt: 0 }
+    const { nodes } = buildGraph(g, { mode: 'customer-only', center, selfName: '阿蓝' })
+    expect(nodes.filter((n) => n.kind === 'customer')).toHaveLength(3)
+    // 而且它和别的客户在画布上长得一模一样（没有档位痕迹）
+    const i7 = nodes.find((n) => n.id === 'c3')!
+    expect(i7.radius).toBe(NODE_RADIUS)
+    expect(i7.color).toBe(GRAPH_COLORS.customer.stroke)
+  })
+
   it('健康分不上画布：节点大小与颜色都与档位无关（2026-10-14 用户裁决）', () => {
     // 三个客户刻意给不同档位（T1 / T3 / T5）——大小与描边色都必须完全一致
     const g = makeGraph()
@@ -105,7 +117,6 @@ describe('buildGraph customer-only「我」自节点', () => {
       mode: 'customer-only',
       center,
       selfName: '阿蓝',
-      intimacyCfg: DEFAULT_INTIMACY_CONFIG,
     })
     expect(nodes.length).toBeGreaterThan(1)
     expect(new Set(nodes.map((n) => n.radius))).toEqual(new Set([NODE_RADIUS]))

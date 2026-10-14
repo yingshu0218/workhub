@@ -73,17 +73,17 @@ describe('useIntimacyConfig 引用稳定性', () => {
 
   it('配置真正变化时仍产出新引用（不能把更新一并吞掉）', async () => {
     await db.moduleConfigs.put(
-      cfgRecord({ blacklist: { ...DEFAULT_INTIMACY_CONFIG.blacklist, hideInGraph: true } }),
+      cfgRecord({ blacklist: { ...DEFAULT_INTIMACY_CONFIG.blacklist, hideInSearch: true } }),
     )
     const { result } = renderHook(() => useIntimacyConfig())
-    await waitFor(() => expect(result.current.blacklist.hideInGraph).toBe(true))
+    await waitFor(() => expect(result.current.blacklist.hideInSearch).toBe(true))
     await settle()
     const first = result.current
 
     await db.moduleConfigs.put(
-      cfgRecord({ blacklist: { ...DEFAULT_INTIMACY_CONFIG.blacklist, hideInGraph: false } }, 2),
+      cfgRecord({ blacklist: { ...DEFAULT_INTIMACY_CONFIG.blacklist, hideInSearch: false } }, 2),
     )
-    await waitFor(() => expect(result.current.blacklist.hideInGraph).toBe(false))
+    await waitFor(() => expect(result.current.blacklist.hideInSearch).toBe(false))
     expect(result.current).not.toBe(first)
   })
 })

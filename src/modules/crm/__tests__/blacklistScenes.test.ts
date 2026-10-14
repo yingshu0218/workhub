@@ -118,15 +118,19 @@ describe('③ 既有判定语义不变（回归）', () => {
 
   it('isBlacklistHidden = 黑名单 ∧ 该场景开关', () => {
     const black = { intimacy: { level: 'I7' as const, updatedAt: 1 } }
-    expect(isBlacklistHidden(black, withScene('hideInGraph', true), 'hideInGraph')).toBe(true)
-    expect(isBlacklistHidden(black, withScene('hideInGraph', false), 'hideInGraph')).toBe(false)
+    expect(isBlacklistHidden(black, withScene('hideInSearch', true), 'hideInSearch')).toBe(true)
+    expect(isBlacklistHidden(black, withScene('hideInSearch', false), 'hideInSearch')).toBe(false)
     expect(
-      isBlacklistHidden({ intimacy: { level: 'T1', updatedAt: 1 } }, DEFAULT_INTIMACY_CONFIG, 'hideInGraph'),
+      isBlacklistHidden(
+        { intimacy: { level: 'T1', updatedAt: 1 } },
+        DEFAULT_INTIMACY_CONFIG,
+        'hideInSearch',
+      ),
     ).toBe(false)
   })
 })
 
-describe('④【结构层】四个场景各自的消费点必须存在（D15 的形状锁）', () => {
+describe('④【结构层】三个场景各自的消费点必须存在（D15 的形状锁）', () => {
   const SRC = join(process.cwd(), 'src')
   const read = (rel: string) => readFileSync(join(SRC, rel), 'utf8')
 
@@ -135,8 +139,8 @@ describe('④【结构层】四个场景各自的消费点必须存在（D15 的
    * 这份清单本身就是「黑名单四场景在哪些地方生效」的事实来源；删掉任一消费点即红。
    */
   const SCENE_CONSUMERS: Record<keyof ModuleConfigIntimacy['blacklist'], string[]> = {
-    // 图谱：一直有接线（D15 里唯一正常的一个）
-    hideInGraph: ['modules/crm/graph/buildGraph.ts'],
+    // ⚠️ 2026-10-14：「图谱隐藏」场景已随「健康分与画布解耦」删除（画布不再屏蔽任何客户），
+    // 剩下三个场景都是面向「查找 / 录入」的，与展示无关。
     // 全局搜索：⌘K（UI）与 Agent 读工具（桥侧）两条入口
     hideInSearch: ['app/CommandPalette.tsx', 'agent/reads.ts'],
     // 单据选择器：流水 / 待办 / 项目三个表单 + 笔记 @ 提及 + Agent 消解器
@@ -156,7 +160,7 @@ describe('④【结构层】四个场景各自的消费点必须存在（D15 的
       expect(files.length, `${scene} 没有任何消费面`).toBeGreaterThan(0)
     }
     expect(Object.keys(SCENE_CONSUMERS).sort()).toEqual(
-      ['excludeFromPicker', 'hideInGraph', 'hideInSearch', 'hideInTimeline'].sort(),
+      ['excludeFromPicker', 'hideInSearch', 'hideInTimeline'].sort(),
     )
   })
 

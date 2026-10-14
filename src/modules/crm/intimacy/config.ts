@@ -40,7 +40,6 @@ function mergeIntimacyPayload(raw: unknown): ModuleConfigIntimacy {
   return {
     levels,
     blacklist: {
-      hideInGraph: bl.hideInGraph ?? d.blacklist.hideInGraph,
       hideInSearch: bl.hideInSearch ?? d.blacklist.hideInSearch,
       excludeFromPicker: bl.excludeFromPicker ?? d.blacklist.excludeFromPicker,
       hideInTimeline: bl.hideInTimeline ?? d.blacklist.hideInTimeline,

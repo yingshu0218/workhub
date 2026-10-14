@@ -4,12 +4,7 @@ import { useRecord } from '@/queries/hooks'
 import type { Customer } from '@/db/types'
 import { Card, Chip, EmptyState } from '@/design-system/ui'
 import { Icon } from '@/design-system/Icon'
-import {
-  RELATION_CATEGORIES,
-  type RelationCategory,
-  type ModuleConfigIntimacy,
-} from '@/db/types'
-import { useIntimacyConfig } from '../intimacy'
+import { RELATION_CATEGORIES, type RelationCategory } from '@/db/types'
 import { IDENTITY_VIEW, usePanZoom } from '../usePanZoom'
 import { useForceGraph } from './useForceGraph'
 import { computeFitView } from './fitView'
@@ -41,8 +36,6 @@ export interface GraphCanvasProps {
   onGraphReady?: () => void
   /** 焦点锚定（Issue #34）：布局收敛后视图平移使该节点居中（不缩放），一进视图快速锁定焦点主体 */
   fitAnchorId?: string
-  /** 亲密度配置注入（Issue #34）：缺省内部读 moduleConfigs；customer-only 模式启用圈层与黑名单过滤 */
-  intimacyCfg?: ModuleConfigIntimacy
   /** 「我」显示名（Issue #123）：customer-only 模式下画布中心 self 节点的文案（当前用户名，默认阿蓝） */
   selfName?: string
 }
@@ -57,7 +50,6 @@ export default function GraphCanvas({
   onGraphReady,
   fitAnchorId,
   selfName,
-  intimacyCfg: intimacyCfgProp,
 }: GraphCanvasProps) {
   const navigate = useNavigate()
   const svgRef = useRef<SVGSVGElement>(null)
@@ -77,16 +69,12 @@ export default function GraphCanvas({
   // 每次仿真收敛自增：让「以我为心」的视图锚定在**数据变化后的重新布局**上也重新生效
   // （原先锚定是一次性的，新增关系 → 布局重算 → 「我」就漂出视口中心，正是用户报的观感）
   const [settleTick, setSettleTick] = useState(0)
-  // 亲密度配置：调用方注入优先，缺省内部订阅（moduleConfigs 变更经 useLiveQuery 实时刷新）
-  const cfgFromDb = useIntimacyConfig()
-  const intimacyCfg = intimacyCfgProp ?? (mode === 'customer-only' ? cfgFromDb : undefined)
   const { nodes, links, simRef } = useForceGraph({
     graph,
     size,
     focusId,
     mode,
     categories: mode === 'customer-only' ? activeCats : undefined,
-    intimacyCfg: mode === 'customer-only' ? intimacyCfg : undefined,
     selfName,
     onLayoutSettled: () => {
       setSettleTick((t) => t + 1)

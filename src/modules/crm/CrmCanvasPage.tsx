@@ -2,7 +2,6 @@ import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, PageHeader } from '@/design-system/ui'
 import { useCanvasGraph } from './hooks'
-import { useIntimacyConfig } from './intimacy'
 import GraphCanvas from './graph/GraphCanvas'
 import { SELF_NODE_ID, type GraphMode } from './graph/buildGraph'
 import { useUserName } from '@/modules/identity'
@@ -20,7 +19,6 @@ import { useUserName } from '@/modules/identity'
 export default function CrmCanvasPage() {
   const graph = useCanvasGraph()
   const navigate = useNavigate()
-  const intimacyCfg = useIntimacyConfig()
   // 视图切换（Issue #34）：customer-only=纯客户关系网（默认，需求主视角）；mixed=原全景（客户+业务实体）
   const [mode, setMode] = useState<GraphMode>('customer-only')
   // 「我」的显示名（Issue #123）：画布中心自节点的唯一文案，取自当前用户身份（默认阿蓝）
@@ -72,7 +70,6 @@ export default function CrmCanvasPage() {
       <GraphCanvas
         graph={graph}
         mode={mode}
-        intimacyCfg={intimacyCfg}
         style={{ height: 'calc(100vh - 11rem)', minHeight: 320 }}
         showReheat
         onGraphReady={handleGraphReady}

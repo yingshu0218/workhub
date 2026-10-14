@@ -532,9 +532,12 @@ export interface IntimacyLevelConfig {
 }
 
 /** 黑名单（I7）全局屏蔽开关矩阵（Issue #34 审计口径：默认只开图谱隐藏，副作用渐进开放） */
+/**
+ * 黑名单（I7）在各功能面的屏蔽矩阵。
+ * ⚠️ 2026-10-14 用户裁决：**画布已与健康分彻底解耦** —— 原来的 `hideInGraph` 场景已删除
+ * （画布不再屏蔽任何客户，节点的存在与外观都不受档位影响），剩三个面向「查找/录入」的场景。
+ */
 export interface ModuleConfigBlacklist {
-  /** 图谱隐藏（I7 节点不渲染） */
-  hideInGraph: boolean
   /** 全局搜索 / ⌘K 屏蔽 */
   hideInSearch: boolean
   /** 新建业务单据客户选择器不可选 */
@@ -577,7 +580,6 @@ export const DEFAULT_INTIMACY_CONFIG: ModuleConfigIntimacy = {
     { key: 'I7', name: '黑名单', desc: '明确拉黑，按屏蔽开关全局规避' },
   ],
   blacklist: {
-    hideInGraph: true,
     hideInSearch: false,
     hideInTimeline: false,
     excludeFromPicker: false,
