@@ -1,4 +1,4 @@
-import { settingsRepo } from '@/repositories'
+import { settingsRepo } from '@/repositories/localAdmin'
 import { agentBridge } from './bridge'
 
 /**

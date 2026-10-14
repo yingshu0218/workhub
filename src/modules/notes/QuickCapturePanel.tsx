@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Icon } from '@/design-system/Icon'
 import { inputCls } from '@/design-system/ui'
-import { settingsRepo } from '@/repositories'
+import { settingsRepo } from '@/repositories/localAdmin'
 import { saveQuickCapture } from './quickCapture'
 
 const CONFIRM_MS = 2600

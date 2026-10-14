@@ -75,9 +75,12 @@ export function FocusCard() {
         </Chip>
       </div>
 
-      <div className="flex items-center gap-6">
+      {/* 计时环 + 操作区：窄屏纵向堆叠（横排时 390px 只给右侧留 ~158px，选待办的
+          输入框会被压成窄条）。容器默认 align-items:stretch，故窄屏下内容列自动占满卡片内宽；
+          md 起恢复横排 + 垂直居中，与改动前一致 */}
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:gap-6">
         {/* 计时环 */}
-        <div className="relative h-32 w-32 shrink-0">
+        <div className="relative h-32 w-32 shrink-0 self-center md:self-auto">
           <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90">
             <circle cx="60" cy="60" r="52" fill="none" stroke="#e5eeff" strokeWidth="8" />
             <circle
@@ -186,7 +189,9 @@ export function FocusCard() {
                   )}
                 </div>
               )}
-              <div className="flex gap-2">
+              {/* flex-wrap：窄屏一行放不下「暂停/完成专注/放弃」时换行，
+                  避免三个按钮横向撑破卡片（桌面宽度充裕，不会触发换行） */}
+              <div className="flex flex-wrap gap-2">
                 {focus.status === 'running' ? (
                   <Button size="sm" variant="tonal" icon="pause" onClick={focus.pause}>
                     暂停
@@ -349,7 +354,9 @@ export function TodayTodosCard() {
   return (
     <Card className="flex min-h-[280px] flex-col p-5">
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="flex items-center gap-2 text-[1.0714rem] font-semibold">
+        {/* flex-wrap：窄屏（含 320px 级）标题 + 两枚计数胶囊放不下一行时让胶囊换行，
+            否则胶囊的最小内容宽度会顶破卡片、把页面撑出横向滚动 */}
+        <h2 className="flex flex-wrap items-center gap-2 text-[1.0714rem] font-semibold">
           今日待办日程
           <Chip tone="blue">{total} 待完成</Chip>
           {overdue.length > 0 && <Chip tone="red">{overdue.length} 逾期</Chip>}

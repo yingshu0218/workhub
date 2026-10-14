@@ -79,8 +79,10 @@ describe('待办列表行点击 → 详情抽屉（Issue #162）', () => {
     await screen.findByText('跟进深蓝续约')
     fireEvent.click(screen.getByTitle('作废（终止事项，记录保留，可恢复）'))
     expect(screen.queryByText('待办详情')).toBeNull()
-    await new Promise((r) => setTimeout(r, 50))
-    expect((await db.todos.get('td1'))?.status).toBe('voided')
+    // 轮询等待异步落库（固定 sleep 在全量并发负载下偶发不足，2026-10-14 P3 轮实测）
+    await vi.waitFor(async () => {
+      expect((await db.todos.get('td1'))?.status).toBe('voided')
+    })
   })
 
   it('③ 详情内「编辑」打开表单并关闭详情（避免两层弹层叠放）', async () => {

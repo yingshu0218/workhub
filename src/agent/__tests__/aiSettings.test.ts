@@ -8,7 +8,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import 'fake-indexeddb/auto'
 import { db } from '@/db/db'
-import { settingsRepo } from '@/repositories'
+import { settingsRepo } from '@/repositories/localAdmin'
 import { DEFAULT_SETTINGS } from '@/db/types'
 
 beforeEach(async () => {

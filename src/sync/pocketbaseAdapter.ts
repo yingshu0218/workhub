@@ -17,7 +17,7 @@ import type { AttachmentBlobLoader, PbRecord as MergePbRecord } from './mergeRem
  *
  * id 口径：本地 id（如 `ws-main:td:abc123`，含冒号）不是合法的 PB 记录 id（PB 仅允许
  * 15 位字母数字），故采用「确定性哈希 id + localId 字段映射」：
- * - push：pbRecordId = pbId(localId)（SHA-256 → base36 截取 15 位，确定性可复算），
+ * - push：pbRecordId = sha256ToBase36_15(localId)（SHA-256 → base36 截取 15 位，确定性可复算），
  *   请求体不携带本地 id，改为携带 `localId` 字段；POST 时 body 带 `id: pbRecordId`
  * - pull：从远端 `localId` 字段还原本地 id（缺失则跳过该记录）
  * - upsert 判存：按 `localId` 字段过滤查询，而非按 id
@@ -31,7 +31,14 @@ import type { AttachmentBlobLoader, PbRecord as MergePbRecord } from './mergeRem
  * 服务端 adapter 需同一套协议常量但不能拖 Dexie），此处 import 本地消费 + re-export
  * 保持既有引用不破坏。
  */
-import { SYNC_TABLES, pbCollection, escapePbFilterValue } from './remoteNormalize'
+import {
+  SYNC_TABLES,
+  pbCollection,
+  escapePbFilterValue,
+  sha256ToBase36_15,
+  toPayload,
+  stripLocalOnlyFields,
+} from './remoteNormalize'
 import type { SyncTable } from './remoteNormalize'
 export { SYNC_TABLES, pbCollection, escapePbFilterValue } from './remoteNormalize'
 export type { SyncTable } from './remoteNormalize'
@@ -161,81 +168,6 @@ async function login(cfg: SyncSettingsView): Promise<void> {
 
 // ─────────────────────────── 记录读写 ───────────────────────────
 
-/**
- * 本地 id → 合法 PB 记录 id：SHA-256(localId) 视为大整数转 base36，取前 15 位
- * （不足左补 0）。确定性：同一 localId 永远得到同一 pbId；base36 字符集（0-9a-z）
- * 天然满足 PB 的 15 位字母数字约束。极端碰撞场景由 upsert 的 GET 判存兜底（命中
- * 已有记录走 PATCH）。
- *
- * 注意：用纯 JS SHA-256 而非 crypto.subtle —— HTTP 部署（IP 直连无 HTTPS）是非
- * 安全上下文，crypto.subtle 为 undefined，会阻断全部推送。
- */
-function sha256ToBase36_15(input: string): string {
-  // 纯 JS SHA-256（FIPS 180-4），输入按 UTF-8 编码
-  const utf8 = new TextEncoder().encode(input)
-  const H = [
-    0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
-  ]
-  const K = [
-    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
-    0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
-    0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
-    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
-    0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
-    0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
-    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
-    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
-  ]
-  const rotr = (x: number, n: number) => (x >>> n) | (x << (32 - n))
-  const l = utf8.length
-  const bitLen = l * 8
-  const padded = new Uint8Array((((l + 8) >> 6) + 1) * 64)
-  padded.set(utf8)
-  padded[l] = 0x80
-  const dv = new DataView(padded.buffer)
-  dv.setUint32(padded.length - 4, bitLen)
-  const w = new Array<number>(64)
-  for (let off = 0; off < padded.length; off += 64) {
-    for (let i = 0; i < 16; i++) w[i] = dv.getUint32(off + i * 4)
-    for (let i = 16; i < 64; i++) {
-      const s0 = rotr(w[i - 15], 7) ^ rotr(w[i - 15], 18) ^ (w[i - 15] >>> 3)
-      const s1 = rotr(w[i - 2], 17) ^ rotr(w[i - 2], 19) ^ (w[i - 2] >>> 10)
-      w[i] = (w[i - 16] + s0 + w[i - 7] + s1) | 0
-    }
-    let [a, b, c, d, e, f, g, h] = H
-    for (let i = 0; i < 64; i++) {
-      const S1 = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25)
-      const ch = (e & f) ^ (~e & g)
-      const t1 = (h + S1 + ch + K[i] + w[i]) | 0
-      const S0 = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22)
-      const maj = (a & b) ^ (a & c) ^ (b & c)
-      const t2 = (S0 + maj) | 0
-      h = g
-      g = f
-      f = e
-      e = (d + t1) | 0
-      d = c
-      c = b
-      b = a
-      a = (t1 + t2) | 0
-    }
-    for (let i = 0; i < 8; i++) H[i] = (H[i] + [a, b, c, d, e, f, g, h][i]) | 0
-  }
-  const hex = H.map((x) => (x >>> 0).toString(16).padStart(8, '0')).join('')
-  const n = BigInt('0x' + hex)
-  const alphabet = '0123456789abcdefghijklmnopqrstuvwxyz'
-  let s = ''
-  let v = n
-  while (v > 0n) {
-    s = alphabet[Number(v % 36n)] + s
-    v /= 36n
-  }
-  return s.padStart(15, '0').slice(0, 15)
-}
-
-async function pbId(localId: string): Promise<string> {
-  return sha256ToBase36_15(localId)
-}
 
 function bizTable(table: string) {
   if (!SYNC_TABLE_SET.has(table)) throw new Error(`未知的同步表：${table}`)
@@ -247,11 +179,6 @@ function bizTable(table: string) {
   }
 }
 
-/** 服务端字段镜像本地字段：剥离本地 Blob（attachments.blob）与本地 id（由 pbId 派生，不直接上传） */
-function toPayload(rec: Record<string, unknown>): Record<string, unknown> {
-  const { blob: _blob, id: _id, ...rest } = rec
-  return rest
-}
 
 /**
  * 剥离「仅本地使用、服务端集合未定义」的业务字段（Issue #134 三轮）。
@@ -264,16 +191,8 @@ function toPayload(rec: Record<string, unknown>): Record<string, unknown> {
  * 现由 `pb_setup/collections.json` 同步定义 quickNotes.convertedAt / convertedVia，
  * 服务端已具备这两个字段，推送正常。这里保留兜底过滤：老部署（未导入新 collections）
  * 下也不会因未知字段被拒。字段一旦纳入 collections.json，即从此处移除。
+ * （LOCAL_ONLY_FIELDS / stripLocalOnlyFields 实现已收口 `./remoteNormalize`，顶部 import 消费。）
  */
-const LOCAL_ONLY_FIELDS: Record<string, readonly string[]> = {
-  // 暂无：quickNotes.convertedAt / convertedVia 已随 collections.json 同步升级
-}
-
-function stripLocalOnlyFields(table: string, payload: Record<string, unknown>): void {
-  const keys = LOCAL_ONLY_FIELDS[table]
-  if (!keys) return
-  for (const k of keys) delete payload[k]
-}
 
 /**
  * PocketBase filter 字符串字面量转义（Issue #169 P2-B）。
@@ -307,7 +226,7 @@ async function pbUpsert(
   rec: Record<string, unknown>,
 ): Promise<PbUpsertResult> {
   const localId = String(rec.id)
-  const pbRecordId = await pbId(localId)
+  const pbRecordId = await sha256ToBase36_15(localId)
   const filter = encodeURIComponent(`localId = '${escapePbFilterValue(localId)}'`)
   // fields 附带 updatedAt（推送侧 LWW 校验，P0-2）与 deleted（删除优先：识别服务端墓碑）。
   // 搭同一次查询取回，不额外增加请求。

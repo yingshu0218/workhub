@@ -134,13 +134,73 @@ describe('PocketBaseAdapter（服务端只读）', () => {
     expect(authCount).toBe(2)
   })
 
-  it('写原语一律拒绝（P2 只读边界：防绕过业务编排）', async () => {
-    const adapter = adapterOf(makeFetch({}).fetchImpl)
+  it('写路径（P3）：transaction 内 put 新记录走 POST（body 带 localId 镜像 + 确定性哈希 id）', async () => {
+    const bodies: unknown[] = []
+    const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = new URL(String(input))
+      if (url.pathname.endsWith('/auth-with-password')) {
+        return new Response(JSON.stringify({ token: 'tok' }), { status: 200 })
+      }
+      if (url.pathname.includes('/records') && init?.method === 'POST') {
+        bodies.push(JSON.parse(String(init.body)))
+        return new Response(JSON.stringify({ id: 'h1' }), { status: 200 })
+      }
+      // 判存 GET：返回空（不存在 → POST）
+      return new Response(JSON.stringify({ page: 1, totalPages: 1, items: [] }), { status: 200 })
+    }) as unknown as typeof fetch
+    const adapter = createPocketBaseAdapter({ baseUrl: 'http://127.0.0.1:9999', account: 'u', password: 'p', fetchImpl })
+    await adapter.transaction(['customers', 'syncQueue'], async (tx) => {
+      await tx.put('customers', {
+        id: 'ws-main:cus:new1',
+        name: '新建',
+        updatedAt: 123,
+        rev: 1,
+        deleted: 0,
+        createdAt: 123,
+      } as never)
+    })
+    expect(bodies).toHaveLength(1)
+    const body = bodies[0] as Record<string, unknown>
+    expect(body.localId).toBe('ws-main:cus:new1')
+    expect(body.id).toBeTypeOf('string')
+    expect((body.id as string)).toHaveLength(15)
+    expect(body.name).toBe('新建')
+    // 本地 id 不进 payload 原样字段（由 localId 镜像 + 哈希派生）
+    expect(body.updatedAt).toBe(123)
+  })
+
+  it('写路径（P3）：已存在记录走 PATCH', async () => {
+    let patchSeen = false
+    const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = new URL(String(input))
+      if (url.pathname.endsWith('/auth-with-password')) {
+        return new Response(JSON.stringify({ token: 'tok' }), { status: 200 })
+      }
+      if (init?.method === 'PATCH') {
+        patchSeen = true
+        return new Response(JSON.stringify({ id: 'h1' }), { status: 200 })
+      }
+      if (init?.method === 'POST') return new Response(JSON.stringify({ id: 'x' }), { status: 200 })
+      // 判存 GET：返回已存在（pbHash1）
+      return new Response(
+        JSON.stringify({ page: 1, totalPages: 1, items: [{ id: 'pbHash1', localId: 'ws-main:cus:ex1' }] }),
+        { status: 200 },
+      )
+    }) as unknown as typeof fetch
+    const adapter = createPocketBaseAdapter({ baseUrl: 'http://127.0.0.1:9999', account: 'u', password: 'p', fetchImpl })
+    await adapter.transaction(['customers', 'syncQueue'], async (tx) => {
+      await tx.put('customers', { id: 'ws-main:cus:ex1', name: '更新', updatedAt: 1, rev: 2, deleted: 0 } as never)
+    })
+    expect(patchSeen).toBe(true)
+  })
+
+  it('put 缺少 id 抛可操作错误', async () => {
+    const adapter = createPocketBaseAdapter({ baseUrl: 'http://127.0.0.1:9999', fetchImpl: makeFetch({}).fetchImpl })
     await expect(
       adapter.transaction(['customers', 'syncQueue'], async (tx) => {
-        await tx.put('customers', { id: 'x' } as never)
+        await tx.put('customers', { name: '无 id' } as never)
       }),
-    ).rejects.toThrow(/只读/)
+    ).rejects.toThrow(/缺少记录 id/)
   })
 
   it('鉴权失败抛可操作错误（凭据错 → 明确提示，不静默空结果）', async () => {

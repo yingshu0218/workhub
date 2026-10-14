@@ -35,6 +35,15 @@ import {
   moveInOrder,
 } from './hooks'
 
+/**
+ * 窄屏筛选 chips 的胶囊外形（只留「选中态」差异给调用处拼）：
+ * 两个调用处（全部 / 各档位）必须同一外形，否则一行横滑里会出现高矮不齐。
+ */
+const filterChip =
+  'shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-[0.9286rem] transition-colors'
+const filterChipIdle =
+  'border-outline-variant bg-surface-container-lowest text-on-surface-variant'
+
 /** 客户管理主页面（对齐原型 08-crm-list） */
 export default function CrmPage() {
   const customers = useCollection<Customer>('customers')
@@ -50,8 +59,6 @@ export default function CrmPage() {
   // 自定义分组（Issue #63）：选中分组 id 与编辑弹层
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
   const [editorGroup, setEditorGroup] = useState<CustomerGroup | 'new' | null>(null)
-  // 分组的拖拽排序（用例 #34）：记录被拖起的 id，落点由目标项决定
-  const [dragGroupId, setDragGroupId] = useState<string | null>(null)
 
   const customGroups = useCustomerGroups()
   const intimacyCfg = useIntimacyConfig()
@@ -104,139 +111,67 @@ export default function CrmPage() {
 
   return (
     <div className="mx-auto max-w-[1200px]">
-      <PageHeader
-        title="客户管理"
-        actions={
-          <>
-            <Button variant="ghost" icon="hub" onClick={() => navigate('/crm/canvas')}>
-              关系画布
-            </Button>
-            <Button icon="person_add" onClick={() => setFormOpen(true)}>
-              新建客户
-            </Button>
-          </>
-        }
-      />
+      {/* 桌面页头（≥768px）：原样保留，包一层 block 只是为了窄屏能整块撤掉 */}
+      <div className="hidden md:block">
+        <PageHeader
+          title="客户管理"
+          actions={
+            <>
+              <Button variant="ghost" icon="hub" onClick={() => navigate('/crm/canvas')}>
+                关系画布
+              </Button>
+              <Button icon="person_add" onClick={() => setFormOpen(true)}>
+                新建客户
+              </Button>
+            </>
+          }
+        />
+      </div>
+
+      {/* 移动页头（<768px，原型 03）：标题压到两字、两个入口图标化 ——
+          桌面那两个带文字的按钮（关系画布 / 新建客户）并排约 250px，
+          在 390px 里挤掉标题后只剩一行「客户…/关…」，所以窄屏只留图标。 */}
+      <header className="mb-4 flex items-center justify-between gap-3 md:hidden">
+        <h1 className="min-w-0 truncate text-[1.2857rem] font-bold tracking-[-0.01em]">客户</h1>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <button
+            type="button"
+            aria-label="关系画布"
+            title="关系画布"
+            onClick={() => navigate('/crm/canvas')}
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-outline-variant text-on-surface-variant transition-colors hover:border-primary hover:text-primary"
+          >
+            <Icon name="hub" size={18} />
+          </button>
+          <button
+            type="button"
+            aria-label="新建客户"
+            title="新建客户"
+            onClick={() => setFormOpen(true)}
+            className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-on-primary transition-colors hover:bg-primary-container"
+          >
+            <Icon name="person_add" size={18} />
+          </button>
+        </div>
+      </header>
 
       <div className="flex items-start gap-4">
         {/* 左栏：客户分组菜单（改版：只放「用户自己加的分组」—— 分层是算法推断、用户改不了，
-            与自定义分组混在一栏会让人以为分层也能增删改，已整体移到工具栏浮层） */}
-        <Card className="w-60 shrink-0 self-start p-4">
-          <div className="mb-3 text-[0.8571rem] font-medium uppercase tracking-wide text-on-surface-variant">
-            客户分组
-          </div>
-          <div className="flex flex-col gap-0.5">
-            <button
-              onClick={() => setSelectedGroupId(null)}
-              className={`app-nav-link flex items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[0.9286rem] transition-colors ${
-                selectedGroupId === null
-                  ? 'bg-primary-fixed font-semibold text-primary'
-                  : 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'
-              }`}
-            >
-              <Icon
-                name="group"
-                size={16}
-                className={selectedGroupId === null ? 'text-primary' : 'text-outline'}
-              />
-              <span className="min-w-0 flex-1 truncate">全部客户</span>
-              <span
-                className={`shrink-0 text-[0.7857rem] ${selectedGroupId === null ? 'text-primary/70' : 'text-outline'}`}
-              >
-                {visibleCustomers.length}
-              </span>
-            </button>
-          </div>
+            与自定义分组混在一栏会让人以为分层也能增删改，已整体移到工具栏浮层）。
 
-          {/* 我的分组：自定义 tag 规则圈人，实时计数，可增/改名/改规则/删（Issue #63） */}
-          <div className="mt-3 flex items-center justify-between border-t border-outline-variant/40 px-1 pt-2 pb-1">
-            <span className="text-[0.7857rem] font-semibold uppercase tracking-wider text-outline">
-              我的分组
-            </span>
-          </div>
-          <div className="flex flex-col gap-0.5">
-            {customGroups.map((g) => (
-              <div
-                key={g.id}
-                /* 拖拽排序（用例 #34）：内置分组（全部/S/A/B/潜在）是固定顺序不参与，
-                   只有自定义分组可拖 —— 它们的 sortOrder 才是用户语义上的「我的排序」 */
-                draggable
-                onDragStart={(e) => {
-                  setDragGroupId(g.id)
-                  e.dataTransfer.effectAllowed = 'move'
-                }}
-                onDragEnd={() => setDragGroupId(null)}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => {
-                  e.preventDefault()
-                  if (!dragGroupId || dragGroupId === g.id) return
-                  const ids = customGroups.map((x) => x.id)
-                  const from = ids.indexOf(dragGroupId)
-                  const to = ids.indexOf(g.id)
-                  if (from < 0 || to < 0) return
-                  void reorderCustomerGroups(moveInOrder(ids, from, to))
-                  setDragGroupId(null)
-                }}
-                className={`app-nav-link group/g flex items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[0.9286rem] transition-colors ${
-                  dragGroupId === g.id ? 'opacity-40' : ''
-                } ${
-                  selectedGroupId === g.id
-                    ? 'bg-primary-fixed font-semibold text-primary'
-                    : 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'
-                }`}
-              >
-                {/* 拖拽手柄：仅作视觉提示（整行都可拖，与 /todo 清单、/finance 账本同款写法
-                    与同一个 ⠿ 字符），hover 或正在拖时可见，避免常态下与「编辑/删除」抢注意力 */}
-                <span
-                  title="拖动调整分组顺序"
-                  className={`-ml-1 shrink-0 cursor-grab text-[1rem] leading-none text-outline/60 transition-opacity group-hover/g:text-outline ${
-                    dragGroupId ? 'opacity-100' : 'opacity-0 group-hover/g:opacity-100'
-                  }`}
-                >
-                  ⠿
-                </span>
-                <button
-                  className="flex min-w-0 flex-1 items-center gap-2 text-left"
-                  onClick={() => setSelectedGroupId(selectedGroupId === g.id ? null : g.id)}
-                >
-                  <Icon
-                    name="flag"
-                    size={16}
-                    className={selectedGroupId === g.id ? 'text-primary' : 'text-outline'}
-                  />
-                  <span className="min-w-0 flex-1 truncate">{g.name}</span>
-                </button>
-                <span
-                  className={`shrink-0 text-[0.7857rem] ${selectedGroupId === g.id ? 'text-primary/70' : 'text-outline'}`}
-                >
-                  {groupCounts[g.id] ?? 0}
-                </span>
-                <span className="hidden shrink-0 items-center gap-1 group-hover/g:flex">
-                  <button
-                    title="编辑分组"
-                    className="text-outline hover:text-primary"
-                    onClick={() => setEditorGroup(g)}
-                  >
-                    <Icon name="edit" size={14} />
-                  </button>
-                  <button
-                    title="删除分组"
-                    className="text-outline hover:text-danger"
-                    onClick={() => void removeGroup(g.id)}
-                  >
-                    <Icon name="delete" size={14} />
-                  </button>
-                </span>
-              </div>
-            ))}
-          </div>
-          <button
-            onClick={() => setEditorGroup('new')}
-            className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-outline-variant px-2.5 py-2 text-[0.8929rem] text-on-surface-variant transition-colors hover:border-primary hover:text-primary"
-          >
-            <Icon name="add" size={15} />
-            新建分组
-          </button>
+            窄屏（<768px）整栏撤掉：它是固定 240px 的兄弟列，留在 390px 里会把主列挤到
+            100px 出头，必然横向溢出。分组是用户自己维护的筛选维度、不能一起砍掉，
+            所以改由右侧列里的 <details> 折叠入口承载，两者共用同一个 CustomerGroupNav。 */}
+        <Card className="hidden w-60 shrink-0 self-start p-4 md:block">
+          <CustomerGroupNav
+            groups={customGroups}
+            counts={groupCounts}
+            totalCount={visibleCustomers.length}
+            selectedGroupId={selectedGroupId}
+            onSelectGroup={setSelectedGroupId}
+            onEditGroup={setEditorGroup}
+            onCreateGroup={() => setEditorGroup('new')}
+          />
         </Card>
 
         {/* 右侧：统计 + 列表 */}
@@ -274,8 +209,62 @@ export default function CrmPage() {
             />
           </div>
 
-          {/* 筛选工具栏：关键字 + 亲密度（分层从左侧分组移出后的落位，二者可叠加） */}
-          <div className="mb-3 mt-5 flex flex-wrap items-center gap-2">
+          {/* 移动工具栏（<768px）：搜索占满整行 + 健康分筛选 chips。
+              桌面的「输入框 w-56 + 下拉浮层 + 计数」三件套在 390px 里排不下（合计约 460px，
+              换行后会散成两三行），所以窄屏换成上下两段。 */}
+          <div className="mb-3 mt-4 md:hidden">
+            <input
+              className={inputCls}
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+              placeholder="按姓名、公司、职位、标签检索…"
+            />
+            {/* 横向滚动而不是 flex-wrap：档位数由配置决定（可能 7 档），换行会把工具栏
+                挤成三四排、把列表压到屏幕外。滚动条在触摸端没有操作价值，一并隐藏。 */}
+            <div className="mt-2.5 -mx-4 flex gap-2 overflow-x-auto px-4 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <button
+                type="button"
+                onClick={() => setLevelFilter('all')}
+                className={`${filterChip} ${
+                  levelFilter === 'all'
+                    ? 'border-primary bg-primary-fixed font-medium text-primary'
+                    : filterChipIdle
+                }`}
+              >
+                全部 · {visibleCustomers.length}
+              </button>
+              {intimacyCfg.levels.map((lv) => {
+                const on = levelFilter === lv.key
+                return (
+                  <button
+                    key={lv.key}
+                    type="button"
+                    onClick={() => setLevelFilter(lv.key)}
+                    /* 选中态沿用图谱圈层色（INTIMACY_VISUAL）：档位→颜色是同一个语义，
+                       在此另写一套色板必然与图谱漂移 */
+                    style={
+                      on
+                        ? {
+                            borderColor: INTIMACY_VISUAL[lv.key].color,
+                            color: INTIMACY_VISUAL[lv.key].color,
+                            background: `${INTIMACY_VISUAL[lv.key].color}1f`,
+                          }
+                        : undefined
+                    }
+                    className={`${filterChip} ${on ? 'font-medium' : filterChipIdle}`}
+                  >
+                    {lv.name} · {counts[lv.key] ?? 0}
+                  </button>
+                )
+              })}
+            </div>
+            <div className="mt-2 text-[0.8571rem] text-on-surface-variant">
+              共 {list.length} 位客户
+            </div>
+          </div>
+
+          {/* 筛选工具栏（≥768px）：关键字 + 亲密度（分层从左侧分组移出后的落位，二者可叠加） */}
+          <div className="mb-3 mt-5 hidden flex-wrap items-center gap-2 md:flex">
             <div className="w-56">
               <input
                 className={inputCls}
@@ -296,7 +285,35 @@ export default function CrmPage() {
             </span>
           </div>
 
-          {/* 客户列表 */}
+          {/* 移动端分组入口（<768px）：默认收起，避免把列表推下去；展开后就是左栏那一份
+              分组菜单（同一个组件，含新建/改名/改规则/删）。 */}
+          <details className="group mb-3 md:hidden">
+            <summary className="card flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 [&::-webkit-details-marker]:hidden">
+              <Icon name="group" size={16} className="text-outline" />
+              <span className="min-w-0 flex-1 truncate text-[0.9286rem] font-medium">
+                客户分组 · {selectedGroup?.name ?? '全部客户'}
+              </span>
+              <Icon
+                name="keyboard_arrow_down"
+                size={18}
+                className="text-outline transition-transform group-open:rotate-180"
+              />
+            </summary>
+            <div className="card mt-2 p-3">
+              <CustomerGroupNav
+                groups={customGroups}
+                counts={groupCounts}
+                totalCount={visibleCustomers.length}
+                selectedGroupId={selectedGroupId}
+                onSelectGroup={setSelectedGroupId}
+                onEditGroup={setEditorGroup}
+                onCreateGroup={() => setEditorGroup('new')}
+                touch
+              />
+            </div>
+          </details>
+
+          {/* 客户列表：窄屏卡片、桌面原表格行，两套结构并存（各自被 md: 断点关掉一套） */}
           {list.length === 0 ? (
             <Card className="p-6">
               <EmptyState
@@ -310,17 +327,33 @@ export default function CrmPage() {
               />
             </Card>
           ) : (
-            <Card className="divide-y divide-outline-variant/30 px-5">
-              {list.map((c) => (
-                <CustomerRow
-                  key={c.id}
-                  customer={c}
-                  intimacyCfg={intimacyCfg}
-                  scoreInputs={scoreInputs}
-                  onOpen={() => navigate(`/crm/${c.id}`)}
-                />
-              ))}
-            </Card>
+            <>
+              {/* 桌面（≥768px）：原结构逐像素不变 */}
+              <Card className="hidden divide-y divide-outline-variant/30 px-5 md:block">
+                {list.map((c) => (
+                  <CustomerRow
+                    key={c.id}
+                    customer={c}
+                    intimacyCfg={intimacyCfg}
+                    scoreInputs={scoreInputs}
+                    onOpen={() => navigate(`/crm/${c.id}`)}
+                  />
+                ))}
+              </Card>
+              {/* 移动（<768px）：一行一卡 —— 桌面行把健康分/最近联系放在 w-32/w-28 的固定列里，
+                  390px 下这两列没有摆放空间（连名带公司都会截断），所以整体换成卡片。 */}
+              <div className="flex flex-col gap-2 md:hidden">
+                {list.map((c) => (
+                  <CustomerCard
+                    key={c.id}
+                    customer={c}
+                    intimacyCfg={intimacyCfg}
+                    scoreInputs={scoreInputs}
+                    onOpen={() => navigate(`/crm/${c.id}`)}
+                  />
+                ))}
+              </div>
+            </>
           )}
         </div>
       </div>
@@ -567,6 +600,230 @@ function CustomerRow({
         className="text-[1.2857rem] text-outline opacity-0 transition-opacity group-hover:opacity-100"
       />
     </div>
+  )
+}
+
+/**
+ * 窄屏客户卡（<768px，原型 03）：左头像 / 中姓名 + 健康分 chip + 一行次要信息 / 右最近联系。
+ *
+ * 为什么另起一份而不是让 CustomerRow 自己降级：桌面行是「头像 + 弹性主列 + 两个固定宽度
+ * 指标列 + 尾巴图标」的四段横排，窄屏放不下固定列、也不该把一行折成三行 —— 结构与桌面不同，
+ * 按仓库约定（`shared/useIsMobile.ts`）两侧各留一套结构。
+ *
+ * 右侧放「最近联系」而不是累计金额：客户档案里没有金额字段，列表页也没有按客户聚合成交额的
+ * 领域查询（`useCustomerListStats` 只给全局待收款）。为避免在视图层直连 Dexie 现算，
+ * 这里沿用桌面行右侧已经在显示的那个指标。
+ */
+function CustomerCard({
+  customer: c,
+  intimacyCfg,
+  scoreInputs,
+  onOpen,
+}: {
+  customer: Customer
+  intimacyCfg: ReturnType<typeof useIntimacyConfig>
+  scoreInputs: Record<string, Parameters<typeof resolveIntimacyLevel>[2]>
+  onOpen: () => void
+}) {
+  const healthLevel = resolveHealthScoreDisplay(c, intimacyCfg, scoreInputs[c.id] ?? null)
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      /* 仍挂 .card 而不是自己拼 border/bg：皮肤层（skins.css）按 `.card` 改圆角/描边/阴影，
+         自己拼一份就会在换皮肤时变成唯一不长皮肤的那张卡。 */
+      className="card flex w-full cursor-pointer items-center gap-3 p-3 text-left"
+    >
+      <Avatar name={c.name} size={40} />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <span className="min-w-0 truncate text-[1rem] font-semibold">{c.name}</span>
+          {/* 档位色与桌面同源（resolveHealthScoreDisplay）；底色取同色 12% 透明，
+              另配一套 chip 色板会与图谱/详情页漂移 */}
+          <span
+            className="shrink-0 rounded-full px-2 py-0.5 text-[0.7857rem] font-medium"
+            style={{ color: healthLevel.color, background: `${healthLevel.color}1f` }}
+          >
+            {healthLevel.label}
+          </span>
+        </div>
+        <div className="mt-0.5 truncate text-[0.8571rem] text-on-surface-variant">
+          {c.company || '—'}
+          {c.title ? ` · ${c.title}` : ''}
+        </div>
+      </div>
+      <div className="shrink-0 text-right">
+        <div className="text-[0.7857rem] text-on-surface-variant">最近联系</div>
+        <div className="text-[0.8571rem] font-medium">{fmtRelative(c.lastContactAt)}</div>
+      </div>
+    </button>
+  )
+}
+
+/**
+ * 客户分组菜单（桌面左栏 Card 与窄屏折叠入口共用一份）。
+ *
+ * 为什么要抽出来：窄屏没有固定左栏的位置，但分组是用户自己维护的筛选维度、不能跟着一起砍。
+ * 两处各写一遍的话，「桌面能改名、手机改不了」是迟早的事。
+ *
+ * 拖拽排序的 dragGroupId 收在组件内部：它是纯瞬态交互态、页面其它地方不消费，
+ * 两个实例各持一份即可（桌面拖拽不受移动端影响）。
+ */
+function CustomerGroupNav({
+  groups,
+  counts,
+  totalCount,
+  selectedGroupId,
+  onSelectGroup,
+  onEditGroup,
+  onCreateGroup,
+  touch = false,
+}: {
+  groups: CustomerGroup[]
+  /** 各分组命中人数（由页面按可见集算出） */
+  counts: Record<string, number>
+  /** 「全部客户」人数（= 可见集大小） */
+  totalCount: number
+  selectedGroupId: string | null
+  /** null = 切回「全部客户」 */
+  onSelectGroup: (id: string | null) => void
+  onEditGroup: (group: CustomerGroup) => void
+  onCreateGroup: () => void
+  /**
+   * 触摸端实例（窄屏折叠入口）。这里刻意用 prop 而不是 `md:` 类：
+   * 本组件的桌面实例必须逐像素不变，而「常态 `hidden`、hover 才 `flex`」这套写法
+   * 一旦两侧都挂上前缀，谁盖谁就要看 Tailwind 的生成顺序了 —— 拿不准就别赌。
+   * 触摸端没有 hover，编辑/删除会永远点不到，故常显；拖拽手柄则整根藏掉。
+   */
+  touch?: boolean
+}) {
+  // 分组的拖拽排序（用例 #34）：记录被拖起的 id，落点由目标项决定
+  const [dragGroupId, setDragGroupId] = useState<string | null>(null)
+  /** 手柄常态不可见（避免与编辑/删除抢注意力），hover 或正在拖时才现形 */
+  const handleCls = dragGroupId ? 'opacity-100' : 'opacity-0 group-hover/g:opacity-100'
+
+  return (
+    <>
+      <div className="mb-3 text-[0.8571rem] font-medium uppercase tracking-wide text-on-surface-variant">
+        客户分组
+      </div>
+      <div className="flex flex-col gap-0.5">
+        <button
+          onClick={() => onSelectGroup(null)}
+          className={`app-nav-link flex items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[0.9286rem] transition-colors ${
+            selectedGroupId === null
+              ? 'bg-primary-fixed font-semibold text-primary'
+              : 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'
+          }`}
+        >
+          <Icon
+            name="group"
+            size={16}
+            className={selectedGroupId === null ? 'text-primary' : 'text-outline'}
+          />
+          <span className="min-w-0 flex-1 truncate">全部客户</span>
+          <span
+            className={`shrink-0 text-[0.7857rem] ${selectedGroupId === null ? 'text-primary/70' : 'text-outline'}`}
+          >
+            {totalCount}
+          </span>
+        </button>
+      </div>
+
+      {/* 我的分组：自定义 tag 规则圈人，实时计数，可增/改名/改规则/删（Issue #63） */}
+      <div className="mt-3 flex items-center justify-between border-t border-outline-variant/40 px-1 pt-2 pb-1">
+        <span className="text-[0.7857rem] font-semibold uppercase tracking-wider text-outline">
+          我的分组
+        </span>
+      </div>
+      <div className="flex flex-col gap-0.5">
+        {groups.map((g) => (
+          <div
+            key={g.id}
+            /* 拖拽排序（用例 #34）：内置分组（全部/S/A/B/潜在）是固定顺序不参与，
+               只有自定义分组可拖 —— 它们的 sortOrder 才是用户语义上的「我的排序」 */
+            draggable
+            onDragStart={(e) => {
+              setDragGroupId(g.id)
+              e.dataTransfer.effectAllowed = 'move'
+            }}
+            onDragEnd={() => setDragGroupId(null)}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault()
+              if (!dragGroupId || dragGroupId === g.id) return
+              const ids = groups.map((x) => x.id)
+              const from = ids.indexOf(dragGroupId)
+              const to = ids.indexOf(g.id)
+              if (from < 0 || to < 0) return
+              void reorderCustomerGroups(moveInOrder(ids, from, to))
+              setDragGroupId(null)
+            }}
+            className={`app-nav-link group/g flex items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[0.9286rem] transition-colors ${
+              dragGroupId === g.id ? 'opacity-40' : ''
+            } ${
+              selectedGroupId === g.id
+                ? 'bg-primary-fixed font-semibold text-primary'
+                : 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'
+            }`}
+          >
+            {/* 拖拽手柄：仅作视觉提示（整行都可拖，与 /todo 清单、/finance 账本同款写法
+                与同一个 ⠿ 字符），hover 或正在拖时可见，避免常态下与「编辑/删除」抢注意力。
+                触摸端（<768px）整根藏掉：HTML5 拖拽在触屏上不生效，留着只会让人白试。 */}
+            <span
+              title="拖动调整分组顺序"
+              className={`-ml-1 shrink-0 cursor-grab text-[1rem] leading-none text-outline/60 transition-opacity group-hover/g:text-outline ${
+                touch ? 'hidden' : handleCls
+              }`}
+            >
+              ⠿
+            </span>
+            <button
+              className="flex min-w-0 flex-1 items-center gap-2 text-left"
+              onClick={() => onSelectGroup(selectedGroupId === g.id ? null : g.id)}
+            >
+              <Icon
+                name="flag"
+                size={16}
+                className={selectedGroupId === g.id ? 'text-primary' : 'text-outline'}
+              />
+              <span className="min-w-0 flex-1 truncate">{g.name}</span>
+            </button>
+            <span
+              className={`shrink-0 text-[0.7857rem] ${selectedGroupId === g.id ? 'text-primary/70' : 'text-outline'}`}
+            >
+              {counts[g.id] ?? 0}
+            </span>
+            {/* 桌面常态藏、hover 显；触摸端没有 hover 可用，编辑/删除会永远点不到，故常显 */}
+            <span
+              className={`shrink-0 items-center gap-1 ${touch ? 'flex' : 'hidden group-hover/g:flex'}`}
+            >
+              <button
+                title="编辑分组"
+                className="text-outline hover:text-primary"
+                onClick={() => onEditGroup(g)}
+              >
+                <Icon name="edit" size={14} />
+              </button>
+              <button
+                title="删除分组"
+                className="text-outline hover:text-danger"
+                onClick={() => void removeGroup(g.id)}
+              >
+                <Icon name="delete" size={14} />
+              </button>
+            </span>
+          </div>
+        ))}
+      </div>
+      <button
+        onClick={onCreateGroup}
+        className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-outline-variant px-2.5 py-2 text-[0.8929rem] text-on-surface-variant transition-colors hover:border-primary hover:text-primary"
+      >
+        <Icon name="add" size={15} />
+        新建分组
+      </button>
+    </>
   )
 }
 

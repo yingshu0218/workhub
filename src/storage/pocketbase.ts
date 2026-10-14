@@ -1,11 +1,14 @@
-import type { SyncOp, StorageAdapter, TableName } from './types'
+import type { SyncOp, StorageAdapter, StorageTx, TableName } from './types'
 import type { SyncMeta } from '@/db/types'
 import {
   escapePbFilterValue,
   isTombstone,
   pbCollection,
   reviveRemoteJsonFields,
+  sha256ToBase36_15,
+  stripLocalOnlyFields,
   stripPbMeta,
+  toPayload,
 } from '@/sync/remoteNormalize'
 
 /**
@@ -67,21 +70,30 @@ export function createPocketBaseAdapter(opts: PocketBaseAdapterOptions): Storage
     if (!token) throw new Error('[pb-adapter] 鉴权响应缺少 token')
   }
 
-  async function api(path: string, retry = true): Promise<Response> {
+  /** 统一请求出口：自动附鉴权；401 有凭据重登一次重试 / 匿名给可操作错误 */
+  async function api(
+    path: string,
+    init?: { method?: string; body?: unknown },
+    retry = true,
+  ): Promise<Response> {
     if (!token && hasCreds) await auth()
     const res = await fetchImpl(`${base}${path}`, {
-      headers: token ? { Authorization: token } : undefined,
+      method: init?.method ?? 'GET',
+      headers: {
+        ...(init?.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+        ...(token ? { Authorization: token } : undefined),
+      },
+      ...(init?.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
     })
-    // 401：有凭据 → 自动重登一次重试（token 过期）；匿名 → 集合读规则未公开，给可操作错误
     if (res.status === 401 && retry) {
       if (!hasCreds) {
         throw new Error(
-          `[pb-adapter] 读取被拒（HTTP 401）：集合读规则未公开且未配置服务端凭据（WORKHUB_PB_ACCOUNT/PASSWORD）`,
+          `[pb-adapter] 请求被拒（HTTP 401）：集合规则未公开且未配置服务端凭据（WORKHUB_PB_ACCOUNT/PASSWORD）`,
         )
       }
       token = null
       await auth()
-      return api(path, false)
+      return api(path, init, false)
     }
     return res
   }
@@ -137,19 +149,95 @@ export function createPocketBaseAdapter(opts: PocketBaseAdapterOptions): Storage
     return first ? normalize(table, first) ?? undefined : undefined
   }
 
+  // ───────────────────────── 写路径（P3：服务端执行器直写 PB 中心） ─────────────────────────
+
+  /**
+   * 幂等 upsert（与客户端同步引擎 pbUpsert 同协议，**但无 LWW 拒绝**）：
+   * 按 localId 判存 → 存在 PATCH / 不存在 POST（body.id = sha256ToBase36_15(localId)）。
+   *
+   * 为什么不做 LWW/skip：客户端推送侧的 skip 语义防的是「迟到的旧副本覆盖新数据」；
+   * 服务端执行器是**当下被确认的写意图**（用户确认过/低风险直执行），若目标记录已被
+   * 删除，写工具链上游的 mustExist 早已拒绝——能走到这里的 put 都是合法写入，直写。
+   *
+   * SyncMeta（updatedAt/rev/deleted）由调用方（repository 复合函数）盖章——层内不盖章
+   * 的原则与 DexieAdapter 一致；PB hook 会另盖 server_received_at。
+   */
+  async function upsert(table: TableName, record: Record<string, unknown>): Promise<void> {
+    const localId = String(record.id ?? '')
+    if (!localId) throw new Error('[pb-adapter] put 缺少记录 id')
+    const collection = pbCollection(table)
+    const payload: Record<string, unknown> = {
+      ...toPayload(record),
+      localId,
+    }
+    stripLocalOnlyFields(table, payload)
+    // 判存：按 localId 精确过滤（与 push 侧同口径）
+    const findParams = new URLSearchParams({
+      filter: `localId='${escapePbFilterValue(localId)}'`,
+      perPage: '1',
+    })
+    const found = await api(`/api/collections/${collection}/records?${findParams}`)
+    if (!found.ok) throw new Error(`[pb-adapter] 判存失败 ${table}/${localId}（HTTP ${found.status}）`)
+    const foundData = (await found.json()) as PbListResult
+    const existing = (foundData.items ?? [])[0]
+    const base_ = `/api/collections/${collection}/records`
+    if (existing) {
+      const res = await api(`${base_}/${encodeURIComponent(String(existing.id))}`, {
+        method: 'PATCH',
+        body: payload,
+      })
+      if (!res.ok) {
+        const detail = await res.text().catch(() => '')
+        throw new Error(`[pb-adapter] 更新 ${table}/${localId} 失败（HTTP ${res.status}）：${detail.slice(0, 200)}`)
+      }
+      return
+    }
+    const res = await api(base_, {
+      method: 'POST',
+      body: { ...payload, id: sha256ToBase36_15(localId) },
+    })
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '')
+      throw new Error(`[pb-adapter] 创建 ${table}/${localId} 失败（HTTP ${res.status}）：${detail.slice(0, 200)}`)
+    }
+  }
+
   return {
-    async transaction(_tables, _fn) {
-      throw new Error(
-        '[pb-adapter] 服务端执行器当前为只读（P2）：写工具将在 P3 落地（LWW 盖章 + 确认票据 + 事件集合），当前请经浏览器桥执行',
-      )
+    /**
+     * 事务语义（P3）：PB 无跨表事务 API，这里**不伪装原子性**——tx 的 get/put/update/list
+     * 逐操作即时落 PB（put 即 upsert），任一步失败即抛错交由 executor 转可操作错误。
+     * 复合函数的「先读后写」一致性由「PB 写入立即可读」保证；跨表原子性本就不存在
+     * （与客户端同步队列的逐条推送同量级），LWW 保证最终收敛。
+     */
+    async transaction(_tables, fn) {
+      const tx: StorageTx = {
+        async get(table, id) {
+          return (await apiGet(table, id)) as never
+        },
+        async put(table, record) {
+          await upsert(table, record as Record<string, unknown>)
+        },
+        async update(table, id, patch) {
+          // 服务端无原地 update：get 当前值 → merge → upsert（复合函数已带新盖章）
+          const cur = await apiGet(table, id)
+          const merged = { ...(cur ?? { id }), ...patch, id }
+          await upsert(table, merged)
+        },
+        async enqueue() {
+          // no-op：服务端写的 PB 就是同步中心本身，无本地队列
+        },
+        async list(table) {
+          return (await apiList(table)) as never
+        },
+      }
+      return fn(tx)
     },
     // 归一化产物是运行时形状（Record & SyncMeta）；调用方（reads/resolver）以各自实体
     // 泛型消费——与 DexieAdapter 的 `as never` 同款处理，运行时字段即实体字段。
     get: async (table, id) => (await apiGet(table, id)) as never,
     list: async (table) => (await apiList(table)) as never,
-    requestSync() {
-      // no-op：服务端直读中心，无本地同步引擎
-    },
+    /** 服务端直写中心：写后无需触发同步（客户端靠既有 pull 心跳收敛） */
+    requestSync() {},
   }
 }
 

@@ -1,9 +1,6 @@
-import { db } from '@/db/db'
 import { storage } from '@/storage'
-import { syncEngine } from '@/sync/engine'
 import { createRepository, newId } from './repository'
 import type { PutInput } from './repository'
-import type { Table } from 'dexie'
 import type {
   Customer,
   Interaction,
@@ -16,13 +13,11 @@ import type {
   HabitLog,
   Trophy,
   Workspace,
-  Settings,
   ModuleConfig,
   RelationCategory,
 } from '@/db/types'
-import { DEFAULT_SETTINGS } from '@/db/types'
 import type { SyncMeta } from '@/db/types'
-import type { Attachment, FocusSession } from '@/db/db'
+import type { Attachment } from '@/db/db'
 import { eventBus } from '@/shared/eventBus'
 import { txnCustomerIds, toLinkField } from '@/modules/finance/links'
 
@@ -60,116 +55,9 @@ export const moduleConfigRepo = createRepository<ModuleConfig>('moduleConfigs')
 export const customerGroupRepo =
   createRepository<import('@/db/types').CustomerGroup>('customerGroups')
 
-/**
- * 专注会话瞬态仓储（本地推导数据，不进同步队列 —— 开发计划 2.3）
- * 仅供导出/恢复使用，写入不走 repository.put（避免误盖章入队）
- */
-export const focusSessionRepo = {
-  list(): Promise<FocusSession[]> {
-    return db.focusSessions.toArray()
-  },
-  async bulkPut(items: FocusSession[]): Promise<void> {
-    if (items.length === 0) return
-    await db.transaction('rw', [db.focusSessions], async () => {
-      await db.focusSessions.bulkPut(items)
-    })
-  },
-}
-
 export { newId }
 export { txnCustomerIds, txnProjectIds } from '@/modules/finance/links'
 export { toLinkFieldPatch }
-
-/**
- * 设置 singleton 仓储（Phase 6）—— 本地偏好，不进同步队列
- * 读：缺省段位用 DEFAULT_SETTINGS 补齐（前向兼容新增字段）
- * 写：单事务覆盖 settings 表（singleton + 事务），写后广播 settings:changed 由消费端实时应用
- */
-const SETTINGS_TABLE = () =>
-  db.settings as unknown as {
-    get(key: string): Promise<Settings | undefined>
-    put(value: Settings): Promise<string>
-  }
-
-function mergeSettings(prev: Settings | undefined): Settings {
-  const base = prev ?? DEFAULT_SETTINGS
-  return {
-    ...DEFAULT_SETTINGS,
-    ...base,
-    key: 'singleton',
-    appearance: { ...DEFAULT_SETTINGS.appearance, ...base.appearance },
-    typography: { ...DEFAULT_SETTINGS.typography, ...base.typography },
-    notifications: { ...DEFAULT_SETTINGS.notifications, ...base.notifications },
-    security: { ...DEFAULT_SETTINGS.security, ...base.security },
-    sync: { ...DEFAULT_SETTINGS.sync, ...base.sync },
-    notes: { ...DEFAULT_SETTINGS.notes, ...base.notes },
-    // ai 段含 domains 子对象：整体展开即可（调用方按域传 patch，见 §四.3 能力白名单）
-    ai: { ...DEFAULT_SETTINGS.ai, ...base.ai },
-  }
-}
-
-export const settingsRepo = {
-  async get(): Promise<Settings> {
-    return mergeSettings(await SETTINGS_TABLE().get('singleton'))
-  },
-
-  /**
-   * 契约修复（审计 Phase 6 P2-7）：
-   * 1. get 移入 db.transaction 内 —— 读-并-写同事务，杜绝并发写互相覆盖；
-   * 2. 段合并改为「DEFAULT 兜底 ← 旧值段展开 ← patch 段」三层合并，
-   *    调用方只传段内单字段（如 { appearance: { accent } }）时不再抹掉段内其他字段。
-   */
-  async save(patch: Partial<Omit<Settings, 'key'>>): Promise<Settings> {
-    return db.transaction('rw', [db.settings], async () => {
-      const prev = await SETTINGS_TABLE().get('singleton')
-      const merged: Settings = {
-        ...DEFAULT_SETTINGS,
-        ...prev,
-        key: 'singleton',
-        appearance: { ...DEFAULT_SETTINGS.appearance, ...prev?.appearance, ...patch.appearance },
-        typography: { ...DEFAULT_SETTINGS.typography, ...prev?.typography, ...patch.typography },
-        notifications: {
-          ...DEFAULT_SETTINGS.notifications,
-          ...prev?.notifications,
-          ...patch.notifications,
-        },
-        security: { ...DEFAULT_SETTINGS.security, ...prev?.security, ...patch.security },
-        sync: { ...DEFAULT_SETTINGS.sync, ...prev?.sync, ...patch.sync },
-        notes: { ...DEFAULT_SETTINGS.notes, ...prev?.notes, ...patch.notes },
-        // 新增段必须在此登记，否则段内单字段 patch 会整体丢失（本函数是段内展开合并）
-        ai: { ...DEFAULT_SETTINGS.ai, ...prev?.ai, ...patch.ai },
-      }
-      await SETTINGS_TABLE().put(merged)
-      eventBus.emit('settings:changed', { settings: merged })
-      return merged
-    })
-  },
-}
-
-/**
- * 危险区：清空本地数据库并重新写入演示种子（设置页「数据与安全」用）
- * 契约修复（审计 Phase 6 P2-8）：
- * 1. settings 表豁免清空 —— 保留同步配置（serverUrl/账号）与外观偏好，清空后无需重新配置；
- * 2. 若同步队列存在未推送条目，先执行一次 syncNow 清空队列再重置，
- *    避免尚未推送的本地增量随库被清（配置同步后丢数据）；推送后仍有积压则中止清空。
- * 动态 import 规避 db.ts ↔ seed.ts 的模块环；调用方负责自行 reload 刷新界面态
- */
-export async function resetAndSeedLocalData(): Promise<void> {
-  const pendingBefore = await db.syncQueue.filter((p) => !p.sentAt).count()
-  if (pendingBefore > 0) {
-    await syncEngine.syncNow('pre-reset')
-    const pendingAfter = await db.syncQueue.filter((p) => !p.sentAt).count()
-    if (pendingAfter > 0) {
-      throw new Error(
-        `仍有 ${pendingAfter} 条变更未能推送到服务器，已中止清空以保护数据。请检查网络或同步配置后重试。`,
-      )
-    }
-  }
-  // 逐表清空（settings 豁免），替代整库 delete，保留设置 singleton
-  await Promise.all(db.tables.filter((t) => t.name !== 'settings').map((t) => t.clear()))
-  const { seedIfEmpty } = await import('@/db/seed')
-  await seedIfEmpty()
-}
 
 /**
  * 默认账本唯一性收口（P1 补强 · 第 4/7 步跨轮一致性）：
@@ -242,119 +130,6 @@ export async function uncheckHabit(habitId: string, date: string): Promise<void>
 }
 
 /**
- * JSON 存档恢复（设置页「数据与安全」导入迁移用）：
- * 校验导出格式 → 单事务逐表 bulkPut（保留记录自带的 updatedAt/rev/deleted 盖章）。
- * 覆盖语义：与本地同 id 的记录整体被存档版本覆盖。
- * 附件恢复：存档中附件以 base64 dataUrl 承载（导出时 Blob 不可 JSON 序列化），
- * 恢复时转回 Blob 写入 attachments 表。
- * 同步说明：最简恢复不逐条入同步队列（避免恢复一次洪泛队列），
- * 跨设备传播依赖「全量推送」入口（enqueueAllForPush）。
- * @returns 实际写入的记录总数
- */
-const RESTORE_TABLES = [
-  'workspaces',
-  'customers',
-  'interactions',
-  'ledgers',
-  'transactions',
-  'todos',
-  'notes',
-  'quickNotes',
-  'habits',
-  'habitLogs',
-  'trophies',
-  'attachments',
-  'focusSessions',
-  'todoLists',
-  'noteFolders',
-  'projects',
-  'projectMilestones',
-  'moduleConfigs',
-] as const
-
-/** base64 dataUrl → Blob（附件恢复用，不依赖网络） */
-function dataUrlToBlob(dataUrl: string): Blob {
-  const [head, body] = dataUrl.split(',')
-  const mime = /:(.*?);/.exec(head)?.[1] ?? 'application/octet-stream'
-  const bin = atob(body)
-  const bytes = new Uint8Array(bin.length)
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
-  return new Blob([bytes], { type: mime })
-}
-
-/**
- * 存档附件行（dataUrl 承载）→ 本地附件记录（blob 承载）。
- *
- * 同步盖章**原样保留**（与其它表 bulkPut「保留记录自带 updatedAt/rev/deleted」同口径）：
- * 恢复一次存档不应把所有附件的时间戳重置，否则这批记录会整批输给远端旧版本（LWW），
- * 换设备后看起来像「导入的附件被回滚掉了」。
- */
-function attachmentRowToRecord(row: Record<string, unknown>): PutInput<Attachment> | null {
-  const { dataUrl, ...rest } = row
-  const blob =
-    typeof dataUrl === 'string' && dataUrl.startsWith('data:')
-      ? dataUrlToBlob(dataUrl)
-      : rest.blob instanceof Blob
-        ? rest.blob
-        : null
-  if (!blob || typeof rest.id !== 'string') return null
-  return {
-    id: rest.id,
-    refType: typeof rest.refType === 'string' ? rest.refType : '',
-    refId: typeof rest.refId === 'string' ? rest.refId : '',
-    name: typeof rest.name === 'string' ? rest.name : 'attachment',
-    mime: typeof rest.mime === 'string' ? rest.mime : blob.type,
-    size: typeof rest.size === 'number' ? rest.size : blob.size,
-    blob,
-    createdAt: typeof rest.createdAt === 'number' ? rest.createdAt : 0,
-    ...(typeof rest.updatedAt === 'number' ? { updatedAt: rest.updatedAt } : {}),
-    ...(typeof rest.rev === 'number' ? { rev: rest.rev } : {}),
-    ...(rest.deleted === 0 || rest.deleted === 1 ? { deleted: rest.deleted } : {}),
-  }
-}
-
-export async function restoreFromJson(payload: unknown): Promise<number> {
-  const parsed = payload as {
-    app?: string
-    data?: Partial<Record<(typeof RESTORE_TABLES)[number], unknown[]>>
-  } | null
-  if (
-    !parsed ||
-    parsed.app !== 'nexus-workspace' ||
-    !parsed.data ||
-    typeof parsed.data !== 'object'
-  ) {
-    throw new Error('所选文件不是本工作台导出的 JSON 存档（缺少 app / data 字段）')
-  }
-  let count = 0
-  await db.transaction(
-    'rw',
-    RESTORE_TABLES.map((t) => db[t] as unknown as Table),
-    async () => {
-      for (const name of RESTORE_TABLES) {
-        const rows = parsed.data?.[name]
-        if (!Array.isArray(rows) || rows.length === 0) continue
-        const table = db[name] as unknown as { bulkPut(items: unknown[]): Promise<unknown> }
-        if (name === 'attachments') {
-          // 附件特殊通道：dataUrl → Blob 后写入，跳过无法落库的存档原行
-          const records = rows
-            .map((r) => attachmentRowToRecord(r as Record<string, unknown>))
-            .filter((r): r is PutInput<Attachment> => r !== null)
-          if (records.length === 0) continue
-          await table.bulkPut(records)
-          count += records.length
-        } else {
-          await table.bulkPut(rows)
-          count += rows.length
-        }
-      }
-    },
-  )
-  syncEngine.requestSync()
-  return count
-}
-
-/**
  * 习惯级联删除：单 Dexie 事务覆盖 habits / habitLogs / syncQueue 三表，
  * 任一步失败整体回滚。语义：
  * 1. 软删习惯（盖章 + 入队 delete）
@@ -386,7 +161,7 @@ export async function deleteHabitCascade(habitId: string): Promise<void> {
       await tx.enqueue('habitLogs', log.id, 'delete', now)
     }
   })
-  syncEngine.requestSync()
+  storage.requestSync()
 }
 
 /**
@@ -439,7 +214,7 @@ export async function saveTransactionWithAttachments(
       customerId: txnCustomerIds(txn)[0],
     })
   }
-  syncEngine.requestSync()
+  storage.requestSync()
   return { id: txn.id, created }
 }
 
@@ -489,7 +264,7 @@ export async function saveInteractionAndTouchCustomer(
   })
   // 事务 commit 之后：统一 emit（UI 两个入口 + agentOps 都经此，单点收口）
   eventBus.emit('customer:contacted', { customerId })
-  syncEngine.requestSync()
+  storage.requestSync()
   return interaction.id
 }
 
@@ -500,7 +275,7 @@ export async function saveInteractionAndTouchCustomer(
  * 单事务覆盖 customers + syncQueue；任一步失败整体回滚。
  * 单一来源：UI（CustomerFormDrawer 编辑态）与 agentOps（crm_addRelation）**都经此**，
  * 避免「各写一份盖章/入队」漂移（此前 agent 侧手写 update+syncQueue.add，
- * 漏了 syncEngine.requestSync()，只能等 30s 心跳才推送，且与 repository 盖章口径两套实现）。
+ * 漏了 storage.requestSync()，只能等 30s 心跳才推送，且与 repository 盖章口径两套实现）。
  *
  * @returns `{ relationId, deduped }`；同 `目标 + 语义` 已存在时幂等返回既有关系（deduped=true）
  */
@@ -554,7 +329,7 @@ export async function addCustomerRelation(
     })
     await tx.enqueue('customers', b.id, 'upsert', now)
   })
-  syncEngine.requestSync()
+  storage.requestSync()
   return { relationId, deduped }
 }
 
@@ -650,7 +425,7 @@ export async function deleteCustomerCascade(customerId: string): Promise<void> {
       }
     },
   )
-  syncEngine.requestSync()
+  storage.requestSync()
 }
 
 /**
@@ -717,5 +492,5 @@ export async function createCustomerWithInit(
       }
     },
   )
-  syncEngine.requestSync()
+  storage.requestSync()
 }

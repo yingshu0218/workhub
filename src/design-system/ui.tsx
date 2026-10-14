@@ -85,16 +85,21 @@ export function Modal({
   useEscapeLayer(open, onClose)
 
   if (!open) return null
-  const sizes = { md: 'sm:max-w-2xl', lg: 'sm:max-w-4xl', xl: 'sm:max-w-5xl' }[size]
+  // 断点统一用 md(768) 而非原来的 sm(640)：全站桌面/移动分界定在 768，
+  // 否则 640~768 这一段会同时命中两套规则、结果取决于 CSS 生成顺序。
+  const sizes = { md: 'md:max-w-2xl', lg: 'md:max-w-4xl', xl: 'md:max-w-5xl' }[size]
   return (
     <div
-      className={`fixed inset-0 flex items-center justify-center p-0 sm:p-6 ${
+      className={`modal-overlay fixed inset-0 flex items-center justify-center p-0 md:p-6 ${
         elevated ? 'z-[55]' : 'z-50'
       }`}
     >
       <div className="absolute inset-0 bg-black/25" onClick={onClose} />
+      {/* 形态由 styles/index.css 的 .modal-overlay / .modal-panel 表达：
+          <768px = 贴底抽屉（只圆上两角、最高 85dvh）；≥768px = 居中对话框。
+          这里不写 h-full / rounded-* 工具类——会被无层级的 .surface-card-dialog 盖掉。 */}
       <div
-        className={`relative flex h-full w-full flex-col overflow-hidden rounded-none surface-card-dialog sm:h-auto sm:max-h-[90vh] sm:rounded-2xl ${sizes}`}
+        className={`modal-panel relative flex w-full flex-col overflow-hidden surface-card-dialog md:h-auto md:max-h-[90vh] ${sizes}`}
       >
         <div className="flex h-14 shrink-0 items-center justify-between border-b border-outline-variant/40 px-5">
           <h2 className="text-[1.0714rem] font-semibold">{title}</h2>

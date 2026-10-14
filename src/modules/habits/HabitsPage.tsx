@@ -12,6 +12,7 @@ import {
   useHabitMood,
 } from './hooks'
 import { HabitFormDrawer } from './HabitFormDrawer'
+import { useIsMobile } from '@/shared/useIsMobile'
 
 const WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日']
 
@@ -31,6 +32,9 @@ function heatClass(count: number): string {
 }
 
 export default function HabitsPage() {
+  // 标题是**结构级**差异（移动原型 06 作「打卡 · 习惯」），纯 CSS 改不了字符串内容，
+  // 而 PageHeader 只收 title: string，故这里走 JS 判定而不是硬改 design-system
+  const isMobile = useIsMobile()
   const [month, setMonth] = useState(() => dayjs().format('YYYY-MM'))
   const [selectedDate, setSelectedDate] = useState<string | undefined>(undefined)
   const [editing, setEditing] = useState<Habit | null>(null)
@@ -80,16 +84,18 @@ export default function HabitsPage() {
   return (
     <div className="mx-auto max-w-[1200px]">
       <PageHeader
-        title="打卡习惯"
+        title={isMobile ? '打卡 · 习惯' : '打卡习惯'}
         actions={
           <Button icon="add" onClick={() => setCreating(true)}>
-            新建习惯
+            {/* 390px 下「新建习惯」四个字会把标题挤走，窄屏只留 + 图标（按钮宽度靠字号撑不住，故隐藏文案而非缩字号） */}
+            <span className="hidden md:inline">新建习惯</span>
           </Button>
         }
       />
 
-      {/* 头部速览 */}
-      <div className="mb-4 flex flex-wrap items-center gap-2">
+      {/* 头部速览：窄屏下多项统计挤在一行会各自折行成「碎片」，改为 2 等分网格；
+          ≥768px 用 md: 还原成原来的一行 flex-wrap，桌面零变化 */}
+      <div className="mb-4 grid grid-cols-2 gap-2 md:flex md:flex-wrap md:items-center">
         <Chip tone="amber" icon="local_fire_department">
           今日已打卡 {todayDone} 项
         </Chip>
@@ -103,9 +109,11 @@ export default function HabitsPage() {
         )}
       </div>
 
-      {/* 月历热力图 */}
-      <Card className="mb-4 p-5">
-        <div className="mb-4 flex items-center justify-between">
+      {/* 月历热力图（窄屏收内边距，给右侧 7 列格子多匀出 8px） */}
+      <Card className="mb-4 p-4 md:p-5">
+        {/* 左边「标题 + 稳态评语」最长可到 12 个字，390px 下与右侧月份切换器同排必溢出 →
+            窄屏改列排（各占一行），md: 起还原为原来的 justify-between 单行 */}
+        <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div className="flex min-w-0 items-center gap-2">
             <h2 className="text-[1.0714rem] font-semibold">本月热力图</h2>
             {mood && (
@@ -159,18 +167,23 @@ export default function HabitsPage() {
                 key={date}
                 disabled={isFuture}
                 onClick={() => setSelectedDate(isSelected ? undefined : date)}
-                className={`flex h-14 flex-col items-start justify-between rounded-lg p-1.5 text-left transition-transform ${heatClass(count)} ${
+                className={`flex h-12 flex-col items-center justify-center rounded-lg p-1.5 text-center transition-transform md:h-14 md:items-start md:justify-between md:text-left ${heatClass(count)} ${
                   isSelected ? 'ring-2 ring-primary' : ''
                 } ${isFuture ? 'opacity-40' : 'hover:scale-105'} ${isToday ? 'ring-1 ring-primary/60' : ''}`}
               >
                 <span className="text-[0.7857rem] font-semibold">{isToday ? '今' : i + 1}</span>
-                {count > 0 && <span className="text-[0.7143rem] opacity-80">{count} 项</span>}
+                {/* 窄屏格子约 42px 宽，放不下「12 项」（会折行撑破格子）；
+                    色阶已编码当日完成量级，明细靠点击展开，故窄屏只在格子里留日期 */}
+                {count > 0 && (
+                  <span className="hidden text-[0.7143rem] opacity-80 md:block">{count} 项</span>
+                )}
               </button>
             )
           })}
         </div>
 
-        <div className="mt-3 flex items-center gap-2 text-[0.7857rem] text-outline">
+        {/* flex-wrap 只在放不下时才生效：窄屏把「点击查看明细」换到下一行，宽屏与原来同排 */}
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-[0.7857rem] text-outline">
           <span>少</span>
           <span className="h-3 w-3 rounded bg-surface-container" />
           <span className="h-3 w-3 rounded bg-secondary-container" />
@@ -214,7 +227,7 @@ export default function HabitsPage() {
       </Card>
 
       {/* 活跃习惯清单 */}
-      <Card className="p-5">
+      <Card className="p-4 md:p-5">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-[1.0714rem] font-semibold">活跃习惯 · {stats.length} 项</h2>
         </div>
@@ -227,7 +240,7 @@ export default function HabitsPage() {
         ) : (
           <ul className="divide-y divide-outline-variant/30">
             {stats.map(({ habit, streak, monthChecks, monthRate, doneToday, totalChecks }) => (
-              <li key={habit.id} className="group flex items-center gap-3 py-3">
+              <li key={habit.id} className="group flex items-center gap-2 py-3 md:gap-3">
                 <button
                   onClick={() => void toggleCheck(habit, doneToday)}
                   className="shrink-0"
@@ -258,7 +271,9 @@ export default function HabitsPage() {
                     {streak} 天
                   </Chip>
                 )}
-                <div className="hidden w-28 shrink-0 text-right sm:block">
+                {/* 月度完成率 112px 宽，窄屏会顶掉习惯名 → 只在 ≥768px 显示（原 sm: 是 640px 遗留，
+                    会在移动形态里露出，故一并收口到 md:） */}
+                <div className="hidden w-28 shrink-0 text-right md:block">
                   <div className="text-[0.7857rem] text-outline">
                     {monthLabel}完成 {monthChecks} 次 · {monthRate === null ? '—' : `${monthRate}%`}
                   </div>
@@ -272,15 +287,16 @@ export default function HabitsPage() {
                 <div className="hidden w-16 shrink-0 text-right text-[0.7857rem] text-outline lg:block">
                   累计 {totalChecks} 次
                 </div>
+                {/* 触屏没有 hover，窄屏常显这两个按钮；md:opacity-0 让桌面保持「悬停才出现」原样 */}
                 <button
-                  className="rounded-md p-1.5 text-outline opacity-0 transition-opacity hover:bg-surface-container-low hover:text-primary group-hover:opacity-100"
+                  className="rounded-md p-1.5 text-outline opacity-100 transition-opacity hover:bg-surface-container-low hover:text-primary group-hover:opacity-100 md:opacity-0"
                   title="编辑"
                   onClick={() => setEditing(habit)}
                 >
                   <Icon name="edit" size={18} />
                 </button>
                 <button
-                  className="rounded-md p-1.5 text-outline opacity-0 transition-opacity hover:bg-surface-container-low hover:text-danger group-hover:opacity-100"
+                  className="rounded-md p-1.5 text-outline opacity-100 transition-opacity hover:bg-surface-container-low hover:text-danger group-hover:opacity-100 md:opacity-0"
                   title="删除习惯"
                   onClick={() => removeHabit(habit, totalChecks)}
                 >

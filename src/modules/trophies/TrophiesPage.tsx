@@ -175,7 +175,8 @@ export default function TrophiesPage() {
         </Card>
       ) : null}
 
-      {/* 奖杯墙 */}
+      {/* 奖杯墙：<768px 整宽单列 —— 卡片里图标框是固定盒（h-10）而 Icon 按 1em 缩放，不会溢出。
+          原栅格用的是 640px 断点（历史遗留），与移动壳的 768px 分界不一致，故换成 md: 对齐。 */}
       {trophies.length === 0 ? (
         <Card className="p-6">
           <EmptyState
@@ -185,7 +186,7 @@ export default function TrophiesPage() {
           />
         </Card>
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           {sorted.map((t) => {
             const theme = TIER_THEME[t.tier]
             const current = computeConditionValue(t.conditionType, stats)

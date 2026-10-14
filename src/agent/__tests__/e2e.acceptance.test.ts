@@ -13,12 +13,8 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import 'fake-indexeddb/auto'
 import { db } from '@/db/db'
 import { eventBus, type AppEvent } from '@/shared/eventBus'
-import {
-  settingsRepo,
-  saveTransactionWithAttachments,
-  saveInteractionAndTouchCustomer,
-  createCustomerWithInit,
-} from '@/repositories'
+import { saveTransactionWithAttachments, saveInteractionAndTouchCustomer, createCustomerWithInit } from '@/repositories'
+import { settingsRepo } from '@/repositories/localAdmin'
 import { DEFAULT_SETTINGS, type Customer, type Settings } from '@/db/types'
 import { agentBridge } from '../bridge'
 import { READ_LIMITS } from '../reads'

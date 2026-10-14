@@ -1,6 +1,11 @@
 import { z } from 'zod'
 import { createPocketBaseAdapter } from '@/storage/pocketbase'
 import { setStorageAdapter } from '@/storage'
+import { dispatchAgentTool, AGENT_TOOLS } from './executor'
+import { TOOL_RISK, TOOL_DOMAIN, resolveEntitySchema } from './schema'
+import { zodToJsonSchema } from './jsonSchema'
+import { needsPreview, previewEnvelope } from './confirmFlow'
+import { resolveEntity, type ResolveResult } from './resolver'
 import {
   listTransactions,
   getCustomer,
@@ -20,26 +25,24 @@ import {
   listNotesSchema,
   listNoteFoldersSchema,
   searchEntitiesSchema,
-  type ReadResult,
 } from './reads'
-import { resolveEntity, type ResolveResult } from './resolver'
-import { TOOL_RISK, TOOL_DOMAIN, resolveEntitySchema } from './schema'
-import { zodToJsonSchema } from './jsonSchema'
 
 /**
- * 服务端读执行器（agentOps 服务端化 P2，方案 docs/agentOps服务端化方案.md §4/§6）
+ * 服务端执行器（agentOps 服务端化，方案 docs/agentOps服务端化方案.md）
  *
- * 这是**独立打包入口**（`scripts/build-server-executor.mjs` → `dist-server/server-executor.mjs`）：
- * 只含 10 个读工具，经 `storage/pocketbase.ts` 直读 VPS 上的 PB 中心——
- * 浏览器桥不在线时 `tools/list` 与读工具调用依然可用（7×24 目标的第一步）。
+ * **独立打包入口**（`scripts/build-server-executor.mjs` → `dist-server/server-executor.mjs`）：
+ * - P2：10 个读工具（storage/pocketbase 直读 PB 中心，浏览器桥不在线也可用）；
+ * - **P3：全量 27 工具**——写工具经 executor 同一份 dispatch（repositories 复合函数语义，
+ *   数据关联关系与人在界面上操作一致），写入经 PocketBaseAdapter 落 PB 中心，
+ *   客户端靠既有 pull 收敛。中/高风险写工具无票时返回 preview 信封（confirmFlow 共享模块，
+ *   与浏览器桥逐字段一致）；票据签发/核销仍在 relay。
  *
- * ⚠️ 为什么不直接 import `agent/executor.ts`：它顶层引 `@/repositories`（eventBus /
- * syncEngine → Dexie），服务端进程无法加载；本文件与其共享 reads.ts / resolver.ts /
- * schema.ts 的**同一份实现**（单一事实源不破），只有 dispatch 信封这一小段代码形状相同
- * （与 executor.wrapRead 同构），由 serverReads.parity 测试锁定两端行为一致。
+ * ⚠️ 服务端事件边界（方案 §5.4，P4 处理）：写工具 emit 的领域事件在服务端 bundle 里
+ * 无消费者（eventBus 空转）——奖杯/EXP 评估仍由各客户端在 pull 收敛后自行触发评估，
+ * 即「事件源多一个、评估逻辑不动」的推荐语义。
  *
- * 写工具**刻意不在本入口**：P2 只读（PocketBaseAdapter 的写原语也会拒绝），
- * 写链路的 repositories 复合函数要等 P3 的服务端化编排。
+ * 白名单：initServerExecutor 显式传入（serve.mjs 从 WORKHUB_AI_DOMAINS env 读，
+ * **默认全关**，方案 §7.5 拍板）；与浏览器白名单相互独立（两把闸门各管各的执行体）。
  */
 
 /** 执行结果信封（与 executor.AgentOpResult 同形状；独立声明避免 import 执行器顶层链） */
@@ -54,7 +57,7 @@ type ServerTool = { schema: z.ZodTypeAny; run: (input: unknown) => Promise<Serve
 /** 与 executor.wrapRead 同构：schema 校验 → items/count/truncated 信封 */
 async function wrapRead<S extends z.ZodTypeAny>(
   schema: S,
-  fn: (input: z.output<S>) => Promise<ReadResult>,
+  fn: (input: z.output<S>) => Promise<{ items: unknown[]; count: number; truncated: boolean }>,
   input: unknown,
 ): Promise<ServerOpResult> {
   const parsed = schema.safeParse(input ?? {})
@@ -77,7 +80,7 @@ async function agent_resolveEntity(input: unknown): Promise<ServerOpResult> {
   return { ok: true, data: { ...r } as unknown as Record<string, unknown> }
 }
 
-/** 服务端读工具注册表（与 executor.AGENT_TOOLS 的读工具子集同源；名字不得漂移） */
+/** 服务端读工具注册表（与 executor 读路径同源；写工具经 dispatchAgentTool 走 executor） */
 export const SERVER_READ_TOOLS = {
   'resolveEntity': { schema: resolveEntitySchema, run: agent_resolveEntity },
   'searchEntities': { schema: searchEntitiesSchema, run: (i: unknown) => wrapRead(searchEntitiesSchema, searchEntities, i) },
@@ -93,7 +96,7 @@ export const SERVER_READ_TOOLS = {
 
 export type ServerReadToolName = keyof typeof SERVER_READ_TOOLS
 
-/** 工具描述（与 bridge.describeTool 同口径：域 + 风险级，参数细节在 schema） */
+/** 工具描述（与浏览器桥同口径：域 + 风险级，参数细节在 schema） */
 function describeTool(name: string, risk: string): string {
   return `${name}（域：${name.split('_')[0]}，风险：${risk}）—— 参数见 inputSchema；实体引用须先 resolveEntity，候选不唯一必须反问用户。`
 }
@@ -115,12 +118,12 @@ export function serverToolsList(): Array<{
   }))
 }
 
-/** 是否服务端可执行（relay 路由用：命中即不经浏览器） */
+/** 是否服务端读工具（旧导出保留：测试与文档引用；路由判定已统一到 initServerExecutor.handles） */
 export function handlesServerTool(name: string): boolean {
   return Object.hasOwn(SERVER_READ_TOOLS, name)
 }
 
-/** 服务端执行一个读工具（relay 路由调用；输入不合法返回可操作错误而非抛出） */
+/** 服务端执行一个读工具（输入不合法返回可操作错误而非抛出） */
 export async function dispatchServerReadTool(name: string, input: unknown): Promise<ServerOpResult> {
   const tool = (SERVER_READ_TOOLS as unknown as Record<string, ServerTool | undefined>)[name]
   if (!tool) {
@@ -141,24 +144,60 @@ export interface ServerExecutorOptions {
   /** PocketBase 连接（服务端执行器与 PB 同机走回环地址） */
   pb: {
     baseUrl: string
-    account: string
-    password: string
+    /** 可选：集合规则未公开时才需要（公开读/写走匿名） */
+    account?: string
+    password?: string
   }
+  /** 服务端域白名单（名称→开关；未列出的域视为关闭）。缺省全关 */
+  domains?: Record<string, boolean>
 }
 
 /**
  * 初始化服务端执行器：注入 PocketBaseAdapter（替代浏览器 DexieAdapter）并返回 relay 接线接口。
  * 由 `scripts/serve.mjs` 在 `WORKHUB_SERVER_EXECUTOR=1` 时调用；bundle 外不经任何 storage 路径。
+ *
+ * 工具路由（P3 起）：
+ * - 读工具：本文件自承载（schema 校验 + 信封，行为与 executor 读路径一致）；
+ * - 写工具：经 executor.dispatchAgentTool（**同一份业务编排**），白名单域内才放行；
+ * - 中/高风险写工具：无票先 preview（confirmFlow 共享闸门），带票（relay 已核销）才真正执行。
  */
 export function initServerExecutor(opts: ServerExecutorOptions): {
   listTools: () => ReturnType<typeof serverToolsList>
-  callTool: (name: string, input: unknown) => Promise<ServerOpResult>
+  callTool: (name: string, input: unknown, meta?: { confirmToken?: string }) => Promise<ServerOpResult>
   handles: (name: string) => boolean
 } {
   setStorageAdapter(createPocketBaseAdapter(opts.pb))
+  const domains = opts.domains ?? {}
+
+  /** 服务端白名单闸门：域开关（与浏览器 settings.ai.domains 相互独立） */
+  function domainAllowed(name: string): boolean {
+    const domain = TOOL_DOMAIN[name]
+    if (!domain) return false
+    return domains[domain] === true
+  }
+
   return {
     listTools: serverToolsList,
-    callTool: dispatchServerReadTool,
-    handles: handlesServerTool,
+    handles: (name: string) =>
+      (Object.hasOwn(SERVER_READ_TOOLS, name) || Object.hasOwn(AGENT_TOOLS, name)) && domainAllowed(name),
+    callTool: async (name, input, meta) => {
+      if (!domainAllowed(name)) {
+        return {
+          ok: false,
+          error: `工具 ${name} 不在服务端白名单内（域：${TOOL_DOMAIN[name] ?? '未知'}；服务端白名单由部署配置 WORKHUB_AI_DOMAINS 控制，与浏览器设置相互独立）`,
+        }
+      }
+      // 中/高风险闸门（与浏览器桥同一判定/同一信封形状）：无票先 preview；
+      // 带票的 meta.confirmToken 已在 relay 侧核销过（mcp-relay tools/call 统一 redeem）
+      if (needsPreview(name, meta)) {
+        return { ok: true, data: previewEnvelope(name, input) as unknown as Record<string, unknown> }
+      }
+      try {
+        const r = await dispatchAgentTool(name, input, domains)
+        return { ok: r.ok, data: r.data as Record<string, unknown> | undefined, error: r.error }
+      } catch (e) {
+        return { ok: false, error: (e as Error).message }
+      }
+    },
   }
 }

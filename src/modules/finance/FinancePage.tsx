@@ -3,6 +3,7 @@ import { Icon } from '@/design-system/Icon'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useCollection, useRecord } from '@/queries/hooks'
 import { downloadBlob } from '@/shared/download'
+import { useIsMobile } from '@/shared/useIsMobile'
 import type { Customer, Ledger, Todo, Transaction } from '@/db/types'
 import {
   Avatar,
@@ -47,6 +48,8 @@ const fmtSigned = (t: Transaction, symbol = '¥') =>
 
 /** 财务中心主页面（对齐原型 03-finance-center） */
 export default function FinancePage() {
+  // 流水行在窄屏要换成另一套结构（无标签/关联/附件芯片），CSS 类名做不到，只能走 JS 判定
+  const isMobile = useIsMobile()
   const ledgers = useCollection<Ledger>('ledgers')
   const transactions = useCollection<Transaction>('transactions')
   const customers = useCollection<Customer>('customers')
@@ -162,7 +165,9 @@ export default function FinancePage() {
         actions={
           <>
             <Button icon="payments" onClick={() => setCreating(true)}>
-              记一笔
+              {/* 窄屏标题行挤不下文案，收成纯图标；sr-only 副本保住可访问名（图标是纯 SVG，读不出来） */}
+              <span className="hidden md:inline">记一笔</span>
+              <span className="sr-only md:hidden">记一笔</span>
             </Button>
           </>
         }
@@ -171,8 +176,9 @@ export default function FinancePage() {
       {ledgerError && <div className="mb-3 text-[0.8571rem] text-danger">{ledgerError}</div>}
 
       <div className="flex items-start gap-4">
-        {/* 左栏：账本树（全部账本 + 各账本，支持拖拽排序，hover 显示编辑/删除） */}
-        <Card className="w-64 shrink-0 self-start p-4">
+        {/* 左栏：账本树（全部账本 + 各账本，支持拖拽排序，hover 显示编辑/删除）。
+            窄屏整栏隐藏：拖拽排序本就不是触屏交互，改为下方横向滚动的账本 chips */}
+        <Card className="hidden w-64 shrink-0 self-start p-4 md:block">
           <div className="mb-3 flex items-center justify-between text-[0.8571rem] font-medium uppercase tracking-wide text-on-surface-variant">
             <span>账本（{ledgers.length}）</span>
             <button
@@ -240,8 +246,8 @@ export default function FinancePage() {
 
         {/* 右侧：汇总 + 流水 */}
         <div className="min-w-0 flex-1">
-          {/* 汇总卡 4 张 */}
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          {/* 汇总卡 4 张。窄屏保持等分 2 列（原型 05 口径），仅把间距收紧一点给金额让位 */}
+          <div className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-4">
             <SummaryCard
               label={`累计收入${currency !== 'CNY' ? `（${currency}）` : ''}`}
               icon="trending_up"
@@ -266,8 +272,9 @@ export default function FinancePage() {
               valueCls={net < 0 ? 'text-danger' : 'text-primary'}
               sub={`含期初结转 ${fmtMoney(opening, symbol)}${scopeNote}`}
             />
+            {/* min-w-0 + overflow-hidden：金额是不断行的长串，窄屏栏宽不够时宁可裁掉也不许把整行撑宽 */}
             <div
-              className={`card card-hover cursor-pointer p-4 transition-colors ${
+              className={`card card-hover min-w-0 cursor-pointer overflow-hidden p-4 transition-colors ${
                 statusFilter === '待对账' ? 'ring-2 ring-warning bg-warning-container/30' : ''
               }`}
               onClick={() => setStatusFilter(statusFilter === '待对账' ? 'all' : '待对账')}
@@ -278,7 +285,7 @@ export default function FinancePage() {
                 </span>
                 <Icon name="fact_check" size={18} className="bg-warning-container text-warning" />
               </div>
-              <div className="mt-1 text-[1.5714rem] font-bold tracking-tight text-warning">
+              <div className="mt-1 text-[1.2857rem] font-bold tracking-tight text-warning md:text-[1.5714rem]">
                 {pending.length}
                 <span className="ml-1 text-[0.9286rem] font-normal text-on-surface-variant">
                   笔待确认
@@ -291,8 +298,40 @@ export default function FinancePage() {
             </div>
           </div>
 
-          {/* 筛选工具栏 */}
-          <div className="mb-3 mt-5 flex flex-wrap items-center gap-2">
+          {/* 账本 chips（仅窄屏）：左栏账本树已隐藏，scope 切换挪到这里。
+              负边距 + 同值内边距让这一条横向滚到屏幕边缘，不用换行挤成两排 */}
+          <div className="-mx-4 mt-4 flex gap-2 overflow-x-auto px-4 pb-0.5 md:hidden">
+            <LedgerChip
+              label="全部账本"
+              active={scope === 'all'}
+              onClick={() => {
+                setScope('all')
+                setLedgerError('')
+              }}
+            />
+            {sortedLedgers.map((l) => (
+              <LedgerChip
+                key={l.id}
+                label={l.name}
+                active={scope === l.id}
+                onClick={() => {
+                  setScope(l.id)
+                  setLedgerError('')
+                }}
+              />
+            ))}
+            <button
+              className="flex shrink-0 items-center gap-0.5 rounded-full border border-primary/40 px-3 py-1 text-[0.8571rem] font-medium text-primary"
+              onClick={() => setNewLedgerOpen(true)}
+            >
+              <Icon name="add" size={14} />
+              新建账本
+            </button>
+          </div>
+
+          {/* 筛选工具栏：窄屏竖排（分段控件各占一行 + 检索框整行），
+              ≥768px 回到原来「一行内 wrap、检索框右对齐」的排布 */}
+          <div className="mb-3 mt-5 flex flex-col gap-2 md:flex-row md:flex-wrap md:items-center">
             <Segmented
               options={[
                 { key: 'all', label: '全部流水' },
@@ -301,6 +340,7 @@ export default function FinancePage() {
               ]}
               value={typeFilter}
               onChange={(v) => setTypeFilter(v as TypeFilter)}
+              className="self-start md:self-auto"
             />
             <Segmented
               options={[
@@ -310,8 +350,9 @@ export default function FinancePage() {
               ]}
               value={statusFilter}
               onChange={(v) => setStatusFilter(v as StatusFilter)}
+              className="self-start md:self-auto"
             />
-            <div className="ml-auto w-56">
+            <div className="md:ml-auto md:w-56">
               <input
                 className={inputCls}
                 value={keyword}
@@ -329,27 +370,39 @@ export default function FinancePage() {
                 title={ledgers.length === 0 ? '还没有账本' : '没有符合条件的流水'}
                 description={
                   ledgers.length === 0
-                    ? '点击左栏「+」新建账本开始记账'
+                    ? isMobile
+                      ? '点上方「新建账本」开始记账'
+                      : '点击左栏「+」新建账本开始记账'
                     : '调整筛选条件，或点「记一笔」新增流水'
                 }
               />
             </Card>
           ) : (
-            <Card className="divide-y divide-outline-variant/30 px-5">
-              {pageItems.map((t) => (
-                <TransactionRow
-                  key={t.id}
-                  txn={t}
-                  ledger={ledgerMap.get(t.ledgerId)}
-                  customers={customers.filter((c) => txnCustomerIds(t).includes(c.id))}
-                  showLedger={scope === 'all'}
-                  onOpen={() => setDetailId(t.id)}
-                />
-              ))}
+            <Card className="divide-y divide-outline-variant/30 px-3 md:px-5">
+              {pageItems.map((t) =>
+                isMobile ? (
+                  <TransactionRowCompact
+                    key={t.id}
+                    txn={t}
+                    ledger={ledgerMap.get(t.ledgerId)}
+                    showLedger={scope === 'all'}
+                    onOpen={() => setDetailId(t.id)}
+                  />
+                ) : (
+                  <TransactionRow
+                    key={t.id}
+                    txn={t}
+                    ledger={ledgerMap.get(t.ledgerId)}
+                    customers={customers.filter((c) => txnCustomerIds(t).includes(c.id))}
+                    showLedger={scope === 'all'}
+                    onOpen={() => setDetailId(t.id)}
+                  />
+                ),
+              )}
             </Card>
           )}
           {list.length > 0 && (
-            <div className="mt-3 flex items-center justify-center gap-3 text-[0.9286rem] text-on-surface-variant">
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-[0.9286rem] text-on-surface-variant md:gap-3">
               <Button
                 size="sm"
                 variant="tonal"
@@ -488,7 +541,9 @@ function SummaryCard({
   sub: string
 }) {
   return (
-    <Card className="p-4">
+    /* min-w-0：栅格项默认 min-width:auto，金额不断行会把列顶宽 → 窄屏横向溢出。
+       overflow-hidden：真撑不下时裁掉，也不许外溢到相邻卡或页面滚动区 */
+    <Card className="min-w-0 overflow-hidden p-4">
       <div className="flex items-center justify-between">
         <span className="text-[0.8571rem] font-medium uppercase tracking-wide text-on-surface-variant">
           {label}
@@ -499,9 +554,36 @@ function SummaryCard({
           size={18}
         />
       </div>
-      <div className={`mt-1 text-[1.5714rem] font-bold tracking-tight ${valueCls}`}>{value}</div>
+      {/* 金额窄屏降一档字号（14px 根字号下 22px→18px）换「一行放得下」，而非换行撑破容器 */}
+      <div
+        className={`mt-1 whitespace-nowrap text-[1.2857rem] font-bold tracking-tight md:text-[1.5714rem] ${valueCls}`}
+      >
+        {value}
+      </div>
       <div className="mt-0.5 text-[0.7857rem] text-outline">{sub}</div>
     </Card>
+  )
+}
+
+/** 窄屏账本筛选 chip（单行横向滚动用，故 shrink-0 不参与压缩） */
+function LedgerChip({
+  label,
+  active,
+  onClick,
+}: {
+  label: string
+  active: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-[0.8571rem] font-medium transition-colors ${
+        active ? 'bg-primary text-on-primary' : 'bg-surface-container-high text-on-surface-variant'
+      }`}
+    >
+      {label}
+    </button>
   )
 }
 
@@ -509,13 +591,15 @@ function Segmented({
   options,
   value,
   onChange,
+  className = '',
 }: {
   options: { key: string; label: string }[]
   value: string
   onChange: (v: string) => void
+  className?: string
 }) {
   return (
-    <div className="flex gap-1 rounded-lg bg-surface-container p-1">
+    <div className={`flex gap-1 rounded-lg bg-surface-container p-1 ${className}`}>
       {options.map((o) => (
         <button
           key={o.key}
@@ -529,6 +613,64 @@ function Segmented({
           {o.label}
         </button>
       ))}
+    </div>
+  )
+}
+
+/**
+ * 窄屏流水行（<768px 专用，由 useIsMobile 分流）。
+ *
+ * 为什么不与桌面行共用一套结构：桌面行要挂标签、关联客户、附件三类芯片 + 状态芯片，
+ * 390px 下必然挤成多行甚至横向溢出；且移动原型 05 的口径就是
+ * 「圆形图标位 / 名称 + 一行次要信息 / 金额」。两端结构差异是真实存在的，
+ * 于是各留一份：桌面行原样保留，这里只承载窄屏需要的字段。
+ */
+function TransactionRowCompact({
+  txn,
+  ledger,
+  showLedger,
+  onOpen,
+}: {
+  txn: Transaction
+  ledger: Ledger | undefined
+  showLedger: boolean
+  onOpen: () => void
+}) {
+  const symbol = symbolOf(ledger?.currency)
+  const isIncome = txn.type === 'income'
+  // 账本 · 日期 · 支付方式。日期取 MM-DD 而非 YYYY-MM-DD：省 5 个字符才够一行放下，
+  // 真要更长时由 truncate 兜底（次要信息被截断不影响主次判断）
+  const meta = [
+    showLedger ? ledger?.name : null,
+    dayjs(txn.occurredAt).format('MM-DD'),
+    txn.channel || '—',
+  ]
+    .filter(Boolean)
+    .join(' · ')
+  return (
+    <div
+      onClick={onOpen}
+      className="flex cursor-pointer items-center gap-2.5 px-1 py-3 transition-colors active:bg-surface-container-low/60"
+    >
+      <span
+        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
+          isIncome ? 'bg-success-container/60 text-success' : 'bg-danger-container/60 text-danger'
+        }`}
+      >
+        <Icon name={isIncome ? 'call_received' : 'call_made'} size={20} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-[0.9286rem] font-medium">{txn.summary}</div>
+        <div className="mt-0.5 truncate text-[0.7857rem] text-outline">{meta}</div>
+      </div>
+      {/* 金额不参与压缩（shrink-0）：宁可截名称也不截数字；支出沿用移动原型的 warning 色 */}
+      <span
+        className={`shrink-0 whitespace-nowrap text-[0.9286rem] font-bold tracking-tight ${
+          isIncome ? 'text-success' : 'text-warning'
+        }`}
+      >
+        {fmtSigned(txn, symbol)}
+      </span>
     </div>
   )
 }
@@ -691,8 +833,9 @@ function TransactionDetailDrawer({
             <div className="mt-1 text-[0.9286rem] font-medium">{txn.summary}</div>
           </div>
 
-          {/* 状态流转 + 编辑 + 删除 */}
-          <div className="flex gap-2">
+          {/* 状态流转 + 编辑 + 删除。flex-wrap：抽屉在窄屏只剩 ~350px，
+              三个按钮并排会顶出横向滚动，宁可换行 */}
+          <div className="flex flex-wrap gap-2">
             {txn.status === '待对账' ? (
               <Button icon="check_circle" onClick={() => changeStatus('已结算')}>
                 ✓ 标记已入账

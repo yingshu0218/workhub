@@ -1,5 +1,6 @@
 import { eventBus } from './eventBus'
-import { habitRepo, checkinHabit, settingsRepo } from '@/repositories'
+import { habitRepo, checkinHabit } from '@/repositories'
+import { settingsRepo } from '@/repositories/localAdmin'
 import { installTrophyEngine } from '@/modules/trophies/trophyEngine'
 import { ACCENT_PRESETS, THEME_STYLES, SKIN_STYLES, FONT_STACKS, DARK_PRIMARY_KEEP_PCT, DARK_ON_PRIMARY_KEEP_PCT, type FontPresetId, type SkinStyleId } from './theme'
 import dayjs from 'dayjs'

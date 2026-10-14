@@ -15,7 +15,7 @@ import {
 import { toggleTodoDone } from '@/modules/todo/toggle'
 import { splitTodoText } from '@/modules/todo/title'
 import { normalizeTodoTags, TODO_TAG_MAX_COUNT } from '@/modules/todo/tags'
-import { deleteTodoCascade } from '@/modules/todo/hooks'
+import { deleteTodoCascade } from '@/modules/todo/cascade'
 import type { Customer, Habit, HabitLog, Note, Project, Todo } from '@/db/types'
 
 /** 行类型别名（mustExist 泛型绑定用；与 db/types 定义同源，不做二次建模） */

@@ -19,7 +19,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import 'fake-indexeddb/auto'
 import { db } from '@/db/db'
 import { agentBridge } from '../bridge'
-import { settingsRepo } from '@/repositories'
+import { settingsRepo } from '@/repositories/localAdmin'
 import { DEFAULT_SETTINGS } from '@/db/types'
 import { startRelay, connectBridge, installWebSocketGlobal, McpClient, type RelayProcess } from './e2e.harness'
 

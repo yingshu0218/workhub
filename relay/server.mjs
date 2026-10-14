@@ -192,10 +192,16 @@ export function createRelay({ token = generateToken(), autoIssueConfirm = false,
           return Promise.resolve({ ok: false, error: e?.message ?? String(e) })
         }
       }
-      // P2：服务端工具（只读）在 relay 进程内直接执行，不经浏览器
+      // P2/P3：服务端工具在 relay 进程内直接执行，不经浏览器；
+      // 中/高风险写工具的无票回包（data.preview === true）同样记入 preview 台账——
+      // 否则 Agent 转述用户确认后调 confirm_preview 会「找不到预览记录」（取票闸门死循环）
       if (serverExecutor?.handles(name)) {
         return serverExecutor
-          .callTool(name, toolArgs)
+          .callTool(name, toolArgs, { confirmToken: meta?.confirmToken })
+          .then((r) => {
+            if (r.ok && r.data?.preview === true) rememberPreview(argsHash(name, toolArgs))
+            return r
+          })
           .catch((e) => ({ ok: false, error: e?.message ?? String(e) }))
       }
       return requestFromBrowser({

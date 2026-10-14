@@ -6,6 +6,7 @@ import { useSyncStore } from '@/sync/store'
 import { deriveSyncBadge } from '@/sync/badge'
 import { registerShortcut } from '@/shared/shortcuts'
 import CommandPalette from './CommandPalette'
+import MobileTabBar from './MobileTabBar'
 import TrophyUnlockToast from './TrophyUnlockToast'
 import { ToastProvider } from '@/design-system/Toast'
 import QuickCapture from '@/modules/notes/QuickCapturePanel'
@@ -143,9 +144,10 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
   }, [wsOpen])
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      {/* 侧边栏 */}
-      <aside className="app-sidebar flex w-[232px] shrink-0 flex-col border-r border-outline-variant/40 bg-surface-container-lowest">
+    <div className="app-shell flex overflow-hidden">
+      {/* 侧栏：仅在 ≥768px 显示。窄屏改用底部导航（MobileTabBar），
+          桌面端视觉与行为完全不变（md:flex 恢复原 flex）。 */}
+      <aside className="app-sidebar hidden w-[232px] shrink-0 flex-col border-r border-outline-variant/40 bg-surface-container-lowest md:flex">
         <div className="flex items-center gap-2.5 px-5 py-5">
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-on-primary">
             <Icon name="flight_takeoff" fill />
@@ -312,23 +314,32 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* 主区域 */}
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <header className="app-header flex h-14 shrink-0 items-center justify-between border-b border-outline-variant/40 bg-surface-container-lowest px-6">
-          <div className="text-[1rem] font-semibold text-on-surface-variant">{title}</div>
-          <div className="flex items-center gap-3">
+      <div className="relative flex flex-1 flex-col overflow-hidden">
+        <header className="app-header flex h-14 shrink-0 items-center justify-between gap-2 border-b border-outline-variant/40 bg-surface-container-lowest px-4 md:px-6">
+          <div className="min-w-0 truncate text-[1rem] font-semibold text-on-surface-variant">
+            {title}
+          </div>
+          <div className="flex shrink-0 items-center gap-2 md:gap-3">
             <button
-              className="flex h-8 items-center gap-1.5 nav-item !bg-transparent px-3 text-[0.8571rem] text-outline hover:border-primary hover:text-primary"
+              className="flex h-8 items-center gap-1.5 nav-item !bg-transparent px-2 text-[0.8571rem] text-outline hover:border-primary hover:text-primary md:px-3"
               onClick={() => setPaletteOpen(true)}
               title="全局搜索（⌘K）"
+              aria-label="全局搜索"
             >
               <Icon name="search" size={16} />
-              搜索
-              <kbd className="rounded bg-surface-container-high px-1 text-[0.7143rem]">⌘K</kbd>
+              {/* 窄屏没有物理键盘，⌘K 无意义 → 收成纯图标 */}
+              <span className="hidden md:inline">搜索</span>
+              <kbd className="hidden rounded bg-surface-container-high px-1 text-[0.7143rem] md:inline">
+                ⌘K
+              </kbd>
             </button>
             <SyncBadge />
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto px-8 py-6">{children}</main>
+        <main className="flex-1 overflow-y-auto px-4 py-4 md:px-8 md:py-6">{children}</main>
+        {/* 底部导航（<768px）。刻意放在**流内**而非 fixed：内容区天然不被遮挡，
+            不需要「给底栏留 padding」的补偿，也不与弹层抢 z-index。 */}
+        <MobileTabBar />
       </div>
 
       {/* 全局弹层：⌘K 命令面板 + 奖杯解锁（任何页面解锁都能弹） */}

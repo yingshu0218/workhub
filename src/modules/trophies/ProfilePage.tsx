@@ -1,3 +1,4 @@
+import { NavLink } from 'react-router-dom'
 import { Avatar, Card, Chip, EmptyState, PageHeader } from '@/design-system/ui'
 import { Icon } from '@/design-system/Icon'
 import { useProfileSummary, useRecentUnlockedTrophies, useTrophyList, EXP_PER_LEVEL } from './hooks'
@@ -17,8 +18,11 @@ export default function ProfilePage() {
     <div className="mx-auto max-w-[1200px]">
       <PageHeader title="个人主页" />
 
-      {/* 用户卡片 + Lv 徽章 */}
-      <Card className="mb-4 flex flex-wrap items-center justify-between gap-6 p-6">
+      {/* 用户卡片 + Lv 徽章。窄屏（<768px）靠 flex-wrap 把「等级与 EXP」挤到第二行，
+          构成原型 07 的「个人卡 → 等级与 EXP」上下两块；≥768px 仍是同一行，逐像素不变。 */}
+      <Card className="mb-4 flex flex-wrap items-center justify-between gap-6 p-5 md:p-6">
+        {/* 刻意不加 min-w-0：身份名可被用户改成长文本，加了会让桌面端由「整组换行」
+            变成「名字折行」，破坏逐像素一致；窄屏的 Chip 行已可换行，不需要靠收缩兜底。 */}
         <div className="flex items-center gap-4">
           <Avatar name={identity.name} size={64} />
           <div>
@@ -26,7 +30,8 @@ export default function ProfilePage() {
             <div className="text-[0.9286rem] text-on-surface-variant">
               {identity.workspace} · {identity.role}
             </div>
-            <div className="mt-1.5 flex gap-2">
+            {/* 允许换行：390px 下两枚 Chip 贴边时宁可换行，也不要撑出横向滚动 */}
+            <div className="mt-1.5 flex flex-wrap gap-2">
               <Chip tone="blue" icon="bolt">
                 累计 EXP {exp}
               </Chip>
@@ -37,13 +42,14 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-5">
+        <div className="flex w-full items-center gap-5 md:w-auto">
           {/* 大 Lv 徽章 */}
           <div className="flex h-20 w-20 flex-col items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-primary-container text-on-primary shadow-md">
             <span className="text-[0.7857rem] font-medium opacity-80">LEVEL</span>
             <span className="text-[2.1429rem] font-bold leading-none">{level}</span>
           </div>
-          <div className="w-52">
+          {/* w-52 在 390px 会把本行顶出容器，窄屏改为吃掉剩余宽度；md 起恢复固定宽 */}
+          <div className="flex-1 md:w-52 md:flex-none">
             <div className="mb-1 flex items-center justify-between text-[0.8571rem] text-on-surface-variant">
               <span>
                 Lv.{level} → Lv.{level + 1}
@@ -83,6 +89,30 @@ export default function ProfilePage() {
           </Card>
         ))}
       </div>
+
+      {/* 移动端奖杯墙（原型 07）：窄屏用等分小图标网格一眼看清收集度。
+          方块尺寸由栅格推导（aspect-square + w-full），不给图标定死像素，故 320~767px 都不会溢出。
+          桌面（≥768px）同一信息已由下方「收集统计 / 最近解锁」两块承担，再铺一遍是重复，故 md:hidden。 */}
+      {trophies.length > 0 && (
+        <div className="mb-4 grid grid-cols-4 gap-x-2 gap-y-3 md:hidden">
+          {trophies.map((t) => (
+            <div key={t.id} className="flex flex-col items-center gap-1" title={t.name}>
+              <div
+                className={`flex aspect-square w-full items-center justify-center rounded-xl ${
+                  t.unlockedAt
+                    ? `bg-gradient-to-tr ${TIER_THEME[t.tier].gradient} text-white`
+                    : 'bg-surface-container text-outline'
+                }`}
+              >
+                <Icon name={t.unlockedAt ? t.icon : 'lock'} size={22} fill />
+              </div>
+              <span className="w-full truncate text-center text-[0.7143rem] text-on-surface-variant">
+                {t.name}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* 奖杯收集 + 最近解锁 */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -152,6 +182,32 @@ export default function ProfilePage() {
           )}
         </Card>
       </div>
+
+      {/* 「设置与更多」：<768px 侧栏整体隐藏，而 /trophies、/settings、/module-config 在桌面
+          只由侧栏底部区块承载 —— 不在这里补一份，移动端这三个页面将没有任何入口（功能不可达，
+          不是样式偏好）。桌面已有等价入口，故 md:hidden 避免出现两份。 */}
+      <Card className="mt-4 overflow-hidden md:hidden">
+        {[
+          { to: '/trophies', icon: 'emoji_events', label: '成就奖杯', hint: '全部奖杯与解锁进度' },
+          { to: '/settings', icon: 'settings', label: '系统设置', hint: '外观、通知、同步与导出' },
+          { to: '/module-config', icon: 'tune', label: '功能配置', hint: '各业务模块的规则' },
+        ].map((item, i) => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            className={`flex items-center gap-3 px-4 py-3.5 transition-colors active:bg-surface-container ${
+              i > 0 ? 'border-t border-outline-variant/40' : ''
+            }`}
+          >
+            <Icon name={item.icon} size={20} className="text-primary" />
+            <span className="min-w-0 flex-1">
+              <span className="block text-[0.9643rem] font-medium leading-tight">{item.label}</span>
+              <span className="block truncate text-[0.7857rem] text-outline">{item.hint}</span>
+            </span>
+            <Icon name="chevron_right" size={18} className="text-outline" />
+          </NavLink>
+        ))}
+      </Card>
     </div>
   )
 }

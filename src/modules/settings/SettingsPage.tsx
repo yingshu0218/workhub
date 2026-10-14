@@ -4,7 +4,12 @@ import { Card, PageHeader, Button, ConfirmDialog, inputCls } from '@/design-syst
 import { AiBridgeSection } from './AiBridgeSection'
 import { useToast } from '@/design-system/Toast'
 import type { Settings, SettingsSync } from '@/db/types'
-import { settingsRepo, resetAndSeedLocalData, restoreFromJson } from '@/repositories'
+import {
+  resetAndSeedLocalData,
+  restoreFromJson,
+  settingsRepo,
+  focusSessionRepo,
+} from '@/repositories/localAdmin'
 import {
   workspaceRepo,
   customerRepo,
@@ -18,7 +23,6 @@ import {
   habitLogRepo,
   trophyRepo,
   attachmentRepo,
-  focusSessionRepo,
   todoListRepo,
   noteFolderRepo,
   projectRepo,

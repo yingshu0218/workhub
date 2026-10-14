@@ -2,11 +2,13 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import 'fake-indexeddb/auto'
 import { db } from '@/db/db'
 import { dispatchAgentTool } from '../executor'
+import { resetStorageAdapter } from '@/storage'
 import {
   SERVER_READ_TOOLS,
   dispatchServerReadTool,
   handlesServerTool,
   serverToolsList,
+  initServerExecutor,
 } from '../serverReads'
 import { READ_TOOLS } from '../reads'
 
@@ -61,12 +63,45 @@ describe('serverReads：服务端读执行器', () => {
     } as never)
   })
 
-  it('路由边界：读工具全在服务端、写工具全不在', () => {
-    const readNames = Object.keys(READ_TOOLS)
-    expect(readNames.length).toBeGreaterThanOrEqual(10)
-    for (const name of readNames) expect(handlesServerTool(name), name).toBe(true)
-    for (const write of ['crm_createCustomer', 'fin_recordTransaction', 'todo_deleteTodo', 'habit_checkin']) {
-      expect(handlesServerTool(write), write).toBe(false)
+  it('路由边界（P3）：读工具在自承载表；写工具经 executor 全量接管（initServerExecutor.handles）', async () => {
+    // initServerExecutor 会 setStorageAdapter 覆盖全局单例——用例后恢复，防污染后续用例
+    try {
+      const readNames = Object.keys(READ_TOOLS)
+      expect(readNames.length).toBeGreaterThanOrEqual(10)
+      for (const name of readNames) expect(handlesServerTool(name), name).toBe(true)
+      const ex = initServerExecutor({
+        pb: { baseUrl: 'http://127.0.0.1:59999' },
+        domains: { crm: true, fin: true, todo: true, habit: true, project: true, note: true, read: true },
+      })
+      for (const name of ['crm_createCustomer', 'fin_recordTransaction', 'todo_createTodo']) {
+        expect(ex.handles(name), name).toBe(true)
+      }
+      expect(ex.handles('no_such_tool')).toBe(false)
+      const exClosed = initServerExecutor({ pb: { baseUrl: 'http://127.0.0.1:59999' } })
+      expect(exClosed.handles('todo_createTodo')).toBe(false) // 白名单缺省全关
+    } finally {
+      resetStorageAdapter() // 回到兜底态（下次调用重新动态加载 DexieAdapter），防污染后续用例
+    }
+  })
+
+  it('P3 闸门：medium/high 无票返回 preview（与浏览器桥同形状），带票直执行', async () => {
+    try {
+      const ex = initServerExecutor({
+        pb: { baseUrl: 'http://127.0.0.1:59999' },
+        domains: { crm: true, read: true },
+      })
+      const noTicket = await ex.callTool('crm_createCustomer', { name: '张三', decisionLevel: '决策人' })
+      expect(noTicket.ok).toBe(true)
+      expect(noTicket.data?.preview).toBe(true)
+      expect((noTicket.data as Record<string, unknown>).tool).toBe('crm_createCustomer')
+      expect((noTicket.data as Record<string, unknown>).risk).toBe('medium')
+      // low 工具不经 preview（对照：todo_createTodo low → 直接执行到业务层）
+      const low = await ex.callTool('todo_createTodo', { title: 'P3 闸门对照' })
+      // PB 不可达 → 执行至网络层报错（证明 preview 闸门没有拦 low）
+      expect(low.ok).toBe(false)
+      expect(low.error).not.toMatch(/preview|confirm_preview/)
+    } finally {
+      resetStorageAdapter() // 回到兜底态（下次调用重新动态加载 DexieAdapter），防污染后续用例
     }
   })
 

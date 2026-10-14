@@ -14,7 +14,7 @@ import { zodToJsonSchema } from '../jsonSchema'
 import { recordTransactionSchema, resolveEntitySchema, createTodoSchema } from '../schema'
 import { AgentBridge } from '../bridge'
 import { createWsServer, type WsServerHandle } from '@relay/ws-server.mjs'
-import { settingsRepo } from '@/repositories'
+import { settingsRepo } from '@/repositories/localAdmin'
 
 beforeEach(async () => {
   await Promise.all(db.tables.map((t) => t.clear()))

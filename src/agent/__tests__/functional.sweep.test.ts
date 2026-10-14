@@ -13,7 +13,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import 'fake-indexeddb/auto'
 import { db } from '@/db/db'
-import { settingsRepo } from '@/repositories'
+import { settingsRepo } from '@/repositories/localAdmin'
 import { DEFAULT_SETTINGS } from '@/db/types'
 import { agentBridge } from '../bridge'
 import { installWebSocketGlobal, startRelay, connectBridge, McpClient, type RelayProcess } from './e2e.harness'

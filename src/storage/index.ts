@@ -19,8 +19,10 @@ export function setStorageAdapter(adapter: StorageAdapter): void {
   loading = null
 }
 
-export function getStorageAdapter(): StorageAdapter | null {
-  return current
+/** 清除注入（测试隔离用）：回到「未注册」态，下次调用重新走兜底加载 */
+export function resetStorageAdapter(): void {
+  current = null
+  loading = null
 }
 
 /** 未注册时兜底加载浏览器适配器（vitest 环境 fake-indexeddb 已就绪，行为与 P1 静态加载等价） */

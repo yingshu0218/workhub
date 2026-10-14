@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url'
 
 const execFileAsync = promisify(execFile)
 import { agentBridge } from '../bridge'
-import { settingsRepo } from '@/repositories'
+import { settingsRepo } from '@/repositories/localAdmin'
 import { DEFAULT_SETTINGS } from '@/db/types'
 import { installWebSocketGlobal, startRelay, connectBridge, type RelayProcess } from './e2e.harness'
 

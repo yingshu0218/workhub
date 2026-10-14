@@ -55,11 +55,19 @@ if (process.env.WORKHUB_SERVER_EXECUTOR === '1') {
   } else {
     try {
       const mod = await import(serverEntry)
+      // 服务端域白名单（P3）：WORKHUB_AI_DOMAINS=crm,fin,todo,...（逗号分隔，缺省全关）
+      const domains = {}
+      for (const d of (process.env.WORKHUB_AI_DOMAINS || '').split(',')) {
+        const key = d.trim()
+        if (key) domains[key] = true
+      }
       serverExecutor = mod.initServerExecutor({
         pb: { baseUrl: pbUrl, ...(pbAccount && pbPassword ? { account: pbAccount, password: pbPassword } : {}) },
+        domains,
       })
+      const enabled = Object.keys(domains)
       process.stderr.write(
-        `[serve] 服务端执行器已启用（只读，${pbAccount ? '凭据鉴权' : '匿名读'}）：读工具直连 PB 中心，浏览器桥不在线也可用\n`,
+        `[serve] 服务端执行器已启用（${pbAccount ? '凭据鉴权' : '匿名读写'}）：白名单域 = ${enabled.length ? enabled.join(',') : '（全关）'}\n`,
       )
     } catch (e) {
       process.stderr.write(`[serve] ⚠️ 服务端执行器初始化失败：${e?.message ?? e} —— 本次以无服务端执行器模式启动\n`)
