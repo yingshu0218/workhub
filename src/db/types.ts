@@ -506,18 +506,22 @@ export const INTIMACY_LEVELS: IntimacyLevel[] = ['T1', 'T2', 'T3', 'T4', 'T5', '
 /** 信任轴（可被算法兜底分档）与隔离态（只能人工设置）的划分 */
 export const isIntimacyTrustLevel = (l: IntimacyLevel) => l.startsWith('T')
 
-/** 图谱圈层视觉档（Issue #34 视觉映射：内圈大/外圈小；I 档圈外弱化） */
+/**
+ * 图谱档位视觉映射（Issue #34；2026-10-14 收窄）：
+ * 原 `radius` 已移除 —— 节点尺寸改为**全局统一**（`graph/presentation.NODE_RADIUS`），
+ * 档位不再编码成大小，只编码**颜色**（`ring` 保留原样，此处此前就没有消费点）。
+ */
 export const INTIMACY_VISUAL: Record<
   IntimacyLevel,
-  { radius: number; color: string; ring: string }
+  { color: string; ring: string }
 > = {
-  T1: { radius: 34, color: '#004ac6', ring: '#004ac6' },
-  T2: { radius: 30, color: '#004ac6', ring: '#5a7fd6' },
-  T3: { radius: 26, color: '#0065b8', ring: '#7fa8d6' },
-  T4: { radius: 22, color: '#6f7987', ring: '#a8b0bd' },
-  T5: { radius: 18, color: '#8a94a6', ring: '#c3c9d4' },
-  I6: { radius: 14, color: '#9a9096', ring: '#c9c1c5' },
-  I7: { radius: 14, color: '#ba1a1a', ring: '#e0a9a8' },
+  T1: { color: '#004ac6', ring: '#004ac6' },
+  T2: { color: '#004ac6', ring: '#5a7fd6' },
+  T3: { color: '#0065b8', ring: '#7fa8d6' },
+  T4: { color: '#6f7987', ring: '#a8b0bd' },
+  T5: { color: '#8a94a6', ring: '#c3c9d4' },
+  I6: { color: '#9a9096', ring: '#c9c1c5' },
+  I7: { color: '#ba1a1a', ring: '#e0a9a8' },
 }
 
 /** 亲密度等级配置行（名称/判据描述可编辑，key 固定） */

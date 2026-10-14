@@ -5,7 +5,7 @@ import { buildScoreInput, resolveIntimacyLevel, isBlacklistHidden } from '../int
 import type { ModuleConfigIntimacy } from '@/db/types'
 import type { GraphLink, GraphNode } from './types'
 import { GRAPH_COLORS } from './types'
-import { orderByRelation, ringRadius, ringSlots } from './presentation'
+import { NODE_RADIUS, orderByRelation, ringRadius, ringSlots } from './presentation'
 
 /**
  * graph 投影 → 节点/边 纯函数（无 React / d3 副作用，单测可覆盖）
@@ -244,13 +244,14 @@ export function buildGraph(
     // 「中心」由力场（forceX/forceY 把客户云收拢到中心）+ 视图锚定表达，不再靠连线表达；
     // 因此自节点在图上是孤立节点，这是**预期形态**，不是渲染缺陷。
     const selfId = opts.selfId ?? SELF_NODE_ID
+    // 节点尺寸**统一**（2026-10-14 用户裁决）：档位只编码颜色，不再编码大小（理由见 presentation.NODE_RADIUS）
     const selfNode: GraphNode = {
       id: selfId,
       kind: 'self',
       label: opts.selfName?.trim() || '我',
       color: GRAPH_COLORS.self.stroke,
       fill: GRAPH_COLORS.self.fill,
-      radius: 30,
+      radius: NODE_RADIUS,
       x: opts.center.x,
       y: opts.center.y,
       fx: opts.center.x,
@@ -278,9 +279,10 @@ export function buildGraph(
         id: c.id,
         kind: 'customer' as const,
         label: c.name,
+        // 档位只决定颜色（统一大小后不再有「越亲近越大」这条编码）
         color: visual?.color ?? GRAPH_COLORS.customer.stroke,
         fill: GRAPH_COLORS.customer.fill,
-        radius: visual?.radius ?? 24,
+        radius: NODE_RADIUS,
         x: slot?.x ?? opts.center.x,
         y: slot?.y ?? opts.center.y,
       }

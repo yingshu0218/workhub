@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   COLLIDE_PADDING,
-  MAX_CUSTOMER_RADIUS,
+  NODE_RADIUS,
   RING_MIN_RADIUS,
   RING_PER_NODE,
   orderByRelation,
@@ -11,21 +11,20 @@ import {
 } from '../presentation'
 
 /**
- * 画布展示口径的回归锁（2026-10-14 用户裁决：以我为中心、不重叠；连线不写字、悬停看详情）
+ * 画布展示口径的回归锁（2026-10-14 用户裁决：以我为中心、不重叠、**全部节点统一大小**；
+ * 连线不写字、悬停看详情）
  *
- * 锁的是两条**用户看得见的观感判据**，而不是实现细节：
+ * 锁的是**用户看得见的观感判据**，而不是实现细节：
  * ① 环半径必须同时满足「不缩到『我』脸上」与「环上相邻节点不重叠」——两个方向都要有下界，
  *    这就是它不能用「随便一个随客户数变大的数」糊过去的原因；
- * ② 悬浮框要展示的字段口径（语义 + 归类），与 buildGraph 聚合出来的 labels/categories 对齐。
+ * ② 客户坐标质心 = 圆心（「我在正中心」的几何口径）；
+ * ③ 悬浮框要展示的字段口径（语义 + 归类），与 buildGraph 聚合出来的 labels/categories 对齐。
  */
-
-/** 「我」自节点的半径（buildGraph 里的常量 30，这里按字面取，用于估算贴脸阈值） */
-const SELF_RADIUS = 30
 
 describe('ringRadius：圈层半径的两个下界', () => {
   it('客户很少时也不会缩到「我」脸上', () => {
-    // 贴脸阈值 = 「我」半径 + 客户最大半径（两者的圈相切）。环必须明显大于它
-    expect(ringRadius(1)).toBeGreaterThan((SELF_RADIUS + MAX_CUSTOMER_RADIUS) * 1.5)
+    // 贴脸阈值 = 两个节点半径之和（两圈相切）。环必须明显大于它
+    expect(ringRadius(1)).toBeGreaterThan(2 * NODE_RADIUS * 1.5)
     expect(ringRadius(2)).toBeGreaterThanOrEqual(RING_MIN_RADIUS)
     expect(ringRadius(0)).toBe(RING_MIN_RADIUS) // 空图也不返回 0（避免除零式的边界值）
   })
@@ -40,7 +39,7 @@ describe('ringRadius：圈层半径的两个下界', () => {
   })
 
   it('任意客户数下，环上相邻两个节点的圆心距离都放得下两个节点（不重叠）', () => {
-    const needed = 2 * MAX_CUSTOMER_RADIUS + COLLIDE_PADDING
+    const needed = 2 * NODE_RADIUS + COLLIDE_PADDING
     for (let n = 2; n <= 60; n++) {
       const r = ringRadius(n)
       // 均匀分布在环上时，相邻圆心距（弦长）= 2R·sin(π/n)
@@ -49,9 +48,9 @@ describe('ringRadius：圈层半径的两个下界', () => {
     }
   })
 
-  it('每节点弧长预算大于「两个最大节点」直径，保证大客户数时环仍够宽', () => {
-    // 大 n 时弦长趋近 2πR/n = 2π·RING_PER_NODE，必须大于 2*最大半径 + 间隙
-    expect(2 * Math.PI * RING_PER_NODE).toBeGreaterThan(2 * MAX_CUSTOMER_RADIUS + COLLIDE_PADDING)
+  it('每节点弧长预算大于「两个节点」直径，保证大客户数时环仍够宽', () => {
+    // 大 n 时弦长趋近 2πR/n = 2π·RING_PER_NODE，必须大于 2*半径 + 间隙
+    expect(2 * Math.PI * RING_PER_NODE).toBeGreaterThan(2 * NODE_RADIUS + COLLIDE_PADDING)
   })
 })
 
@@ -104,7 +103,7 @@ describe('ringSlots：中心节点落在其他节点的正中心', () => {
   })
 
   it('槽位两两间距都放得下两个最大节点（不重叠）', () => {
-    const needed = 2 * MAX_CUSTOMER_RADIUS + COLLIDE_PADDING
+    const needed = 2 * NODE_RADIUS + COLLIDE_PADDING
     for (const n of [2, 3, 5, 12, 30]) {
       const slots = ringSlots(Array.from({ length: n }, (_, i) => `c${i}`), center, ringRadius(n))
       for (let i = 0; i < slots.length; i++) {

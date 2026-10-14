@@ -645,14 +645,17 @@ export default function GraphCanvas({
           </div>
         )}
 
-        {/* 健康分图例（原亲密度，Issue #108 改名，仅 customer-only 模式启用）：圈层=等级，节点大小即远近 */}
+        {/* 健康分图例（原亲密度，Issue #108 改名，仅 customer-only 模式启用）。
+            ⚠️ 2026-10-14：节点尺寸已统一，档位只由**颜色**表达 —— 图例圆点也必须等大，
+            否则「点大 = 档位高」的暗示还在，等于图例在说一件已经不成立的事（假绿）。
+            标题同步由「圈层」改为「档位」：圈层指环上位置/大小分层，这里只剩颜色了 */}
         {mode === 'customer-only' && intimacyCfg && (
           <div
             className="absolute right-3 top-3 z-10 flex max-w-[240px] flex-wrap items-center justify-end gap-x-2 gap-y-1"
             onPointerDown={(e) => e.stopPropagation()}
           >
             <span className="text-[0.7143rem] font-medium uppercase tracking-wide text-outline">
-              健康分圈层
+              健康分档位
             </span>
             {intimacyCfg.levels.map((l) => {
               const v = INTIMACY_VISUAL[l.key]
@@ -664,10 +667,8 @@ export default function GraphCanvas({
                   title={hidden ? '黑名单已在图谱隐藏' : l.desc}
                 >
                   <span
-                    className="inline-block rounded-full"
+                    className="inline-block h-2.5 w-2.5 rounded-full"
                     style={{
-                      width: Math.max(6, v.radius / 5),
-                      height: Math.max(6, v.radius / 5),
                       background: v.color,
                       opacity: hidden ? 0.35 : 0.85,
                     }}
