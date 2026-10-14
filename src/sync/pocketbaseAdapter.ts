@@ -3,6 +3,7 @@ import type { Settings } from '@/db/types'
 import { SETTINGS_KEY } from '@/db/types'
 import type { SyncAdapter } from './adapter'
 import { mergeRemoteRecord } from './mergeRemote'
+import { eventBus, type AppEvent } from '@/shared/eventBus'
 import type { AttachmentBlobLoader, PbRecord as MergePbRecord } from './mergeRemote'
 
 /**
@@ -533,6 +534,51 @@ async function pullImpl(cursor: number): Promise<{ cursor: number; changes: unkn
 export const pocketBaseAdapter: SyncAdapter = {
   push: pushImpl,
   pull: pullImpl,
+}
+
+// ─────────────────────────── P4 agent_events：客户端 replay（方案 §5.4-A） ───────────────────────────
+
+const AGENT_EVENTS_CURSOR_KEY = 'agent_events_cursor'
+
+/**
+ * 消费服务端产生的领域事件：服务端执行器写数据时，复合函数 emit 的事件经
+ * PocketBaseAdapter.recordEvent 落 PB `agent_events`；各客户端在每轮同步后拉取
+ * 并 replay 到本地 eventBus —— 奖杯/EXP 评估逻辑零改动，只是事件源多一个。
+ *
+ * 幂等性：游标（db.meta）在全部 emit 完成后才推进；中途失败下轮重拉整批 →
+ * 重复 emit 由评估侧幂等兜底（奖杯条件满足即解锁、已解锁不重复）。
+ * 任何失败都不抛出（事件消费不得阻塞数据同步本身）。
+ */
+export async function drainAgentEvents(): Promise<void> {
+  const cfg = await readSyncSettings()
+  if (!isSyncConfigured(cfg)) return
+  if (!(await isTokenFresh(cfg))) await login(cfg)
+  const curEntry = await db.meta.get(AGENT_EVENTS_CURSOR_KEY)
+  const since = typeof curEntry?.value === 'number' ? curEntry.value : 0
+  const params = new URLSearchParams({
+    filter: `occurredAt > ${since}`,
+    sort: 'occurredAt',
+    perPage: '200',
+  })
+  const base = cfg.serverUrl.replace(/\/$/, '')
+  const res = await fetch(`${base}/api/collections/agent_events/records?${params}`, {
+    headers: cfg.token ? { Authorization: cfg.token } : undefined,
+  })
+  if (!res.ok) return
+  const data = (await res.json()) as {
+    items?: Array<{ type?: string; payload?: unknown; occurredAt?: number }>
+  }
+  let maxAt = since
+  for (const ev of data.items ?? []) {
+    if (typeof ev.type !== 'string' || !ev.type) continue
+    if (typeof ev.occurredAt === 'number' && ev.occurredAt > maxAt) maxAt = ev.occurredAt
+    try {
+      eventBus.emit(ev.type as keyof AppEvent, (ev.payload ?? {}) as never)
+    } catch (err) {
+      console.warn(`[sync] agent_events replay 失败 ${ev.type}`, err)
+    }
+  }
+  if (maxAt > since) await db.meta.put({ key: AGENT_EVENTS_CURSOR_KEY, value: maxAt })
 }
 
 // ─────────────────────────── 设置页辅助（连接测试 / 全量入队 / 墓碑清理） ───────────────────────────

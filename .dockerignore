@@ -22,6 +22,7 @@ CHANGELOG.md
 # ── 构建产物与依赖（运行阶段会重新 `npm ci` + build）──
 node_modules/
 dist/
+dist-server/
 dist-ssr/
 *.tsbuildinfo
 

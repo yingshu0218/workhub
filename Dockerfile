@@ -40,6 +40,10 @@ ENV TAURI_ENV_PLATFORM= \
 # check:icons + tsc -b + vite build
 RUN npm run build
 
+# P3/P4：服务端执行器（agent/serverReads.ts → dist-server/server-executor.mjs，esbuild 单文件）。
+# 与 dist 同属构建产物：agentOps 服务端执行器（27 工具直读/直写 PB 中心）运行时加载。
+RUN npm run build:server
+
 # ══════════════════════════ 阶段二：运行 ══════════════════════════
 FROM node:22-bookworm-slim AS runtime
 
@@ -68,6 +72,9 @@ WORKDIR /app
 
 # 前端产物：只拷构建阶段的 dist，源码不进运行镜像
 COPY --from=web /app/dist ./dist
+
+# 服务端执行器（agentOps P3/P4）：serve.mjs 在 WORKHUB_SERVER_EXECUTOR=1 时动态加载
+COPY --from=web /app/dist-server ./dist-server
 
 # 运行时真正会被执行的文件
 COPY relay ./relay

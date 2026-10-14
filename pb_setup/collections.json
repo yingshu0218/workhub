@@ -1769,5 +1769,39 @@
       "CREATE UNIQUE INDEX idx_customerGroups_localId ON customerGroups (localId)",
       "CREATE INDEX idx_customerGroups_tombstonePushed ON customerGroups (tombstonePushed)"
     ]
+  },
+  {
+    "name": "agent_events",
+    "type": "base",
+    "listRule": "@request.auth.id != ''",
+    "viewRule": "@request.auth.id != ''",
+    "createRule": "@request.auth.id != ''",
+    "updateRule": null,
+    "deleteRule": null,
+    "fields": [
+      {
+        "name": "type",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "payload",
+        "type": "json",
+        "maxSize": 2000000
+      },
+      {
+        "name": "tool",
+        "type": "text"
+      },
+      {
+        "name": "occurredAt",
+        "type": "number",
+        "required": true
+      }
+    ],
+    "indexes": [
+      "CREATE INDEX idx_agent_events_occurred ON agent_events (occurredAt)"
+    ],
+    "system": false
   }
 ]

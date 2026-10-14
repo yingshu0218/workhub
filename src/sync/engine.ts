@@ -5,6 +5,7 @@ import {
   cleanupTombstones,
   isSyncConfigured,
   getSyncServerUrl,
+  drainAgentEvents,
 } from './pocketbaseAdapter'
 import { classifySyncTarget, isNetworkFailure, probeSyncCenter } from './connectivity'
 import { useSyncStore } from './store'
@@ -186,6 +187,13 @@ class SyncEngine {
       const pulled = await this.adapter.pull(this.cursor)
       this.cursor = pulled.cursor
       await db.meta.put({ key: CURSOR_KEY, value: pulled.cursor })
+      // 2.5 消费 agent_events（P4：服务端执行器写数据产生的领域事件 replay 到本地
+      // eventBus，奖杯/EXP 评估照常消费；失败不阻塞同步，下轮重拉 + 幂等评估兜底）
+      try {
+        await drainAgentEvents()
+      } catch (err) {
+        console.warn('[sync] agent_events 消费失败（下轮重试）', err)
+      }
       const done = useSyncStore.getState()
       done.setStatus('synced')
       done.setLastSync(Date.now())

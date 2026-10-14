@@ -238,6 +238,19 @@ export function createPocketBaseAdapter(opts: PocketBaseAdapterOptions): Storage
     list: async (table) => (await apiList(table)) as never,
     /** 服务端直写中心：写后无需触发同步（客户端靠既有 pull 心跳收敛） */
     requestSync() {},
+    /** P4 agent_events：服务端复合函数 emit 的领域事件落 PB，客户端 pull 后 replay（方案 §5.4-A） */
+    recordEvent: async (event, payload, tool) => {
+      const res = await api('/api/collections/agent_events/records', {
+        method: 'POST',
+        body: { type: event, payload, tool, occurredAt: Date.now() },
+      })
+      if (!res.ok) {
+        // 事件落库失败**不阻断写操作本身**（写已成功）：记错误日志，客户端评估会延迟但不丢
+        // （该客户端下次任意本地事件仍会触发全量评估）。这里吞掉异常只打 stderr。
+        const detail = await res.text().catch(() => '')
+        console.error(`[pb-adapter] agent_events 落库失败 ${event}（HTTP ${res.status}）：${detail.slice(0, 150)}`)
+      }
+    },
   }
 }
 

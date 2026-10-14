@@ -1,6 +1,6 @@
 # agentOps 服务端化方案（AI 操作点：浏览器 → VPS 数据中心）
 
-> 状态：**v0.3 · P1 + P2 已落地并经测试站真实验收**（2026-10-14，用户拍板推荐项后执行；P3/P4 未开始）
+> 状态：**v0.4 · P1 + P2 + P3 已落地并经测试站真实验收**（P1/P2 2026-10-14；P3 2026-10-15 凌晨完成端到端验收；P4 未开始）
 > 背景：阿蓝 2026-10-14 拍板架构方向 —— 网页版（VPS）= 数据同步中心 + **AI 的操作点**；
 > AI 写入直达中心，经既有 LWW 同步分发到所有客户端。本方案回答「怎么落地」。
 > 关联：`docs/agent-bridge-skill-v0.4.md`（浏览器桥 v0.7，本方案的前置与过渡形态）。
@@ -44,6 +44,33 @@
 >    ⚠️ **排查教训**：`mcp-stdio-shim.mjs --verify` 的凭据来自 `~/.workhub/relay.json`
 >    （本地指向正式站），stdin/参数不传时**验的是正式站**——验收测试站须显式
 >    `--url/--token` 或裸 WS 客户端。
+>
+> **P3 完成记录（2026-10-15）**：
+> 1. **写原语**：PocketBaseAdapter 增幂等 upsert（localId 判存 → PATCH/POST，body.id =
+>    sha256ToBase36_15(localId)，与同步引擎同协议；**无 LWW 拒绝**——服务端是当下确认的
+>    写意图，墓碑由上游 mustExist 拦）+ transaction 逐操作即时落盘（PB 无跨表事务，
+>    不伪装原子性，LWW 保证收敛）；PB 写协议纯函数收口 remoteNormalize
+>    （sha256ToBase36_15/toPayload/stripLocalOnlyFields）；
+> 2. **全量执行器**：serverReads.ts 扩为读+写 27 工具——写工具经 executor **同一份
+>    dispatch**（repositories 复合函数语义，关联关系与界面操作一致）；
+> 3. **confirmFlow.ts 共享闸门**：needsPreview/previewEnvelope 两端共用（无票 preview
+>    信封与浏览器桥逐字段一致）；relay 对服务端工具透传 meta.confirmToken + preview 回包
+>    rememberPreview（否则取票死循环）；
+> 4. **白名单服务端化**：WORKHUB_AI_DOMAINS env（默认全关），与浏览器白名单相互独立；
+> 5. **依赖净化**：repositories 拆 localAdmin.ts（settingsRepo/focusSessionRepo/存档
+>    导入导出等浏览器本地管理，消费方改路径）；todo/cascade.ts 拆 deleteTodoCascade；
+>    写链 syncEngine 直调改经 storage.requestSync()（DexieAdapter 转发 / PB no-op）；
+>    **bundle 纯净度 dexie/react/db 零残留**；
+> 6. **测试站端到端验收通过**：preview → confirm_preview 取票 → 带票写入客户
+>    （ws-main:cus:XNqkQr-HzF）→ low 工具直写待办并关联真实客户 id → resolveEntity/
+>    listTodos 读回一致 → PB 直查 localId 镜像与 SyncMeta 盖章正确（客户端可收敛）；
+>    假票据被 relay 拒、幽灵客户 id 被弱引用校验拒（防线真实有效）；
+> 7. **执行器 PB 身份**：自注册服务账号 `agent@nexus.local`（users 集合 createRule 开放
+>    自注册；凭据仅存服务器 /etc/nexus-relay.env，env mode 640）。⚠️ 教训：**匿名读
+>    受 listRule 限制读不到全量**（P2 期间 listTodos count=0 是残缺视图）——凭据鉴权
+>    才是正确形态，正式站 P4 沿用服务账号方案。
+> 8. 验证：780 passed / 0 failed（+2 pbAdapter 写路径、parity 扩为路由边界+闸门用例、
+>    todoRowDetail ②固定 sleep 改 vi.waitFor 修全量并发 flaky）。
 
 ## 0. 一句话
 

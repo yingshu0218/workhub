@@ -56,6 +56,19 @@ services:
       # ⚠️ 不能按「有没有非 `_` 开头的集合」判 —— PocketBase 首启会自动建一个 `users` 集合，
       #    那样会把空库误判成「已有业务集合」而跳过导入（2026-10-09 首次部署实测踩到）。
       PB_IMPORT_COLLECTIONS: "1"
+      # ── agentOps 服务端执行器（P3/P4，docs/agentOps服务端化方案.md）──
+      # 显式开启三件套（+可选白名单）：缺省**全关**（方案 §7.5 拍板：服务端能力默认全关）。
+      #   WORKHUB_SERVER_EXECUTOR=1            总开关（缺 dist-server 时降级启动并告警）
+      #   WORKHUB_PB_URL                       PB 基址（同容器走回环 http://127.0.0.1:8090）
+      #   WORKHUB_PB_ACCOUNT/PASSWORD          users 服务账号（正式站建议专号，如 agent@<域>）
+      #   WORKHUB_AI_DOMAINS                   域白名单（逗号分隔 crm,fin,todo,habit,project,note,read；缺省全关）
+      # 开启前须在正式站 PB 建 agent_events 集合（pb_setup/collections.json 有声明；
+      # PB_IMPORT_COLLECTIONS 只对空库导入，存量库须经超管 API 手工建）。
+      WORKHUB_SERVER_EXECUTOR: ${WORKHUB_SERVER_EXECUTOR:-}
+      WORKHUB_PB_URL: ${WORKHUB_PB_URL:-}
+      WORKHUB_PB_ACCOUNT: ${WORKHUB_PB_ACCOUNT:-}
+      WORKHUB_PB_PASSWORD: ${WORKHUB_PB_PASSWORD:-}
+      WORKHUB_AI_DOMAINS: ${WORKHUB_AI_DOMAINS:-}
 
     # ── 资源上限 ─────────────────────────────────────────────────────────
     # 宿主 4 核 / 3.6G（可用约 1.9G），同机另有 5 个容器在跑。

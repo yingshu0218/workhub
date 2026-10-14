@@ -5,6 +5,7 @@ import { dispatchAgentTool, AGENT_TOOLS } from './executor'
 import { TOOL_RISK, TOOL_DOMAIN, resolveEntitySchema } from './schema'
 import { zodToJsonSchema } from './jsonSchema'
 import { needsPreview, previewEnvelope } from './confirmFlow'
+import { setEventForwarder } from '@/shared/eventBus'
 import { resolveEntity, type ResolveResult } from './resolver'
 import {
   listTransactions,
@@ -166,7 +167,12 @@ export function initServerExecutor(opts: ServerExecutorOptions): {
   callTool: (name: string, input: unknown, meta?: { confirmToken?: string }) => Promise<ServerOpResult>
   handles: (name: string) => boolean
 } {
-  setStorageAdapter(createPocketBaseAdapter(opts.pb))
+  const pbAdapter = createPocketBaseAdapter(opts.pb)
+  setStorageAdapter(pbAdapter)
+  // P4 agent_events：服务端复合函数 emit 的领域事件落 PB（§5.4-A「事件源多一个、评估不动」）
+  setEventForwarder((event, payload) => {
+    void pbAdapter.recordEvent?.(String(event), payload, 'server-executor')
+  })
   const domains = opts.domains ?? {}
 
   /** 服务端白名单闸门：域开关（与浏览器 settings.ai.domains 相互独立） */

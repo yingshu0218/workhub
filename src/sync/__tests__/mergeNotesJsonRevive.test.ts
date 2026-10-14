@@ -190,6 +190,8 @@ describe('防漂移锁：json 字段声明表 ↔ pb_setup/collections.json', ()
     const LOCAL_NAME: Record<string, string> = { module_configs: 'moduleConfigs' }
 
     const missing = loadServerJsonFields()
+      // agent_events 是通知流（P4）：不进客户端本地库（非 SYNC_TABLES），json 字段无需登记
+      .filter(({ collection }) => collection !== 'agent_events')
       .filter(({ collection, field }) => {
         const localTable = LOCAL_NAME[collection] ?? collection
         const tableIdx = block.indexOf(`${localTable}:`)

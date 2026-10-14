@@ -51,4 +51,11 @@ export interface StorageAdapter {
   list<T extends { id: string }>(table: TableName): Promise<(T & SyncMeta)[]>
   /** 写入后请求一次同步（浏览器端 = syncEngine.requestSync；服务端 = no-op，已就地在中心） */
   requestSync(): void
+  /**
+   * 领域事件出口（P4 agent_events，方案 §5.4-A）。
+   * 浏览器端**不实现**（事件已在本地 eventBus 分发给奖杯/EXP 评估，无需记录）；
+   * 服务端**必须实现**（服务端 eventBus 无消费者，事件经此落 PB `agent_events` 集合，
+   * 各客户端 pull 后 replay 到本地 eventBus —— 「事件源多一个、评估逻辑不动」）。
+   */
+  recordEvent?(event: string, payload: unknown, tool: string): Promise<void>
 }
