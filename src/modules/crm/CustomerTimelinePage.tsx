@@ -164,7 +164,6 @@ export default function CustomerTimelinePage() {
     <div className="mx-auto max-w-[1200px]">
       <PageHeader
         title="客户时间线"
-        subtitle={`${customer.name} · 建档至今的沟通、财务与事件全息鱼骨视图，单源投影与详情页一致`}
         actions={
           <>
             <Button
@@ -205,9 +204,6 @@ export default function CustomerTimelinePage() {
             {f.key !== 'all' ? ` ${counts[f.key as keyof typeof counts]}` : ''}
           </button>
         ))}
-        <span className="ml-2 text-[0.7857rem] text-outline">
-          滚轮缩放 · 空白处拖拽平移 · 悬停高亮 · 点击骨刺穿透对应记录
-        </span>
       </div>
 
       <Card className="overflow-hidden p-0">

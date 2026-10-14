@@ -401,7 +401,6 @@ export default function TodoPage() {
     <div className="mx-auto max-w-[1200px]">
       <PageHeader
         title="待办事项"
-        subtitle="跨模块联动：客户跟进、对账、习惯任务自动归集"
         actions={
           <Button icon="add" onClick={() => setCreating(true)}>
             新建待办

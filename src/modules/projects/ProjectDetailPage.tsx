@@ -102,7 +102,6 @@ export default function ProjectDetailPage() {
     <div className="mx-auto max-w-[1200px]">
       <PageHeader
         title="项目"
-        subtitle="一件事的全貌：进度、资金、待办、资料与跟进"
         actions={
           <>
             <Button variant="ghost" icon="arrow_back" onClick={() => navigate('/projects')}>

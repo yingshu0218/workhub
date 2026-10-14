@@ -54,7 +54,6 @@ export default function CustomerGraphPage() {
     <div className="mx-auto max-w-[1200px]">
       <PageHeader
         title={`${customer.name} · 关系图谱`}
-        subtitle="以该客户为主体的星型聚焦视图：业务实体 + 关联客户参与布局，二跳以外已裁剪"
         actions={
           <>
             <Button
@@ -85,10 +84,6 @@ export default function CustomerGraphPage() {
           icon="description"
         >{`关联笔记 ${graph.notes.filter((n) => n.customerId === id).length}`}</Chip>
         <Chip tone="red" icon="link">{`关联客户 ${relCount}`}</Chip>
-        <span className="ml-2 text-[0.7857rem] text-outline">
-          虚线弧边为客户间分类关系 · 桥接弱边为二跳推导关联 · 单击客户节点查看缩略卡 · 按住拖拽 ·
-          滚轮缩放
-        </span>
       </div>
 
       <GraphCanvas

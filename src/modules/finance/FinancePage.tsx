@@ -159,7 +159,6 @@ export default function FinancePage() {
     <div className="mx-auto max-w-[1200px]">
       <PageHeader
         title="财务中心"
-        subtitle="多账本资金流水管控，跨业务凭证溯源与关联追踪"
         actions={
           <>
             <Button icon="payments" onClick={() => setCreating(true)}>
@@ -237,7 +236,6 @@ export default function FinancePage() {
               />
             ))}
           </div>
-          <div className="mt-2 text-[0.7857rem] leading-relaxed text-outline">拖动账本可调整排序</div>
         </Card>
 
         {/* 右侧：汇总 + 流水 */}

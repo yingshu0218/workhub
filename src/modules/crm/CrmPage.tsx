@@ -106,7 +106,6 @@ export default function CrmPage() {
     <div className="mx-auto max-w-[1200px]">
       <PageHeader
         title="客户管理"
-        subtitle="客户档案 · 智能管家 · 关系画布，跨系统商机与资金流向回溯"
         actions={
           <>
             <Button variant="ghost" icon="hub" onClick={() => navigate('/crm/canvas')}>

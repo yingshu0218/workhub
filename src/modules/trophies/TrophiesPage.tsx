@@ -108,7 +108,7 @@ export default function TrophiesPage() {
 
   return (
     <div className="mx-auto max-w-[1200px]">
-      <PageHeader title="成就殿堂" subtitle="记录每一个卓越时刻 · 条件从源记录实时推导" />
+      <PageHeader title="成就殿堂" />
 
       {/* 顶部收集统计 */}
       <Card className="mb-4 flex flex-wrap items-center justify-between gap-6 p-6">

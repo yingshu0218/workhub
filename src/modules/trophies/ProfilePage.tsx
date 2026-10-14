@@ -15,7 +15,7 @@ export default function ProfilePage() {
 
   return (
     <div className="mx-auto max-w-[1200px]">
-      <PageHeader title="个人主页" subtitle="等级 · 成就 · 统计（EXP 由源记录实时推导）" />
+      <PageHeader title="个人主页" />
 
       {/* 用户卡片 + Lv 徽章 */}
       <Card className="mb-4 flex flex-wrap items-center justify-between gap-6 p-6">

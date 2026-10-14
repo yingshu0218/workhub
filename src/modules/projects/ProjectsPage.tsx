@@ -62,7 +62,6 @@ export default function ProjectsPage() {
     <div className="mx-auto max-w-[1200px]">
       <PageHeader
         title="项目"
-        subtitle="跨模块主题容器：把账目、待办、笔记与跟进串在一件事上"
         actions={
           <Button icon="add" onClick={() => setCreating(true)}>
             新建项目

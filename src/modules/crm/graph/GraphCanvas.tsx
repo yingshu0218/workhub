@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useRecord } from '@/queries/hooks'
 import type { Customer } from '@/db/types'
-import { Card, EmptyState } from '@/design-system/ui'
+import { Card, Chip, EmptyState } from '@/design-system/ui'
 import { Icon } from '@/design-system/Icon'
 import {
   INTIMACY_VISUAL,
@@ -100,6 +100,15 @@ export default function GraphCanvas({
   const showCatFilter =
     mode === 'customer-only' &&
     links.some((l) => l.kind === 'relation' && (l.categories?.length ?? 0) > 0)
+
+  // 关系层数据健康：只在 customer-only（关系网主视角）生效，且**只在有问题时**才渲染浮层
+  const relationTotal = graph.customers.reduce((n, c) => n + c.relations.length, 0)
+  const danglingRelations = graph.danglingRelations ?? 0
+  const relationHealth = {
+    visible: mode === 'customer-only' && (relationTotal === 0 || danglingRelations > 0),
+    total: relationTotal,
+    dangling: danglingRelations,
+  }
 
   // 卡片数据二次订阅：useRecord 拿客户全量记录，不依赖画布裁剪投影（审计口径）
   const selectedCustomer = useRecord<Customer>('customers', selectedId ?? undefined)
@@ -603,38 +612,42 @@ export default function GraphCanvas({
           </svg>
         )}
 
-        {/* 归类筛选 chips（Issue #34，仅 customer-only 模式） */}
-        {showCatFilter && (
+        {/* 画布浮层：关系归类筛选 chips + **数据健康告警**（2026-10-14 从页面行移入画布）。
+            健康告警与常驻图例不同 —— 「出问题才出现」，回答的是「为什么一条线都没有」这个具体疑问：
+            ① 一条关系都没有 → 灰；② 关系指向已删除客户（投影层过滤掉、不会画线）→ 红。
+            不提示的话，「确实还没加关系」与「关系全指错了」在界面上都是「没有线」，只能靠人猜。 */}
+        {showCatFilter || relationHealth.visible ? (
           <div
             className="absolute left-3 top-3 z-10 flex flex-wrap items-center gap-1.5"
             onPointerDown={(e) => e.stopPropagation()}
           >
-            {RELATION_CATEGORIES.map((c) => {
-              const on = activeCats.includes(c.id)
-              return (
-                <button
-                  key={c.id}
-                  className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[0.8571rem] font-medium shadow-sm backdrop-blur transition-colors ${
-                    on
-                      ? 'border-transparent text-white'
-                      : 'border-outline-variant/40 bg-surface-container-lowest/95 text-on-surface-variant hover:bg-surface-container'
-                  }`}
-                  style={on ? { background: c.color } : undefined}
-                  onClick={() =>
-                    setActiveCats((cs) =>
-                      cs.includes(c.id) ? cs.filter((x) => x !== c.id) : [...cs, c.id],
-                    )
-                  }
-                >
-                  <span
-                    className="h-2 w-2 rounded-full"
-                    style={{ background: on ? '#fff' : c.color }}
-                  />
-                  {c.name}
-                </button>
-              )
-            })}
-            {activeCats.length > 0 && (
+            {showCatFilter &&
+              RELATION_CATEGORIES.map((c) => {
+                const on = activeCats.includes(c.id)
+                return (
+                  <button
+                    key={c.id}
+                    className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[0.8571rem] font-medium shadow-sm backdrop-blur transition-colors ${
+                      on
+                        ? 'border-transparent text-white'
+                        : 'border-outline-variant/40 bg-surface-container-lowest/95 text-on-surface-variant hover:bg-surface-container'
+                    }`}
+                    style={on ? { background: c.color } : undefined}
+                    onClick={() =>
+                      setActiveCats((cs) =>
+                        cs.includes(c.id) ? cs.filter((x) => x !== c.id) : [...cs, c.id],
+                      )
+                    }
+                  >
+                    <span
+                      className="h-2 w-2 rounded-full"
+                      style={{ background: on ? '#fff' : c.color }}
+                    />
+                    {c.name}
+                  </button>
+                )
+              })}
+            {showCatFilter && activeCats.length > 0 && (
               <button
                 className="rounded-full px-2 py-0.5 text-[0.8571rem] text-on-surface-variant underline-offset-2 hover:underline"
                 onClick={() => setActiveCats([])}
@@ -642,8 +655,20 @@ export default function GraphCanvas({
                 清除
               </button>
             )}
+            {relationHealth.visible && relationHealth.total === 0 && (
+              <span title="到任一客户的档案 →「关系」里加一条（客户名 + 语义），画布上就会连起来">
+                <Chip tone="gray" icon="info">
+                  还没有客户间关系
+                </Chip>
+              </span>
+            )}
+            {relationHealth.visible && relationHealth.dangling > 0 && (
+              <span title="这些关系条目指向的客户已被删除或不存在，图谱不会为它们画线。到「客户档案 → 关系」里重新关联即可">
+                <Chip tone="red" icon="link_off">{`${relationHealth.dangling} 条关系指向已删除客户`}</Chip>
+              </span>
+            )}
           </div>
-        )}
+        ) : null}
 
         {/* 健康分图例（原亲密度，Issue #108 改名，仅 customer-only 模式启用）。
             ⚠️ 2026-10-14：节点尺寸已统一，档位只由**颜色**表达 —— 图例圆点也必须等大，

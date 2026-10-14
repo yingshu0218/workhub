@@ -111,7 +111,6 @@ export default function AllTimelinesPage() {
     <div className="mx-auto max-w-[1200px]">
       <PageHeader
         title="全部客户时间线"
-        subtitle="所有客户的沟通、财务与事件按时间统一排骨刺，按客户分带展示；与单客户鱼骨同一投影口径"
         actions={
           <>
             <Button variant="ghost" icon="arrow_back" onClick={() => navigate('/crm')}>
@@ -172,9 +171,6 @@ export default function AllTimelinesPage() {
             {c.name}
           </button>
         ))}
-        <span className="ml-2 text-[0.7857rem] text-outline">
-          滚轮缩放 · 空白处拖拽平移 · 点击骨刺穿透对应记录
-        </span>
       </div>
 
       <Card className="overflow-hidden p-0">

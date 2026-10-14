@@ -626,7 +626,6 @@ export default function SettingsPage() {
     <div className="mx-auto max-w-[1200px]">
       <PageHeader
         title="系统设置"
-        subtitle="界面风格、排版、快捷键、通知、同步与数据安全等应用级偏好 · 业务模块规则（健康分权重等）见侧栏「功能配置」"
       />
 
       {/* 功能配置入口（Issue #86）：业务规则配置已独立成页，这里只留指路牌，避免两类配置混用 */}

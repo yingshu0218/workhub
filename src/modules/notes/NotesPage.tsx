@@ -145,7 +145,6 @@ export default function NotesPage() {
     <div className="mx-auto max-w-[1200px]">
       <PageHeader
         title="笔记"
-        subtitle="文件夹体系 · Markdown 双栏编辑 · @提及实体 · 双向链接 · 智能彩色标签"
         actions={
           <Button icon="add" onClick={() => void createNote()} disabled={creating}>
             新建笔记

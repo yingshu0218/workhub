@@ -81,7 +81,6 @@ export default function HabitsPage() {
     <div className="mx-auto max-w-[1200px]">
       <PageHeader
         title="打卡习惯"
-        subtitle="21 天稳态 · 月历热力图 · 连击追踪"
         actions={
           <Button icon="add" onClick={() => setCreating(true)}>
             新建习惯

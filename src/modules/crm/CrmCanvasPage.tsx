@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button, Chip, PageHeader } from '@/design-system/ui'
+import { Button, PageHeader } from '@/design-system/ui'
 import { useCanvasGraph } from './hooks'
 import { useIntimacyConfig } from './intimacy'
 import GraphCanvas from './graph/GraphCanvas'
@@ -10,7 +10,12 @@ import { useUserName } from '@/modules/identity'
 /**
  * 客户关系画布（对齐原型 09-crm-canvas）—— 全景模式
  * 布局构建/d3 仿真/交互已抽入 graph/（GraphCanvas + useForceGraph + buildGraph 纯函数），
- * 本组件只剩页面外壳；无 focusId = 全量全景，含客户↔客户语义关系边（虚线曲线 + 标签）
+ * 本组件只剩页面外壳；无 focusId = 全量全景，含客户↔客户语义关系边（虚线曲线）
+ *
+ * ⚠️ 2026-10-14 用户裁决：**页面级的补充说明一律不显示** —— 副标题、图例、节点统计 chip、
+ * 操作提示句整行移除，页面只留「标题 + 视图切换 + 返回」与画布本身。
+ * 关系层的数据健康提示（悬挂关系 / 一条关系都没有）不在这里，改由画布内浮层**按需**出现
+ * （见 GraphCanvas）：那是「出问题才提示」的告警，不是常驻旁白，两者性质不同。
  */
 export default function CrmCanvasPage() {
   const graph = useCanvasGraph()
@@ -20,10 +25,7 @@ export default function CrmCanvasPage() {
   const [mode, setMode] = useState<GraphMode>('customer-only')
   // 「我」的显示名（Issue #123）：画布中心自节点的唯一文案，取自当前用户身份（默认阿蓝）
   const userName = useUserName()
-  // 关系条目总数（判「一条关系都没有」用；悬挂条数由投影层给，两者相减即有效条数）
-  const totalRelations = graph.customers.reduce((n, c) => n + c.relations.length, 0)
-  // 首屏「以我为重心」（Issue #94）：布局收敛后视图中心锚定到「我」自节点（固定画布中心，不漂移）。
-  // Issue #123 修正：锚点不再是「挑一个客户冒充我」——真自节点由 buildGraph 产出（kind='self'）
+  // 首屏「以我为重心」：布局收敛后视图中心锚定到「我」自节点（固定画布中心，不漂移）
   const [fitAnchor, setFitAnchor] = useState<string | null>(null)
   const anchorDoneRef = useRef(false)
   const handleGraphReady = () => {
@@ -36,11 +38,6 @@ export default function CrmCanvasPage() {
     <div className="mx-auto max-w-[1200px]">
       <PageHeader
         title="客户关系画布"
-        subtitle={
-          mode === 'customer-only'
-            ? '以我为画布中心 · 我不与任何节点连线，客户围绕中心按健康分/关系分布，连线为客户间分类关联与桥接弱边'
-            : '力导向关系图 · 实线从属、虚线关联与桥接弱边；单击客户节点弹缩略卡，双击交易/待办/笔记穿透至详情'
-        }
         actions={
           <>
             <div className="mr-2 flex overflow-hidden surface-card !bg-transparent border-outline-variant/50">
@@ -72,113 +69,11 @@ export default function CrmCanvasPage() {
         }
       />
 
-      {/* 图例 + 节点统计 */}
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <Chip tone="blue" icon="person">{`客户 ${graph.customers.length}`}</Chip>
-        {/* 关系层「空态」显式化（2026-10-14）：一条关系都没有时，画布就是一组孤立点 ——
-            此前这种「空」和「关系全坏了」在界面上都是「没有线」，只能靠人来猜。
-            这里把「确实还没有关系」直接说出来，并告诉去哪加（数据健康与视角无关，两种视图都提示）。 */}
-        {totalRelations === 0 && (
-          <span title="到任一客户的档案 →「关系」里加一条（客户名 + 语义），画布上就会连起来">
-            <Chip tone="gray" icon="info">还没有客户间关系</Chip>
-          </span>
-        )}
-        {/* 悬挂关系提示：关系条目指向已删除客户时会被投影层过滤，画布一条线都不画。
-            不提示的话，「没有关系」与「关系全指错了」在界面上完全一样 —— 典型的假绿。 */}
-        {(graph.danglingRelations ?? 0) > 0 && (
-          <span title="这些关系条目指向的客户已被删除或不存在，图谱不会为它们画线。到「客户档案 → 关系」里重新关联即可">
-            <Chip tone="red" icon="link_off">{`${graph.danglingRelations} 条关系指向已删除客户`}</Chip>
-          </span>
-        )}
-        {mode === 'customer-only' && (
-          <Chip tone="green" icon="my_location">{`我：${userName}`}</Chip>
-        )}
-        {mode === 'mixed' && (
-          <>
-            <Chip tone="green" icon="payments">{`交易 ${graph.transactions.length}`}</Chip>
-            <Chip tone="amber" icon="task_alt">{`待办 ${graph.todos.length}`}</Chip>
-            <Chip tone="gray" icon="description">{`笔记 ${graph.notes.length}`}</Chip>
-          </>
-        )}
-        {mode === 'mixed' ? (
-          <>
-            <span className="ml-2 inline-flex items-center gap-1 text-[0.7857rem] text-outline">
-              <svg width="22" height="8" className="inline-block">
-                <line
-                  x1="0"
-                  y1="4"
-                  x2="22"
-                  y2="4"
-                  stroke="#943700"
-                  strokeWidth="1.5"
-                  strokeDasharray="5 4"
-                />
-              </svg>
-              客户关联边（relations）
-            </span>
-            <span className="ml-1 inline-flex items-center gap-1 text-[0.7857rem] text-outline">
-              <svg width="22" height="8" className="inline-block">
-                <line
-                  x1="0"
-                  y1="4"
-                  x2="22"
-                  y2="4"
-                  stroke="#8a94a6"
-                  strokeWidth="1"
-                  strokeDasharray="2 4"
-                />
-              </svg>
-              项目/资金桥接
-            </span>
-          </>
-        ) : (
-          <span className="ml-2 inline-flex flex-wrap items-center gap-2 text-[0.7857rem] text-outline">
-            <span className="inline-flex items-center gap-1">
-              <span className="h-2.5 w-2.5 rounded-full" style={{ background: '#004ac6' }} />
-              我（{userName}）· 画布中心（不连线）
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <span className="h-2 w-2 rounded-full" style={{ background: '#6d43c4' }} />
-              项目
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <span className="h-2 w-2 rounded-full" style={{ background: '#0065b8' }} />
-              事件
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <span className="h-2 w-2 rounded-full" style={{ background: '#006c49' }} />
-              财务
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <span className="h-2 w-2 rounded-full" style={{ background: '#943700' }} />
-              关联人物
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <svg width="22" height="8" className="inline-block">
-                <line
-                  x1="0"
-                  y1="4"
-                  x2="22"
-                  y2="4"
-                  stroke="#8a94a6"
-                  strokeWidth="1"
-                  strokeDasharray="2 4"
-                />
-              </svg>
-              项目/资金桥接
-            </span>
-          </span>
-        )}
-        <span className="text-[0.7857rem] text-outline">
-          单击客户节点查看缩略卡 · 按住拖拽 · 滚轮缩放 · 空白处拖拽平移
-        </span>
-      </div>
-
       <GraphCanvas
         graph={graph}
         mode={mode}
         intimacyCfg={intimacyCfg}
-        style={{ height: 'calc(100vh - 14rem)', minHeight: 320 }}
+        style={{ height: 'calc(100vh - 11rem)', minHeight: 320 }}
         showReheat
         onGraphReady={handleGraphReady}
         fitAnchorId={fitAnchor ?? undefined}
