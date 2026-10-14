@@ -4,14 +4,15 @@ import {
   forceCollide,
   forceLink,
   forceManyBody,
-  forceRadial,
   forceSimulation,
+  forceX,
+  forceY,
   type Simulation,
 } from 'd3-force'
 import type { RelationCategory, ModuleConfigIntimacy } from '@/db/types'
 import type { CanvasGraph } from '../hooks'
 import { buildGraph, type GraphMode } from './buildGraph'
-import { COLLIDE_PADDING, ringRadius } from './presentation'
+import { COLLIDE_PADDING, orderByRelation, ringRadius, ringSlots } from './presentation'
 import type { GraphLink, GraphNode } from './types'
 
 /**
@@ -25,8 +26,8 @@ import type { GraphLink, GraphNode } from './types'
  * onGraphReady 不触发、以我为心的视图锚定失效」。传参前先确认来源被 useMemo 包裹。
  */
 
-/** customer-only 模式：客户落回圈层（以「我」为圆心）的强度 */
-const RING_STRENGTH = 0.32
+/** customer-only 模式：客户被拉向自己环上座位的强度 */
+const SLOT_STRENGTH = 0.5
 
 export interface ForceGraphOptions {
   graph: CanvasGraph
@@ -86,6 +87,13 @@ export function useForceGraph({
       setLinks([...ls])
     }
     const isCustomerOnly = mode === 'customer-only'
+    // customer-only 的位置由**确定性槽位**决定（presentation.ts#ringSlots），力场只做收敛与拖拽响应。
+    // 环上相邻槽位的弦长就是「关系边在环上的自然距离」——拿它当 link.distance，
+    // 已被排到相邻的关系两端就正好处于自然长度、不再互相拉扯
+    const customerIds = ns.filter((d) => d.kind === 'customer').map((d) => d.id)
+    const ringR = ringRadius(customerIds.length)
+    const spacing = 2 * ringR * Math.sin(Math.PI / Math.max(customerIds.length, 2))
+
     const sim = forceSimulation<GraphNode>(ns)
       .force(
         'link',
@@ -93,7 +101,7 @@ export function useForceGraph({
           .id((d) => d.id)
           // 客户↔客户关系边给更小 distance：让有关联的客户在布局上聚拢，关系结构可读
           .distance((l) => {
-            if (l.kind === 'relation') return 60
+            if (l.kind === 'relation') return isCustomerOnly ? spacing : 60
             // 二跳桥接弱边：距离放宽，让主线结构优先、桥接不抢布局
             if (l.kind === 'bridge') return 110
             return (l.source as GraphNode).kind === 'customer' ||
@@ -102,13 +110,15 @@ export function useForceGraph({
               : 70
           })
           .strength((l) => {
-            // 强关联：实线语义关系给强束缚；桥接弱边给极低强度，近似只做「轻引力」不硬拽
-            if (l.kind === 'relation') return 0.6
+            if (l.kind === 'relation') {
+              // customer-only：关系只做**极轻的粘连**。位置已由槽位定死，强拉扯会把整团人拖离
+              // 座位、连带把质心带偏 —— 那正是用户截图里「我」不在正中心的原因
+              return isCustomerOnly ? 0.08 : 0.6
+            }
             if (l.kind === 'bridge') return 0.08
-            return 0.4
+            return isCustomerOnly ? 0.1 : 0.4
           }),
       )
-      .force('charge', forceManyBody().strength(-320))
       .force(
         'collide',
         forceCollide<GraphNode>().radius((d) => d.radius + COLLIDE_PADDING),
@@ -119,25 +129,43 @@ export function useForceGraph({
       .alphaMin(0.06)
 
     if (isCustomerOnly) {
-      // 「以我为中心」= **圈层**（2026-10-14 用户裁决：仍以我为中心，但不能重叠、不能挤在一侧）。
+      // 「以我为中心」= **确定性槽位**（2026-10-14 用户裁决：中心节点必须在其它节点的**正中心**）。
       //
-      // 演进史（每一版都是被真实观感推翻的）：
+      // 演进史（每一版都是被真实观感推翻的，别再退回去）：
       // ① forceCenter：只搬「全节点均值」，而「我」被 fx/fy 钉住并每 tick 复位 → 平衡解要求
       //    「客户均值正好落在中心」，单客户时该解要求客户坐标 == 中心（中心节点被吃掉）。
-      // ② forceX/forceY（逐点向心）：解决了重合，但它们只把每个节点往中心**拉**，
-      //    客户受斥力与连线影响会整体偏到一侧 —— 实测 3 个客户全挤在「我」右边，
-      //    「以我为中心」名存实亡，而且严伟强的圈几乎贴到「我」的圈上。
-      // ③ forceRadial（本版）：把每个客户放到**以「我」为圆心的环**上，环半径随客户数增长；
-      //    环上再由 charge 与 collide 均匀摊开 → 居中、不重叠、不偏侧，三件事同时成立。
-      const customerCount = ns.filter((d) => d.kind === 'customer').length
-      sim.force(
-        'ring',
-        forceRadial<GraphNode>(ringRadius(customerCount), size.w / 2, size.h / 2).strength(
-          RING_STRENGTH,
-        ),
+      // ② forceX/forceY：只把每个节点往中心**拉**，客户整体偏到一侧（实测 3 个客户全在「我」右边）。
+      // ③ forceRadial：环约束只管**半径**、管不了角度，关系连线一拽，三个客户就在环上抱团 ——
+      //    环上位置偏了，质心自然不再等于圆心，「我」看起来又不在中心了（用户第二次截图）。
+      // ④ 本版：位置由 ringSlots 均匀分角**算出来**，力场只把节点收敛到各自座位。
+      //    均匀分角 ⇒ 全部客户坐标的质心恒等于圆心 ⇒ 「我」在正中心是**数学保证**，不是调参调出来的。
+      //
+      // 同时**去掉多体斥力**：座位已经把节点摆开（环上间距够宽），斥力只会把节点推离座位、
+      // 破坏质心不变式；防重叠交给 collide（硬约束）兜底。
+      const endId = (v: string | GraphNode) => (typeof v === 'string' ? v : v.id)
+      const pairs = ls
+        .filter((l) => l.kind === 'relation')
+        .map((l) => [endId(l.source), endId(l.target)] as [string, string])
+      const slotOf = new Map(
+        ringSlots(
+          orderByRelation(customerIds, pairs),
+          { x: size.w / 2, y: size.h / 2 },
+          ringR,
+        ).map((s) => [s.id, s]),
       )
+      sim
+        .force(
+          'slotX',
+          forceX<GraphNode>((d) => slotOf.get(d.id)?.x ?? size.w / 2).strength(SLOT_STRENGTH),
+        )
+        .force(
+          'slotY',
+          forceY<GraphNode>((d) => slotOf.get(d.id)?.y ?? size.h / 2).strength(SLOT_STRENGTH),
+        )
     } else {
-      sim.force('center', forceCenter(size.w / 2, size.h / 2))
+      sim
+        .force('charge', forceManyBody().strength(-320))
+        .force('center', forceCenter(size.w / 2, size.h / 2))
     }
     sim.on('end', () => {
       // 仿真自然收敛：通知调用方做首屏适应/锁定焦点（只此一次）

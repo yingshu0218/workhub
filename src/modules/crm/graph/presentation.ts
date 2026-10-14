@@ -15,7 +15,7 @@ export const RING_MIN_RADIUS = 200
 /** 每个客户摊到的弧长预算：客户越多环越大，保证环上相邻节点不重叠 */
 export const RING_PER_NODE = 26
 /** 节点之间的最小间隙（碰撞半径 = 节点半径 + 它），给名字标签留位 */
-export const COLLIDE_PADDING = 22
+export const COLLIDE_PADDING = 26
 /** 客户节点可能的最大半径（T1，见 INTIMACY_VISUAL）；不重叠判据按它取最坏情况 */
 export const MAX_CUSTOMER_RADIUS = 34
 
@@ -28,6 +28,75 @@ export const MAX_CUSTOMER_RADIUS = 34
  */
 export function ringRadius(customerCount: number): number {
   return Math.max(RING_MIN_RADIUS, RING_PER_NODE * Math.max(0, customerCount))
+}
+
+/* ────────────── 环上槽位（保证「我」在正中心） ────────────── */
+
+/** 环上第 index 个槽位的角度：从正上方（-90°）起顺时针均分 */
+export function slotAngle(index: number, count: number): number {
+  return -Math.PI / 2 + (Math.PI * 2 * index) / Math.max(count, 1)
+}
+
+export interface RingSlot {
+  id: string
+  x: number
+  y: number
+}
+
+/**
+ * 把客户**均匀**摆到环上（2026-10-14 用户裁决：「中心节点是在所有其他节点的正中心」）。
+ *
+ * 这是对「以我为中心」的**几何口径**：均匀分角时，全部槽位坐标的质心**恒等于**圆心，
+ * 也就是「我」恰好落在其他节点的正中心。只靠力场做不到这一点 —— 关系连线会把有关系的客户
+ * 拽到一起，环约束只管半径、管不了角度，于是整团人偏到一侧（用户截图里就是这样）。
+ * 所以位置改为**确定性槽位**，力场只负责把它当作目标点收敛。
+ *
+ * ⚠️ 边界：n = 1 时不存在「质心等于圆心」的解（一个点的质心就是它自己），此时客户落在正上方。
+ */
+export function ringSlots(
+  orderedIds: readonly string[],
+  center: { x: number; y: number },
+  radius: number,
+): RingSlot[] {
+  const n = orderedIds.length
+  return orderedIds.map((id, i) => {
+    const a = slotAngle(i, n)
+    return { id, x: center.x + Math.cos(a) * radius, y: center.y + Math.sin(a) * radius }
+  })
+}
+
+/**
+ * 排座次：让**有关系的客户在环上相邻**（边短、不横穿中心）。
+ *
+ * 做法是从第一个客户起走一条贪心链：优先接「与刚落位者有关联」的客户，没有就按原顺序取下一个。
+ * 为什么值得做：环上位置一旦均匀分角，关系的两端若落在环的对侧，那条弧就会横穿圆心，
+ * 视觉上从「我」身上压过去。相邻之后弧只剩很短一段，读起来也顺。
+ */
+export function orderByRelation(
+  ids: readonly string[],
+  pairs: readonly (readonly [string, string])[],
+): string[] {
+  if (ids.length <= 2) return [...ids]
+  const adj = new Map<string, string[]>()
+  for (const [a, b] of pairs) {
+    if (!a || !b || a === b) continue
+    if (!adj.has(a)) adj.set(a, [])
+    if (!adj.has(b)) adj.set(b, [])
+    adj.get(a)!.push(b)
+    adj.get(b)!.push(a)
+  }
+  const remaining = new Set(ids)
+  const out: string[] = []
+  let cursor = ids[0]!
+  while (remaining.size > 0) {
+    remaining.delete(cursor)
+    out.push(cursor)
+    const next =
+      (adj.get(cursor) ?? []).find((x) => remaining.has(x)) ?? ids.find((x) => remaining.has(x))
+    if (!next) break
+    cursor = next
+  }
+  return out
 }
 
 /* ────────────────── 关系边的悬浮框内容 ────────────────── */

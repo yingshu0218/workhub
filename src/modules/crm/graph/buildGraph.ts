@@ -5,7 +5,7 @@ import { buildScoreInput, resolveIntimacyLevel, isBlacklistHidden } from '../int
 import type { ModuleConfigIntimacy } from '@/db/types'
 import type { GraphLink, GraphNode } from './types'
 import { GRAPH_COLORS } from './types'
-import { ringRadius } from './presentation'
+import { orderByRelation, ringRadius, ringSlots } from './presentation'
 
 /**
  * graph 投影 → 节点/边 纯函数（无 React / d3 副作用，单测可覆盖）
@@ -256,13 +256,24 @@ export function buildGraph(
       fx: opts.center.x,
       fy: opts.center.y,
     }
-    // 初值直接落在**圈层环**上、均匀分角（与 useForceGraph 的 forceRadial 同源）：
-    // 首帧就已经「以我为中心、彼此不挤」，仿真只需微调角度，不会出现先挤成一团再炸开的观感
-    const ring = ringRadius(visible.length)
-    const step = (Math.PI * 2) / Math.max(visible.length, 1)
-    const customerNodes: GraphNode[] = visible.map((c, i) => {
+    // 初值直接落在**确定性槽位**上（与 useForceGraph 的目标点同源，见 presentation.ts#ringSlots）：
+    // 首帧就已经是「我居中、客户均匀环布、有关联的相邻」，仿真只做收敛与拖拽响应，不靠它摆位置。
+    // 用关系排过座次，关系弧才不会横穿圆心从「我」身上压过去
+    const visibleIds = visible.map((c) => c.id)
+    const visibleSet = new Set(visibleIds)
+    const pairList = relationLinks
+      .map((l) => [String(l.source), String(l.target)] as [string, string])
+      .filter(([a, b]) => visibleSet.has(a) && visibleSet.has(b))
+    const slots = ringSlots(
+      orderByRelation(visibleIds, pairList),
+      opts.center,
+      ringRadius(visibleIds.length),
+    )
+    const slotOf = new Map(slots.map((s) => [s.id, s]))
+    const customerNodes: GraphNode[] = visible.map((c) => {
       const lv = levelOf.get(c.id) ?? null
       const visual = lv ? INTIMACY_VISUAL[lv] : null
+      const slot = slotOf.get(c.id)
       return {
         id: c.id,
         kind: 'customer' as const,
@@ -270,8 +281,8 @@ export function buildGraph(
         color: visual?.color ?? GRAPH_COLORS.customer.stroke,
         fill: GRAPH_COLORS.customer.fill,
         radius: visual?.radius ?? 24,
-        x: opts.center.x + Math.cos(i * step) * ring,
-        y: opts.center.y + Math.sin(i * step) * ring,
+        x: slot?.x ?? opts.center.x,
+        y: slot?.y ?? opts.center.y,
       }
     })
     // 无「我→客户」辐条：自节点仅作中心基准，不参与任何连线（2026-10-12）
