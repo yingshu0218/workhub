@@ -16,6 +16,7 @@ import HabitsPage from '@/modules/habits/HabitsPage'
 import TrophiesPage from '@/modules/trophies/TrophiesPage'
 import ProfilePage from '@/modules/trophies/ProfilePage'
 import SettingsPage from '@/modules/settings/SettingsPage'
+import NotFoundPage from './NotFoundPage'
 import ModuleConfigPage from '@/modules/moduleConfig/ModuleConfigPage'
 import ProjectsPage from '@/modules/projects/ProjectsPage'
 import ProjectDetailPage from '@/modules/projects/ProjectDetailPage'
@@ -59,6 +60,9 @@ const router = createBrowserRouter([
       { path: '/module-config', element: <ModuleConfigPage /> },
       { path: '/module-config/:moduleId', element: <ModuleConfigPage /> },
       { path: '/module-config/:moduleId/:itemId', element: <ModuleConfigPage /> },
+      // ⚠️ catch-all 必须放最后：没有它，任何敲错的地址都会命中 React Router 的默认错误页
+      // （英文「Unexpected Application Error! 404 Not Found」+ 连侧栏都没有），而不是应用内的 404
+      { path: '*', element: <NotFoundPage /> },
     ],
   },
 ])
