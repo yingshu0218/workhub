@@ -233,5 +233,5 @@ export class NexusDB extends Dexie {
 
 export const db = new NexusDB()
 
-/** 当前工作区（本期单工作区：Personal，种子写入） */
-export const DEFAULT_WORKSPACE_ID = 'ws-main'
+/** 当前工作区（本期单工作区：Personal，种子写入）——常量本体在 @/storage/workspace（服务端 bundle 不拖 Dexie） */
+export { DEFAULT_WORKSPACE_ID } from '@/storage/workspace'

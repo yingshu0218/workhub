@@ -38,9 +38,16 @@ import { WsConnection } from './ws-server.mjs'
  * @param {boolean} [opts.autoIssueConfirm] dev 便利：预览响应自动附一次性 confirmToken（自动联调用，勿用于生产）
  * @param {string} [opts.path]             relay 挂载路径，默认 `/relay`（同源反代/挂载用）
  * @param {(m:string)=>void} [opts.log]    日志出口
+ * @param {{ listTools: ()=>Array, callTool: (name:string, args:unknown)=>Promise<{ok:boolean,data?:object,error?:string}>, handles: (name:string)=>boolean }} [opts.serverExecutor]
+ *   内置服务端执行器（agentOps 服务端化 P2，只读）：命中 `handles(name)` 的工具在 relay
+ *   进程内直接执行（直读 PB 中心），不经浏览器。路由规则：
+ *   - tools/list = 服务端工具 ∪ 浏览器工具 ∪ confirm_preview（重名时服务端版优先并标注 executor）；
+ *   - 浏览器离线时：有服务端工具就照常返回清单（不再整体 -32001），只有浏览器工具缺失这一事实
+ *     由工具调用时的回落错误体现；
+ *   - tools/call：服务端工具本地执行，其余回落浏览器桥（浏览器离线 → 原有可操作错误）。
  * @returns {RelayHandle}
  */
-export function createRelay({ token = generateToken(), autoIssueConfirm = false, path = '/relay', log = (m) => process.stderr.write(`${m}\n`) } = {}) {
+export function createRelay({ token = generateToken(), autoIssueConfirm = false, path = '/relay', log = (m) => process.stderr.write(`${m}\n`), serverExecutor = null } = {}) {
   /** 当前已连出的浏览器连接（首版单浏览器配对；多标签页取最近一条） */
   let browserConn = null
   /** 浏览器回包等待表：requestId -> {resolve, reject, timer, track} */
@@ -129,16 +136,37 @@ export function createRelay({ token = generateToken(), autoIssueConfirm = false,
   const router = createMcpRouter({
     token,
     autoIssueConfirm,
-    // 浏览器离线 = 工具清单不可用。这里**显式抛错**，由 mcp-relay 的 `tools/list` 分支
-    // 捕获并转成 JSON-RPC 错误返回（而不是让异常穿出 handle()，见下）。
+    // 工具清单失败必须转成**返回的 JSON-RPC 错误**（mcp-relay 的 tools/list 分支捕获），
+    // 不得让异常穿出 handle() —— 否则未处理的 Promise rejection 会打崩宿主进程。
     // 反例：直接返回空数组会让 Agent 误判「这个应用没有任何工具可用」，
-    // 从而放弃重试、也拿不到「应用未打开」这条可操作提示。
+    // 从而放弃重试、也拿不到可操作提示。
+    // 浏览器离线语义（P2 起）：有服务端工具 → 清单照常返回（读工具 7×24 可用）；
+    // 无服务端工具且浏览器离线 → listTools 内显式抛错转 -32001（与既有口径一致）。
     isBrowserOnline,
-    listTools: () => {
+    listTools: async () => {
       const fromBrowser = () => requestFromBrowser({ kind: 'tools/list' }).then((r) => r.data?.tools ?? [])
-      // confirm_preview 由 relay 自己实现（票据只能由 relay 签发），与浏览器工具清单**合并**下发
-      return fromBrowser().then((tools) => [
-        ...tools,
+      // 服务端工具（P2）：已按服务端白名单过滤；浏览器工具与之按名字去重（重名服务端版优先）
+      const serverTools = serverExecutor
+        ? serverExecutor.listTools().map((t) => ({ ...t, executor: 'server' }))
+        : []
+      const serverNames = new Set(serverTools.map((t) => t.name))
+      let browserTools = []
+      if (isBrowserOnline()) {
+        try {
+          browserTools = (await fromBrowser()).filter((t) => !serverNames.has(t.name))
+        } catch {
+          // 浏览器在线但清单拉取失败（超时等）：降级为只返回服务端工具，不让整次清单失败
+          browserTools = []
+        }
+      }
+      // confirm_preview 由 relay 自己实现（票据只能由 relay 签发），与工具清单合并下发。
+      // 浏览器离线时：只读服务端工具依然可用（P2），不再因浏览器缺席整体失败。
+      if (!isBrowserOnline() && serverTools.length === 0) {
+        throw new Error('寻鸽工作台未连接 relay（请确保应用已打开且已启用 AI 桥）')
+      }
+      return [
+        ...serverTools,
+        ...browserTools,
         {
           name: CONFIRM_TOOL,
           description:
@@ -154,7 +182,7 @@ export function createRelay({ token = generateToken(), autoIssueConfirm = false,
             required: ['tool', 'args'],
           },
         },
-      ])
+      ]
     },
     callTool: (name, toolArgs, meta) => {
       if (name === CONFIRM_TOOL) {
@@ -163,6 +191,12 @@ export function createRelay({ token = generateToken(), autoIssueConfirm = false,
         } catch (e) {
           return Promise.resolve({ ok: false, error: e?.message ?? String(e) })
         }
+      }
+      // P2：服务端工具（只读）在 relay 进程内直接执行，不经浏览器
+      if (serverExecutor?.handles(name)) {
+        return serverExecutor
+          .callTool(name, toolArgs)
+          .catch((e) => ({ ok: false, error: e?.message ?? String(e) }))
       }
       return requestFromBrowser({
         kind: 'tools/call',
@@ -322,7 +356,7 @@ export function createRelay({ token = generateToken(), autoIssueConfirm = false,
     browserConn = null
   }
 
-  return { token, path, protocolVersion: MCP_PROTOCOL_VERSION, handleUpgrade, attachStdio, close, issueConfirm: router.issueConfirm, confirmStore: router.confirmStore, isBrowserOnline }
+  return { token, path, protocolVersion: MCP_PROTOCOL_VERSION, handleUpgrade, attachStdio, close, issueConfirm: router.issueConfirm, confirmStore: router.confirmStore, isBrowserOnline, handle: router.handle }
 }
 
 /** @typedef {ReturnType<typeof createRelay>} RelayHandle */

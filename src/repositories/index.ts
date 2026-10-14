@@ -1,4 +1,5 @@
 import { db } from '@/db/db'
+import { storage } from '@/storage'
 import { syncEngine } from '@/sync/engine'
 import { createRepository, newId } from './repository'
 import type { PutInput } from './repository'
@@ -183,7 +184,7 @@ export async function resetAndSeedLocalData(): Promise<void> {
  */
 export async function clearOtherDefaultLedgers(keepId?: string): Promise<void> {
   const now = Date.now()
-  const others = (await db.ledgers.toArray()).filter(
+  const others = (await storage.list<Ledger>('ledgers')).filter(
     (l) => !l.deleted && l.isDefault && l.id !== keepId,
   )
   for (const l of others) {
@@ -362,39 +363,27 @@ export async function restoreFromJson(payload: unknown): Promise<number> {
  */
 export async function deleteHabitCascade(habitId: string): Promise<void> {
   const now = Date.now()
-  await db.transaction('rw', [db.habits, db.habitLogs, db.syncQueue], async () => {
-    const prevHabit = await db.habits.get(habitId)
+  await storage.transaction(['habits', 'habitLogs', 'syncQueue'], async (tx) => {
+    const prevHabit = await tx.get<Habit>('habits', habitId)
     if (!prevHabit || prevHabit.deleted) return
 
-    await db.habits.update(habitId, {
+    await tx.update('habits', habitId, {
       deleted: 1,
       updatedAt: now,
       rev: prevHabit.rev + 1,
     })
-    await db.syncQueue.add({
-      table: 'habits',
-      recordId: habitId,
-      op: 'delete',
-      createdAt: now,
-    })
+    await tx.enqueue('habits', habitId, 'delete', now)
 
-    const logs = await db.habitLogs
-      .where('habitId')
-      .equals(habitId)
-      .filter((l) => !l.deleted)
-      .toArray()
+    const logs = (await tx.list<HabitLog>('habitLogs')).filter(
+      (l) => l.habitId === habitId && !l.deleted,
+    )
     for (const log of logs) {
-      await db.habitLogs.update(log.id, {
+      await tx.update('habitLogs', log.id, {
         deleted: 1,
         updatedAt: now,
         rev: log.rev + 1,
       })
-      await db.syncQueue.add({
-        table: 'habitLogs',
-        recordId: log.id,
-        op: 'delete',
-        createdAt: now,
-      })
+      await tx.enqueue('habitLogs', log.id, 'delete', now)
     }
   })
   syncEngine.requestSync()
@@ -419,31 +408,22 @@ export async function saveTransactionWithAttachments(
 ): Promise<{ id: string; created: boolean }> {
   const now = Date.now()
   let created = false
-  await db.transaction('rw', [db.transactions, db.attachments, db.syncQueue], async () => {
+  await storage.transaction(['transactions', 'attachments', 'syncQueue'], async (tx) => {
     const putStamped = async <T extends { id: string }>(
       tableName: 'transactions' | 'attachments',
       record: T & Partial<SyncMeta>,
     ) => {
-      const table = db[tableName] as unknown as {
-        get(id: string): Promise<(T & SyncMeta) | undefined>
-        put(value: T): Promise<string>
-      }
-      const prev = await table.get(record.id)
-      await table.put({
+      const prev = await tx.get<T>(tableName, record.id)
+      await tx.put(tableName, {
         ...record,
         updatedAt: now,
         rev: (prev?.rev ?? 0) + 1,
         deleted: 0 as const,
       } as T)
-      await db.syncQueue.add({
-        table: tableName,
-        recordId: record.id,
-        op: 'upsert',
-        createdAt: now,
-      })
+      await tx.enqueue(tableName, record.id, 'upsert', now)
     }
     // create 门控判据：事务开始前交易记录是否已存在（edited 既有记录 → prev 有值 → 不发事件）
-    const prevTxn = await db.transactions.get(txn.id)
+    const prevTxn = await tx.get<Transaction>('transactions', txn.id)
     created = !prevTxn || !!prevTxn.deleted
     await putStamped('transactions', txn as Transaction & Partial<SyncMeta>)
     for (const att of attachments) {
@@ -485,41 +465,27 @@ export async function saveInteractionAndTouchCustomer(
   touchAt?: number,
 ): Promise<string> {
   const now = Date.now()
-  await db.transaction('rw', [db.interactions, db.customers, db.syncQueue], async () => {
-    const interactionTable = db.interactions as unknown as {
-      get(id: string): Promise<(Interaction & SyncMeta) | undefined>
-      put(value: Interaction): Promise<string>
-    }
-    const prevInteraction = await interactionTable.get(interaction.id)
-    await interactionTable.put({
+  await storage.transaction(['interactions', 'customers', 'syncQueue'], async (tx) => {
+    const prevInteraction = await tx.get<Interaction>('interactions', interaction.id)
+    await tx.put('interactions', {
       ...interaction,
       updatedAt: now,
       rev: (prevInteraction?.rev ?? 0) + 1,
       deleted: 0 as const,
     } as Interaction)
-    await db.syncQueue.add({
-      table: 'interactions',
-      recordId: interaction.id,
-      op: 'upsert',
-      createdAt: now,
-    })
+    await tx.enqueue('interactions', interaction.id, 'upsert', now)
 
-    const prevCustomer = await db.customers.get(customerId)
+    const prevCustomer = await tx.get<Customer>('customers', customerId)
     if (!prevCustomer || prevCustomer.deleted) {
       // 客户不存在/已删除：抛错让整个事务回滚，杜绝孤儿日志
       throw new Error(`saveInteractionAndTouchCustomer: customer ${customerId} not found`)
     }
-    await db.customers.update(customerId, {
+    await tx.update('customers', customerId, {
       lastContactAt: touchAt ?? interaction.at,
       updatedAt: now,
       rev: prevCustomer.rev + 1,
     })
-    await db.syncQueue.add({
-      table: 'customers',
-      recordId: customerId,
-      op: 'upsert',
-      createdAt: now,
-    })
+    await tx.enqueue('customers', customerId, 'upsert', now)
   })
   // 事务 commit 之后：统一 emit（UI 两个入口 + agentOps 都经此，单点收口）
   eventBus.emit('customer:contacted', { customerId })
@@ -548,8 +514,11 @@ export async function addCustomerRelation(
   const now = Date.now()
   let relationId = ''
   let deduped = false
-  await db.transaction('rw', [db.customers, db.syncQueue], async () => {
-    const [a, b] = await Promise.all([db.customers.get(customerId), db.customers.get(targetId)])
+  await storage.transaction(['customers', 'syncQueue'], async (tx) => {
+    const [a, b] = await Promise.all([
+      tx.get<Customer>('customers', customerId),
+      tx.get<Customer>('customers', targetId),
+    ])
     if (!a || a.deleted) throw new Error(`addCustomerRelation: customer ${customerId} not found`)
     if (!b || b.deleted) throw new Error(`addCustomerRelation: customer ${targetId} not found`)
 
@@ -564,7 +533,7 @@ export async function addCustomerRelation(
     }
 
     relationId = newId('rel')
-    await db.customers.update(a.id, {
+    await tx.update('customers', a.id, {
       relations: [
         ...aRels,
         { id: relationId, targetId, label, ...(category ? { category } : {}) },
@@ -572,10 +541,10 @@ export async function addCustomerRelation(
       updatedAt: now,
       rev: a.rev + 1,
     })
-    await db.syncQueue.add({ table: 'customers', recordId: a.id, op: 'upsert', createdAt: now })
+    await tx.enqueue('customers', a.id, 'upsert', now)
 
     const bRels = b.relations ?? []
-    await db.customers.update(b.id, {
+    await tx.update('customers', b.id, {
       // B 侧反向写回 A：无该关系才写（防重复调用把 B 侧写重）
       relations: bRels.some((r) => r.targetId === a.id && r.label === label)
         ? bRels
@@ -583,7 +552,7 @@ export async function addCustomerRelation(
       updatedAt: now,
       rev: b.rev + 1,
     })
-    await db.syncQueue.add({ table: 'customers', recordId: b.id, op: 'upsert', createdAt: now })
+    await tx.enqueue('customers', b.id, 'upsert', now)
   })
   syncEngine.requestSync()
   return { relationId, deduped }
@@ -601,114 +570,83 @@ export async function addCustomerRelation(
  */
 export async function deleteCustomerCascade(customerId: string): Promise<void> {
   const now = Date.now()
-  await db.transaction(
-    'rw',
-    [db.customers, db.interactions, db.transactions, db.todos, db.projects, db.syncQueue],
-    async () => {
-      const prevCustomer = await db.customers.get(customerId)
+  await storage.transaction(
+    ['customers', 'interactions', 'transactions', 'todos', 'projects', 'syncQueue'],
+    async (tx) => {
+      const prevCustomer = await tx.get<Customer>('customers', customerId)
       if (!prevCustomer || prevCustomer.deleted) return
 
-      await db.customers.update(customerId, {
+      await tx.update('customers', customerId, {
         deleted: 1,
         updatedAt: now,
         rev: prevCustomer.rev + 1,
       })
-      await db.syncQueue.add({
-        table: 'customers',
-        recordId: customerId,
-        op: 'delete',
-        createdAt: now,
-      })
+      await tx.enqueue('customers', customerId, 'delete', now)
 
-      const interactions = await db.interactions
-        .where('customerId')
-        .equals(customerId)
-        .filter((it) => !it.deleted)
-        .toArray()
+      const interactions = (await tx.list<Interaction>('interactions')).filter(
+        (it) => it.customerId === customerId && !it.deleted,
+      )
       for (const it of interactions) {
-        await db.interactions.update(it.id, {
+        await tx.update('interactions', it.id, {
           deleted: 1,
           updatedAt: now,
           rev: it.rev + 1,
         })
-        await db.syncQueue.add({
-          table: 'interactions',
-          recordId: it.id,
-          op: 'delete',
-          createdAt: now,
-        })
+        await tx.enqueue('interactions', it.id, 'delete', now)
       }
 
       // transactions 关联已数组化（Issue #140 v11）：去掉 customerId 索引，改内存过滤。
       // 理由见 db.ts v11 注释（避开 multiEntry 与同步队列整体覆盖语义的兼容坑，本表数据量级小）。
-      const txns = (await db.transactions.filter((t) => !t.deleted).toArray()).filter((t) =>
-        txnCustomerIds(t).includes(customerId),
-      )
+      const txns = (await tx.list<Transaction>('transactions'))
+        .filter((t) => !t.deleted)
+        .filter((t) => txnCustomerIds(t).includes(customerId))
       for (const txn of txns) {
-        await db.transactions.update(txn.id, {
+        await tx.update('transactions', txn.id, {
           ...toLinkFieldPatch('customerIds', txnCustomerIds(txn).filter((id) => id !== customerId)),
           updatedAt: now,
           rev: txn.rev + 1,
         })
-        await db.syncQueue.add({
-          table: 'transactions',
-          recordId: txn.id,
-          op: 'upsert',
-          createdAt: now,
-        })
+        await tx.enqueue('transactions', txn.id, 'upsert', now)
       }
 
-      const todos = await db.todos.where('customerId').equals(customerId).toArray()
+      const todos = (await tx.list<Todo>('todos')).filter((t) => t.customerId === customerId)
       for (const todo of todos) {
         if (todo.deleted) continue
-        await db.todos.update(todo.id, {
+        await tx.update('todos', todo.id, {
           customerId: undefined,
           updatedAt: now,
           rev: todo.rev + 1,
         })
-        await db.syncQueue.add({
-          table: 'todos',
-          recordId: todo.id,
-          op: 'upsert',
-          createdAt: now,
-        })
+        await tx.enqueue('todos', todo.id, 'upsert', now)
       }
 
       // 解绑其它客户 relations 中指向被删者的条目（双向弱引用，Issue #22）
       // 悬挂的 relations 会让全景图/聚焦图画出「边指向已删除客户」，与 projects.customerId 同源崩溃根因
-      const allCustomers = await db.customers.toArray()
+      const allCustomers = await tx.list<Customer>('customers')
       for (const other of allCustomers) {
         if (other.deleted || other.id === customerId) continue
         const rels = other.relations ?? []
         if (rels.length === 0 || !rels.some((r) => r.targetId === customerId)) continue
-        await db.customers.update(other.id, {
+        await tx.update('customers', other.id, {
           relations: rels.filter((r) => r.targetId !== customerId),
           updatedAt: now,
           rev: other.rev + 1,
         })
-        await db.syncQueue.add({
-          table: 'customers',
-          recordId: other.id,
-          op: 'upsert',
-          createdAt: now,
-        })
+        await tx.enqueue('customers', other.id, 'upsert', now)
       }
 
       // 解绑名下项目：项目不随客户消失，只清挂靠关系（弱引用语义，画布/CRM 下钻不悬挂）
-      const projects = await db.projects.where('customerId').equals(customerId).toArray()
+      const projects = (await tx.list<import('@/db/types').Project>('projects')).filter(
+        (p) => p.customerId === customerId,
+      )
       for (const proj of projects) {
         if (proj.deleted) continue
-        await db.projects.update(proj.id, {
+        await tx.update('projects', proj.id, {
           customerId: undefined,
           updatedAt: now,
           rev: proj.rev + 1,
         })
-        await db.syncQueue.add({
-          table: 'projects',
-          recordId: proj.id,
-          op: 'upsert',
-          createdAt: now,
-        })
+        await tx.enqueue('projects', proj.id, 'upsert', now)
       }
     },
   )
@@ -735,23 +673,17 @@ export async function createCustomerWithInit(
   opts: CustomerInitOptions = {},
 ): Promise<void> {
   const now = Date.now()
-  await db.transaction(
-    'rw',
-    [db.customers, db.todos, db.interactions, db.transactions, db.syncQueue],
-    async () => {
-      const prev = await db.customers.get(customer.id)
-      await db.customers.put({
+  await storage.transaction(
+    ['customers', 'todos', 'interactions', 'transactions', 'syncQueue'],
+    async (tx) => {
+      const prev = await tx.get<Customer>('customers', customer.id)
+      await tx.put('customers', {
         ...customer,
         updatedAt: now,
         rev: (prev?.rev ?? 0) + 1,
         deleted: 0 as const,
       } as Customer)
-      await db.syncQueue.add({
-        table: 'customers',
-        recordId: customer.id,
-        op: 'upsert',
-        createdAt: now,
-      })
+      await tx.enqueue('customers', customer.id, 'upsert', now)
 
       if (opts.openingLog) {
         const itx = {
@@ -760,24 +692,19 @@ export async function createCustomerWithInit(
           content: '客户建档 · 首次建立联系（opening）',
           at: now,
         }
-        await db.interactions.put({
+        await tx.put('interactions', {
           ...itx,
           updatedAt: now,
           rev: 1,
           deleted: 0 as const,
         } as Interaction)
-        await db.syncQueue.add({
-          table: 'interactions',
-          recordId: itx.id,
-          op: 'upsert',
-          createdAt: now,
-        })
+        await tx.enqueue('interactions', itx.id, 'upsert', now)
       }
 
       if (opts.linkTransactionId) {
-        const txn = await db.transactions.get(opts.linkTransactionId)
+        const txn = await tx.get<Transaction>('transactions', opts.linkTransactionId)
         if (txn && !txn.deleted) {
-          await db.transactions.update(txn.id, {
+          await tx.update('transactions', txn.id, {
             ...toLinkFieldPatch(
               'customerIds',
               [...txnCustomerIds(txn), customer.id].filter((v, i, a) => a.indexOf(v) === i),
@@ -785,12 +712,7 @@ export async function createCustomerWithInit(
             updatedAt: now,
             rev: txn.rev + 1,
           })
-          await db.syncQueue.add({
-            table: 'transactions',
-            recordId: txn.id,
-            op: 'upsert',
-            createdAt: now,
-          })
+          await tx.enqueue('transactions', txn.id, 'upsert', now)
         }
       }
     },

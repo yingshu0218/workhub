@@ -10,8 +10,8 @@ import {
   type IntimacyLevel,
   type ModuleConfig,
   type ModuleConfigIntimacy,
-  type ModuleConfigBlacklist,
 } from '@/db/types'
+import { mergeIntimacyPayload } from './direct'
 
 /**
  * 亲密度配置层（Issue #34 收敛稿）
@@ -21,52 +21,10 @@ import {
  * 写：repository 事务盖章入队，写后广播 moduleConfig:changed 由消费端实时应用
  */
 
-/** 深合并缺省值：存量/远端记录缺段位时逐层兜底（payload 是 unknown，需运行时校验形状） */
-function mergeIntimacyPayload(raw: unknown): ModuleConfigIntimacy {
-  const d = DEFAULT_INTIMACY_CONFIG
-  const p = (raw ?? {}) as Partial<ModuleConfigIntimacy>
-  const levels =
-    Array.isArray(p.levels) && p.levels.length === d.levels.length
-      ? p.levels.map((l, i) => ({
-          key: d.levels[i]!.key,
-          name: typeof l?.name === 'string' && l.name.trim() ? l.name : d.levels[i]!.name,
-          desc: typeof l?.desc === 'string' ? l.desc : d.levels[i]!.desc,
-        }))
-      : d.levels
-  const bl = (p.blacklist ?? {}) as Partial<ModuleConfigBlacklist>
-  const alg = (p.algorithm ?? {}) as Partial<ModuleConfigIntimacy['algorithm']>
-  const w = (alg.weights ?? {}) as Partial<ModuleConfigIntimacy['algorithm']['weights']>
-  const th = (alg.thresholds ?? {}) as Partial<ModuleConfigIntimacy['algorithm']['thresholds']>
-  return {
-    levels,
-    blacklist: {
-      hideInSearch: bl.hideInSearch ?? d.blacklist.hideInSearch,
-      excludeFromPicker: bl.excludeFromPicker ?? d.blacklist.excludeFromPicker,
-      hideInTimeline: bl.hideInTimeline ?? d.blacklist.hideInTimeline,
-    },
-    algorithm: {
-      enabled: alg.enabled ?? d.algorithm.enabled,
-      weights: {
-        contact: w.contact ?? d.algorithm.weights.contact,
-        finance: w.finance ?? d.algorithm.weights.finance,
-        todo: w.todo ?? d.algorithm.weights.todo,
-        project: w.project ?? d.algorithm.weights.project,
-      },
-      thresholds: {
-        t2: th.t2 ?? d.algorithm.thresholds.t2,
-        t3: th.t3 ?? d.algorithm.thresholds.t3,
-        t4: th.t4 ?? d.algorithm.thresholds.t4,
-      },
-    },
-  }
-}
-
-/** 直读配置（非响应式场景：算法计算/过滤器等） */
-export async function getIntimacyConfig(): Promise<ModuleConfigIntimacy> {
-  const rec = (await db.moduleConfigs.get(INTIMACY_CONFIG_ID)) as ModuleConfig | undefined
-  if (rec?.deleted) return DEFAULT_INTIMACY_CONFIG
-  return mergeIntimacyPayload(rec?.payload)
-}
+// mergeIntimacyPayload / getIntimacyConfig 已收口 `./direct`（agentOps 服务端化 P2：
+// 纯读取层与响应式 hooks 分离——服务端执行器 bundle 不能拖 react/Dexie），
+// 此处 re-export 保持旧引用路径（barrel 与本文件既有消费方）不破坏。
+export { mergeIntimacyPayload } from './direct'
 
 /**
  * 响应式订阅配置（设置页/选择器/图谱图例实时刷新）

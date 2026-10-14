@@ -18,11 +18,11 @@
  * 本层不产事件：事件一律由 repositories 复合函数在事务 commit 后发出（§2.1 边界③）。
  */
 import dayjs from 'dayjs'
-import { db } from '@/db/db'
+import { storage } from '@/storage'
 import { toLinkField } from '@/modules/finance/links'
 import { ledgerRepo, newId, saveTransactionWithAttachments } from '@/repositories'
 import type { PutInput } from '@/repositories/repository'
-import type { Transaction } from '@/db/types'
+import type { Ledger, Transaction } from '@/db/types'
 
 /**
  * 记账时间口径：**仅日期录入**，统一落当天 00:00（与 UI 原生 date 控件同源语义）。
@@ -42,7 +42,7 @@ export type DefaultLedgerResult =
   | { ok: false; reason: string }
 
 export async function resolveDefaultLedgerId(): Promise<DefaultLedgerResult> {
-  const ledgers = (await db.ledgers.toArray()).filter((l) => !l.deleted)
+  const ledgers = (await storage.list<Ledger>('ledgers')).filter((l) => !l.deleted)
   if (ledgers.length === 0) return { ok: false, reason: '请先创建账本' }
   const def = ledgers.find((l) => l.isDefault)
   if (def) return { ok: true, ledgerId: def.id }
@@ -90,7 +90,7 @@ export async function recordTransaction(
   let ledgerId = input.ledgerId
   if (ledgerId) {
     // 显式指定账本必须真实存在（不静默落一条挂不上的账）
-    const ledger = await db.ledgers.get(ledgerId)
+    const ledger = await storage.get<Ledger>('ledgers', ledgerId)
     if (!ledger || ledger.deleted) return { ok: false, error: `账本不存在：${ledgerId}` }
   } else {
     const resolved = await resolveDefaultLedgerId()
@@ -132,7 +132,7 @@ export async function createLedger(input: CreateLedgerInput): Promise<string> {
   const { clearOtherDefaultLedgers } = await import('@/repositories')
   if (input.isDefault) await clearOtherDefaultLedgers()
   const id = newId('ldg')
-  const active = (await db.ledgers.toArray()).filter((l) => !l.deleted)
+  const active = (await storage.list<Ledger>('ledgers')).filter((l) => !l.deleted)
   await ledgerRepo.put({
     id,
     name: input.name,

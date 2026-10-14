@@ -80,14 +80,12 @@ export function quickCaptureTitle(content: string): string {
 /**
  * 从正文取待办标题：首行 trim，截断 60 字；空正文回退「未命名待办」。
  *
- * 收口说明（Issue #148 后续）：本函数是「正文首行 → 标题」的**唯一实现**，
- * 待办领域层 `modules/todo/title.deriveTodoTitle` 直接转发本函数，
- * 表单 / 速记转待办 / Agent 两条写入口全部经它取名，不再各写一份首行解析。
+ * 收口说明（Issue #148 后续 / P2 方向反转）：实现本体已收口到 `modules/todo/title.ts`
+ * （agentOps 服务端化——服务端 bundle 不能拖本模块 → repositories → Dexie 的依赖链），
+ * 此处 import 本地消费 + re-export 保持旧 import 路径不破坏。
  */
-export function quickCaptureTodoTitle(content: string): string {
-  const firstLine = content.split('\n')[0]?.trim() ?? ''
-  return (firstLine || '未命名待办').slice(0, 60)
-}
+import { quickCaptureTodoTitle } from '@/modules/todo/title'
+export { quickCaptureTodoTitle } from '@/modules/todo/title'
 
 /**
  * 保存一条快速便签为正式 Note，返回落库后的 Note id（供「查看」跳转）。

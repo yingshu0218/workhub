@@ -180,7 +180,8 @@ describe('防漂移锁：json 字段声明表 ↔ pb_setup/collections.json', ()
   }
 
   it('服务端 json 字段全部已登记（漏登记即红）', () => {
-    const src = readFileSync(path.resolve(process.cwd(), 'src/sync/mergeRemote.ts'), 'utf8')
+    // P2：声明表收口到 remoteNormalize.ts（服务端 adapter 同源），mergeRemote.ts 只是消费方
+    const src = readFileSync(path.resolve(process.cwd(), 'src/sync/remoteNormalize.ts'), 'utf8')
     const start = src.indexOf('const JSON_FIELDS_BY_TABLE')
     expect(start).toBeGreaterThan(-1)
     const block = src.slice(start, src.indexOf('\n}', start))
@@ -203,7 +204,7 @@ describe('防漂移锁：json 字段声明表 ↔ pb_setup/collections.json', ()
 
   it('断言本身有区分力：探针集合不存在于声明表时会被判 missing', () => {
     // 反向对照（防「block 恰好包含所有字段名」造成的假绿）
-    const src = readFileSync(path.resolve(process.cwd(), 'src/sync/mergeRemote.ts'), 'utf8')
+    const src = readFileSync(path.resolve(process.cwd(), 'src/sync/remoteNormalize.ts'), 'utf8')
     const block = src.slice(src.indexOf('const JSON_FIELDS_BY_TABLE'))
     expect(block.includes('不存在的集合:')).toBe(false)
     expect(block.includes("'zzzNotAField'")).toBe(false)

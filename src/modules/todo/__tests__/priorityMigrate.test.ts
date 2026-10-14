@@ -9,7 +9,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import 'fake-indexeddb/auto'
 import { db } from '@/db/db'
-import { migrateLegacyTodoPriority } from '../domain'
+import { migrateLegacyTodoPriority } from '../backfill'
 
 const base = {
   desc: '',

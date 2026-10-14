@@ -1,6 +1,6 @@
 import dayjs from 'dayjs'
 import { z } from 'zod'
-import { db } from '@/db/db'
+import { storage } from '@/storage'
 import { newId } from '@/repositories'
 import { eventBus } from '@/shared/eventBus'
 import {
@@ -16,7 +16,7 @@ import { toggleTodoDone } from '@/modules/todo/toggle'
 import { splitTodoText } from '@/modules/todo/title'
 import { normalizeTodoTags, TODO_TAG_MAX_COUNT } from '@/modules/todo/tags'
 import { deleteTodoCascade } from '@/modules/todo/hooks'
-import type { Customer, Habit, Note, Project, Todo } from '@/db/types'
+import type { Customer, Habit, HabitLog, Note, Project, Todo } from '@/db/types'
 
 /** 行类型别名（mustExist 泛型绑定用；与 db/types 定义同源，不做二次建模） */
 type ProjectRow = Project
@@ -231,7 +231,7 @@ export async function crm_addInteraction(input: unknown): Promise<AgentOpResult>
   const d = parsed.data
 
   // 目标客户必须是消解后的真实 id（拒绝字符串关联的运行时兜底校验）
-  const customer = await db.customers.get(d.customerId)
+  const customer = await storage.get<Customer>('customers', d.customerId)
   if (!customer || customer.deleted) {
     return err(`客户不存在：${d.customerId}，请先 resolveEntity 消解`)
   }
@@ -296,9 +296,9 @@ export async function todo_createTodo(input: unknown): Promise<AgentOpResult> {
 
   // 关联校验前置（P1-1 修复）：此前三项**全无**校验，挂到不存在的客户/项目上也静默创建成功
   const links = await assertLinks([
-    { id: d.customerId, table: db.customers, what: '客户' },
-    { id: d.projectId, table: db.projects, what: '项目' },
-    { id: d.listId, table: db.todoLists, what: '待办清单' },
+    { id: d.customerId, table: tableRef('customers'), what: '客户' },
+    { id: d.projectId, table: tableRef('projects'), what: '项目' },
+    { id: d.listId, table: tableRef('todoLists'), what: '待办清单' },
   ])
   if (!links.ok) return err(links.error)
 
@@ -337,7 +337,7 @@ export async function todo_completeTodo(input: unknown): Promise<AgentOpResult> 
   if (!parsed.ok) return parsed
   const d = parsed.data
 
-  const todo = await db.todos.get(d.todoId)
+  const todo = await storage.get<Todo>('todos', d.todoId)
   if (!todo || todo.deleted) return err(`待办不存在：${d.todoId}`)
 
   // 转换当前态 → 目标态；已完成态（含 completedAt 已盖）保持不动
@@ -384,7 +384,7 @@ export async function habit_checkin(input: unknown): Promise<AgentOpResult> {
   if (!parsed.ok) return parsed
   const d = parsed.data
 
-  const habit = await db.habits.get(d.habitId)
+  const habit = await storage.get<Habit>('habits', d.habitId)
   if (!habit || habit.deleted) {
     return err(`习惯不存在：${d.habitId}，请先 resolveEntity 消解`)
   }
@@ -414,6 +414,14 @@ async function mustExist<T extends { id: string; deleted?: 0 | 1 }>(
   const record = await table.get(id)
   if (!record || record.deleted) return { ok: false, error: `${what}不存在：${id}，请先 resolveEntity 消解` }
   return { ok: true, record: record as NonNullable<Awaited<ReturnType<typeof table.get>>> }
+}
+
+/**
+ * 存储表引用（P1 存储适配改造）：把 `db.<table>` 的 `{ get(id) }` 形状换成经 StorageAdapter
+ * 的读取——mustExist / assertLinks 的签名不变（最小 diff），落点换存储实现。
+ */
+function tableRef(table: string): { get(id: string): Promise<never> } {
+  return { get: (id: string) => storage.get(table, id) as never }
 }
 
 /**
@@ -471,7 +479,7 @@ export async function todo_updateTodo(input: unknown): Promise<AgentOpResult> {
   const parsed = parseOrError(updateTodoSchema, input)
   if (!parsed.ok) return parsed
   const d = parsed.data
-  const found = await mustExist<Todo>(db.todos, d.todoId, '待办')
+  const found = await mustExist<Todo>(tableRef('todos'), d.todoId, '待办')
   if (!found.ok) return err(found.error)
   const prev = found.record
 
@@ -500,9 +508,9 @@ export async function todo_updateTodo(input: unknown): Promise<AgentOpResult> {
 
   // 弱引用校验：关联对象必须存在（拒绝挂到已删客户/项目/清单上，避免图里出现悬挂边）
   const links = await assertLinks([
-    { id: patch.customerId, table: db.customers, what: '客户' },
-    { id: patch.projectId, table: db.projects, what: '项目' },
-    { id: patch.listId, table: db.todoLists, what: '待办清单' },
+    { id: patch.customerId, table: tableRef('customers'), what: '客户' },
+    { id: patch.projectId, table: tableRef('projects'), what: '项目' },
+    { id: patch.listId, table: tableRef('todoLists'), what: '待办清单' },
   ])
   if (!links.ok) return err(links.error)
 
@@ -522,7 +530,7 @@ export async function todo_updateTodo(input: unknown): Promise<AgentOpResult> {
 export async function todo_deleteTodo(input: unknown): Promise<AgentOpResult> {
   const parsed = parseOrError(deleteTodoSchema, input)
   if (!parsed.ok) return parsed
-  const found = await mustExist<Todo>(db.todos, parsed.data.todoId, '待办')
+  const found = await mustExist<Todo>(tableRef('todos'), parsed.data.todoId, '待办')
   if (!found.ok) return err(found.error)
   const unlinked = await deleteTodoCascade(parsed.data.todoId)
   return ok({
@@ -538,7 +546,7 @@ export async function crm_updateCustomer(input: unknown): Promise<AgentOpResult>
   const parsed = parseOrError(updateCustomerSchema, input)
   if (!parsed.ok) return parsed
   const d = parsed.data
-  const found = await mustExist<Customer>(db.customers, d.customerId, '客户')
+  const found = await mustExist<Customer>(tableRef('customers'), d.customerId, '客户')
   if (!found.ok) return err(found.error)
   const prev = found.record
 
@@ -569,7 +577,7 @@ export async function project_createProject(input: unknown): Promise<AgentOpResu
   const parsed = parseOrError(createProjectSchema, input)
   if (!parsed.ok) return parsed
   const d = parsed.data
-  const links = await assertLinks([{ id: d.customerId, table: db.customers, what: '客户' }])
+  const links = await assertLinks([{ id: d.customerId, table: tableRef('customers'), what: '客户' }])
   if (!links.ok) return err(links.error)
   const { projectRepo, newId } = await import('@/repositories')
   const id = newId('prj')
@@ -591,7 +599,7 @@ export async function project_updateProject(input: unknown): Promise<AgentOpResu
   const parsed = parseOrError(updateProjectSchema, input)
   if (!parsed.ok) return parsed
   const d = parsed.data
-  const found = await mustExist<ProjectRow>(db.projects, d.projectId, '项目')
+  const found = await mustExist<ProjectRow>(tableRef('projects'), d.projectId, '项目')
   if (!found.ok) return err(found.error)
   const prev = found.record
 
@@ -601,7 +609,7 @@ export async function project_updateProject(input: unknown): Promise<AgentOpResu
   }
   const customerId = triState(d.customerId)
   if (customerId.touched) {
-    const links = await assertLinks([{ id: customerId.value, table: db.customers, what: '客户' }])
+    const links = await assertLinks([{ id: customerId.value, table: tableRef('customers'), what: '客户' }])
     if (!links.ok) return err(links.error)
     patch.customerId = customerId.value
   }
@@ -619,8 +627,8 @@ export async function note_createNote(input: unknown): Promise<AgentOpResult> {
   if (!parsed.ok) return parsed
   const d = parsed.data
   const links = await assertLinks([
-    { id: d.folderId, table: db.noteFolders, what: '笔记文件夹' },
-    { id: d.projectId, table: db.projects, what: '项目' },
+    { id: d.folderId, table: tableRef('noteFolders'), what: '笔记文件夹' },
+    { id: d.projectId, table: tableRef('projects'), what: '项目' },
   ])
   if (!links.ok) return err(links.error)
   const { noteRepo, newId } = await import('@/repositories')
@@ -645,7 +653,7 @@ export async function note_updateNote(input: unknown): Promise<AgentOpResult> {
   const parsed = parseOrError(updateNoteSchema, input)
   if (!parsed.ok) return parsed
   const d = parsed.data
-  const found = await mustExist<NoteRow>(db.notes, d.noteId, '笔记')
+  const found = await mustExist<NoteRow>(tableRef('notes'), d.noteId, '笔记')
   if (!found.ok) return err(found.error)
   const prev = found.record
 
@@ -655,13 +663,13 @@ export async function note_updateNote(input: unknown): Promise<AgentOpResult> {
   }
   const folderId = triState(d.folderId)
   if (folderId.touched) {
-    const links = await assertLinks([{ id: folderId.value, table: db.noteFolders, what: '笔记文件夹' }])
+    const links = await assertLinks([{ id: folderId.value, table: tableRef('noteFolders'), what: '笔记文件夹' }])
     if (!links.ok) return err(links.error)
     patch.folderId = folderId.value
   }
   const projectId = triState(d.projectId)
   if (projectId.touched) {
-    const links = await assertLinks([{ id: projectId.value, table: db.projects, what: '项目' }])
+    const links = await assertLinks([{ id: projectId.value, table: tableRef('projects'), what: '项目' }])
     if (!links.ok) return err(links.error)
     patch.projectId = projectId.value
   }
@@ -686,10 +694,10 @@ export async function habit_deleteHabit(input: unknown): Promise<AgentOpResult> 
   const parsed = parseOrError(deleteHabitSchema, input)
   if (!parsed.ok) return parsed
   const habitId = parsed.data.habitId
-  const found = await mustExist<HabitRow>(db.habits, habitId, '习惯')
+  const found = await mustExist<HabitRow>(tableRef('habits'), habitId, '习惯')
   if (!found.ok) return err(found.error)
-  const logs = (await db.habitLogs.where('habitId').equals(habitId).toArray()).filter(
-    (l) => !l.deleted,
+  const logs = (await storage.list<HabitLog>('habitLogs')).filter(
+    (l) => l.habitId === habitId && !l.deleted,
   )
   await deleteHabitCascade(habitId)
   return ok({

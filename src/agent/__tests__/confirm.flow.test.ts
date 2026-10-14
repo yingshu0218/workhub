@@ -122,7 +122,9 @@ describe('relay 侧取票与防重放（ConfirmTokenStore + preview 绑定）', 
     const { readFileSync } = await import('node:fs')
     const src = readFileSync('relay/server.mjs', 'utf8')
     expect(src).toContain("const CONFIRM_TOOL = 'confirm_preview'")
-    expect(src).toMatch(/\.\.\.tools,\s*\n\s*\{\s*\n\s*name: CONFIRM_TOOL/)
+    // P2 起 tools/list = 服务端工具 ∪ 浏览器工具 ∪ confirm_preview（服务端工具重名优先），
+    // confirm_preview 恒与清单合并下发（浏览器离线且有服务端工具时也可达）
+    expect(src).toMatch(/\.\.\.browserTools,\s*\n\s*\{\s*\n\s*name: CONFIRM_TOOL/)
     // preview 落地时记下 (tool,args)，取票时消费
     expect(src).toContain('rememberPreview(argsHash(p.track.name, p.track.args))')
     expect(src).toContain('consumePreview(key)')

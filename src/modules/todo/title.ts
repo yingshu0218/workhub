@@ -23,12 +23,18 @@
  * - `needsTodoTextNormalize(todo)` —— 历史数据是否与新口径不一致（用于迁移动作计数）。
  *
  * 口径来源：正文取标题的规则与速记转待办 `quickCaptureTodoTitle` 完全一致
- * （单行 trim 后截断 60 字、空文本回退），本模块**转发**它，不复制实现。
- * 依赖方向：`modules/notes/quickCapture` 只依赖 repositories/db，不反向依赖本模块，
- * 故此处 import 不构成循环。
+ * （单行 trim 后截断 60 字、空文本回退）。**P2 方向反转**：实现本体收口到本模块
+ * （agentOps 服务端化——`agent/serverReads.ts` 经本模块取标题口径，服务端 bundle
+ * 不能拖 quickCapture → repositories → Dexie 的依赖链），quickCapture.ts 转为 re-export，
+ * 旧 import 路径不破坏。
  */
 import type { Todo } from '@/db/types'
-import { quickCaptureTodoTitle } from '@/modules/notes/quickCapture'
+
+/** 正文首行 → 待办标题（唯一实现；空正文回退「未命名待办」；截断 60 字） */
+export function quickCaptureTodoTitle(content: string): string {
+  const firstLine = content.split('\n')[0]?.trim() ?? ''
+  return (firstLine || '未命名待办').slice(0, 60)
+}
 
 /** 正文首行 → 待办标题（与速记转待办同一口径；空正文回退「未命名待办」） */
 export function deriveTodoTitle(body: string): string {

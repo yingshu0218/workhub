@@ -1,9 +1,10 @@
 import dayjs from 'dayjs'
 import { z } from 'zod'
-import { db } from '@/db/db'
+import { storage } from '@/storage'
 import { txnCustomerIds, txnProjectIds, txnTodoIds } from '@/modules/finance/links'
 import { buildSearchIndex, searchAll, type SearchEntityType } from '@/shared/search'
-import { filterBlacklisted, getIntimacyConfig } from '@/modules/crm/intimacy'
+// 直读层从 intimacy/direct 引（纯：零 react/Dexie）——barrel 会拖 config.ts 的响应式链，服务端 bundle 禁入
+import { filterBlacklisted, getIntimacyConfig } from '@/modules/crm/intimacy/direct'
 import { normalizeTodoPriority, todoPriorityFullLabel } from '@/modules/todo/priority'
 import type { Customer, Habit, Ledger, Note, Project, Todo, Transaction } from '@/db/types'
 
@@ -217,7 +218,7 @@ export async function listTransactions(input: unknown): Promise<ReadResult> {
   const d = listTransactionsSchema.parse(input ?? {})
   const fromMs = d.from ? dayjs(d.from).startOf('day').valueOf() : undefined
   const toMs = d.to ? dayjs(d.to).endOf('day').valueOf() : undefined
-  const rows = alive(await db.transactions.toArray())
+  const rows = alive(await storage.list<Transaction>('transactions'))
     .filter((t) => (d.customerId ? txnCustomerIds(t).includes(d.customerId) : true))
     .filter((t) => (d.ledgerId ? t.ledgerId === d.ledgerId : true))
     .filter((t) => (d.status ? t.status === d.status : true))
@@ -231,7 +232,7 @@ export async function listTransactions(input: unknown): Promise<ReadResult> {
 /** getCustomer：单客户档案（上限 1，id 须来自 resolveEntity） */
 export async function getCustomer(input: unknown): Promise<ReadResult> {
   const d = getCustomerSchema.parse(input)
-  const c = await db.customers.get(d.id)
+  const c = await storage.get<Customer>('customers', d.id)
   if (!c || c.deleted) return { items: [], count: 0, truncated: false }
   return { items: [projectCustomer(c)], count: 1, truncated: false }
 }
@@ -239,7 +240,7 @@ export async function getCustomer(input: unknown): Promise<ReadResult> {
 /** listTodos：待办查询（最小投影） */
 export async function listTodos(input: unknown): Promise<ReadResult> {
   const d = listTodosSchema.parse(input ?? {})
-  const rows = alive(await db.todos.toArray())
+  const rows = alive(await storage.list<Todo>('todos'))
     .filter((t) => (d.status ? t.status === d.status : true))
     // 存量数据仍是 P1/P2/P3，比较前先归一化（normalizeTodoPriority 读侧收口）
     .filter((t) => (d.priority ? normalizeTodoPriority(t.priority) === d.priority : true))
@@ -252,7 +253,7 @@ export async function listTodos(input: unknown): Promise<ReadResult> {
 /** listLedgers：账本清单（记账前置：Agent 需先知道有哪些账本，缺省走 isDefault） */
 export async function listLedgers(input: unknown): Promise<ReadResult> {
   listLedgersSchema.parse(input ?? {})
-  const rows = alive(await db.ledgers.toArray()).sort(
+  const rows = alive(await storage.list<Ledger>('ledgers')).sort(
     (a, b) => (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity),
   )
   return envelope(rows.map(projectLedger), READ_LIMITS.listLedgers)
@@ -261,7 +262,7 @@ export async function listLedgers(input: unknown): Promise<ReadResult> {
 /** listHabits：习惯清单（打卡前置） */
 export async function listHabits(input: unknown): Promise<ReadResult> {
   void input
-  const rows = alive(await db.habits.toArray())
+  const rows = alive(await storage.list<Habit>('habits'))
   return envelope(
     rows.map((h: Habit) => ({ id: h.id, name: h.name, category: h.category, schedule: h.schedule })),
     READ_LIMITS.listHabits,
@@ -275,12 +276,12 @@ export async function listHabits(input: unknown): Promise<ReadResult> {
 export async function searchEntities(input: unknown): Promise<ReadResult> {
   const d = searchEntitiesSchema.parse(input)
   const [customers, projects, todos, transactions, notes, habits] = await Promise.all([
-    db.customers.toArray(),
-    db.projects.toArray(),
-    db.todos.toArray(),
-    db.transactions.toArray(),
-    db.notes.toArray(),
-    db.habits.toArray(),
+    storage.list<Customer>('customers'),
+    storage.list<Project>('projects'),
+    storage.list<Todo>('todos'),
+    storage.list<Transaction>('transactions'),
+    storage.list<Note>('notes'),
+    storage.list<Habit>('habits'),
   ])
   // 黑名单「全局搜索屏蔽」（缺陷 D15）：Agent 读工具复用同一份 ⌘K 索引 ——
   // 若这里不过滤，被屏蔽的客户会从 AI 侧原样漏出去，等于给开关留了个后门。
@@ -321,7 +322,7 @@ export async function searchEntities(input: unknown): Promise<ReadResult> {
 /** listProjects：项目清单（P2 动作扩面） */
 export async function listProjects(input: unknown): Promise<ReadResult> {
   const d = listProjectsSchema.parse(input ?? {})
-  const rows = alive(await db.projects.toArray())
+  const rows = alive(await storage.list<Project>('projects'))
     .filter((p) => (d.status ? p.status === d.status : true))
     .filter((p) => (d.customerId ? p.customerId === d.customerId : true))
     .sort((a, b) => b.createdAt - a.createdAt)
@@ -335,10 +336,10 @@ export async function listProjects(input: unknown): Promise<ReadResult> {
  */
 export async function listNotes(input: unknown): Promise<ReadResult> {
   const d = listNotesSchema.parse(input ?? {})
-  const folders = alive(await db.noteFolders.toArray())
+  const folders = alive(await storage.list<import('@/db/types').NoteFolder>('noteFolders'))
   const folderName = new Map(folders.map((f) => [f.id, f.name]))
   const q = d.q?.toLowerCase()
-  const rows = alive(await db.notes.toArray())
+  const rows = alive(await storage.list<Note>('notes'))
     .filter((n) => (d.folderId ? n.folderId === d.folderId : true))
     .filter((n) => (d.projectId ? n.projectId === d.projectId : true))
     .filter((n) => (d.tag ? n.tags.includes(d.tag) : true))
@@ -353,7 +354,7 @@ export async function listNotes(input: unknown): Promise<ReadResult> {
 /** listNoteFolders：文件夹清单 */
 export async function listNoteFolders(input: unknown): Promise<ReadResult> {
   listNoteFoldersSchema.parse(input ?? {})
-  const rows = alive(await db.noteFolders.toArray()).sort((a, b) => a.name.localeCompare(b.name))
+  const rows = alive(await storage.list<import('@/db/types').NoteFolder>('noteFolders')).sort((a, b) => a.name.localeCompare(b.name))
   return envelope(
     rows.map((f) => ({ id: f.id, name: f.name })),
     READ_LIMITS.listNoteFolders,

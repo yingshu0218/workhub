@@ -40,7 +40,7 @@ import {
 } from '@/shared/theme'
 import { pbPing, isSyncConfigured, enqueueAllForPush } from '@/sync/pocketbaseAdapter'
 import { syncEngine } from '@/sync/engine'
-import { migrateLegacyTodoPriority } from '@/modules/todo/domain'
+import { migrateLegacyTodoPriority } from '@/modules/todo/backfill'
 import { useSyncStore } from '@/sync/store'
 import { deriveSyncBadge, SYNC_TONE_TEXT_CLASS } from '@/sync/badge'
 import { useNoteFolders } from '@/modules/notes/hooks'

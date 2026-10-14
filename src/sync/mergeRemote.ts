@@ -1,5 +1,13 @@
 import { db } from '@/db/db'
 import { normalizeTxnLinks } from '@/modules/finance/links'
+// 协议纯函数已收口到 remoteNormalize.ts（agentOps 服务端化 P2：服务端 adapter 需同一套
+// 归一化逻辑但不能拖 Dexie）——本文件消费，不再各自持有副本。
+import {
+  isTombstone,
+  rawJsonFromRemote,
+  reviveRemoteJsonFields,
+  stripPbMeta,
+} from './remoteNormalize'
 
 /**
  * 远端记录 → 本地 LWW 合并（从 pocketbaseAdapter 抽出，Issue #130）
@@ -32,28 +40,7 @@ function bizTable(table: string) {
   }
 }
 
-/**
- * 是否墓碑（软删除标记）。
- * 服务端 json 字段经 PocketBase 往返后可能是数字 / 布尔 / 字符串形态，统一按真值判定 ——
- * 漏判的后果是「删除优先」失效，记录被更晚的编辑复活。
- */
-function isTombstone(r: Record<string, unknown> | undefined): boolean {
-  return !!r && (r.deleted === 1 || r.deleted === true || r.deleted === '1')
-}
-
-/** 剥离 pb 系统字段（collectionId/collectionName/created/updated/server_received_at）与映射字段 localId */
-function stripPbMeta(revived: Record<string, unknown>): Record<string, unknown> {
-  const {
-    collectionId: _c,
-    collectionName: _n,
-    created: _cr,
-    updated: _u,
-    server_received_at: _s,
-    localId: _l,
-    ...mirrored
-  } = revived
-  return mirrored
-}
+// isTombstone / stripPbMeta / rawJsonFromRemote / reviveRemoteJsonFields 已收口 `./remoteNormalize`
 
 // ─────────────────────────── 本地未推送编辑保护（Issue #130） ───────────────────────────
 
@@ -79,42 +66,8 @@ async function hasPendingUpsert(table: string, recordId: string): Promise<boolea
  */
 const JSON_ARRAY_FIELDS = ['tags', 'relations', 'customerIds', 'todoIds', 'projectIds'] as const
 
-/**
- * **按表声明的 json 字段表**（`pb_setup/collections.json` 里 type=json 的字段唯一对照源）。
- *
- * Issue #169 审计 P1-A 根因：`reviveRemoteJsonFields` 此前写死 `if (table !== 'customers') return`，
- * 于是 #130 在 customers 上修好的「服务端 json 字段反序列化」**没有覆盖到其他表**：
- *   - `notes.tags` / `notes.mentions` / `notes.backlinks`
- *   - `transactions` / `todos` / `customerGroups` / `moduleConfigs` 同样有 json 字段
- * 服务端返回 JSON 字符串形态时（PB 对 string 走 `JSONRaw.Scan` 双重编码 / 集合版本差异），
- * 落库后类型仍是 string，前端 `n.tags.join(' ')` / `n.mentions.map(...)` 直接抛 TypeError
- * → 笔记模块整页进 ErrorBoundary（「模块出错了」）。
- * 这是 #130「只在一条分支做归一化」在 notes 表上的**同形状复发**：customers 修了，其他表漏了。
- *
- * 收口方式：不逐个表写 if，改为**声明式字段表**（`无声明 = 该表无 json 字段`），
- * 新增表/字段时只在此处登记一次，并由 `mergeNotesJsonRevive.test.ts` 的**字段表 ↔ collections.json 一致性断言**兜住漂移。
- */
-const JSON_FIELDS_BY_TABLE: Record<string, readonly string[]> = {
-  customers: ['tags', 'relations', 'intimacy'],
-  transactions: ['tags', 'customerIds', 'todoIds', 'projectIds'],
-  todos: ['tags'],
-  notes: ['tags', 'backlinks', 'mentions'],
-  customerGroups: ['includeTags', 'excludeTags', 'rules'],
-  moduleConfigs: ['payload'],
-}
-
-/**
- * 该表下「需要数组语义」的 json 字段（落库前做数组兜底，防前端 `.map`/`.join` 抛错）。
- * 与 `JSON_FIELDS_BY_TABLE` 是同一份声明，只是标出其中**必须是数组**的那些键
- * （intimacy 是对象、moduleConfigs.payload 是任意 json，不做数组兜底）。
- */
-const JSON_ARRAY_FIELDS_BY_TABLE: Record<string, readonly string[]> = {
-  customers: ['tags', 'relations'],
-  transactions: ['tags', 'customerIds', 'todoIds', 'projectIds'],
-  todos: ['tags'],
-  notes: ['tags', 'backlinks', 'mentions'],
-  customerGroups: ['includeTags', 'excludeTags'],
-}
+// JSON_FIELDS_BY_TABLE / JSON_ARRAY_FIELDS_BY_TABLE / parseOnce / toSafeArrayField /
+// reviveRemoteJsonFields 已收口 `./remoteNormalize`（单一事实源，两宿主共用）。
 
 /**
  * json 字段（customers.tags / customers.relations / customers.intimacy 等）归一化为数组，
@@ -128,75 +81,6 @@ function toArrayField(v: unknown): unknown[] | null {
 /** 值是否「有内容」：null/undefined/空串视为无值（服务端空 json 字段即此形态） */
 function hasJsonValue(v: unknown): boolean {
   return v !== undefined && v !== null && v !== ''
-}
-
-/** 反序列化一层：字符串且本身是合法 JSON 时取解析结果，其余原样返回 */
-function parseOnce(v: unknown): { ok: boolean; value: unknown } {
-  if (typeof v !== 'string') return { ok: true, value: v }
-  const text = v.trim()
-  if (!text) return { ok: true, value: undefined }
-  try {
-    return { ok: true, value: JSON.parse(text) }
-  } catch {
-    // 服务端确实存了一个普通字符串（如某字段误写成纯文本）：保持原值，不当作解析失败
-    return { ok: false, value: v }
-  }
-}
-
-/**
- * 反序列化「远端 json 字段」到本地该有的类型（Issue #130 根因修复）。
- *
- * 根因：本地「保存 → push」时仅把非基本类型做 `JSON.stringify`，但 PB 的 json 字段吃字符串
- * 会**再包一层引号**原样存回（两次编码），于是同一字段在不同情况下可能是三种形态：
- *   ① 真数组/对象（PB 正常返回的 json 值）
- *   ② JSON 字符串（PB 原样返回被双重编码的字符串）
- *   ③ 普通字符串（字段被误写成纯文本，如某客户的 tags = "重点客户"）
- * 而 pull 合并此前只在「有本地未推送编辑」那一条分支里做数组归一化，**正常分支直接整体落库**：
- *   - `tags` 落成字符串 → CRM 列表/详情 `c.tags.map` / `c.tags.join` 抛 TypeError → 页面白屏（功能全废）
- *   - `relations` 落成字符串 → 客户关系被静默回滚成空（打开编辑再保存即丢失）
- *   - `intimacy` 落成字符串 → 亲密度档位显示丢失
- * 故这里在**落库前统一反序列化**，一次覆盖所有分支（含正常 LWW 分支）。
- */
-export function rawJsonFromRemote(v: unknown): unknown {
-  const first = parseOnce(v)
-  if (!first.ok) return first.value
-  if (typeof first.value !== 'string') return first.value
-  // 双层编码（JSON 字符串里又是 JSON 字符串）：最多再剥一层，足够覆盖本地 stringify + PB 再包一层
-  const second = parseOnce(first.value)
-  return second.ok ? second.value : first.value
-}
-
-/**
- * 数组型 json 字段（tags 等）的安全兜底：反序列化后仍不是数组时，
- * 说明服务端存的既不是数组也不是数组的 JSON 文本 —— 若原样落库，前端 `tags.map` 直接抛错白屏。
- * 此时不猜结构也不静默丢弃，按「单元素数组」降级保留原始文本。
- */
-function toSafeArrayField(v: unknown): unknown {
-  const revived = rawJsonFromRemote(v)
-  if (Array.isArray(revived)) return revived
-  if (typeof revived === 'string' && revived) return [revived]
-  return []
-}
-
-/**
- * 落库前把服务端的 json 字段反序列化回本地形态（按表声明走 `JSON_FIELDS_BY_TABLE`）。
- *
- * 数组语义字段（`tags` / `mentions` / `backlinks` …）走 `toSafeArrayField`：
- * 解析后仍不是数组时降级为单元素数组，保证前端 `.map` / `.join` 永不抛错；
- * 其余 json 字段（`intimacy` 对象、`moduleConfigs.payload` 任意 json）只做一层反序列化。
- *
- * 任何**合并分支**落库前都必须先过这里（#130 教训：只在其中一条分支归一化 = 另一条分支照样白屏）。
- */
-function reviveRemoteJsonFields(table: string, record: Record<string, unknown>): void {
-  const fields = JSON_FIELDS_BY_TABLE[table]
-  if (!fields) return
-  const arrayFields = JSON_ARRAY_FIELDS_BY_TABLE[table] ?? []
-  for (const key of fields) {
-    if (!(key in record)) continue
-    record[key] = arrayFields.includes(key)
-      ? toSafeArrayField(record[key])
-      : rawJsonFromRemote(record[key])
-  }
 }
 
 /** 关系条目稳定标识：优先条目 id，旧数据按 目标::语义 兜底（与 CustomerFormDrawer.relKey 同口径） */

@@ -4,6 +4,7 @@ import type {
   ModuleConfigIntimacy,
   RelationCategory,
 } from '@/db/types'
+import { isCustomerBlacklisted } from './direct'
 import { isTodoOpen, isTodoDone } from '@/modules/todo/domain'
 import type { CanvasGraph } from '../hooks'
 
@@ -13,10 +14,8 @@ import type { CanvasGraph } from '../hooks'
  * 硬约束（不开放配置）：算法最多推到 T2，永不自动给 T1；永不给出 I6/I7（负向意愿只能人工降级）。
  */
 
-/** 黑名单 = 手动亲密度为 I7（唯一判定口径，各消费点统一调用，避免散布） */
-export function isCustomerBlacklisted(customer: Pick<Customer, 'intimacy'> | undefined): boolean {
-  return customer?.intimacy?.level === 'I7'
-}
+/** 黑名单 = 手动亲密度为 I7（唯一判定口径）—— 实现已收口 `./direct`（agentOps 服务端化 P2），此处 re-export */
+export { isCustomerBlacklisted, filterBlacklisted } from './direct'
 
 /** 黑名单屏蔽开关命中（开关矩阵来自 moduleConfigs；图谱已于 2026-10-14 与健康分解耦，不再有图谱场景） */
 export function isBlacklistHidden(
@@ -45,25 +44,10 @@ export function hiddenCustomerIds(
   return new Set(customers.filter(isCustomerBlacklisted).map((c) => c.id))
 }
 
-/**
- * 某场景下过滤掉被屏蔽的客户（客户列表 / 时间线 / 搜索索引等按数组消费的面用）。
- *
- * **开关关闭时原样返回入参引用**（不是拷贝）：上层 useMemo 依赖不变，下游 zero-copy。
- *
- * 为什么把这两个函数放在这里：`isBlacklistHidden` 只是判定口径，而黑名单的四个场景
- * 分散在 6 个以上消费面（搜索索引 / 客户选择器 / 客户列表 / 全部时间线 / 图谱 / Agent 读与消解）——
- * 逐个手写 `filter` 必然会漏。缺陷 D15 的根因正是 `hideInSearch` / `excludeFromPicker` /
- * `hideInTimeline` **根本没有消费点**（开关能切、能存、刷新还在，但打开后毫无后果）。
- * 所以这里只留两个入口，各消费面一律从这里走，并有一条**源码扫描**测试盯着它们的调用点存在。
- */
-export function filterBlacklisted<T extends Pick<Customer, 'intimacy'>>(
-  customers: T[],
-  cfg: ModuleConfigIntimacy,
-  scene: keyof ModuleConfigIntimacy['blacklist'],
-): T[] {
-  if (!cfg.blacklist[scene]) return customers
-  return customers.filter((c) => !isCustomerBlacklisted(c))
-}
+
+// filterBlacklisted 已收口 `./direct`（顶部已 re-export）。黑名单四场景的消费面口径注释随迁：
+// 消费面 = 搜索索引 / 客户选择器 / 客户列表 / 全部时间线 / Agent 读与消解（图谱已解耦），
+// 逐个手写 `filter` 必然会漏 —— 缺陷 D15 的教训，源码扫描测试盯着调用点存在。
 
 /**
  * 算法亲密度（0-100）：4 因子归一化加权——联系频率 30 / 金钱往来 30 / 事项 20 / 关联项目 20（可配置）。
@@ -169,8 +153,11 @@ export function buildScoreInput(
 export type RelationCategoryCount = Partial<Record<RelationCategory, number>>
 
 // ── 配置层 re-export（barrel：消费方统一从 intimacy 导入） ──
+// getIntimacyConfig（纯读取）已收口 `./direct`（服务端 bundle 可用）；响应式/写路径仍在 './config'
 export {
   getIntimacyConfig,
+} from './direct'
+export {
   useIntimacyConfig,
   saveIntimacyConfig,
   intimacyLevelName,

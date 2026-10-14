@@ -36,6 +36,37 @@ if (!existsSync(dist)) {
   process.exit(1)
 }
 
+// ── 服务端执行器（agentOps 服务端化 P2，只读）──
+// 显式开启：WORKHUB_SERVER_EXECUTOR=1 且存在 dist-server/server-executor.mjs 且提供 PB 地址。
+// 默认关闭（方案 §7.5 拍板：服务端能力默认全关，安全优先）。凭据走 env、不落盘不进日志：
+//   WORKHUB_PB_URL       PB 基址（执行器与 PB 同机 → http://127.0.0.1:<pb端口>）；必填
+//   WORKHUB_PB_ACCOUNT   users 账号；**可选** —— 集合 listRule 公开（实测测试站公开读）时匿名读即可
+//   WORKHUB_PB_PASSWORD  users 密码；可选（与 ACCOUNT 成对）
+let serverExecutor = null
+if (process.env.WORKHUB_SERVER_EXECUTOR === '1') {
+  const serverEntry = join(root, 'dist-server', 'server-executor.mjs')
+  const pbUrl = process.env.WORKHUB_PB_URL
+  const pbAccount = process.env.WORKHUB_PB_ACCOUNT
+  const pbPassword = process.env.WORKHUB_PB_PASSWORD
+  if (!existsSync(serverEntry)) {
+    process.stderr.write('[serve] ⚠️ WORKHUB_SERVER_EXECUTOR=1 但缺少 dist-server/server-executor.mjs，请先 npm run build:server —— 本次以无服务端执行器模式启动\n')
+  } else if (!pbUrl) {
+    process.stderr.write('[serve] ⚠️ WORKHUB_SERVER_EXECUTOR=1 但缺少 WORKHUB_PB_URL —— 本次以无服务端执行器模式启动\n')
+  } else {
+    try {
+      const mod = await import(serverEntry)
+      serverExecutor = mod.initServerExecutor({
+        pb: { baseUrl: pbUrl, ...(pbAccount && pbPassword ? { account: pbAccount, password: pbPassword } : {}) },
+      })
+      process.stderr.write(
+        `[serve] 服务端执行器已启用（只读，${pbAccount ? '凭据鉴权' : '匿名读'}）：读工具直连 PB 中心，浏览器桥不在线也可用\n`,
+      )
+    } catch (e) {
+      process.stderr.write(`[serve] ⚠️ 服务端执行器初始化失败：${e?.message ?? e} —— 本次以无服务端执行器模式启动\n`)
+    }
+  }
+}
+
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -61,6 +92,7 @@ const relay = createRelay({
   token: process.env.WORKHUB_RELAY_TOKEN || undefined,
   autoIssueConfirm,
   path: relayPath,
+  serverExecutor,
   log: (m) => process.stderr.write(`${m}\n`),
 })
 

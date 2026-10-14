@@ -18,8 +18,8 @@ import {
   isTodoFinished,
   todoStatusLabel,
   isDueToday,
-  backfillTodoVoidedAt,
 } from '../domain'
+import { backfillTodoVoidedAt } from '../backfill'
 import { setTodoVoided, voidTodo, restoreTodo, toggleTodoDone } from '../toggle'
 
 const base = { desc: '', updatedAt: 0, deleted: 0 as const, rev: 0, createdAt: 1 }

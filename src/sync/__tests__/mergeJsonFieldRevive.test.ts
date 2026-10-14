@@ -16,7 +16,8 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import 'fake-indexeddb/auto'
 import { db } from '@/db/db'
-import { mergeRemoteRecord as mergeRemote, rawJsonFromRemote } from '../mergeRemote'
+import { mergeRemoteRecord as mergeRemote } from '../mergeRemote'
+import { rawJsonFromRemote } from '../remoteNormalize'
 
 function localCustomer(over: Record<string, unknown> = {}) {
   return {

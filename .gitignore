@@ -29,3 +29,4 @@ GEMINI.md
 
 # 开发测试环境的本机凭据（含密码明文，严禁入库）
 .devtest.local.md
+dist-server/

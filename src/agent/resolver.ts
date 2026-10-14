@@ -1,6 +1,8 @@
-import { db } from '@/db/db'
+import { storage } from '@/storage'
 import { archivedLast, fuzzyMatch, fuzzySort, isProjectArchived } from '@/shared/search'
-import { filterBlacklisted, getIntimacyConfig } from '@/modules/crm/intimacy'
+// 直读层从 intimacy/direct 引（纯：零 react/Dexie）——barrel 会拖 config.ts 的响应式链，服务端 bundle 禁入
+import { filterBlacklisted, getIntimacyConfig } from '@/modules/crm/intimacy/direct'
+import type { Customer, Habit, Ledger, Note, Project, Todo } from '@/db/types'
 
 /**
  * 实体消解器 —— agentOps P1 第 3 步（方案 §9.7 第 3 步 / §2.2 resolveEntity / §2.3）
@@ -88,7 +90,8 @@ async function buildPool(type: ResolvableType): Promise<ResolveCandidate[]> {
 
   switch (type) {
     case 'customer': {
-      const rows = alive(await db.customers.limit(MAX_SCAN).toArray())
+      // 语义与旧 `db.customers.limit(MAX_SCAN).toArray()` 等价：原始行（含软删）先截断再过滤活记录
+      const rows = alive((await storage.list<Customer>('customers')).slice(0, MAX_SCAN))
       // 黑名单「单据选择器排除」（缺陷 D15）：消解器是 Agent 侧的「选客户」入口，
       // 与 UI 选择器同口径 —— 否则 AI 仍能把被开关排除的客户关联到单据上（绕过开关）。
       const cfg = await getIntimacyConfig()
@@ -100,7 +103,7 @@ async function buildPool(type: ResolvableType): Promise<ResolveCandidate[]> {
       }))
     }
     case 'project': {
-      const rows = alive(await db.projects.limit(MAX_SCAN).toArray())
+      const rows = alive((await storage.list<Project>('projects')).slice(0, MAX_SCAN))
       return rows.map((p) => ({
         id: p.id,
         type,
@@ -111,7 +114,7 @@ async function buildPool(type: ResolvableType): Promise<ResolveCandidate[]> {
       }))
     }
     case 'todo': {
-      const rows = alive(await db.todos.limit(MAX_SCAN).toArray())
+      const rows = alive((await storage.list<Todo>('todos')).slice(0, MAX_SCAN))
       return rows.map((t) => ({
         id: t.id,
         type,
@@ -124,15 +127,15 @@ async function buildPool(type: ResolvableType): Promise<ResolveCandidate[]> {
       }))
     }
     case 'ledger': {
-      const rows = alive(await db.ledgers.limit(MAX_SCAN).toArray())
+      const rows = alive((await storage.list<Ledger>('ledgers')).slice(0, MAX_SCAN))
       return rows.map((l) => ({ id: l.id, type, label: l.name, sub: l.currency }))
     }
     case 'habit': {
-      const rows = alive(await db.habits.limit(MAX_SCAN).toArray())
+      const rows = alive((await storage.list<Habit>('habits')).slice(0, MAX_SCAN))
       return rows.map((h) => ({ id: h.id, type, label: h.name, sub: h.category || undefined }))
     }
     case 'note': {
-      const rows = alive(await db.notes.limit(MAX_SCAN).toArray())
+      const rows = alive((await storage.list<Note>('notes')).slice(0, MAX_SCAN))
       return rows.map((n) => ({
         id: n.id,
         type,
@@ -141,7 +144,7 @@ async function buildPool(type: ResolvableType): Promise<ResolveCandidate[]> {
       }))
     }
     case 'noteFolder': {
-      const rows = alive(await db.noteFolders.limit(MAX_SCAN).toArray())
+      const rows = alive((await storage.list<import('@/db/types').NoteFolder>('noteFolders')).slice(0, MAX_SCAN))
       return rows.map((f) => ({ id: f.id, type, label: f.name }))
     }
   }

@@ -1,7 +1,8 @@
 import { db } from '@/db/db'
+import { storage } from '@/storage'
 import { newId, toLinkFieldPatch } from '@/repositories'
 import { txnTodoIds } from '@/modules/finance/links'
-import type { TodoList, Todo } from '@/db/types'
+import type { TodoList, Todo, Transaction } from '@/db/types'
 import { useQuery } from '@/queries/hooks'
 import { syncEngine } from '@/sync/engine'
 import { isTodoOpen } from './domain'
@@ -100,30 +101,25 @@ export async function deleteTodoListCascade(id: string): Promise<void> {
 export async function deleteTodoCascade(todoId: string): Promise<number> {
   const now = Date.now()
   let unlinked = 0
-  await db.transaction('rw', [db.todos, db.transactions, db.syncQueue], async () => {
-    const prev = await db.todos.get(todoId)
+  await storage.transaction(['todos', 'transactions', 'syncQueue'], async (tx) => {
+    const prev = await tx.get<Todo>('todos', todoId)
     if (!prev || prev.deleted) return
 
-    await db.todos.put({ ...prev, deleted: 1, updatedAt: now, rev: prev.rev + 1 })
-    await db.syncQueue.add({ table: 'todos', recordId: todoId, op: 'delete', createdAt: now })
+    await tx.put('todos', { ...prev, deleted: 1, updatedAt: now, rev: prev.rev + 1 })
+    await tx.enqueue('todos', todoId, 'delete', now)
 
     // transactions.todoIds 已数组化（Issue #140 v11）：按数组解绑，空数组不落键（toLinkFieldPatch）。
     // 不能写 `todoId: undefined` —— 既解不掉数组里的 id，还会按「双写不双读」留下永不读取的旧键。
-    const txns = (await db.transactions.filter((t) => !t.deleted).toArray()).filter((t) =>
-      txnTodoIds(t).includes(todoId),
-    )
+    const txns = (await tx.list<Transaction>('transactions'))
+      .filter((t) => !t.deleted)
+      .filter((t) => txnTodoIds(t).includes(todoId))
     for (const txn of txns) {
-      await db.transactions.update(txn.id, {
+      await tx.update('transactions', txn.id, {
         ...toLinkFieldPatch('todoIds', txnTodoIds(txn).filter((id) => id !== todoId)),
         updatedAt: now,
         rev: txn.rev + 1,
       })
-      await db.syncQueue.add({
-        table: 'transactions',
-        recordId: txn.id,
-        op: 'upsert',
-        createdAt: now,
-      })
+      await tx.enqueue('transactions', txn.id, 'upsert', now)
       unlinked++
     }
   })

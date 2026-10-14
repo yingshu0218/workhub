@@ -26,50 +26,17 @@ import type { AttachmentBlobLoader, PbRecord as MergePbRecord } from './mergeRem
  * pull 时按 /api/files/ 下载还原；其余字段照常镜像。
  */
 
-/** 参与同步的业务表（与 pb_setup/collections.json 一一对应，Progress/Settings/瞬态表不同步） */
-export const SYNC_TABLES = [
-  'workspaces',
-  'customers',
-  'interactions',
-  'ledgers',
-  'transactions',
-  'todos',
-  'todoLists',
-  'noteFolders',
-  'projects',
-  'projectMilestones',
-  'notes',
-  'quickNotes',
-  'habits',
-  'habitLogs',
-  'trophies',
-  'attachments',
-  'moduleConfigs',
-  'customerGroups',
-] as const
-
-export type SyncTable = (typeof SYNC_TABLES)[number]
+/**
+ * 参与同步的业务表与集合名映射已收口 `./remoteNormalize`（agentOps 服务端化 P2：
+ * 服务端 adapter 需同一套协议常量但不能拖 Dexie），此处 import 本地消费 + re-export
+ * 保持既有引用不破坏。
+ */
+import { SYNC_TABLES, pbCollection, escapePbFilterValue } from './remoteNormalize'
+import type { SyncTable } from './remoteNormalize'
+export { SYNC_TABLES, pbCollection, escapePbFilterValue } from './remoteNormalize'
+export type { SyncTable } from './remoteNormalize'
 
 const SYNC_TABLE_SET: ReadonlySet<string> = new Set(SYNC_TABLES)
-
-/**
- * Dexie 表名 → PocketBase 集合名。
- *
- * 只在两者不一致时列明差异；未列出的表名与集合名同名直通。
- * 契约以 `pb_setup/collections.json` 为单源，并由 `src/sync/__tests__/collectionName.parity.test.ts`
- * 断言「每个 SYNC_TABLES 项经此映射后都能在服务端集合清单里找到」，防止任一端改名后静默 404。
- *
- * 历史遗留：`moduleConfigs` 早期在服务端建为下划线命名（`module_configs`），
- * 前端表名沿用驼峰 → 若不映射，该集合的拉取/推送/物理删除全部 404（Issue：功能测试 #100）。
- */
-const PB_COLLECTION_NAME: Partial<Record<SyncTable, string>> = {
-  moduleConfigs: 'module_configs',
-}
-
-/** 取该表对应的 PocketBase 集合名（同步请求路径一律经此，禁止直接拼 table） */
-export function pbCollection(table: string): string {
-  return PB_COLLECTION_NAME[table as SyncTable] ?? table
-}
 
 /** 附件文件上限：与 collections.json attachments.file.maxSize 保持一致 */
 const ATTACHMENT_FILE_MAX_SIZE = 20 * 1024 * 1024
@@ -319,9 +286,7 @@ function stripLocalOnlyFields(table: string, payload: Record<string, unknown>): 
  * 收口为唯一入口，全仓 filter 拼接一律走它。转义顺序很重要：
  * 先转义反斜杠再转义单引号，否则 `\'` 会被后一步改写成 `\\'`（多出一层反斜杠）。
  */
-export function escapePbFilterValue(v: string): string {
-  return v.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
-}
+/** escapePbFilterValue 已收口 `./remoteNormalize`（本文件经顶部 import 消费） */
 
 /**
  * pbUpsert 结果（推送侧需据此决定本地怎么收敛）：
