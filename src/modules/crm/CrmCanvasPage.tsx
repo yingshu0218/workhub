@@ -20,6 +20,8 @@ export default function CrmCanvasPage() {
   const [mode, setMode] = useState<GraphMode>('customer-only')
   // 「我」的显示名（Issue #123）：画布中心自节点的唯一文案，取自当前用户身份（默认阿蓝）
   const userName = useUserName()
+  // 关系条目总数（判「一条关系都没有」用；悬挂条数由投影层给，两者相减即有效条数）
+  const totalRelations = graph.customers.reduce((n, c) => n + c.relations.length, 0)
   // 首屏「以我为重心」（Issue #94）：布局收敛后视图中心锚定到「我」自节点（固定画布中心，不漂移）。
   // Issue #123 修正：锚点不再是「挑一个客户冒充我」——真自节点由 buildGraph 产出（kind='self'）
   const [fitAnchor, setFitAnchor] = useState<string | null>(null)
@@ -73,9 +75,16 @@ export default function CrmCanvasPage() {
       {/* 图例 + 节点统计 */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <Chip tone="blue" icon="person">{`客户 ${graph.customers.length}`}</Chip>
-        {/* 悬挂关系提示（2026-10-13）：关系条目指向已删除客户时会被投影层过滤，画布一条线都不画。
-            不提示的话，「没有关系」与「关系全指错了」在界面上完全一样 —— 典型的假绿。
-            两种视图都提示（数据健康与视角无关）。 */}
+        {/* 关系层「空态」显式化（2026-10-14）：一条关系都没有时，画布就是一组孤立点 ——
+            此前这种「空」和「关系全坏了」在界面上都是「没有线」，只能靠人来猜。
+            这里把「确实还没有关系」直接说出来，并告诉去哪加（数据健康与视角无关，两种视图都提示）。 */}
+        {totalRelations === 0 && (
+          <span title="到任一客户的档案 →「关系」里加一条（客户名 + 语义），画布上就会连起来">
+            <Chip tone="gray" icon="info">还没有客户间关系</Chip>
+          </span>
+        )}
+        {/* 悬挂关系提示：关系条目指向已删除客户时会被投影层过滤，画布一条线都不画。
+            不提示的话，「没有关系」与「关系全指错了」在界面上完全一样 —— 典型的假绿。 */}
         {(graph.danglingRelations ?? 0) > 0 && (
           <span title="这些关系条目指向的客户已被删除或不存在，图谱不会为它们画线。到「客户档案 → 关系」里重新关联即可">
             <Chip tone="red" icon="link_off">{`${graph.danglingRelations} 条关系指向已删除客户`}</Chip>
