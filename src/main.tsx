@@ -9,6 +9,7 @@ import './styles/index.css'
 import { backfillDemoRelations, seedIfEmpty } from './db/seed'
 import { backfillTodoCompletedAt, backfillTodoVoidedAt } from './modules/todo/backfill'
 import { syncEngine } from './sync/engine'
+import { autoConfigureSameOriginSync } from './sync/pocketbaseAdapter'
 import { installKeyboardListener } from './shared/shortcuts'
 import { installModuleEffects } from './shared/effects'
 import { installAgentBridge } from './agent/install'
@@ -43,6 +44,17 @@ function Bootstrap() {
       .then(() => backfillDemoRelations())
       .then((n) => {
         if (n) console.info(`[seed] 补齐 ${n} 对演示客户关系（老本地库自愈）`)
+      })
+    // 同源自动同步（2026-10-15 用户拍板）：Web 版与 PB 同源部署时打开即自动启用，
+    // 无需手动配置「同步中心」。已配置的（含账号）绝不覆盖；检测失败静默跳过（本地模式照常）。
+    void autoConfigureSameOriginSync()
+      .then((configured) => {
+        if (configured) console.info('[sync] 检测到同源 PocketBase，已自动启用同步')
+        return configured
+      })
+      .then((configured) => {
+        // 自动配置发生时立即拉一轮（不等 30s 心跳），首屏数据即刻收敛
+        if (configured) void syncEngine.syncNow('auto-config')
       })
     syncEngine.start()
     installKeyboardListener()

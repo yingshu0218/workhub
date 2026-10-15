@@ -4,6 +4,7 @@ import { SETTINGS_KEY } from '@/db/types'
 import type { SyncAdapter } from './adapter'
 import { mergeRemoteRecord } from './mergeRemote'
 import { eventBus, type AppEvent } from '@/shared/eventBus'
+import { isHealthPayload } from './connectivity'
 import type { AttachmentBlobLoader, PbRecord as MergePbRecord } from './mergeRemote'
 
 /**
@@ -83,7 +84,16 @@ async function saveToken(token: string, tokenUserId: string): Promise<void> {
 }
 
 export function isSyncConfigured(cfg?: SyncSettingsView): boolean {
-  return !!cfg?.serverUrl && !!cfg.username && !!cfg.password
+  // 2026-10-15 语义变更（P4 后·同源自动同步）：**只要求地址**。同源部署（Web 版与 PB
+  // 同一台机器）时启动即自动填 serverUrl，账号留空 = 「匿名同步模式」——读写走 PB
+  // 集合的公开规则（演示/自部署场景，应用本身无登录墙，数据本就公开）。
+  // 有账号 = 鉴权模式（正式站/多用户），行为与之前完全一致。
+  return !!cfg?.serverUrl
+}
+
+/** 是否配置了 users 账号（匿名同步模式下为 false：跳过登录、请求不带 Authorization） */
+function hasCreds(cfg: SyncSettingsView): boolean {
+  return !!cfg.username && !!cfg.password
 }
 
 /**
@@ -121,14 +131,14 @@ async function pbFetch(cfg: SyncSettingsView, path: string, init: RequestInit): 
   }
 }
 
-/** 带 401 自动重登一次的请求（重登凭据来自本地 settings，绝不上传到任何第三方） */
+/** 带 401 自动重登一次的请求（重登凭据来自本地 settings，绝不上传到任何第三方；匿名模式无票可重登，401 原样返回） */
 async function pbAuthedFetch(
   cfg: SyncSettingsView,
   path: string,
   init: RequestInit,
 ): Promise<Response> {
   let res = await pbFetch(cfg, path, init)
-  if (res.status === 401 && isSyncConfigured(cfg)) {
+  if (res.status === 401 && hasCreds(cfg)) {
     await login(cfg)
     res = await pbFetch(cfg, path, init)
   }
@@ -434,7 +444,7 @@ async function pushImpl(
     return items.map((it) => ({ recordId: it.recordId, ok: true }))
   }
   // token 缓存优先：仅失效/缺失时才重新登录（避免每轮心跳都全量 auth-with-password）
-  if (!(await isTokenFresh(cfg))) await login(cfg)
+  if (hasCreds(cfg) && !(await isTokenFresh(cfg))) await login(cfg)
   const results: { recordId: string; ok: boolean }[] = []
   for (const item of items) {
     try {
@@ -499,7 +509,7 @@ async function pushImpl(
 async function pullImpl(cursor: number): Promise<{ cursor: number; changes: unknown[] }> {
   const cfg = await readSyncSettings()
   if (!isSyncConfigured(cfg)) return { cursor, changes: [] }
-  if (!(await isTokenFresh(cfg))) await login(cfg)
+  if (hasCreds(cfg) && !(await isTokenFresh(cfg))) await login(cfg)
   const changes: unknown[] = []
   for (const table of SYNC_TABLES) {
     const cur = await loadCursor(table)
@@ -552,7 +562,7 @@ const AGENT_EVENTS_CURSOR_KEY = 'agent_events_cursor'
 export async function drainAgentEvents(): Promise<void> {
   const cfg = await readSyncSettings()
   if (!isSyncConfigured(cfg)) return
-  if (!(await isTokenFresh(cfg))) await login(cfg)
+  if (hasCreds(cfg) && !(await isTokenFresh(cfg))) await login(cfg)
   const curEntry = await db.meta.get(AGENT_EVENTS_CURSOR_KEY)
   const since = typeof curEntry?.value === 'number' ? curEntry.value : 0
   const params = new URLSearchParams({
@@ -579,6 +589,41 @@ export async function drainAgentEvents(): Promise<void> {
     }
   }
   if (maxAt > since) await db.meta.put({ key: AGENT_EVENTS_CURSOR_KEY, value: maxAt })
+}
+
+// ─────────────────────────── 同源自动同步（2026-10-15 用户拍板） ───────────────────────────
+
+/**
+ * Web 版与 PocketBase 同源部署（测试站 / 自托管单机）时，**打开即自动启用同步**——
+ * 用户不需要知道「同步中心」的存在：服务在一台机器上，浏览器看到的就是中心的数据。
+ *
+ * 触发条件（三者同时满足）：
+ *   1. 浏览器环境（非 Tauri 原生壳——原生端同步中心各设备各配，见多端方案）；
+ *   2. 尚未配置同步（serverUrl 为空——**已配置的绝不覆盖**，含手动配置的账号）；
+ *   3. 同源 `/api/health` 返回 PocketBase 健康响应（复用 isHealthPayload，防 SPA 回退假绿）。
+ *
+ * 满足则写入 `serverUrl = 当前站点 origin`（账号留空 = 匿名同步模式，依赖部署侧公开的
+ * 集合读写规则）。返回是否实际写入了配置（供启动日志）。
+ */
+export async function autoConfigureSameOriginSync(): Promise<boolean> {
+  if (typeof window === 'undefined' || typeof location === 'undefined') return false
+  if (window.location.protocol === 'tauri:') return false
+  const cfg = await readSyncSettings()
+  if (cfg.serverUrl) return false
+  try {
+    const res = await fetch('/api/health', { cache: 'no-store' })
+    if (!res.ok || !isHealthPayload(await res.text())) return false
+  } catch {
+    return false
+  }
+  const prev = (await db.settings.get(SETTINGS_KEY)) as Settings | undefined
+  if (!prev) return false // settings 未初始化：下一轮启动再试（seed 完成后必然存在）
+  if (prev.sync?.serverUrl) return false // 竞态兜底：期间被其它路径配置了
+  await db.settings.put({
+    ...(prev as Settings),
+    sync: { ...(prev as Settings).sync, serverUrl: window.location.origin },
+  })
+  return true
 }
 
 // ─────────────────────────── 设置页辅助（连接测试 / 全量入队 / 墓碑清理） ───────────────────────────
