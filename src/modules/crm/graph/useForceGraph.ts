@@ -12,7 +12,7 @@ import {
 import type { RelationCategory } from '@/db/types'
 import type { CanvasGraph } from '../hooks'
 import { buildGraph, type GraphMode } from './buildGraph'
-import { COLLIDE_PADDING, orderByRelation, ringRadius, ringSlots } from './presentation'
+import { COLLIDE_PADDING } from './presentation'
 import type { GraphLink, GraphNode } from './types'
 
 /**
@@ -26,8 +26,13 @@ import type { GraphLink, GraphNode } from './types'
  * onGraphReady 不触发、以我为心的视图锚定失效」。传参前先确认来源被 useMemo 包裹。
  */
 
-/** customer-only 模式：客户被拉向自己环上座位的强度 */
-const SLOT_STRENGTH = 0.5
+/** customer-only 模式：向心力（把客户云拉向「我」）的强度 —— 力导向三力之一，见下方块注释 */
+const CENTRIPETAL_STRENGTH = 0.06
+/** 关系弹簧的聚簇参数：有关系的客户对收敛到这个距离、以这个强度互拉 */
+const RELATION_DISTANCE = 110
+const RELATION_STRENGTH = 0.5
+/** 多体斥力：节点互相推开 —— 孤立节点被推到外圈、簇与簇保持间距（Obsidian 同款三力） */
+const CHARGE_STRENGTH = -320
 
 export interface ForceGraphOptions {
   graph: CanvasGraph
@@ -83,12 +88,6 @@ export function useForceGraph({
       setLinks([...ls])
     }
     const isCustomerOnly = mode === 'customer-only'
-    // customer-only 的位置由**确定性槽位**决定（presentation.ts#ringSlots），力场只做收敛与拖拽响应。
-    // 环上相邻槽位的弦长就是「关系边在环上的自然距离」——拿它当 link.distance，
-    // 已被排到相邻的关系两端就正好处于自然长度、不再互相拉扯
-    const customerIds = ns.filter((d) => d.kind === 'customer').map((d) => d.id)
-    const ringR = ringRadius(customerIds.length)
-    const spacing = 2 * ringR * Math.sin(Math.PI / Math.max(customerIds.length, 2))
 
     const sim = forceSimulation<GraphNode>(ns)
       .force(
@@ -97,7 +96,7 @@ export function useForceGraph({
           .id((d) => d.id)
           // 客户↔客户关系边给更小 distance：让有关联的客户在布局上聚拢，关系结构可读
           .distance((l) => {
-            if (l.kind === 'relation') return isCustomerOnly ? spacing : 60
+            if (l.kind === 'relation') return isCustomerOnly ? RELATION_DISTANCE : 60
             // 二跳桥接弱边：距离放宽，让主线结构优先、桥接不抢布局
             if (l.kind === 'bridge') return 110
             return (l.source as GraphNode).kind === 'customer' ||
@@ -107,9 +106,8 @@ export function useForceGraph({
           })
           .strength((l) => {
             if (l.kind === 'relation') {
-              // customer-only：关系只做**极轻的粘连**。位置已由槽位定死，强拉扯会把整团人拖离
-              // 座位、连带把质心带偏 —— 那正是用户截图里「我」不在正中心的原因
-              return isCustomerOnly ? 0.08 : 0.6
+              // customer-only：关系弹簧是聚簇的主导力（Obsidian 式：有关联就相互靠近）
+              return isCustomerOnly ? RELATION_STRENGTH : 0.6
             }
             if (l.kind === 'bridge') return 0.08
             return isCustomerOnly ? 0.1 : 0.4
@@ -125,44 +123,35 @@ export function useForceGraph({
       .alphaMin(0.06)
 
     if (isCustomerOnly) {
-      // 「以我为中心」= **确定性槽位**（2026-10-14 用户裁决：中心节点必须在其它节点的**正中心**）。
+      // 「以我为中心 + 关系聚簇」的**力导向**布局（2026-10-16 用户拍板：节点要像 Obsidian
+      // 图谱一样自动向中心靠近、有关系就聚在一起，位置由算法解决）。
       //
-      // 演进史（每一版都是被真实观感推翻的，别再退回去）：
-      // ① forceCenter：只搬「全节点均值」，而「我」被 fx/fy 钉住并每 tick 复位 → 平衡解要求
-      //    「客户均值正好落在中心」，单客户时该解要求客户坐标 == 中心（中心节点被吃掉）。
-      // ② forceX/forceY：只把每个节点往中心**拉**，客户整体偏到一侧（实测 3 个客户全在「我」右边）。
-      // ③ forceRadial：环约束只管**半径**、管不了角度，关系连线一拽，三个客户就在环上抱团 ——
-      //    环上位置偏了，质心自然不再等于圆心，「我」看起来又不在中心了（用户第二次截图）。
-      // ④ 本版：位置由 ringSlots 均匀分角**算出来**，力场只把节点收敛到各自座位。
-      //    均匀分角 ⇒ 全部客户坐标的质心恒等于圆心 ⇒ 「我」在正中心是**数学保证**，不是调参调出来的。
+      // 演进史（每一版都是被真实观感推翻的，别再无脑退回）：
+      // ① forceCenter：平移解要求「客户均值 == 中心」，单客户时中心节点被吃掉；
+      // ② forceX/forceY 强拉且无斥力对冲：客户云整体偏一侧；
+      // ③ forceRadial：环约束只管半径不管角度，连线一拽就抱团；
+      // ④ ringSlots 确定性槽位：解决了「我居中」，但所有客户等距一个大环 ——
+      //    孤立节点占满外圈、有关系的人反而离得远（用户 2026-10-16 截图），被推翻。
+      // ⑤ 本版（力导向三力平衡）：**关系弹簧**（有边就相互吸引聚簇）+ **多体斥力**（无关节点
+      //    推到外圈、簇间保持间距、防重叠）+ **弱向心力**（全体向「我」收拢）。三力平衡后
+      //    自然形成「关系簇在内圈、孤立客户在外圈、我钉在正中」—— Obsidian 图谱同款观感。
       //
-      // 同时**去掉多体斥力**：座位已经把节点摆开（环上间距够宽），斥力只会把节点推离座位、
-      // 破坏质心不变式；防重叠交给 collide（硬约束）兜底。
-      const endId = (v: string | GraphNode) => (typeof v === 'string' ? v : v.id)
-      const pairs = ls
-        .filter((l) => l.kind === 'relation')
-        .map((l) => [endId(l.source), endId(l.target)] as [string, string])
-      const slotOf = new Map(
-        ringSlots(
-          orderByRelation(customerIds, pairs),
-          { x: size.w / 2, y: size.h / 2 },
-          ringR,
-        ).map((s) => [s.id, s]),
-      )
+      // 不重蹈覆辙的保证：
+      // · 不用 forceCenter（平移陷阱）；向心力用 forceX/Y **弱拉**，斥力对称对冲，
+      //   配合对称初始位（buildGraph 仍以 ringSlots 均匀环为初值），平衡解不会整体偏一侧；
+      // · 「我」仍由 buildGraph 钉死 fx/fy = 画布中心，不参与漂移、不可拖拽（不变式保留）；
+      // · 力参数全部是本文件顶部常量 —— 依赖数组引用稳定，仿真不会每帧重建（2026-10-12 教训）；
+      // · 视图锚定仍按 settleTick 收敛后重做（fitView 以「我」为基准），质心微漂不影响居中观感。
       sim
-        .force(
-          'slotX',
-          forceX<GraphNode>((d) => slotOf.get(d.id)?.x ?? size.w / 2).strength(SLOT_STRENGTH),
-        )
-        .force(
-          'slotY',
-          forceY<GraphNode>((d) => slotOf.get(d.id)?.y ?? size.h / 2).strength(SLOT_STRENGTH),
-        )
+        .force('charge', forceManyBody<GraphNode>().strength(CHARGE_STRENGTH))
+        .force('centerX', forceX<GraphNode>(size.w / 2).strength(CENTRIPETAL_STRENGTH))
+        .force('centerY', forceY<GraphNode>(size.h / 2).strength(CENTRIPETAL_STRENGTH))
     } else {
       sim
         .force('charge', forceManyBody().strength(-320))
         .force('center', forceCenter(size.w / 2, size.h / 2))
     }
+
     sim.on('end', () => {
       // 仿真自然收敛：通知调用方做首屏适应/锁定焦点（只此一次）
       onSettledRef.current?.()
