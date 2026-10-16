@@ -45,17 +45,17 @@ function Bootstrap() {
       .then((n) => {
         if (n) console.info(`[seed] 补齐 ${n} 对演示客户关系（老本地库自愈）`)
       })
-    // 同源自动同步（2026-10-15 用户拍板）：Web 版与 PB 同源部署时打开即自动启用，
-    // 无需手动配置「同步中心」。已配置的（含账号）绝不覆盖；检测失败静默跳过（本地模式照常）。
-    void autoConfigureSameOriginSync()
+      // 同源自动同步（2026-10-15 用户拍板）：Web 版与 PB 同源部署时打开即自动启用。
+      // ⚠️ 必须挂在 seed 链尾部——2026-10-16 实测：与 seed 并发时 settings 未建档，
+      // autoConfigure 永远早退 → 用户停在「仅本机」看不到服务端数据。
+      .then(() => autoConfigureSameOriginSync())
       .then((configured) => {
-        if (configured) console.info('[sync] 检测到同源 PocketBase，已自动启用同步')
-        return configured
+        if (configured) {
+          console.info('[sync] 检测到同源 PocketBase，已自动启用同步')
+          void syncEngine.syncNow('auto-config') // 立即拉一轮，首屏数据即刻收敛
+        }
       })
-      .then((configured) => {
-        // 自动配置发生时立即拉一轮（不等 30s 心跳），首屏数据即刻收敛
-        if (configured) void syncEngine.syncNow('auto-config')
-      })
+      .catch((err) => console.warn('[sync] 同源自动同步检测失败（本地模式照常）', err))
     syncEngine.start()
     installKeyboardListener()
     installModuleEffects()

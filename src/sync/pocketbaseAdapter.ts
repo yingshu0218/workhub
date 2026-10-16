@@ -1,5 +1,6 @@
 import { db } from '@/db/db'
 import type { Settings } from '@/db/types'
+import { DEFAULT_SETTINGS } from '@/db/types'
 import { SETTINGS_KEY } from '@/db/types'
 import type { SyncAdapter } from './adapter'
 import { mergeRemoteRecord } from './mergeRemote'
@@ -616,13 +617,21 @@ export async function autoConfigureSameOriginSync(): Promise<boolean> {
   } catch {
     return false
   }
+  // settings 尚未建档（全新浏览器：seed 不写 settings，singleton 由首次偏好保存创建）——
+  // 就地用默认偏好建档并带上 serverUrl。若仍 return false，用户将永远停在「仅本机」
+  // （2026-10-16 无头浏览器复现：全新打开待办 0 条 + 徽章「仅本机」，即本 bug）。
   const prev = (await db.settings.get(SETTINGS_KEY)) as Settings | undefined
-  if (!prev) return false // settings 未初始化：下一轮启动再试（seed 完成后必然存在）
+  const origin = window.location.origin
+  if (!prev) {
+    await db.settings.put({
+      ...DEFAULT_SETTINGS,
+      key: SETTINGS_KEY,
+      sync: { ...DEFAULT_SETTINGS.sync, serverUrl: origin },
+    } as Settings)
+    return true
+  }
   if (prev.sync?.serverUrl) return false // 竞态兜底：期间被其它路径配置了
-  await db.settings.put({
-    ...(prev as Settings),
-    sync: { ...(prev as Settings).sync, serverUrl: window.location.origin },
-  })
+  await db.settings.put({ ...(prev as Settings), sync: { ...prev.sync, serverUrl: origin } })
   return true
 }
 
