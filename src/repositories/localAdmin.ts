@@ -73,7 +73,11 @@ export const settingsRepo = {
    * 2. 段合并改为「DEFAULT 兜底 ← 旧值段展开 ← patch 段」三层合并，
    *    调用方只传段内单字段（如 { appearance: { accent } }）时不再抹掉段内其他字段。
    */
-  async save(patch: Partial<Omit<Settings, 'key'>>): Promise<Settings> {
+  // appearance 允许段内单字段 patch（类型层面放宽；运行时 mergeSettings 本就逐字段合并，
+  // 画布主题切换只传 { canvasTheme } 不抹掉其它段内字段）
+  async save(
+    patch: Omit<Partial<Omit<Settings, 'key'>>, 'appearance'> & { appearance?: Partial<Settings['appearance']> },
+  ): Promise<Settings> {
     return db.transaction('rw', [db.settings], async () => {
       const prev = await SETTINGS_TABLE().get('singleton')
       const merged: Settings = {

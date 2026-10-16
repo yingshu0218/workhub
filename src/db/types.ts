@@ -334,6 +334,11 @@ export interface SettingsAppearance {
   radius: 'sharp' | 'medium' | 'large'
   /** 信息密度：舒适 / 紧凑（映射 Tailwind spacing 基数） */
   density: 'comfortable' | 'compact'
+  /**
+   * 客户关系画布的主题（P4 视觉，2026-10-16 用户拍板）。'auto' 跟随应用的深浅模式
+   * （亮 → morning / 暗 → night）；手动选过则固定该套。只存本地偏好，不进同步。
+   */
+  canvasTheme?: 'auto' | 'morning' | 'night' | 'paper' | 'celadon'
 }
 
 export interface SettingsTypography {
@@ -457,6 +462,7 @@ export const DEFAULT_SETTINGS: Settings = {
     mode: 'light',
     accent: 'blue',
     radius: 'medium',
+    canvasTheme: 'auto',
     density: 'comfortable',
     // Issue #54：style 不进 DEFAULT，缺省=「未手动选过风格」，
     // effects.ts 据此回退主题 recommendStyle（迁移桥），老用户零感知；

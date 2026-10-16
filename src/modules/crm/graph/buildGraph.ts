@@ -2,7 +2,7 @@ import type { RelationCategory } from '@/db/types'
 import type { CanvasGraph } from '../hooks'
 import type { GraphLink, GraphNode } from './types'
 import { GRAPH_COLORS } from './types'
-import { NODE_RADIUS, orderByRelation, ringRadius, ringSlots } from './presentation'
+import { CUSTOMER_NODE_RADIUS, SELF_NODE_RADIUS, orderByRelation, ringRadius, ringSlots } from './presentation'
 
 /**
  * graph 投影 → 节点/边 纯函数（无 React / d3 副作用，单测可覆盖）
@@ -47,9 +47,10 @@ function assemble(graph: CanvasGraph): { nodes: GraphNode[]; links: GraphLink[] 
       id: c.id,
       kind: 'customer',
       label: c.name,
+      slot: 'customer',
       color: GRAPH_COLORS.customer.stroke,
       fill: GRAPH_COLORS.customer.fill,
-      radius: 24,
+      radius: CUSTOMER_NODE_RADIUS,
     })
   }
   for (const n of ns) nodeIds.add(n.id)
@@ -61,6 +62,7 @@ function assemble(graph: CanvasGraph): { nodes: GraphNode[]; links: GraphLink[] 
       kind: 'project',
       to: `/projects/${p.id}`,
       label: trunc(p.name),
+      slot: 'project',
       color: GRAPH_COLORS.project.stroke,
       fill: GRAPH_COLORS.project.fill,
       radius: 15,
@@ -74,6 +76,7 @@ function assemble(graph: CanvasGraph): { nodes: GraphNode[]; links: GraphLink[] 
       id: `txn:${t.id}`,
       kind: 'txn',
       label: `${t.type === 'income' ? '+' : '-'}${fmtMoney(t.amount)}`,
+      slot: t.type === 'income' ? 'income' : 'expense',
       color: t.type === 'income' ? GRAPH_COLORS.income.stroke : GRAPH_COLORS.expense.stroke,
       fill: t.type === 'income' ? GRAPH_COLORS.income.fill : GRAPH_COLORS.expense.fill,
       radius: 12,
@@ -85,6 +88,7 @@ function assemble(graph: CanvasGraph): { nodes: GraphNode[]; links: GraphLink[] 
       id: `todo:${t.id}`,
       kind: 'todo',
       label: trunc(t.title),
+      slot: 'todo',
       color: GRAPH_COLORS.todo.stroke,
       fill: GRAPH_COLORS.todo.fill,
       radius: 9,
@@ -98,6 +102,7 @@ function assemble(graph: CanvasGraph): { nodes: GraphNode[]; links: GraphLink[] 
       kind: 'note',
       to: `/notes/${n.id}`,
       label: trunc(n.title),
+      slot: 'note',
       color: GRAPH_COLORS.note.stroke,
       fill: GRAPH_COLORS.note.fill,
       radius: 7,
@@ -238,9 +243,10 @@ export function buildGraph(
       id: selfId,
       kind: 'self',
       label: opts.selfName?.trim() || '我',
+      slot: 'self',
       color: GRAPH_COLORS.self.stroke,
       fill: GRAPH_COLORS.self.fill,
-      radius: NODE_RADIUS,
+      radius: SELF_NODE_RADIUS,
       x: opts.center.x,
       y: opts.center.y,
       fx: opts.center.x,
@@ -266,9 +272,10 @@ export function buildGraph(
         id: c.id,
         kind: 'customer' as const,
         label: c.name,
+        slot: 'customer',
         color: GRAPH_COLORS.customer.stroke,
         fill: GRAPH_COLORS.customer.fill,
-        radius: NODE_RADIUS,
+        radius: CUSTOMER_NODE_RADIUS,
         x: slot?.x ?? opts.center.x,
         y: slot?.y ?? opts.center.y,
       }

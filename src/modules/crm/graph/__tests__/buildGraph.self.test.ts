@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildGraph, SELF_NODE_ID } from '../buildGraph'
-import { NODE_RADIUS } from '../presentation'
+import { CUSTOMER_NODE_RADIUS, SELF_NODE_RADIUS } from '../presentation'
 import { GRAPH_COLORS } from '../types'
 import type { CanvasGraph } from '../../hooks'
 
@@ -103,7 +103,7 @@ describe('buildGraph customer-only「我」自节点', () => {
     expect(nodes.filter((n) => n.kind === 'customer')).toHaveLength(3)
     // 而且它和别的客户在画布上长得一模一样（没有档位痕迹）
     const i7 = nodes.find((n) => n.id === 'c3')!
-    expect(i7.radius).toBe(NODE_RADIUS)
+    expect(i7.radius).toBe(CUSTOMER_NODE_RADIUS) // 与普通客户同尺寸（档位不产生差异）
     expect(i7.color).toBe(GRAPH_COLORS.customer.stroke)
   })
 
@@ -119,7 +119,7 @@ describe('buildGraph customer-only「我」自节点', () => {
       selfName: '阿蓝',
     })
     expect(nodes.length).toBeGreaterThan(1)
-    expect(new Set(nodes.map((n) => n.radius))).toEqual(new Set([NODE_RADIUS]))
+    expect(new Set(nodes.map((n) => n.radius))).toEqual(new Set([CUSTOMER_NODE_RADIUS, SELF_NODE_RADIUS])) // 只有「我 vs 客户」的层级差
     // 描边色只有一个取值 = 档位在画布上不产生任何视觉差异（含「我」）
     expect(new Set(nodes.map((n) => n.color)).size).toBe(1)
     const byId = new Map(nodes.map((n) => [n.id, n]))

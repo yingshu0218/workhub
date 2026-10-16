@@ -9,7 +9,8 @@ import { IDENTITY_VIEW, usePanZoom } from '../usePanZoom'
 import { useForceGraph } from './useForceGraph'
 import { computeFitView } from './fitView'
 import { relationEdgeInfo } from './presentation'
-import { GRAPH_COLORS, type GraphLink, type GraphNode } from './types'
+import type { GraphLink, GraphNode } from './types'
+import { CANVAS_THEMES, useCanvasTheme } from './themes'
 import CustomerInfoCard from './CustomerInfoCard'
 import type { CanvasGraph } from '../hooks'
 
@@ -52,6 +53,8 @@ export default function GraphCanvas({
   selfName,
 }: GraphCanvasProps) {
   const navigate = useNavigate()
+  // 画布主题（2026-10-16）：色板可切换、偏好存本地设置；切色只换颜色不重建仿真
+  const { pref, setPref, theme } = useCanvasTheme()
   const svgRef = useRef<SVGSVGElement>(null)
   const dragIdRef = useRef<string | null>(null)
   const pointerStartRef = useRef<{ x: number; y: number } | null>(null)
@@ -365,6 +368,7 @@ export default function GraphCanvas({
             height="100%"
             viewBox={`0 0 ${size.w} ${size.h}`}
             className="block cursor-grab active:cursor-grabbing"
+            style={{ background: theme.bg }}
           >
             {/* 缩放平移视口：以视口中心为锚点 */}
             <g transform={`translate(${view.tx},${view.ty}) scale(${view.scale})`}>
@@ -384,7 +388,7 @@ export default function GraphCanvas({
                         y1={s.y}
                         x2={t.x}
                         y2={t.y}
-                        stroke={s.kind === 'customer' ? '#c3c6d7' : '#e2e8f0'}
+                        stroke={s.kind === 'customer' ? theme.bridge.stroke : theme.bridge.text}
                         strokeWidth={s.kind === 'customer' ? 1.4 : 1}
                       />
                     )
@@ -411,8 +415,8 @@ export default function GraphCanvas({
                     const edgeColor =
                       cats.length === 1
                         ? (RELATION_CATEGORIES.find((c) => c.id === cats[0])?.color ??
-                          GRAPH_COLORS.relation.stroke)
-                        : GRAPH_COLORS.relation.stroke
+                          theme.relation.stroke)
+                        : theme.relation.stroke
                     const path = `M${s.x},${s.y} Q${cx},${cy} ${t.x},${t.y}`
                     return (
                       <g key={`r${i}`}>
@@ -456,7 +460,7 @@ export default function GraphCanvas({
                           y1={s.y}
                           x2={t.x}
                           y2={t.y}
-                          stroke={GRAPH_COLORS.bridge.stroke}
+                          stroke={theme.bridge.stroke}
                           strokeWidth={1}
                           strokeDasharray="2 4"
                         />
@@ -466,7 +470,7 @@ export default function GraphCanvas({
                             y={(s.y + t.y) / 2 - 6}
                             textAnchor="middle"
                             style={{ fontSize: 9, fontWeight: 500 }}
-                            fill={GRAPH_COLORS.bridge.text}
+                            fill={theme.bridge.text}
                           >
                             {l.label}
                           </text>
@@ -536,7 +540,7 @@ export default function GraphCanvas({
                           <circle
                             r={n.radius + 7}
                             fill="none"
-                            stroke={GRAPH_COLORS.self.stroke}
+                            stroke={theme.self.stroke}
                             strokeWidth={1.6}
                             strokeDasharray="4 3"
                             opacity={0.65}
@@ -547,7 +551,7 @@ export default function GraphCanvas({
                               <circle
                                 r={n.radius + 7}
                                 fill="none"
-                                stroke={GRAPH_COLORS.customer.stroke}
+                                stroke={theme.customer.stroke}
                                 strokeWidth={1.6}
                                 strokeDasharray="4 3"
                               />
@@ -558,7 +562,7 @@ export default function GraphCanvas({
                               textAnchor="middle"
                               y={n.radius + 14}
                               style={{ fontSize: 11, fontWeight: 600 }}
-                              fill="#0b1c30"
+                              fill={theme.label}
                             >
                               {n.label}
                             </text>
@@ -568,7 +572,7 @@ export default function GraphCanvas({
                             textAnchor="middle"
                             dy="3.5"
                             style={{ fontSize: 8, fontWeight: 600 }}
-                            fill={n.color}
+                            fill={theme[n.slot].stroke}
                           >
                             {n.kind === 'txn'
                               ? n.label.startsWith('+')
@@ -656,6 +660,41 @@ export default function GraphCanvas({
             )}
           </div>
         ) : null}
+
+        {/* 右上角：画布主题切换（2026-10-16 用户拍板，多套配色只调颜色不动布局）。
+            色点 = 各主题的「我」节点色（一眼可辨）；「自动」= 跟随应用深浅模式。
+            偏好存 settings.appearance.canvasTheme（本地），切色不重建仿真。 */}
+        <div
+          className="absolute right-3 top-3 z-10 flex items-center gap-1.5 surface-card/95 rounded-full px-2 py-1 shadow-md backdrop-blur"
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          {(
+            [
+              ['auto', '自动（跟随深浅模式）', null],
+              ['morning', '晨蓝', CANVAS_THEMES.morning],
+              ['night', '墨夜', CANVAS_THEMES.night],
+              ['paper', '纸墨', CANVAS_THEMES.paper],
+              ['celadon', '青瓷', CANVAS_THEMES.celadon],
+            ] as const
+          ).map(([id, title, t]) => (
+            <button
+              key={id}
+              title={title}
+              onClick={() => setPref(id)}
+              className={`h-5 w-5 rounded-full border transition-transform hover:scale-110 ${
+                pref === id
+                  ? 'border-on-surface ring-2 ring-primary/40 scale-110'
+                  : 'border-outline-variant/50'
+              }`}
+              style={{
+                background:
+                  t
+                    ? `linear-gradient(135deg, ${t.self.stroke} 45%, ${t.bg} 45%)`
+                    : 'conic-gradient(#f8f9ff 0 25%, #0f172a 0 50%, #faf9f7 0 75%, #f0f7f4 0)',
+              }}
+            />
+          ))}
+        </div>
 
         {/* ⚠️ 「健康分档位」色卡已于 2026-10-14 移除：健康分**不再影响画布节点的任何视觉**
             （大小统一、颜色统一，见 buildGraph 的 customer-only 分支注释），

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   COLLIDE_PADDING,
-  NODE_RADIUS,
+  CUSTOMER_NODE_RADIUS,
+  SELF_NODE_RADIUS,
   RING_MIN_RADIUS,
   RING_PER_NODE,
   orderByRelation,
@@ -24,7 +25,7 @@ import {
 describe('ringRadius：圈层半径的两个下界', () => {
   it('客户很少时也不会缩到「我」脸上', () => {
     // 贴脸阈值 = 两个节点半径之和（两圈相切）。环必须明显大于它
-    expect(ringRadius(1)).toBeGreaterThan(2 * NODE_RADIUS * 1.5)
+    expect(ringRadius(1)).toBeGreaterThan(2 * SELF_NODE_RADIUS * 1.5)
     expect(ringRadius(2)).toBeGreaterThanOrEqual(RING_MIN_RADIUS)
     expect(ringRadius(0)).toBe(RING_MIN_RADIUS) // 空图也不返回 0（避免除零式的边界值）
   })
@@ -39,7 +40,7 @@ describe('ringRadius：圈层半径的两个下界', () => {
   })
 
   it('任意客户数下，环上相邻两个节点的圆心距离都放得下两个节点（不重叠）', () => {
-    const needed = 2 * NODE_RADIUS + COLLIDE_PADDING
+    const needed = 2 * SELF_NODE_RADIUS + COLLIDE_PADDING
     for (let n = 2; n <= 60; n++) {
       const r = ringRadius(n)
       // 均匀分布在环上时，相邻圆心距（弦长）= 2R·sin(π/n)
@@ -50,7 +51,7 @@ describe('ringRadius：圈层半径的两个下界', () => {
 
   it('每节点弧长预算大于「两个节点」直径，保证大客户数时环仍够宽', () => {
     // 大 n 时弦长趋近 2πR/n = 2π·RING_PER_NODE，必须大于 2*半径 + 间隙
-    expect(2 * Math.PI * RING_PER_NODE).toBeGreaterThan(2 * NODE_RADIUS + COLLIDE_PADDING)
+    expect(2 * Math.PI * RING_PER_NODE).toBeGreaterThan(2 * CUSTOMER_NODE_RADIUS + COLLIDE_PADDING)
   })
 })
 
@@ -103,7 +104,7 @@ describe('ringSlots：中心节点落在其他节点的正中心', () => {
   })
 
   it('槽位两两间距都放得下两个最大节点（不重叠）', () => {
-    const needed = 2 * NODE_RADIUS + COLLIDE_PADDING
+    const needed = 2 * SELF_NODE_RADIUS + COLLIDE_PADDING
     for (const n of [2, 3, 5, 12, 30]) {
       const slots = ringSlots(Array.from({ length: n }, (_, i) => `c${i}`), center, ringRadius(n))
       for (let i = 0; i < slots.length; i++) {

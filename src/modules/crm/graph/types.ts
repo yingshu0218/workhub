@@ -1,5 +1,6 @@
 import type { RelationCategory } from '@/db/types'
 import type { SimulationNodeDatum } from 'd3-force'
+import type { CanvasColorSlot } from './themes'
 
 /**
  * 图谱视图共享类型（graph → 图元 纯函数的输入输出形态）
@@ -11,6 +12,8 @@ export interface GraphNode extends SimulationNodeDatum {
   /** self='我'（当前用户自节点，Issue #123）；其余为业务实体节点 */
   kind: 'self' | 'customer' | 'project' | 'txn' | 'todo' | 'note'
   label: string
+  /** 颜色槽名（2026-10-16 主题化）：渲染层按当前画布主题查该槽的 stroke/fill/text */
+  slot: CanvasColorSlot
   color: string
   fill: string
   radius: number
