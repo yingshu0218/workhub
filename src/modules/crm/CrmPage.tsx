@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Icon } from '@/design-system/Icon'
 import { useNavigate } from 'react-router-dom'
 import { useCollection } from '@/queries/hooks'
+import { customerRepo } from '@/repositories'
 import { useIsMobile } from '@/shared/useIsMobile'
 import type { Customer, CustomerGroup, IntimacyLevel, ModuleConfigIntimacy } from '@/db/types'
 import { INTIMACY_VISUAL, matchGroup } from '@/db/types'
@@ -18,7 +19,7 @@ import {
   inputCls,
 } from '@/design-system/ui'
 import CustomerFormDrawer from './CustomerFormDrawer'
-import { fmtRelative, normalizeTags } from './shared'
+import { fmtRelative, normalizeTags, tagsForGroupJoin } from './shared'
 import { fmtMoney } from './timeline'
 import { filterBlacklisted, useIntimacyConfig, resolveIntimacyLevel } from './intimacy'
 import { resolveHealthScoreDisplay } from './healthScore'
@@ -76,6 +77,25 @@ export default function CrmPage() {
 
   const customGroups = useCustomerGroups()
   const intimacyCfg = useIntimacyConfig()
+  /**
+   * 客户拖入分组（2026-10-16 用户需求）：分组是**标签规则组**（无 groupId，按 tags 动态判定，
+   * 见 db/types#matchGroup），所以「拖入分组」的落地语义 = **给客户补齐该组的 includeTags** ——
+   * 客户命中全部 includeTags 后自然进入该组，与「编辑客户手动加标签」走同一条 repository 路径
+   * （盖章 + 入队同步）。刻意不做「拖出分组」：includeTags 可能被多个分组共享，
+   * 自动移除会误伤别的分组，留给编辑抽屉手动管理。
+   */
+  async function handleDropCustomer(customerId: string, groupId: string) {
+    const group = customGroups.find((g) => g.id === groupId)
+    const customer = customers.find((c) => c.id === customerId)
+    if (!group || !customer) return
+    const merged = tagsForGroupJoin(customer.tags, group.includeTags)
+    if (!merged) return // 已命中全部分组条件：拖入无操作
+    try {
+      await customerRepo.update(customerId, { tags: merged })
+    } catch (err) {
+      console.error('[crm] 拖入分组失败', err)
+    }
+  }
   /**
    * 黑名单「时间线隐藏」（缺陷 D15）：列表与所有计数一律按**可见集**算 ——
    * 配置文案写的是「客户列表与时间线中隐藏（仅档案直接访问可见）」，
@@ -179,6 +199,7 @@ export default function CrmPage() {
               onSelectGroup={setSelectedGroupId}
               onEditGroup={setEditorGroup}
               onCreateGroup={() => setEditorGroup('new')}
+              onDropCustomer={handleDropCustomer}
             />
           </Card>
         )}
@@ -324,6 +345,7 @@ export default function CrmPage() {
                     onSelectGroup={setSelectedGroupId}
                     onEditGroup={setEditorGroup}
                     onCreateGroup={() => setEditorGroup('new')}
+                    onDropCustomer={handleDropCustomer}
                     touch
                   />
                 </div>
@@ -587,6 +609,12 @@ function CustomerRow({
   return (
     <div
       onClick={onOpen}
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.setData('application/x-nexus-customer', c.id)
+        e.dataTransfer.effectAllowed = 'move'
+      }}
+      title="拖动到左侧分组可加入该分组（按分组规则补齐标签）"
       className="group flex cursor-pointer items-center gap-4 px-2 py-3.5 transition-colors hover:bg-surface-container-low/40"
     >
       <Avatar name={c.name} size={40} />
@@ -708,6 +736,7 @@ function CustomerGroupNav({
   onSelectGroup,
   onEditGroup,
   onCreateGroup,
+  onDropCustomer,
   touch = false,
 }: {
   groups: CustomerGroup[]
@@ -720,6 +749,8 @@ function CustomerGroupNav({
   onSelectGroup: (id: string | null) => void
   onEditGroup: (group: CustomerGroup) => void
   onCreateGroup: () => void
+  /** 客户拖入分组（2026-10-16）：按分组规则补齐客户标签；缺省 = 不接收拖入 */
+  onDropCustomer?: (customerId: string, groupId: string) => void
   /**
    * 触摸端实例（窄屏折叠入口）。这里刻意用 prop 而不是 `md:` 类：
    * 本组件的桌面实例必须逐像素不变，而「常态 `hidden`、hover 才 `flex`」这套写法
@@ -782,6 +813,12 @@ function CustomerGroupNav({
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => {
               e.preventDefault()
+              // 先判客户拖入（与排序拖拽共用落点）：带 customer 拖拽类型 → 加入分组
+              const droppedCustomer = e.dataTransfer.getData('application/x-nexus-customer')
+              if (droppedCustomer) {
+                onDropCustomer?.(droppedCustomer, g.id)
+                return
+              }
               if (!dragGroupId || dragGroupId === g.id) return
               const ids = groups.map((x) => x.id)
               const from = ids.indexOf(dragGroupId)
@@ -811,6 +848,7 @@ function CustomerGroupNav({
             </span>
             <button
               className="flex min-w-0 flex-1 items-center gap-2 text-left"
+              title="点击筛选该分组；也可把右侧客户拖到这里加入分组"
               onClick={() => onSelectGroup(selectedGroupId === g.id ? null : g.id)}
             >
               <Icon

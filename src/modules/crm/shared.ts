@@ -24,3 +24,18 @@ export function fmtRelative(ts: number): string {
  * 口径：trim → 去首 `#` → 折叠小写 → 去空 → 去重；不做强制词库约束，手打自由标签照旧（Issue #63 收敛稿）。
  */
 export { normalizeTags } from '@/shared/tags'
+
+/**
+ * 客户拖入分组的标签补齐（2026-10-16 拖拽功能）：分组是标签规则组（matchGroup 按
+ * includeTags AND 判定），「拖入分组」= 给客户补齐**缺失的** includeTags。
+ * 返回合并后的新 tags 数组；已命中全部条件（无可补）返回 null（调用方无操作）。
+ * 纯函数抽出便于单测锁定补齐语义（顺序：原标签在前、新增在后、去重）。
+ */
+export function tagsForGroupJoin(
+  currentTags: readonly string[],
+  includeTags: readonly string[],
+): string[] | null {
+  const missing = includeTags.filter((t) => !currentTags.includes(t))
+  if (missing.length === 0) return null
+  return [...currentTags, ...missing]
+}

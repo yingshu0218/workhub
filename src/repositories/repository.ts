@@ -20,6 +20,8 @@ export interface Repository<T extends { id: string }> {
   get(id: string): Promise<T | undefined>
   list(): Promise<T[]>
   put(record: PutInput<T>): Promise<string>
+  /** 部分字段更新（读-盖章-写-入队同事务；patch 显式 undefined 在 Dexie update 语义下删键） */
+  update(id: string, patch: Partial<T>): Promise<void>
   softDelete(id: string): Promise<void>
 }
 
@@ -53,6 +55,23 @@ export function createRepository<T extends { id: string } & Partial<SyncMeta>>(
       })
       storage.requestSync()
       return record.id
+    },
+
+    /** 部分更新：与 softDelete 同款事务纪律（盖章 + 入队必须同事务，防变更漏推送）。
+     *  消费方：待办拖入清单（listId）、客户拖入分组（tags 补齐）等「只动一两个字段」的快捷编辑 */
+    async update(id, patch) {
+      await storage.transaction([tableName, 'syncQueue'], async (tx) => {
+        const prev = await tx.get<T>(tableName, id)
+        if (!prev) return // 不存在的 id：不动库、不入队（幽灵写入防护，与 softDelete 同口径）
+        const now = Date.now()
+        await tx.update(tableName, id, {
+          ...patch,
+          updatedAt: now,
+          rev: (prev.rev ?? 0) + 1,
+        })
+        await tx.enqueue(tableName, id, 'upsert', now)
+      })
+      storage.requestSync()
     },
 
     async softDelete(id) {

@@ -383,8 +383,36 @@ export default function TodoPage() {
     }
   }
 
+  /**
+   * 待办拖入清单（2026-10-16 用户需求）：待办行可拖起，落到清单项上即移动归属。
+   * 与清单排序共用 drop 目标，按 dataTransfer 的 MIME 类型分派 —— 排序拖拽带
+   * application/x-nexus-list，待办拖拽带 application/x-nexus-todo，互不误伤。
+   * 清空 listId（移回收集箱）沿用 deleteTodoListCascade 解绑的既有口径（undefined 删键）。
+   */
+  async function moveTodoToList(todoId: string, listId: string) {
+    try {
+      await todoRepo.update(todoId, { listId: listId || undefined })
+    } catch (err) {
+      console.error('[todo] 移动待办到清单失败', err)
+    }
+  }
+
+  function dropTodo(e: React.DragEvent, listId: string) {
+    e.preventDefault()
+    e.stopPropagation()
+    const todoId = e.dataTransfer.getData('application/x-nexus-todo')
+    if (!todoId) return
+    void moveTodoToList(todoId, listId)
+  }
+
   function handleDrop(e: React.DragEvent, targetId: string) {
     e.preventDefault()
+    // 先判待办拖入（与排序拖拽共用落点）：带 todo 拖拽类型 → 移动待办
+    const droppedTodo = e.dataTransfer.getData('application/x-nexus-todo')
+    if (droppedTodo) {
+      void moveTodoToList(droppedTodo, targetId)
+      return
+    }
     if (!dragId || dragId === targetId) return
     const ids = lists.map((l) => l.id)
     const from = ids.indexOf(dragId)
@@ -441,6 +469,13 @@ export default function TodoPage() {
               )}
               <button
                 onClick={() => selectSmart(l.key)}
+                {...(l.key === 'inbox'
+                  ? {
+                      onDragOver: (e: React.DragEvent) => e.preventDefault(),
+                      onDrop: (e: React.DragEvent) => dropTodo(e, ''),
+                      title: '拖动待办到这里移回收集箱',
+                    }
+                  : {})}
                 className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[0.9643rem] transition-colors ${
                   !selListId && selKind === l.key
                     ? l.prominent
@@ -674,6 +709,12 @@ export default function TodoPage() {
                       if (el) rowRefs.current.set(t.id, el)
                       else rowRefs.current.delete(t.id)
                     }}
+                    draggable={isTodoOpen(t)}
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData('application/x-nexus-todo', t.id)
+                      e.dataTransfer.effectAllowed = 'move'
+                    }}
+                    title={isTodoOpen(t) ? '拖动到左侧清单可移动归属' : undefined}
                     onClick={() => setDetailId(t.id)}
                     className={`group flex cursor-pointer items-center gap-3 rounded-lg py-3.5 transition-all duration-300 hover:bg-surface-container-low/40 ${
                       isFocusRing
