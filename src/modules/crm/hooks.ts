@@ -428,7 +428,7 @@ export { createCustomerWithInit, type CustomerInitOptions } from '@/repositories
 // ─────────────────────────── 自定义客户分组（Issue #63 收敛稿） ───────────────────────────
 
 import type { CustomerGroup } from '@/db/types'
-import { matchGroup } from '@/db/types'
+import { customerInGroup } from '@/db/types'
 
 /** 订阅自定义分组（按 sortOrder 排序，过滤软删） */
 export function useCustomerGroups(): CustomerGroup[] {
@@ -447,7 +447,8 @@ export function useCustomerGroupCounts(
   return useMemo(() => {
     const map: Record<string, number> = {}
     for (const g of groups) {
-      map[g.id] = customers.filter((c) => matchGroup(c, g)).length
+      // 双模式口径（2026-10-17）：手动组看 groupId 单选、规则组走标签匹配
+      map[g.id] = customers.filter((c) => customerInGroup(c, g)).length
     }
     return map
   }, [customers, groups])
@@ -499,11 +500,14 @@ export async function createCustomerGroup(input: {
   name: string
   includeTags: string[]
   excludeTags: string[]
+  /** 分组模式（2026-10-17 双模式）：缺省 rule 兼容旧调用方 */
+  kind?: 'manual' | 'rule'
 }): Promise<CustomerGroup> {
   const all = await db.customerGroups.toArray()
   const group: CustomerGroup = {
     id: newId('cg'),
     name: input.name.trim(),
+    kind: input.kind ?? 'rule',
     includeTags: input.includeTags,
     excludeTags: input.excludeTags,
     sortOrder: all.filter((g) => !g.deleted).length,
@@ -529,7 +533,7 @@ export async function createCustomerGroup(input: {
 /** 更新分组（改名 / 改规则） */
 export async function updateCustomerGroup(
   id: string,
-  patch: Partial<Pick<CustomerGroup, 'name' | 'includeTags' | 'excludeTags'>>,
+  patch: Partial<Pick<CustomerGroup, 'name' | 'includeTags' | 'excludeTags' | 'kind'>>,
 ): Promise<void> {
   const prev = await db.customerGroups.get(id)
   if (!prev || prev.deleted) return

@@ -75,6 +75,11 @@ export interface Customer extends SyncMeta {
   relations?: CustomerRelation[]
   /** 亲密度手动档（Issue #34）：内嵌可选字段零迁移；缺省=未设置=走算法兜底 */
   intimacy?: CustomerIntimacy
+  /**
+   * 手动分组归属（2026-10-17，单选）：指向 kind='manual' 的 CustomerGroup.id；
+   * 缺省 = 未加入任何手动分组。规则分组不落此字段（按标签动态判定）。
+   */
+  groupId?: string
 }
 
 /**
@@ -618,6 +623,13 @@ export interface CustomerIntimacy {
 export interface CustomerGroup extends SyncMeta {
   id: string
   name: string
+  /**
+   * 分组模式（2026-10-17 用户需求，两种并存）：
+   * - 'manual' 手动分组：客户在详情页**手动单选**归属（Customer.groupId），一个客户至多属一个手动组
+   * - 'rule' 标签规则分组：按 includeTags/excludeTags 动态圈人（matchGroup），一个客户可同时命中多个
+   * 缺省（存量数据无此字段）= 'rule'，读侧统一经 customerInGroup 兜底，无需数据迁移。
+   */
+  kind?: 'manual' | 'rule'
   /** AND：客户须命中全部 includeTags */
   includeTags: string[]
   /** NOT：客户命中任一 excludeTags 即剔除 */
@@ -628,6 +640,11 @@ export interface CustomerGroup extends SyncMeta {
   createdAt: number
 }
 
+/**
+ * 分组归属统一口径（2026-10-17 双模式）：手动组看 Customer.groupId（单选），
+ * 规则组走标签匹配（matchGroup）。kind 缺省按 'rule' 处理（存量数据兼容，零迁移）。
+ * 列表过滤 / 计数 / 拖拽判定一律经此函数，禁止各处自写分支。
+ */
 /**
  * 分组判定纯函数（可测可复用）：输入客户对象而非裸 tags 数组，
  * 将来想把 tier/行业纳入条件时调用方无需改动。
@@ -654,4 +671,18 @@ function matchesRule(
     includeTags.every((t) => keys.has(tagKey(t))) &&
     !excludeTags.some((t) => keys.has(tagKey(t)))
   )
+}
+
+/**
+ * 分组归属统一口径（2026-10-17 双模式）：手动组看 Customer.groupId（单选），
+ * 规则组走标签匹配（matchGroup）。kind 缺省按 'rule' 处理（存量数据兼容，零迁移）。
+ * 列表过滤 / 计数 / 拖拽判定一律经此函数，禁止各处自写分支。
+ */
+export function customerInGroup(
+  customer: Pick<Customer, 'groupId' | 'tags'>,
+  group: Pick<CustomerGroup, 'id' | 'kind' | 'includeTags' | 'excludeTags' | 'rules'>,
+): boolean {
+  const kind = group.kind ?? 'rule'
+  if (kind === 'manual') return customer.groupId === group.id
+  return matchGroup(customer, group as CustomerGroup)
 }

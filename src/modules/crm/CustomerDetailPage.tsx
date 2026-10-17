@@ -23,6 +23,9 @@ import { useCustomerTodos, useCustomerTransactions } from './hooks'
 import { financeFocusPath } from '@/modules/finance/links'
 import { fmtRelative } from './shared'
 import IntimacyPicker from './intimacy/IntimacyPicker'
+import { customerRepo } from '@/repositories'
+import { useCustomerGroups } from './hooks'
+import type { CustomerGroup } from '@/db/types'
 import {
   TIMELINE_FILTERS,
   fmtTimelineTime,
@@ -55,6 +58,7 @@ export default function CustomerDetailPage() {
   const customerProjects = allProjects.filter((p) => p.customerId === id)
   const transactions = useCustomerTransactions(id)
   const todos = useCustomerTodos(id)
+  const manualGroups = useCustomerGroups().filter((g) => !g.deleted && g.kind === 'manual')
   const timeline = useCustomerTimeline(id)
   // 客户关联笔记（经 notes.mentions 反查，与图谱投影同一口径）
   // 审计纪律 P2-9：只投影所需字段，笔记整篇 markdown 不进入 React 状态
@@ -179,6 +183,22 @@ export default function CustomerDetailPage() {
         {/* 健康分档位（原亲密度改名，Issue #108）：身份条内唯一的关系标尺 */}
         <IntimacyPicker customer={customer} />
       </Card>
+
+      {/* 手动分组（2026-10-17 双模式）：单选归属——与标签规则分组正交，这里只管手动组。
+          变更走 customerRepo.update（盖章 + 入队同步）。 */}
+      {manualGroups.length > 0 && (
+        <Card className="mt-4 p-5">
+          <div className="mb-3 flex items-center gap-1.5 text-[0.8571rem] font-medium uppercase tracking-wide text-on-surface-variant">
+            <Icon name="folder" className="text-[1.1429rem] text-primary" />
+            手动分组
+          </div>
+          <ManualGroupPicker
+            customer={customer}
+            groups={manualGroups}
+            onChange={(groupId) => void customerRepo.update(customer.id, { groupId: groupId || undefined })}
+          />
+        </Card>
+      )}
 
       {/* ② 行动区：记一笔 + 待跟进（唯一出处，首屏直接给出下一步动作） */}
       <Card className="mt-4 p-5">
@@ -806,6 +826,49 @@ function QuickLog({ customerId }: { customerId: string }) {
           记录
         </Button>
       </div>
+    </div>
+  )
+}
+
+/**
+ * 手动分组单选器（2026-10-17 双模式分组）：下拉列出全部手动分组 + 「无分组」。
+ * 单选语义：选新组即离开旧组（groupId 覆盖）；选「无分组」清空归属。
+ */
+function ManualGroupPicker({
+  customer,
+  groups,
+  onChange,
+}: {
+  customer: Customer
+  groups: CustomerGroup[]
+  onChange: (groupId: string | undefined) => void
+}) {
+  const current = groups.find((g) => g.id === customer.groupId) ?? null
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <select
+        className="rounded-lg border border-outline-variant/50 bg-surface-container-lowest px-2.5 py-2 text-[0.9286rem] text-on-surface"
+        value={current?.id ?? ''}
+        onChange={(e) => onChange(e.target.value || undefined)}
+      >
+        <option value="">（无分组）</option>
+        {groups.map((g) => (
+          <option key={g.id} value={g.id}>
+            {g.name}
+          </option>
+        ))}
+      </select>
+      {current && (
+        <span className="text-[0.8571rem] text-on-surface-variant">
+          当前：{current.name}
+          <button
+            className="ml-2 text-outline hover:text-danger hover:underline"
+            onClick={() => onChange(undefined)}
+          >
+            移出分组
+          </button>
+        </span>
+      )}
     </div>
   )
 }

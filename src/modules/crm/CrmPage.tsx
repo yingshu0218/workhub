@@ -5,7 +5,7 @@ import { useCollection } from '@/queries/hooks'
 import { customerRepo } from '@/repositories'
 import { useIsMobile } from '@/shared/useIsMobile'
 import type { Customer, CustomerGroup, IntimacyLevel, ModuleConfigIntimacy } from '@/db/types'
-import { INTIMACY_VISUAL, matchGroup } from '@/db/types'
+import { INTIMACY_VISUAL, customerInGroup, matchGroup } from '@/db/types'
 import {
   Avatar,
   Button,
@@ -78,19 +78,34 @@ export default function CrmPage() {
   const customGroups = useCustomerGroups()
   const intimacyCfg = useIntimacyConfig()
   /**
-   * 客户拖入分组（2026-10-16 用户需求）：分组是**标签规则组**（无 groupId，按 tags 动态判定，
-   * 见 db/types#matchGroup），所以「拖入分组」的落地语义 = **给客户补齐该组的 includeTags** ——
-   * 客户命中全部 includeTags 后自然进入该组，与「编辑客户手动加标签」走同一条 repository 路径
-   * （盖章 + 入队同步）。刻意不做「拖出分组」：includeTags 可能被多个分组共享，
-   * 自动移除会误伤别的分组，留给编辑抽屉手动管理。
+   * 客户拖入分组（2026-10-16，2026-10-17 起分模式）：
+   * - 手动组：**groupId 单选覆盖**——拖入即加入（自动离开原手动组），一个客户至多属一个手动组
+   * - 规则组：补齐该组缺失的 includeTags（tagsForGroupJoin；刻意不做拖出，多组共享标签会误伤）
+   * 两种都走 customerRepo.update（盖章 + 入队同步）。
    */
+  /** 拖到「全部客户」= 清空手动分组归属（只对手动组成员有意义；规则组是标签判定无从「拖出」） */
+  async function handleDropCustomerToAll(customerId: string) {
+    const customer = customers.find((c) => c.id === customerId)
+    if (!customer?.groupId) return
+    try {
+      await customerRepo.update(customerId, { groupId: undefined })
+    } catch (err) {
+      console.error('[crm] 移出分组失败', err)
+    }
+  }
+
   async function handleDropCustomer(customerId: string, groupId: string) {
     const group = customGroups.find((g) => g.id === groupId)
     const customer = customers.find((c) => c.id === customerId)
     if (!group || !customer) return
-    const merged = tagsForGroupJoin(customer.tags, group.includeTags)
-    if (!merged) return // 已命中全部分组条件：拖入无操作
     try {
+      if (customerInGroup(customer, group)) return // 已在该组：拖入无操作
+      if ((group.kind ?? 'rule') === 'manual') {
+        await customerRepo.update(customerId, { groupId: group.id })
+        return
+      }
+      const merged = tagsForGroupJoin(customer.tags, group.includeTags)
+      if (!merged) return // 已命中全部分组条件：拖入无操作
       await customerRepo.update(customerId, { tags: merged })
     } catch (err) {
       console.error('[crm] 拖入分组失败', err)
@@ -131,7 +146,7 @@ export default function CrmPage() {
   const list = visibleCustomers
     .filter((c) => {
       if (levelFilter !== 'all' && levelOf(c) !== levelFilter) return false
-      if (selectedGroup && !matchGroup(c, selectedGroup)) return false
+      if (selectedGroup && !customerInGroup(c, selectedGroup)) return false
       if (keyword.trim()) {
         const kw = keyword.trim().toLowerCase()
         const haystack = [c.name, c.company, c.title, c.tags.join(' ')]
@@ -200,6 +215,7 @@ export default function CrmPage() {
               onEditGroup={setEditorGroup}
               onCreateGroup={() => setEditorGroup('new')}
               onDropCustomer={handleDropCustomer}
+              onDropCustomerToAll={handleDropCustomerToAll}
             />
           </Card>
         )}
@@ -346,6 +362,7 @@ export default function CrmPage() {
                     onEditGroup={setEditorGroup}
                     onCreateGroup={() => setEditorGroup('new')}
                     onDropCustomer={handleDropCustomer}
+                    onDropCustomerToAll={handleDropCustomerToAll}
                     touch
                   />
                 </div>
@@ -737,6 +754,7 @@ function CustomerGroupNav({
   onEditGroup,
   onCreateGroup,
   onDropCustomer,
+  onDropCustomerToAll,
   touch = false,
 }: {
   groups: CustomerGroup[]
@@ -751,6 +769,8 @@ function CustomerGroupNav({
   onCreateGroup: () => void
   /** 客户拖入分组（2026-10-16）：按分组规则补齐客户标签；缺省 = 不接收拖入 */
   onDropCustomer?: (customerId: string, groupId: string) => void
+  /** 客户拖到「全部客户」= 清空手动分组归属（2026-10-17）；缺省 = 不接收 */
+  onDropCustomerToAll?: (customerId: string) => void
   /**
    * 触摸端实例（窄屏折叠入口）。这里刻意用 prop 而不是 `md:` 类：
    * 本组件的桌面实例必须逐像素不变，而「常态 `hidden`、hover 才 `flex`」这套写法
@@ -771,6 +791,13 @@ function CustomerGroupNav({
       </div>
       <div className="flex flex-col gap-0.5">
         <button
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => {
+            e.preventDefault()
+            const droppedCustomer = e.dataTransfer.getData('application/x-nexus-customer')
+            if (droppedCustomer) onDropCustomerToAll?.(droppedCustomer)
+          }}
+          title="点击查看全部客户；也可把客户拖到这里移出手动分组"
           onClick={() => onSelectGroup(null)}
           className={`app-nav-link flex items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[0.9286rem] transition-colors ${
             selectedGroupId === null
@@ -857,6 +884,11 @@ function CustomerGroupNav({
                 className={selectedGroupId === g.id ? 'text-primary' : 'text-outline'}
               />
               <span className="min-w-0 flex-1 truncate">{g.name}</span>
+              {(g.kind ?? 'rule') === 'manual' && (
+                <span className="shrink-0 rounded bg-surface-container px-1 text-[0.7143rem] text-outline">
+                  手动
+                </span>
+              )}
             </button>
             <span
               className={`shrink-0 text-[0.7857rem] ${selectedGroupId === g.id ? 'text-primary/70' : 'text-outline'}`}
@@ -919,6 +951,12 @@ function GroupEditorDrawer({
   const [includeRaw, setIncludeRaw] = useState('')
   const [excludeRaw, setExcludeRaw] = useState('')
   const [error, setError] = useState('')
+  /**
+   * 分组模式（2026-10-17 双模式）：**创建时选定、编辑时不可改**——改模式意味着
+   * 「成员来源」整个换掉（手动名单 ↔ 标签规则），静默换会让既有成员凭空消失。
+   * 编辑存量分组时回显其 kind（缺省 rule = 存量兼容）。
+   */
+  const [mode, setMode] = useState<'manual' | 'rule'>('rule')
   const nameRef = useAutoFocus<HTMLInputElement>(open)
 
   const openKey = `${open}-${group?.id ?? 'new'}`
@@ -927,6 +965,7 @@ function GroupEditorDrawer({
     setLastKey(openKey)
     if (open) {
       setName(group?.name ?? '')
+      setMode(group?.kind ?? 'rule')
       setIncludeRaw(group?.includeTags.join(', ') ?? '')
       setExcludeRaw(group?.excludeTags.join(', ') ?? '')
       setError('')
@@ -957,6 +996,16 @@ function GroupEditorDrawer({
       setError('请填写分组名称')
       return
     }
+    if (mode === 'manual') {
+      // 手动分组：只存名字与模式，成员由客户详情单选归属（无标签规则）
+      if (group) {
+        await updateCustomerGroup(group.id, { name: name.trim(), kind: 'manual' })
+      } else {
+        await createCustomerGroup({ name, includeTags: [], excludeTags: [], kind: 'manual' })
+      }
+      onClose()
+      return
+    }
     if (includeTags.length === 0) {
       setError('至少选择一个须包含的标签')
       return
@@ -964,7 +1013,7 @@ function GroupEditorDrawer({
     if (group) {
       await updateCustomerGroup(group.id, { name: name.trim(), includeTags, excludeTags })
     } else {
-      await createCustomerGroup({ name, includeTags, excludeTags })
+      await createCustomerGroup({ name, includeTags, excludeTags, kind: 'rule' })
     }
     onClose()
   }
@@ -980,29 +1029,69 @@ function GroupEditorDrawer({
           placeholder="如：重点培育"
         />
       </Field>
-      <TagRuleField
-        label="须包含标签（全部命中，AND）"
-        raw={includeRaw}
-        onRawChange={setIncludeRaw}
-        tags={includeTags}
-        suggestions={suggestions.filter((t) => !includeTags.includes(t))}
-        placeholder="如：续约意向, 大客户"
-        onPick={(t) => setIncludeRaw((r) => (r.trim() ? `${r.trim()}, ${t}` : t))}
-      />
-      <TagRuleField
-        label="排除标签（命中任一即剔除，NOT）"
-        raw={excludeRaw}
-        onRawChange={setExcludeRaw}
-        tags={excludeTags}
-        suggestions={suggestions.filter((t) => !excludeTags.includes(t))}
-        placeholder="如：已流失"
-        onPick={(t) => setExcludeRaw((r) => (r.trim() ? `${r.trim()}, ${t}` : t))}
-      />
-      <div className="mb-4 rounded-lg bg-surface-container-low px-3 py-2.5 text-[0.9286rem]">
-        <span className="text-on-surface-variant">实时预览命中：</span>
-        <span className="font-bold text-primary">{previewCount}</span>
-        <span className="text-on-surface-variant"> 位客户</span>
-      </div>
+      {/* 模式选择（2026-10-17 双模式）：创建时选定、编辑时只读展示（改模式=成员来源整个换掉） */}
+      <Field label="分组模式">
+        <div className="flex gap-2">
+          {(
+            [
+              ['manual', '手动分组', '在客户详情里手动选择归属，一个客户只属一个手动分组'],
+              ['rule', '标签分组', '按标签规则自动圈人，客户可同时命中多个'],
+            ] as const
+          ).map(([id, label, tip]) => {
+            const disabled = Boolean(group) && mode !== id
+            return (
+              <button
+                key={id}
+                type="button"
+                disabled={disabled}
+                title={group ? '编辑时不可更改分组模式' : tip}
+                onClick={() => setMode(id)}
+                className={`flex-1 rounded-lg border px-3 py-2 text-left text-[0.9286rem] transition-colors ${
+                  mode === id
+                    ? 'border-primary bg-primary-fixed/10 font-semibold text-primary'
+                    : disabled
+                      ? 'border-outline-variant/30 text-outline/60'
+                      : 'border-outline-variant/50 text-on-surface-variant hover:bg-surface-container'
+                }`}
+              >
+                {label}
+              </button>
+            )
+          })}
+        </div>
+      </Field>
+      {mode === 'manual' && (
+        <div className="mb-4 rounded-lg bg-surface-container-low px-3 py-2.5 text-[0.9286rem] text-on-surface-variant">
+          手动分组的成员在**客户详情页**手动选择归属（单选）；创建后到客户详情里把客户加入本组。
+        </div>
+      )}
+      {mode === 'rule' && (
+        <>
+          <TagRuleField
+            label="须包含标签（全部命中，AND）"
+            raw={includeRaw}
+            onRawChange={setIncludeRaw}
+            tags={includeTags}
+            suggestions={suggestions.filter((t) => !includeTags.includes(t))}
+            placeholder="如：续约意向, 大客户"
+            onPick={(t) => setIncludeRaw((r) => (r.trim() ? `${r.trim()}, ${t}` : t))}
+          />
+          <TagRuleField
+            label="排除标签（命中任一即剔除，NOT）"
+            raw={excludeRaw}
+            onRawChange={setExcludeRaw}
+            tags={excludeTags}
+            suggestions={suggestions.filter((t) => !excludeTags.includes(t))}
+            placeholder="如：已流失"
+            onPick={(t) => setExcludeRaw((r) => (r.trim() ? `${r.trim()}, ${t}` : t))}
+          />
+          <div className="mb-4 rounded-lg bg-surface-container-low px-3 py-2.5 text-[0.9286rem]">
+            <span className="text-on-surface-variant">实时预览命中：</span>
+            <span className="font-bold text-primary">{previewCount}</span>
+            <span className="text-on-surface-variant"> 位客户</span>
+          </div>
+        </>
+      )}
       {error && <div className="mb-3 text-[0.8929rem] text-danger">{error}</div>}
       <div className="flex justify-end gap-2">
         <Button variant="ghost" onClick={onClose}>

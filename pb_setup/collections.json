@@ -189,6 +189,11 @@
         "type": "number",
         "required": false,
         "presentable": false
+      },
+      {
+        "name": "groupId",
+        "type": "text",
+        "required": false
       }
     ],
     "indexes": [
@@ -1763,6 +1768,11 @@
         "name": "rules",
         "type": "json",
         "maxSize": 2000000
+      },
+      {
+        "name": "kind",
+        "type": "text",
+        "required": false
       }
     ],
     "indexes": [
