@@ -832,7 +832,7 @@ function CustomerGroupNav({
       {manualGroups.length > 0 && (
         <>
           <div className="px-1 pt-1.5 pb-0.5 text-[0.7857rem] text-outline">
-            手动分组 · 在客户详情里单选归属
+            手动分组
           </div>
           <div className="flex flex-col gap-0.5">
         {manualGroups.map((g) => (
@@ -929,7 +929,7 @@ function CustomerGroupNav({
       )}
       <div className="mt-3 flex items-center justify-between border-t border-outline-variant/40 px-1 pt-2 pb-0.5">
         <span className="text-[0.7857rem] text-outline">
-          标签分组 · 按标签规则自动圈人
+          标签分组
         </span>
       </div>
       <div className="flex flex-col gap-0.5">
