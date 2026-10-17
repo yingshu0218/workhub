@@ -783,6 +783,10 @@ function CustomerGroupNav({
   const [dragGroupId, setDragGroupId] = useState<string | null>(null)
   /** 手柄常态不可见（避免与编辑/删除抢注意力），hover 或正在拖时才现形 */
   const handleCls = dragGroupId ? 'opacity-100' : 'opacity-0 group-hover/g:opacity-100'
+  // 双模式分段渲染（2026-10-17）：手动组与规则组用小节标题分隔；段内保持既有排序相对顺序，
+  // 拖拽排序仍作用于全局 ids 数组（reorderCustomerGroups 不分段）。
+  const manualGroups = groups.filter((g) => (g.kind ?? 'rule') === 'manual')
+  const ruleGroups = groups.filter((g) => (g.kind ?? 'rule') !== 'manual')
 
   return (
     <>
@@ -819,14 +823,19 @@ function CustomerGroupNav({
         </button>
       </div>
 
-      {/* 我的分组：自定义 tag 规则圈人，实时计数，可增/改名/改规则/删（Issue #63） */}
+      {/* 我的分组：双模式（2026-10-17）—— 手动分组（详情页单选归属）与标签规则分组（自动圈人） */}
       <div className="mt-3 flex items-center justify-between border-t border-outline-variant/40 px-1 pt-2 pb-1">
         <span className="text-[0.7857rem] font-semibold uppercase tracking-wider text-outline">
           我的分组
         </span>
       </div>
-      <div className="flex flex-col gap-0.5">
-        {groups.map((g) => (
+      {manualGroups.length > 0 && (
+        <>
+          <div className="px-1 pt-1.5 pb-0.5 text-[0.7857rem] text-outline">
+            手动分组 · 在客户详情里单选归属
+          </div>
+          <div className="flex flex-col gap-0.5">
+        {manualGroups.map((g) => (
           <div
             key={g.id}
             /* 拖拽排序（用例 #34）：内置分组（全部/S/A/B/潜在）是固定顺序不参与，
@@ -914,8 +923,105 @@ function CustomerGroupNav({
                 <Icon name="delete" size={14} />
               </button>
             </span>
+          </div>        ))}
           </div>
-        ))}
+        </>
+      )}
+      <div className="mt-3 flex items-center justify-between border-t border-outline-variant/40 px-1 pt-2 pb-0.5">
+        <span className="text-[0.7857rem] text-outline">
+          标签分组 · 按标签规则自动圈人
+        </span>
+      </div>
+      <div className="flex flex-col gap-0.5">
+        {ruleGroups.map((g) => (
+          <div
+            key={g.id}
+            /* 拖拽排序（用例 #34）：内置分组（全部/S/A/B/潜在）是固定顺序不参与，
+               只有自定义分组可拖 —— 它们的 sortOrder 才是用户语义上的「我的排序」 */
+            draggable
+            onDragStart={(e) => {
+              setDragGroupId(g.id)
+              e.dataTransfer.effectAllowed = 'move'
+            }}
+            onDragEnd={() => setDragGroupId(null)}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault()
+              // 先判客户拖入（与排序拖拽共用落点）：带 customer 拖拽类型 → 加入分组
+              const droppedCustomer = e.dataTransfer.getData('application/x-nexus-customer')
+              if (droppedCustomer) {
+                onDropCustomer?.(droppedCustomer, g.id)
+                return
+              }
+              if (!dragGroupId || dragGroupId === g.id) return
+              const ids = groups.map((x) => x.id)
+              const from = ids.indexOf(dragGroupId)
+              const to = ids.indexOf(g.id)
+              if (from < 0 || to < 0) return
+              void reorderCustomerGroups(moveInOrder(ids, from, to))
+              setDragGroupId(null)
+            }}
+            className={`app-nav-link group/g flex items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[0.9286rem] transition-colors ${
+              dragGroupId === g.id ? 'opacity-40' : ''
+            } ${
+              selectedGroupId === g.id
+                ? 'bg-primary-fixed font-semibold text-primary'
+                : 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'
+            }`}
+          >
+            {/* 拖拽手柄：仅作视觉提示（整行都可拖，与 /todo 清单、/finance 账本同款写法
+                与同一个 ⠿ 字符），hover 或正在拖时可见，避免常态下与「编辑/删除」抢注意力。
+                触摸端（<768px）整根藏掉：HTML5 拖拽在触屏上不生效，留着只会让人白试。 */}
+            <span
+              title="拖动调整分组顺序"
+              className={`-ml-1 shrink-0 cursor-grab text-[1rem] leading-none text-outline/60 transition-opacity group-hover/g:text-outline ${
+                touch ? 'hidden' : handleCls
+              }`}
+            >
+              ⠿
+            </span>
+            <button
+              className="flex min-w-0 flex-1 items-center gap-2 text-left"
+              title="点击筛选该分组；也可把右侧客户拖到这里加入分组"
+              onClick={() => onSelectGroup(selectedGroupId === g.id ? null : g.id)}
+            >
+              <Icon
+                name="flag"
+                size={16}
+                className={selectedGroupId === g.id ? 'text-primary' : 'text-outline'}
+              />
+              <span className="min-w-0 flex-1 truncate">{g.name}</span>
+              {(g.kind ?? 'rule') === 'manual' && (
+                <span className="shrink-0 rounded bg-surface-container px-1 text-[0.7143rem] text-outline">
+                  手动
+                </span>
+              )}
+            </button>
+            <span
+              className={`shrink-0 text-[0.7857rem] ${selectedGroupId === g.id ? 'text-primary/70' : 'text-outline'}`}
+            >
+              {counts[g.id] ?? 0}
+            </span>
+            {/* 桌面常态藏、hover 显；触摸端没有 hover 可用，编辑/删除会永远点不到，故常显 */}
+            <span
+              className={`shrink-0 items-center gap-1 ${touch ? 'flex' : 'hidden group-hover/g:flex'}`}
+            >
+              <button
+                title="编辑分组"
+                className="text-outline hover:text-primary"
+                onClick={() => onEditGroup(g)}
+              >
+                <Icon name="edit" size={14} />
+              </button>
+              <button
+                title="删除分组"
+                className="text-outline hover:text-danger"
+                onClick={() => void removeGroup(g.id)}
+              >
+                <Icon name="delete" size={14} />
+              </button>
+            </span>
+          </div>        ))}
       </div>
       <button
         onClick={onCreateGroup}
