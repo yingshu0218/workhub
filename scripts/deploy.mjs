@@ -227,14 +227,48 @@ echo "frontend+hooks ok"
 
 echo "== [5/6] restart =="
 systemctl restart pocketbase
-sleep 3
-systemctl is-active pocketbase
-curl -s -o /dev/null -w 'health=%{http_code}\\n' http://127.0.0.1:9002/api/health
+# ⚠️ 重启后 PocketBase 需要时间就绪，**必须轮询等待**。
+# 原先是一次性探测 /api/health（单条裸 curl），埋了两个连带问题（2026-10-20 实测踩到）：
+#   ① 重启瞬间必然连不上 → curl 退出码 **7**；
+#   ② 本脚本有 set -e，而这是条**裸命令**（不在 if 里、也没有 || 兜底）→
+#      远程段在此**当场中断**（实测：服务器上退出码就是 7）；
+#   ③ 于是第 6 步验证根本没跑、.deploy-state 也没写入 —— 部署其实**已经成功**
+#      （前端与 hooks 都已就位），却被记成失败、下次还会重复部署。
+# ⚠️ 注意 set -e 的差别（已在服务器上逐项实测）：
+#    · 裸命令失败        → 中断（退出码 7）
+#    · 赋值 $(cmd) 失败  → 也中断（无兜底时）
+#    · $(cmd || true)    → 继续 ✅
+#    · $(grep 无匹配)    → 继续（命令替换里的失败不触发）
+#    所以这里不仅要在 $() 内探测，还要 || true —— 双重保护，
+#    因为不同 bash 版本对「赋值语句中命令替换失败」的处理并不一致。
+# 现在：轮询到 200 才继续；真超时才失败，并把服务状态与日志打出来供排查。
+HEALTH_CODE=""
+for i in $(seq 1 30); do
+  HEALTH_CODE=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:9002/api/health || true)
+  if [ "$HEALTH_CODE" = "200" ]; then
+    echo "health=200（第 \${i} 次探测）"
+    break
+  fi
+  sleep 1
+done
+if [ "$HEALTH_CODE" != "200" ]; then
+  echo "!!! PocketBase 健康检查超时：30s 内未就绪（最近 code=\${HEALTH_CODE}）"
+  echo "--- systemctl status pocketbase ---"
+  systemctl status pocketbase --no-pager -l 2>&1 | tail -20 || true
+  echo "--- 最近日志 ---"
+  journalctl -u pocketbase -n 30 --no-pager 2>&1 || true
+  exit 1
+fi
+# is-active 若不是 active 会返回非 0 —— 加 '|| true'，避免这条**裸命令**触发 set -e
+#（健康检查已通过，服务状态此处仅作参考展示，不该中断部署）
+systemctl is-active pocketbase || true
 
 echo "== [6/6] verify =="
+# TOKEN2 仅用于统计集合数，取不到不该中断部署。
+# '|| echo ""' 兜底：curl 失败 → python3 收到空输入抛错 → 同样会让 set -e 杀掉部署。
 TOKEN2=$(curl -s -X POST http://127.0.0.1:9002/api/collections/_superusers/auth-with-password \\
   -H "Content-Type: application/json" \\
-  -d '{"identity":"${cfg.DEPLOY_SUPERUSER}","password":"${cfg.DEPLOY_SUPERUSER_PASSWORD}"}' | python3 -c "import sys,json;print(json.load(sys.stdin).get('token',''))")
+  -d '{"identity":"${cfg.DEPLOY_SUPERUSER}","password":"${cfg.DEPLOY_SUPERUSER_PASSWORD}"}' | python3 -c "import sys,json;print(json.load(sys.stdin).get('token',''))" 2>/dev/null || echo "")
 echo "entry: $(grep -oE 'index-[A-Za-z0-9_-]+\\.js' pb_public/index.html | head -1)"
 echo "hooks: $(md5sum pb_hooks/main.pb.js | cut -d' ' -f1)"
 echo "files: $(find pb_public -type f | wc -l)"
