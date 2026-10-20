@@ -784,7 +784,7 @@ export default function TodoPage() {
                       leaving
                         ? 'anim-row-out pointer-events-none'
                         : 'anim-list-item press-flat cursor-pointer hover:bg-surface-hover-low hover:shadow-sm active:bg-surface-hover'
-                    } group flex items-center gap-3 rounded-lg py-3.5 ${
+                    } group flex items-start gap-3 rounded-lg py-3.5 ${
                       isFocusRing
                         ? 'focus:outline-2 focus:outline-primary bg-primary-fixed/60 -mx-2 px-2'
                         : ''
@@ -971,12 +971,16 @@ export default function TodoPage() {
                         专注
                       </Button>
                     )}
-                    {/* 作废 / 恢复（Issue #128）：常显，是行内的一等动作，不藏在 hover 里 */}
+                    {/* 作废 / 恢复（Issue #128）：常显，是行内的一等动作，不藏在 hover 里。
+                        ⚠️ 行根是 `items-start`（为了让勾选框与标题对齐），所以这一列的
+                        每个按钮都要 `self-center` —— 否则它们会贴到行顶，
+                        在两行行里显得比标题高。 */}
                     {isTodoVoided(t) ? (
                       <Button
                         size="sm"
                         variant="tonal"
                         icon="restart_alt"
+                        className="self-center"
                         onClick={(e) => {
                           e.stopPropagation()
                           void handleRestore(t)
@@ -988,7 +992,7 @@ export default function TodoPage() {
                       <button
                         title="作废（终止事项，记录保留，可恢复）"
                         disabled={leaving}
-                        className="flex shrink-0 items-center gap-1 rounded-lg border border-outline-variant/60 px-2.5 py-1 text-[0.8571rem] text-on-surface-variant transition-colors hover:border-warning hover:text-warning disabled:pointer-events-none"
+                        className="flex shrink-0 items-center gap-1 self-center rounded-lg border border-outline-variant/60 px-2.5 py-1 text-[0.8571rem] text-on-surface-variant transition-colors hover:border-warning hover:text-warning disabled:pointer-events-none"
                         onClick={(e) => {
                           e.stopPropagation()
                           void handleVoid(t)
@@ -1001,7 +1005,7 @@ export default function TodoPage() {
                     <button
                       title="编辑待办"
                       disabled={leaving}
-                      className="text-outline opacity-0 transition-opacity hover:text-primary group-hover:opacity-100 disabled:pointer-events-none"
+                      className="self-center text-outline opacity-0 transition-opacity hover:text-primary group-hover:opacity-100 disabled:pointer-events-none"
                       onClick={(e) => {
                         e.stopPropagation()
                         setEditing(t)
@@ -1012,7 +1016,7 @@ export default function TodoPage() {
                     <button
                       title="删除待办"
                       disabled={leaving}
-                      className="text-outline opacity-0 transition-opacity hover:text-danger group-hover:opacity-100 disabled:pointer-events-none"
+                      className="self-center text-outline opacity-0 transition-opacity hover:text-danger group-hover:opacity-100 disabled:pointer-events-none"
                       onClick={(e) => {
                         e.stopPropagation()
                         setConfirmTodo(t)

@@ -166,6 +166,78 @@ describe('待办行信息层级（2026-10-19）', () => {
   })
 })
 
+describe('⑤ 勾选框与「标题行」垂直对齐（2026-10-21 用户口径）', () => {
+  /**
+   * 用户截图 + 说明：「这个打勾的只与标题对齐」。
+   *
+   * ## 为什么之前是歪的
+   * 行根原为 `items-center`，勾选框跟着**整个主列**（标题 + 备注两行）垂直居中
+   * → 它落在标题与备注之间。
+   *
+   * ## 真实几何（headless Chrome 实测产物 CSS，非估算）
+   * | 行型 | 标题距行顶 | 勾选框距行顶 | 中点差 |
+   * |------|-----------|-------------|--------|
+   * | 两行行 | 12.25px | 20.72px | 勾选**低 7.27px** |
+   * | 仅标题 | 14.25px | 12.25px | 勾选**高 3.20px** |
+   * **两种行都偏、方向还相反** —— 偏移量取决于行高，故**任何固定偏移都修不好两种行**。
+   *
+   * ## 修法（零魔法数字）
+   * · 行根 `items-center` → `items-start`：主列贴 padding 顶，标题 **top 恒为 12.25px**
+   *   （= `py-3.5` 在 1rem=14px 下的值），两种行统一
+   * · 勾选框天然顶对齐 → 与标题**同 top**，对齐不再依赖行高
+   * · 右侧动作按钮逐个 `self-center` —— `items-start` 下它们会贴顶，需单独拉回
+   *
+   * ⚠️ 残留 1.20px 中点差是「勾选框 20px 比标题行 22.39px 矮」造成的固有量，
+   * 视觉上已齐，**不该也不需消除**（除非图标变大）。
+   */
+  it('行根用 items-start（而非 items-center）—— 这是对齐的前提', async () => {
+    await db.todos.put(todo() as never)
+    renderPage()
+    const row = rowOf(await screen.findByText('跟进深蓝续约'))
+    expect(row.className, '行根回到 items-center 会让勾选框跟着整列居中、再次歪掉').toContain(
+      'items-start',
+    )
+  })
+
+  it('勾选框不与动作按钮抢占对齐方式（前者顶对齐、后者居中）', async () => {
+    await db.todos.put(todo() as never)
+    renderPage()
+    const row = rowOf(await screen.findByText('跟进深蓝续约'))
+
+    // 勾选框：不设 self-*，跟随行根的 items-start → 与标题同 top
+    const cb = Array.from(row.querySelectorAll('button')).find((b) =>
+      b.className.includes('shrink-0'),
+    )!
+    expect(cb.className, '勾选框不该有 self-* 覆盖，否则又与标题错位').not.toMatch(/\bself-(center|end)\b/)
+
+    // 动作按钮：必须 self-center（items-start 下会贴顶）
+    const actions = Array.from(row.querySelectorAll('button[title]')).filter((b) =>
+      /编辑待办|删除待办|作废/.test(b.getAttribute('title') ?? ''),
+    )
+    expect(actions.length, '没找到行内动作按钮').toBeGreaterThan(0)
+    for (const a of actions) {
+      expect(a.className, `动作按钮「${a.getAttribute('title')}」缺 self-center，会贴到行顶`).toContain(
+        'self-center',
+      )
+    }
+  })
+
+  it('两种行型的标题 top 一致（不因行高不同而漂移）', async () => {
+    /**
+     * 这条是「零魔法数字」的语义表达：只要行根是 items-start，
+     * 标题 top 就恒等于 padding-top，与有没有备注行无关。
+     * jsdom 不布局 → 只能断言结构前提（items-start 已在上一条锁住）；
+     * 真实 px 由 headless 实测（见上方注释表格）。
+     */
+    await db.todos.put(todo() as never)
+    renderPage()
+    const row = rowOf(await screen.findByText('跟进深蓝续约'))
+    // 行根必须带 py-3.5（标题 top 恒等于它），且不含 items-center
+    expect(row.className).toContain('py-3.5')
+    expect(row.className).not.toMatch(/\bitems-center\b/)
+  })
+})
+
 describe('todoBodyPreview / hasTime 纯函数口径', () => {
   it('todoBodyPreview：去掉标题行、其余压成单行', () => {
     expect(
