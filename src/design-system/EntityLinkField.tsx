@@ -242,7 +242,7 @@ export default function EntityLinkField({
                 onClick={() => pick(o)}
                 onMouseEnter={() => setActiveIdx(i)}
                 className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[0.9286rem] transition-colors ${
-                  i === safeIdx ? 'bg-primary-fixed text-primary' : 'hover:bg-surface-container'
+                  i === safeIdx ? 'bg-primary-fixed text-primary' : 'hover:bg-surface-hover'
                 }`}
               >
                 <Icon name={o.icon ?? icon} size={15} className="shrink-0 text-outline" />

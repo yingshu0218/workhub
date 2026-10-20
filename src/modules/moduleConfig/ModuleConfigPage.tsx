@@ -62,7 +62,7 @@ export default function ModuleConfigPage() {
                         `block rounded-lg py-2 pl-8 pr-2.5 text-[0.9286rem] transition-colors ${
                           isActive
                             ? 'bg-primary-fixed font-semibold text-primary'
-                            : 'text-on-surface-variant hover:bg-surface-container'
+                            : 'text-on-surface-variant hover:bg-surface-hover'
                         }`
                       }
                     >

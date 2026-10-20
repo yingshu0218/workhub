@@ -170,7 +170,7 @@ export default function NotesPage() {
           <div className="mb-2 mt-4 flex items-center justify-between text-[0.8571rem] font-medium uppercase tracking-wide text-on-surface-variant">
             <span>文件夹</span>
             <button
-              className="rounded p-0.5 text-outline transition-colors hover:bg-surface-container-high hover:text-on-surface"
+              className="rounded p-0.5 text-outline transition-colors hover:bg-surface-hover-high hover:text-on-surface"
               title="新建文件夹"
               onClick={() => {
                 setAddingFolder(true)
@@ -199,7 +199,7 @@ export default function NotesPage() {
                 actions={
                   <>
                     <button
-                      className="rounded p-0.5 text-outline transition-colors hover:bg-surface-container-high hover:text-on-surface"
+                      className="rounded p-0.5 text-outline transition-colors hover:bg-surface-hover-high hover:text-on-surface"
                       title="重命名"
                       onClick={(e) => {
                         e.stopPropagation()
@@ -305,7 +305,7 @@ export default function NotesPage() {
                 key={n.id}
                 onClick={() => setViewId(n.id)}
                 style={staggerStyle(i)}
-                className="anim-list-item group flex h-11 shrink-0 cursor-pointer items-center gap-2 rounded-lg px-2 -mx-2 transition-colors hover:bg-surface-container-low/60"
+                className="anim-list-item group flex h-11 shrink-0 cursor-pointer items-center gap-2 rounded-lg px-2 -mx-2 transition-colors hover:bg-surface-hover-low"
               >
                 <Icon name="description" className="shrink-0 text-[1.2857rem] text-primary" />
                 <span className="min-w-0 flex-1 truncate text-[1rem] font-medium group-hover:text-primary">
@@ -488,7 +488,7 @@ function NoteViewModal({
             {note.title.trim() || '未命名笔记'}
           </h2>
           <button
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-surface-hover-high hover:text-on-surface"
             onClick={onClose}
             title="关闭，返回上个页面"
           >
@@ -580,7 +580,7 @@ function NoteViewModal({
                 .map((f) => (
                   <button
                     key={f.id}
-                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[0.9286rem] transition-colors hover:bg-surface-container-high"
+                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[0.9286rem] transition-colors hover:bg-surface-hover-high"
                     onClick={() => void doMove(f.id)}
                   >
                     <Icon name="folder" size={18} className="text-primary" />
@@ -589,7 +589,7 @@ function NoteViewModal({
                 ))}
               {cur.folderId && (
                 <button
-                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[0.9286rem] transition-colors hover:bg-surface-container-high"
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[0.9286rem] transition-colors hover:bg-surface-hover-high"
                   onClick={() => void doMove(undefined)}
                 >
                   <Icon name="folder_open" size={18} className="text-outline" />
@@ -631,7 +631,7 @@ function TreeNode({
       className={`group flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1 text-[0.9286rem] transition-colors ${
         active
           ? 'bg-primary-container/15 font-medium text-primary'
-          : 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'
+          : 'text-on-surface-variant hover:bg-surface-hover-low hover:text-on-surface'
       }`}
     >
       <Icon name={icon} size={16} className={active ? 'text-primary' : 'text-outline'} />

@@ -534,7 +534,7 @@ function IntimacyFilterMenu({
             aria-selected={!active}
             onClick={() => pick('all')}
             className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[0.9286rem] transition-colors ${
-              !active ? 'bg-primary-fixed text-primary' : 'hover:bg-surface-container'
+              !active ? 'bg-primary-fixed text-primary' : 'hover:bg-surface-hover'
             }`}
           >
             <Icon name="group" size={15} className="shrink-0 text-outline" />
@@ -549,7 +549,7 @@ function IntimacyFilterMenu({
               aria-selected={value === lv.key}
               onClick={() => pick(lv.key)}
               className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[0.9286rem] transition-colors ${
-                value === lv.key ? 'bg-primary-fixed text-primary' : 'hover:bg-surface-container'
+                value === lv.key ? 'bg-primary-fixed text-primary' : 'hover:bg-surface-hover'
               }`}
             >
               {/* 档位色沿用图谱圈层色（INTIMACY_VISUAL）：档位→颜色是同一个语义，
@@ -642,7 +642,7 @@ function CustomerRow({
       /* 错峰入场挂在行根：桌面 Card 用 `divide-y` 做分隔线、依赖直接子元素，
          故**不能**在外面包一层 div。 */
       style={staggerStyle(index)}
-      className="anim-list-item group flex cursor-pointer items-center gap-4 px-2 py-3.5 transition-colors hover:bg-surface-container-low/40"
+      className="anim-list-item group flex cursor-pointer items-center gap-4 px-2 py-3.5 transition-colors hover:bg-surface-hover-low"
     >
       <Avatar name={c.name} size={40} />
       <div className="min-w-0 flex-1">
@@ -820,7 +820,7 @@ function CustomerGroupNav({
           className={`app-nav-link flex items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[0.9286rem] transition-colors ${
             selectedGroupId === null
               ? 'bg-primary-fixed font-semibold text-primary'
-              : 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'
+              : 'text-on-surface-variant hover:bg-surface-hover-low hover:text-on-surface'
           }`}
         >
           <Icon
@@ -882,7 +882,7 @@ function CustomerGroupNav({
             } ${
               selectedGroupId === g.id
                 ? 'bg-primary-fixed font-semibold text-primary'
-                : 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'
+                : 'text-on-surface-variant hover:bg-surface-hover-low hover:text-on-surface'
             }`}
           >
             {/* 拖拽手柄：仅作视觉提示（整行都可拖，与 /todo 清单、/finance 账本同款写法
@@ -980,7 +980,7 @@ function CustomerGroupNav({
             } ${
               selectedGroupId === g.id
                 ? 'bg-primary-fixed font-semibold text-primary'
-                : 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'
+                : 'text-on-surface-variant hover:bg-surface-hover-low hover:text-on-surface'
             }`}
           >
             {/* 拖拽手柄：仅作视觉提示（整行都可拖，与 /todo 清单、/finance 账本同款写法
@@ -1171,7 +1171,7 @@ function GroupEditorDrawer({
                     ? 'border-primary bg-primary-fixed/10 font-semibold text-primary'
                     : disabled
                       ? 'border-outline-variant/30 text-outline/60'
-                      : 'border-outline-variant/50 text-on-surface-variant hover:bg-surface-container'
+                      : 'border-outline-variant/50 text-on-surface-variant hover:bg-surface-hover'
                 }`}
               >
                 {label}

@@ -234,7 +234,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
                 - 图标轨悬浮展开 / 完整侧栏 → 面板收起图标 */}
             <button
               type="button"
-              className={`shrink-0 rounded-lg p-1.5 text-outline transition-colors hover:bg-surface-container hover:text-on-surface ${
+              className={`shrink-0 rounded-lg p-1.5 text-outline transition-colors hover:bg-surface-hover hover:text-on-surface ${
                 railOpen ? 'ml-auto' : ''
               }`}
               onClick={() => {
@@ -287,7 +287,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
                             : 'border border-primary/30 bg-primary-fixed/40 font-medium text-primary hover:border-primary hover:bg-primary-fixed/70'
                           : isActive
                             ? 'bg-primary-fixed font-semibold text-primary'
-                            : 'text-on-surface-variant hover:bg-surface-container',
+                            : 'text-on-surface-variant hover:bg-surface-hover',
                     ]
                       .filter(Boolean)
                       .join(' ')
@@ -317,7 +317,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
                   // 功能配置含子路由（/module-config/:moduleId/:itemId），按段判定才正确高亮
                   isNavItemActive(pathname, '/module-config')
                     ? 'is-active bg-primary-fixed font-semibold text-primary'
-                    : 'text-on-surface-variant hover:bg-surface-container'
+                    : 'text-on-surface-variant hover:bg-surface-hover'
                 }`
               }
             >
@@ -334,7 +334,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
                 } ${
                   isNavItemActive(pathname, '/settings')
                     ? 'is-active bg-primary-fixed font-semibold text-primary'
-                    : 'text-on-surface-variant hover:bg-surface-container'
+                    : 'text-on-surface-variant hover:bg-surface-hover'
                 }`
               }
             >
@@ -345,7 +345,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
             {/* 账号 / 工作区切换 */}
             <div className="relative" ref={wsRef}>
               <button
-                className={`app-nav-link flex w-full items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-surface-container ${
+                className={`app-nav-link flex w-full items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-surface-hover ${
                   collapsed && !railOpen ? 'justify-center px-0' : ''
                 } ${pathname === '/profile' ? 'is-active bg-primary-fixed' : ''}`}
                 onClick={() => setWsOpen((o) => !o)}
@@ -383,7 +383,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
                 {WORKSPACES.map((w) => (
                   <button
                     key={w.id}
-                    className={`flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left transition-colors hover:bg-surface-container ${
+                    className={`flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left transition-colors hover:bg-surface-hover ${
                       activeWs === w.id ? 'bg-primary-fixed/60' : ''
                     }`}
                     onClick={() => {
@@ -408,7 +408,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
                 ))}
                 {/* 账号偏好设置（对齐原型 19：面板底部入口 → /profile） */}
                 <button
-                  className="flex w-full items-center gap-2.5 border-t border-outline-variant/30 px-3.5 py-2.5 text-left transition-colors hover:bg-surface-container"
+                  className="flex w-full items-center gap-2.5 border-t border-outline-variant/30 px-3.5 py-2.5 text-left transition-colors hover:bg-surface-hover"
                   onClick={() => {
                     navigate('/profile')
                     setWsOpen(false)

@@ -224,7 +224,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
                          多给延迟只会让「滚下去看」的那几条白白晚出现。 */
                       style={idx < 10 ? { animationDelay: `${idx * 20}ms` } : undefined}
                       className={`anim-enter-up flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors ${
-                        idx === activeIndex ? 'bg-primary-fixed' : 'hover:bg-surface-container'
+                        idx === activeIndex ? 'bg-primary-fixed' : 'hover:bg-surface-hover'
                       }`}
                       onMouseEnter={() => setActive(idx)}
                       onClick={() => go(it)}

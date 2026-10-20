@@ -255,7 +255,7 @@ function PreviewSwitch({ on, onToggle }: { on: boolean; onToggle: () => void }) 
       aria-label="实时预览"
       title={`${on ? '关闭实时预览' : '开启实时预览'}（⌘/Ctrl+Shift+P）`}
       onClick={onToggle}
-      className="flex shrink-0 items-center gap-1.5 rounded-md px-1.5 py-0.5 text-[0.8571rem] text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface"
+      className="flex shrink-0 items-center gap-1.5 rounded-md px-1.5 py-0.5 text-[0.8571rem] text-on-surface-variant transition-colors hover:bg-surface-hover-high hover:text-on-surface"
     >
       <span>预览</span>
       <span
@@ -790,7 +790,7 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
       {/* 顶部：返回 / 标题 / 保存状态 / 字数 / 操作 */}
       <div className="flex shrink-0 items-center gap-3 pb-3">
         <button
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-surface-hover hover:text-on-surface"
           onClick={() => navigate('/notes')}
           title="返回列表"
         >
@@ -922,7 +922,7 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
                   <button
                     type="button"
                     title={a.title}
-                    className="flex h-7 min-w-7 items-center justify-center rounded-md px-1.5 text-[0.8571rem] text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface"
+                    className="flex h-7 min-w-7 items-center justify-center rounded-md px-1.5 text-[0.8571rem] text-on-surface-variant transition-colors hover:bg-surface-hover-high hover:text-on-surface"
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => applyMd(a)}
                   >
@@ -1069,7 +1069,7 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
                 )}
               </div>
               <button
-                className="shrink-0 rounded p-0.5 text-outline transition-colors hover:bg-surface-container-high hover:text-on-surface"
+                className="shrink-0 rounded p-0.5 text-outline transition-colors hover:bg-surface-hover-high hover:text-on-surface"
                 title="关闭"
                 onClick={() => setHoverCard(null)}
               >
@@ -1189,7 +1189,7 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
                   className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left transition-colors ${
                     i === safeActiveIdx
                       ? 'bg-primary-fixed text-primary'
-                      : 'hover:bg-surface-container-low'
+                      : 'hover:bg-surface-hover-low'
                   }`}
                   onClick={() => selectMentionItem(it)}
                   onMouseEnter={() => setActiveIdx(i)}

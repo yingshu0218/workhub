@@ -406,7 +406,7 @@ export default function AllTimelinesPage() {
               onPointerDown={(e) => e.stopPropagation()}
             >
               <button
-                className="flex h-7 w-7 items-center justify-center rounded-lg text-[1.1429rem] font-semibold text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
+                className="flex h-7 w-7 items-center justify-center rounded-lg text-[1.1429rem] font-semibold text-on-surface-variant transition-colors hover:bg-surface-hover hover:text-on-surface"
                 title="缩小"
                 onClick={() => panZoom.zoomTo(view.scale - 0.1)}
               >
@@ -416,7 +416,7 @@ export default function AllTimelinesPage() {
                 {Math.round(view.scale * 100)}%
               </span>
               <button
-                className="flex h-7 w-7 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
+                className="flex h-7 w-7 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-surface-hover hover:text-on-surface"
                 title="放大"
                 onClick={() => panZoom.zoomTo(view.scale + 0.1)}
               >
@@ -424,7 +424,7 @@ export default function AllTimelinesPage() {
               </button>
               <span className="mx-1 h-4 w-px bg-outline-variant/40" />
               <button
-                className="flex h-7 items-center gap-1 rounded-lg px-2 text-[0.8571rem] font-medium text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
+                className="flex h-7 items-center gap-1 rounded-lg px-2 text-[0.8571rem] font-medium text-on-surface-variant transition-colors hover:bg-surface-hover hover:text-on-surface"
                 title="重置缩放平移"
                 onClick={fitView}
               >

@@ -131,7 +131,7 @@ export default function QuickCapture({ collapsed = false }: { collapsed?: boolea
     return (
       <button
         type="button"
-        className="flex w-full items-center justify-center rounded-lg py-2 text-primary hover:bg-surface-container"
+        className="flex w-full items-center justify-center rounded-lg py-2 text-primary hover:bg-surface-hover"
         title="快速便签（悬停侧栏后展开输入）"
         aria-label="快速便签"
         onClick={() => {
@@ -148,7 +148,7 @@ export default function QuickCapture({ collapsed = false }: { collapsed?: boolea
   if (!open) {
     return (
       <button
-        className="flex w-full items-center justify-center rounded-lg py-2 hover:bg-surface-container"
+        className="flex w-full items-center justify-center rounded-lg py-2 hover:bg-surface-hover"
         onClick={() => {
           setOpen(true)
           setMultiline(false)

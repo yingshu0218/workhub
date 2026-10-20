@@ -267,7 +267,7 @@ export default function CustomerDetailPage() {
                     key={t.id}
                     type="button"
                     title="点击查看凭证详情"
-                    className="flex w-full cursor-pointer items-center justify-between gap-2 rounded-md px-1 py-0.5 text-left text-[0.8571rem] transition-colors hover:bg-surface-container-low"
+                    className="flex w-full cursor-pointer items-center justify-between gap-2 rounded-md px-1 py-0.5 text-left text-[0.8571rem] transition-colors hover:bg-surface-hover-low"
                     onClick={() => navigate(financeFocusPath(t.id))}
                   >
                     <span className="truncate text-on-surface-variant">{t.summary}</span>
@@ -508,7 +508,7 @@ function StatCard({
 }) {
   return (
     <button
-      className="rounded-xl bg-surface-container-low/60 p-4 text-left transition-colors hover:bg-surface-container-low"
+      className="rounded-xl bg-surface-container-low/60 p-4 text-left transition-colors hover:bg-surface-hover-low"
       onClick={onClick}
     >
       <div className="flex items-center justify-between">
@@ -554,7 +554,7 @@ function FinanceTable({
             <tr
               key={t.id}
               title="点击查看凭证详情"
-              className="cursor-pointer border-t border-outline-variant/30 transition-colors hover:bg-surface-container-low/60"
+              className="cursor-pointer border-t border-outline-variant/30 transition-colors hover:bg-surface-hover-low"
               onClick={() => onFocusTxn(t.id)}
             >
               <td className="py-2 whitespace-nowrap text-on-surface-variant">
@@ -602,7 +602,7 @@ function ProjectList({ projects, onOpen }: { projects: Project[]; onOpen: (id: s
       {projects.map((p) => (
         <button
           key={p.id}
-          className="flex w-full items-center gap-3 rounded-xl bg-surface-container-low/60 p-3 text-left transition-colors hover:bg-surface-container-low"
+          className="flex w-full items-center gap-3 rounded-xl bg-surface-container-low/60 p-3 text-left transition-colors hover:bg-surface-hover-low"
           onClick={() => onOpen(p.id)}
         >
           <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: p.color }} />
@@ -677,7 +677,7 @@ function ProfileTab({
             {notes.map((n) => (
               <button
                 key={n.id}
-                className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[0.8571rem] transition-colors hover:bg-surface-container-low"
+                className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[0.8571rem] transition-colors hover:bg-surface-hover-low"
                 onClick={() => onOpenNote(n.id)}
               >
                 <Icon name="description" size={14} className="shrink-0 text-primary" />
@@ -722,7 +722,7 @@ function TimelineItem({
         <button
           type="button"
           title="点击查看凭证详情"
-          className="mt-1 flex w-full cursor-pointer flex-wrap items-center gap-2 rounded-lg bg-surface-container-low/50 px-3 py-2 text-left text-[0.9286rem] leading-relaxed transition-colors hover:bg-surface-container-low"
+          className="mt-1 flex w-full cursor-pointer flex-wrap items-center gap-2 rounded-lg bg-surface-container-low/50 px-3 py-2 text-left text-[0.9286rem] leading-relaxed transition-colors hover:bg-surface-hover-low"
           onClick={() => onOpenTxn(event.recordId)}
         >
           <span className="truncate">{event.summary}</span>

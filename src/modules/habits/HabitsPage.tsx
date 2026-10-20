@@ -131,14 +131,14 @@ export default function HabitsPage() {
           </div>
           <div className="flex items-center gap-1">
             <button
-              className="rounded-md p-1.5 text-on-surface-variant hover:bg-surface-container-low"
+              className="rounded-md p-1.5 text-on-surface-variant hover:bg-surface-hover-low"
               onClick={() => shiftMonth(-1)}
             >
               <Icon name="chevron_left" size={20} />
             </button>
             <span className="min-w-[88px] text-center text-[0.9286rem] font-medium">{monthLabel}</span>
             <button
-              className="rounded-md p-1.5 text-on-surface-variant hover:bg-surface-container-low"
+              className="rounded-md p-1.5 text-on-surface-variant hover:bg-surface-hover-low"
               onClick={() => shiftMonth(1)}
             >
               <Icon name="chevron_right" size={20} />
@@ -300,14 +300,14 @@ export default function HabitsPage() {
                 </div>
                 {/* 触屏没有 hover，窄屏常显这两个按钮；md:opacity-0 让桌面保持「悬停才出现」原样 */}
                 <button
-                  className="rounded-md p-1.5 text-outline opacity-100 transition-opacity hover:bg-surface-container-low hover:text-primary group-hover:opacity-100 md:opacity-0"
+                  className="rounded-md p-1.5 text-outline opacity-100 transition-opacity hover:bg-surface-hover-low hover:text-primary group-hover:opacity-100 md:opacity-0"
                   title="编辑"
                   onClick={() => setEditing(habit)}
                 >
                   <Icon name="edit" size={18} />
                 </button>
                 <button
-                  className="rounded-md p-1.5 text-outline opacity-100 transition-opacity hover:bg-surface-container-low hover:text-danger group-hover:opacity-100 md:opacity-0"
+                  className="rounded-md p-1.5 text-outline opacity-100 transition-opacity hover:bg-surface-hover-low hover:text-danger group-hover:opacity-100 md:opacity-0"
                   title="删除习惯"
                   onClick={() => removeHabit(habit, totalChecks)}
                 >

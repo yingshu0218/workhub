@@ -129,7 +129,7 @@ export function HabitFormDrawer({
                 className={`flex h-10 w-10 items-center justify-center rounded-lg border transition-colors ${
                   icon === ic
                     ? 'border-primary bg-primary-fixed text-primary'
-                    : 'border-outline-variant text-on-surface-variant hover:bg-surface-container-low'
+                    : 'border-outline-variant text-on-surface-variant hover:bg-surface-hover-low'
                 }`}
               >
                 <Icon name={ic} size={22} />

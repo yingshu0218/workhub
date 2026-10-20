@@ -183,7 +183,7 @@ export default function FinancePage() {
           <div className="mb-3 flex items-center justify-between text-[0.8571rem] font-medium uppercase tracking-wide text-on-surface-variant">
             <span>账本（{ledgers.length}）</span>
             <button
-              className="rounded p-0.5 text-outline transition-colors hover:bg-surface-container-high hover:text-on-surface"
+              className="rounded p-0.5 text-outline transition-colors hover:bg-surface-hover-high hover:text-on-surface"
               title="新建账本"
               onClick={() => setNewLedgerOpen(true)}
             >
@@ -219,7 +219,7 @@ export default function FinancePage() {
                 actions={
                   <>
                     <button
-                      className="rounded p-0.5 text-outline transition-colors hover:bg-surface-container-high hover:text-primary"
+                      className="rounded p-0.5 text-outline transition-colors hover:bg-surface-hover-high hover:text-primary"
                       title="编辑账本"
                       onClick={(e) => {
                         e.stopPropagation()
@@ -505,7 +505,7 @@ function LedgerNode({
       className={`group flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1.5 text-[0.9286rem] transition-colors ${
         active
           ? 'bg-primary-fixed font-semibold text-primary'
-          : 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'
+          : 'text-on-surface-variant hover:bg-surface-hover-low hover:text-on-surface'
       }`}
     >
       {draggable && (
@@ -714,7 +714,7 @@ function TransactionRow({
     <div
       onClick={onOpen}
       style={staggerStyle(index)}
-      className="anim-list-item group flex cursor-pointer items-start gap-3 px-2 py-3.5 transition-colors hover:bg-surface-container-low/40"
+      className="anim-list-item group flex cursor-pointer items-start gap-3 px-2 py-3.5 transition-colors hover:bg-surface-hover-low"
     >
       <span
         className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
@@ -960,7 +960,7 @@ function TransactionDetailDrawer({
                   <button
                     key={customer.id}
                     onClick={() => navigate(`/crm/${customer.id}`)}
-                    className="flex w-full items-center justify-between rounded-xl bg-surface-container-low/60 p-3 text-left transition-colors hover:bg-surface-container-low"
+                    className="flex w-full items-center justify-between rounded-xl bg-surface-container-low/60 p-3 text-left transition-colors hover:bg-surface-hover-low"
                   >
                     <div className="flex min-w-0 items-center gap-3">
                       <Avatar name={customer.name} size={36} />
@@ -983,7 +983,7 @@ function TransactionDetailDrawer({
                   <button
                     key={todo.id}
                     onClick={() => navigate(todoFocusPath(todo.id))}
-                    className="flex w-full items-center justify-between rounded-xl bg-surface-container-low/60 p-3 text-left transition-colors hover:bg-surface-container-low"
+                    className="flex w-full items-center justify-between rounded-xl bg-surface-container-low/60 p-3 text-left transition-colors hover:bg-surface-hover-low"
                   >
                     <div className="flex min-w-0 items-center gap-3">
                       <Icon

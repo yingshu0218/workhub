@@ -43,7 +43,7 @@ export default function CrmCanvasPage() {
                 className={`px-3 py-1.5 text-[0.9286rem] font-medium transition-colors ${
                   mode === 'customer-only'
                     ? 'bg-primary text-on-primary'
-                    : 'text-on-surface-variant hover:bg-surface-container'
+                    : 'text-on-surface-variant hover:bg-surface-hover'
                 }`}
                 onClick={() => setMode('customer-only')}
               >
@@ -53,7 +53,7 @@ export default function CrmCanvasPage() {
                 className={`px-3 py-1.5 text-[0.9286rem] font-medium transition-colors ${
                   mode === 'mixed'
                     ? 'bg-primary text-on-primary'
-                    : 'text-on-surface-variant hover:bg-surface-container'
+                    : 'text-on-surface-variant hover:bg-surface-hover'
                 }`}
                 onClick={() => setMode('mixed')}
               >

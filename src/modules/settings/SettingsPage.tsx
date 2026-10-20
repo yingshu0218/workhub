@@ -252,7 +252,7 @@ function Segmented<T extends string | number>({
           className={`rounded-md px-3 py-1.5 text-[0.8929rem] transition-colors ${
             opt === value
               ? 'bg-primary font-medium text-on-primary'
-              : 'text-on-surface-variant hover:bg-surface-container'
+              : 'text-on-surface-variant hover:bg-surface-hover'
           }`}
           onClick={() => onChange(opt)}
         >
@@ -660,7 +660,7 @@ export default function SettingsPage() {
             className={`flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-[0.9286rem] transition-colors ${
               tab === t.id
                 ? 'bg-primary font-semibold text-on-primary'
-                : 'text-on-surface-variant hover:bg-surface-container'
+                : 'text-on-surface-variant hover:bg-surface-hover'
             }`}
             onClick={() => setTab(t.id)}
           >

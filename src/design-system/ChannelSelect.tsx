@@ -110,7 +110,7 @@ export default function ChannelSelect({
             aria-selected={!selected}
             onClick={() => pick('')}
             className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[0.9286rem] transition-colors ${
-              !selected ? 'bg-primary-fixed text-primary' : 'hover:bg-surface-container'
+              !selected ? 'bg-primary-fixed text-primary' : 'hover:bg-surface-hover'
             }`}
           >
             <Icon name="do_not_disturb_on" size={15} className="shrink-0 text-outline" />
@@ -128,7 +128,7 @@ export default function ChannelSelect({
               aria-selected={o.value === value}
               onClick={() => pick(o.value)}
               className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[0.9286rem] transition-colors ${
-                o.value === value ? 'bg-primary-fixed text-primary' : 'hover:bg-surface-container'
+                o.value === value ? 'bg-primary-fixed text-primary' : 'hover:bg-surface-hover'
               }`}
             >
               <Icon

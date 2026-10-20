@@ -231,7 +231,7 @@ export default function ProjectDetailPage() {
                     type="button"
                     title="点击查看凭证详情"
                     style={staggerStyle(i)}
-                    className="anim-list-item flex w-full cursor-pointer items-center justify-between rounded-lg bg-surface-container-low/50 px-3 py-2 text-left text-[0.8929rem] transition-colors hover:bg-surface-container-low"
+                    className="anim-list-item flex w-full cursor-pointer items-center justify-between rounded-lg bg-surface-container-low/50 px-3 py-2 text-left text-[0.8929rem] transition-colors hover:bg-surface-hover-low"
                     onClick={() => navigate(financeFocusPath(t.id))}
                   >
                     <span className="min-w-0 truncate">

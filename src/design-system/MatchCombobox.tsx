@@ -136,7 +136,7 @@ export function MatchCombobox({
             )}
           </button>
           <button
-            className="shrink-0 rounded p-0.5 text-outline transition-colors hover:bg-surface-container-high hover:text-on-surface"
+            className="shrink-0 rounded p-0.5 text-outline transition-colors hover:bg-surface-hover-high hover:text-on-surface"
             title="清除关联"
             onClick={() => commit('')}
           >
@@ -154,7 +154,7 @@ export function MatchCombobox({
                   onClick={() => commit(o.id)}
                   onMouseEnter={() => setActiveIdx(i)}
                   className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[0.9286rem] transition-colors ${
-                    i === safeIdx ? 'bg-primary-fixed text-primary' : 'hover:bg-surface-container'
+                    i === safeIdx ? 'bg-primary-fixed text-primary' : 'hover:bg-surface-hover'
                   }`}
                 >
                   <Icon
@@ -196,7 +196,7 @@ export function MatchCombobox({
                 onClick={() => commit(o.id)}
                 onMouseEnter={() => setActiveIdx(i)}
                 className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[0.9286rem] transition-colors ${
-                  i === safeIdx ? 'bg-primary-fixed text-primary' : 'hover:bg-surface-container'
+                  i === safeIdx ? 'bg-primary-fixed text-primary' : 'hover:bg-surface-hover'
                 }`}
               >
                 <Icon

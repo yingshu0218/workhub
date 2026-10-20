@@ -500,7 +500,7 @@ export default function TodoPage() {
                         : 'bg-primary-fixed font-semibold text-primary'
                     : l.prominent
                       ? 'bg-primary-container/10 font-semibold text-primary hover:bg-primary-container/20'
-                      : 'text-on-surface-variant hover:bg-surface-container'
+                      : 'text-on-surface-variant hover:bg-surface-hover'
                 }`}
               >
                 <Icon name={l.icon} size={19} />
@@ -547,7 +547,7 @@ export default function TodoPage() {
               className={`group/list flex w-full items-center gap-2 rounded-lg px-3 py-2 text-[0.9643rem] transition-colors ${
                 selListId === l.id
                   ? 'bg-primary-fixed font-semibold text-primary'
-                  : 'text-on-surface-variant hover:bg-surface-container'
+                  : 'text-on-surface-variant hover:bg-surface-hover'
               }`}
             >
               <span
@@ -648,7 +648,7 @@ export default function TodoPage() {
                         className={`rounded-full px-2.5 py-0.5 text-[0.8571rem] font-medium transition-colors ${
                           on
                             ? 'bg-primary-fixed text-primary'
-                            : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
+                            : 'bg-surface-container text-on-surface-variant hover:bg-surface-hover-high'
                         }`}
                       >
                         {meta.label}
@@ -667,7 +667,7 @@ export default function TodoPage() {
                 className={`rounded-lg p-1.5 transition-colors ${
                   sortDir === 'asc'
                     ? 'bg-primary-fixed text-primary'
-                    : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
+                    : 'bg-surface-container text-on-surface-variant hover:bg-surface-hover-high'
                 }`}
               >
                 <Icon name="arrow_upward" size={18} />
@@ -678,7 +678,7 @@ export default function TodoPage() {
                 className={`rounded-lg p-1.5 transition-colors ${
                   sortDir === 'desc'
                     ? 'bg-primary-fixed text-primary'
-                    : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
+                    : 'bg-surface-container text-on-surface-variant hover:bg-surface-hover-high'
                 }`}
               >
                 <Icon name="arrow_downward" size={18} />
@@ -767,7 +767,7 @@ export default function TodoPage() {
                        曾把它挪进 leaving 分支，导致退场行定位不到、测试全红。
 
                        交互反馈（2026-10-20 用户反馈「悬停与点击没有明显交互」后加强）：
-                       原先只有 `hover:bg-surface-container-low/40` —— 40% 不透明度太淡，
+                       原先只有 `hover:bg-surface-hover-low` —— 40% 不透明度太淡，
                        悬停几乎看不出来；点击更是**零反馈**（没有 active 态）。
                        现在补三件事：
                         ① `.press` —— 按下时整行轻微缩放（与按钮同一套手感）；
@@ -778,7 +778,7 @@ export default function TodoPage() {
                     className={`${
                       leaving
                         ? 'anim-row-out pointer-events-none'
-                        : 'anim-list-item press cursor-pointer hover:bg-surface-container-low/70 hover:shadow-sm'
+                        : 'anim-list-item press cursor-pointer hover:bg-surface-hover-low hover:shadow-sm'
                     } group flex items-center gap-3 rounded-lg py-3.5 ${
                       isFocusRing
                         ? 'focus:outline-2 focus:outline-primary bg-primary-fixed/60 -mx-2 px-2'
@@ -1689,7 +1689,7 @@ export function TodoDetailDrawer({
                   <button
                     key={txn.id}
                     onClick={() => navigate(financeFocusPath(txn.id))}
-                    className="flex w-full items-center justify-between rounded-xl bg-surface-container-low/60 p-3 text-left transition-colors hover:bg-surface-container-low"
+                    className="flex w-full items-center justify-between rounded-xl bg-surface-container-low/60 p-3 text-left transition-colors hover:bg-surface-hover-low"
                   >
                     <div className="min-w-0">
                       <div className="truncate text-[0.9286rem] font-medium">{txn.summary}</div>

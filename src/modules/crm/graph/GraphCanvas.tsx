@@ -622,7 +622,7 @@ export default function GraphCanvas({
                     className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[0.8571rem] font-medium shadow-sm backdrop-blur transition-colors ${
                       on
                         ? 'border-transparent text-white'
-                        : 'border-outline-variant/40 bg-surface-container-lowest/95 text-on-surface-variant hover:bg-surface-container'
+                        : 'border-outline-variant/40 bg-surface-container-lowest/95 text-on-surface-variant hover:bg-surface-hover'
                     }`}
                     style={on ? { background: c.color } : undefined}
                     onClick={() =>
@@ -706,7 +706,7 @@ export default function GraphCanvas({
         {!empty && showReheat && (
           <div className="absolute bottom-3 left-3 z-10" onPointerDown={(e) => e.stopPropagation()}>
             <button
-              className="flex h-7 items-center gap-1 surface-card/95 px-2 text-[0.8571rem] font-medium text-on-surface-variant shadow-md backdrop-blur transition-colors hover:bg-surface-container hover:text-on-surface"
+              className="flex h-7 items-center gap-1 surface-card/95 px-2 text-[0.8571rem] font-medium text-on-surface-variant shadow-md backdrop-blur transition-colors hover:bg-surface-hover hover:text-on-surface"
               title="释放固定点并重新计算布局"
               onClick={reheat}
             >
@@ -723,7 +723,7 @@ export default function GraphCanvas({
             onPointerDown={(e) => e.stopPropagation()}
           >
             <button
-              className="flex h-7 w-7 items-center justify-center rounded-lg text-[1.1429rem] font-semibold text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
+              className="flex h-7 w-7 items-center justify-center rounded-lg text-[1.1429rem] font-semibold text-on-surface-variant transition-colors hover:bg-surface-hover hover:text-on-surface"
               title="缩小"
               onClick={() => panZoom.zoomTo(view.scale - 0.1)}
             >
@@ -733,7 +733,7 @@ export default function GraphCanvas({
               {Math.round(view.scale * 100)}%
             </span>
             <button
-              className="flex h-7 w-7 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
+              className="flex h-7 w-7 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-surface-hover hover:text-on-surface"
               title="放大"
               onClick={() => panZoom.zoomTo(view.scale + 0.1)}
             >
@@ -741,7 +741,7 @@ export default function GraphCanvas({
             </button>
             <span className="mx-1 h-4 w-px bg-outline-variant/40" />
             <button
-              className="flex h-7 items-center gap-1 rounded-lg px-2 text-[0.8571rem] font-medium text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
+              className="flex h-7 items-center gap-1 rounded-lg px-2 text-[0.8571rem] font-medium text-on-surface-variant transition-colors hover:bg-surface-hover hover:text-on-surface"
               title="重置缩放平移，显示全部节点"
               onClick={fitView}
             >

@@ -23,6 +23,23 @@
   --color-surface-container: #e5eeff;
   --color-surface-container-high: #dce9ff;
 
+  /* ===== 专用悬停底色（2026-10-20 新增）=====
+     ⚠️ 为什么单独开一组，而不是把上面的 surface-container 整体加深：
+       上面那四档**同时**承担两种职责 —— 悬停反馈（37 处 hover:bg-*）
+       与**静态卡片/区块底色**（84 处 bg-*，比悬停还多）。
+       整体加深会连带把那 84 处底色一起变深、界面观感明显变重。
+       故此处只新增「悬停专用」档：静态底色零影响、悬停显著加深。
+
+     ⚠️ 数值依据（不是凭感觉挑的）：原 surface-container-low 在白底上
+       色差 Δ 仅 19.4、**暗色主题下更是只有 10.2** —— 这就是「鼠标移上去
+       看不出变化」的量化原因（用户 2026-10-20 反馈）。
+       新档取 Δ 41~77（亮）/ 50~93（暗），肉眼明确可辨，
+       且文字对比度仍远高于 WCAG AA 的 4.5（实测最低 7.5）。
+       色相全部落在主题蓝（#004AC6）的邻近区间，不引入第三个色系。 */
+  --color-surface-hover-low: #dce9ff;
+  --color-surface-hover: #cfe0ff;
+  --color-surface-hover-high: #bed5ff;
+
   --color-success: #006c49;
   --color-success-container: #6cf8bb;
   --color-warning: #943700;
@@ -90,6 +107,13 @@
   --color-surface-container-low: #141d30;
   --color-surface-container: #1a2438;
   --color-surface-container-high: #223050;
+
+  /* 悬停专用档（暗色）：对应亮色同名 token。
+     ⚠️ 原 -low 在此主题下与底色色差 Δ 仅 10.2 —— 暗色下几乎不可见，
+     是用户反馈的主因。新档 Δ 50~93。 */
+  --color-surface-hover-low: #223050;
+  --color-surface-hover: #2a3c63;
+  --color-surface-hover-high: #34496f;
 
   --color-success: #4ade80;
   --color-success-container: #053b26;

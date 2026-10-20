@@ -57,7 +57,7 @@ export default function CustomerInfoCard({
           </div>
         </div>
         <button
-          className="-mt-1 -mr-1 flex h-6 w-6 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-high"
+          className="-mt-1 -mr-1 flex h-6 w-6 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-hover-high"
           title="关闭"
           onClick={onClose}
         >

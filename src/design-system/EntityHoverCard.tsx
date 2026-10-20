@@ -275,7 +275,7 @@ function HoverCardBody({
           {label}
         </span>
         <button
-          className="shrink-0 rounded p-0.5 text-outline transition-colors hover:bg-surface-container-high hover:text-on-surface"
+          className="shrink-0 rounded p-0.5 text-outline transition-colors hover:bg-surface-hover-high hover:text-on-surface"
           title="关闭"
           onClick={onClose}
         >

@@ -294,7 +294,7 @@ export function TodayTodosCard() {
       <li
         key={t.id}
         className={`flex items-start gap-3 rounded-lg px-2 py-2 transition-colors ${
-          isOver ? 'border-l-2 border-danger/60 bg-danger/5' : 'hover:bg-surface-container-low'
+          isOver ? 'border-l-2 border-danger/60 bg-danger/5' : 'hover:bg-surface-hover-low'
         }`}
       >
         <button onClick={() => void toggle(t)} className="mt-0.5 shrink-0" title="标记完成">

@@ -120,6 +120,7 @@ This design system utilizes a functional palette where color communicates intent
 - **Success (Green):** Specifically reserved for financial data, positive growth metrics, and "complete" states.
 - **Neutral (Slate/Grey):** Used for structural elements, borders, and secondary text. The background is a cool off-white to reduce screen glare during long work sessions.
 - **Surface:** Pure white is used for cards and containers to pop against the subtle grey background, creating a clear "layered" effect.
+- **Hover (dedicated scale):** Interactive surfaces must use the dedicated `surface-hover-*` tokens — **never** the static `surface-container-*` ones. The `surface-container-*` scale also paints 80+ static cards/blocks, so it must stay light; hover states need a visibly stronger step than the card background. Rule of thumb: a hover fill should differ from the surface beneath it by Δ ≥ 40 (RGB euclidean), while keeping contrast against text well above WCAG AA (4.5:1).
 
 ## Typography
 
