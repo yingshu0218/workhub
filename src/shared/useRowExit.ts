@@ -23,6 +23,12 @@ import { isMotionOff } from './usePresence'
  * ⚠️ 调用方**不要**再对数组做 filter —— 把「该显示什么」整份交给它，
  * 否则「谁刚消失」这个信息在到达 hook 之前就丢了。
  *
+ * ## 输出顺序（关键）
+ * 返回数组里，**退场行保持在它原本的位置**（不是追加到末尾）——
+ * 这样它是「原地淡出 + 高度收拢」，其余行全程位置不动。
+ * ⚠️ 此约定曾被写反过，导致用户实测「点击完成待办没看到任何交互」，
+ * 详见下方输出组装处的注释。
+ *
  * ## 为什么不复用 usePresence
  * `usePresence` 管的是「单个布尔开关」。这里要跟踪的是一组 key：
  * 可能同时有 3 行在退场、又有新行插进来。给每个 key 建一个 hook 实例
@@ -49,11 +55,14 @@ export function useRowExit<T>(
   duration = 0,
   debugTag = 'row',
 ): { item: T; leaving: boolean }[] {
-  /** 正在播出场的行：数据已经不在 items 里了，所以要把数据快照自己留着 */
-  const [leaving, setLeaving] = useState<{ key: string; item: T }[]>([])
+  /**
+   * 正在播出场的行。除了数据快照，还要记**它原本在列表中的位置**（`at`）——
+   * 这决定了它退场时「从哪儿淡出」。
+   */
+  const [leaving, setLeaving] = useState<{ key: string; item: T; at: number }[]>([])
 
-  /** 上一帧的完整 key→item 快照，用于算出「这一帧少了谁」 */
-  const prev = useRef(new Map<string, T>())
+  /** 上一帧的完整 key→item 快照（含各自索引），用于算出「这一帧少了谁、它原本在第几位」 */
+  const prev = useRef(new Map<string, { item: T; at: number }>())
   const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>())
   const alive = useRef(true)
   /** effect 里要读最新的 leaving，但不能把它放进依赖（否则每帧重启） */
@@ -77,8 +86,8 @@ export function useRowExit<T>(
   const keySig = items.map(keyOf).join('\u0000')
 
   useEffect(() => {
-    const next = new Map<string, T>()
-    for (const it of items) next.set(keyOf(it), it)
+    const next = new Map<string, { item: T; at: number }>()
+    items.forEach((it, i) => next.set(keyOf(it), { item: it, at: i }))
 
     // ① 重新出现的 key（撤销打勾、又打开）→ 立刻中止它的退场，避免「回来了却还在淡出」
     for (const l of leavingRef.current) {
@@ -93,7 +102,7 @@ export function useRowExit<T>(
 
     // ② 上一帧有、这一帧没了的 key → 进入退场
     const degraded = isMotionOff() || duration <= 0
-    for (const [key, item] of prev.current) {
+    for (const [key, snap] of prev.current) {
       if (next.has(key)) continue
       if (degraded) continue // 降级：直接丢弃，不留存活项
       if (timers.current.has(key)) continue // 已在退场中（同一 key 被复用）
@@ -103,7 +112,9 @@ export function useRowExit<T>(
         void debugTag
       }
 
-      setLeaving((ls) => (ls.some((l) => l.key === key) ? ls : [...ls, { key, item }]))
+      setLeaving((ls) =>
+        ls.some((l) => l.key === key) ? ls : [...ls, { key, item: snap.item, at: snap.at }],
+      )
       const timer = setTimeout(() => {
         timers.current.delete(key)
         if (alive.current) setLeaving((ls) => ls.filter((l) => l.key !== key))
@@ -117,12 +128,33 @@ export function useRowExit<T>(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [keySig, duration, keyOf])
 
+  /**
+   * 组装输出：**退场行按原位置插回**，而不是一律追加到末尾。
+   *
+   * ⚠️⚠️ 这里曾经写成「原数组 + 追加在后的退场行」，是**错的**（2026-10-20 用户实测
+   * 「点击完成待办没看到任何交互」后定位到）。当时的注释还把理由写反了：
+   *   说的是「插回原位剩余行会上移一格」——实际恰恰相反。
+   *
+   * 追加到末尾会怎样：打勾中间某行时，该行**瞬间跳到列表底部**去淡出，
+   * 而它原位置下方的行**立刻整体上移一格**。用户看到的是「行突然不见 + 列表跳动」，
+   * 完全不是「原地淡出」。插回原位则它**占着原来的位置**淡出、高度收拢，
+   * 其余行在整个过程中**位置不动**，收拢结束才自然合上 —— 这才是想要的观感。
+   *
+   * 实现：先按当前 items 建结果数组；每个退场行用它的原索引 `at` 插回去
+   * （同一位置若有多个，按原索引升序稳定插入）。
+   */
   const nowKeys = new Set(items.map(keyOf))
   const exits = leaving
     .filter((l) => !nowKeys.has(l.key))
-    .map((l) => ({ item: l.item, leaving: true }))
+    .sort((a, b) => a.at - b.at)
 
-  return [...items.map((item) => ({ item, leaving: false })), ...exits]
+  const out: { item: T; leaving: boolean }[] = items.map((item) => ({ item, leaving: false }))
+  for (const l of exits) {
+    // `at` 是「消失前那一帧的索引」。当前列表已比它短，故夹到合法范围。
+    const pos = Math.max(0, Math.min(l.at, out.length))
+    out.splice(pos, 0, { item: l.item, leaving: true })
+  }
+  return out
 }
 
 /**

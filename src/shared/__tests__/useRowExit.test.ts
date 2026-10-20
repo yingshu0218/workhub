@@ -152,19 +152,62 @@ describe('useRowExit · 有动效时（mock 掉降级判定）', () => {
     expect(keysOf(result.current)).toEqual(['b'])
   })
 
-  it('返回顺序 = 原数组顺序 + 追加在后的退场行（保证剩余行不因移除而跳位）', () => {
+  it('⚠️ 返回顺序：退场行必须**留在原位**，不得被追加到末尾', () => {
     /**
-     * 顺序很重要：若把退场行插到它原本的位置，它消失时后面的行仍会整体上移一格；
-     * 而追加到末尾的话，退场行是「原地淡出」，其余行的位置在整个过程里都不变。
+     * ⚠️ 这条曾经锁的是**错误行为**（2026-10-20 用户实测「点击完成待办没看到
+     * 任何交互」后定位到）。当时的写法与理由：
+     *   「追加在后 —— 插回原位的话后面的行会整体上移一格」
+     * **完全说反了**：
+     *   · 插回原位 → 退场行占着原位置淡出+收拢 → 其余行**位置不动** ✅
+     *   · 追加到末尾 → 退场行**瞬间跳到列表底部**淡出，且它原位置下方的行
+     *     **立刻上移一格** → 用户看到「行突然不见 + 列表跳动」❌
+     * 现在改成锁正确行为；实现是「退场行按原索引插回」。
      */
     const { result, rerender } = renderHook(({ items }: { items: typeof A[] }) =>
       useRowExit(items, keyOf, 200),
       { initialProps: { items: [A, B, C] } },
     )
 
-    rerender({ items: [A, C] }) // b 消失
-    expect(keysOf(result.current)).toEqual(['a', 'c', 'b'])
+    rerender({ items: [A, C] }) // 中间的 b 消失
+    // b 必须仍在**第 2 个位置**（原索引 1），绝不能跑到末尾
+    expect(keysOf(result.current), '退场行跑到末尾了 —— 会表现为列表跳动').toEqual([
+      'a',
+      'b',
+      'c',
+    ])
     expect(leavingOf(result.current)).toEqual(['b'])
+    // 顺带确认 leaving 标志只在该行上
+    expect(result.current.find((r) => r.item.id === 'b')!.leaving).toBe(true)
+    expect(result.current.find((r) => r.item.id === 'c')!.leaving).toBe(false)
+  })
+
+  it('首位行退场留在首位；末位行退场留在末位（边界）', () => {
+    // 首位
+    const first = renderHook(({ items }: { items: typeof A[] }) => useRowExit(items, keyOf, 200), {
+      initialProps: { items: [A, B, C] },
+    })
+    first.rerender({ items: [B, C] })
+    expect(keysOf(first.result.current)).toEqual(['a', 'b', 'c'])
+
+    // 末位
+    const last = renderHook(({ items }: { items: typeof A[] }) => useRowExit(items, keyOf, 200), {
+      initialProps: { items: [A, B, C] },
+    })
+    last.rerender({ items: [A, B] })
+    expect(keysOf(last.result.current)).toEqual(['a', 'b', 'c'])
+  })
+
+  it('同时多行退场：各自留在原位，不互相挤位', () => {
+    const { result, rerender } = renderHook(({ items }: { items: typeof A[] }) =>
+      useRowExit(items, keyOf, 200),
+      { initialProps: { items: [A, B, C] } },
+    )
+
+    rerender({ items: [B] }) // a 与 c 同时消失
+    expect(keysOf(result.current)).toEqual(['a', 'b', 'c'])
+    expect(result.current.find((r) => r.item.id === 'a')!.leaving).toBe(true)
+    expect(result.current.find((r) => r.item.id === 'b')!.leaving).toBe(false)
+    expect(result.current.find((r) => r.item.id === 'c')!.leaving).toBe(true)
   })
 
   it('时长取自 ROW_EXIT_DURATION_MS 的语义：与 .anim-row-out 的基时一致', () => {
