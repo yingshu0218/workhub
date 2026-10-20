@@ -136,6 +136,30 @@ describe('motion token 层（src/styles/index.css）', () => {
     }
   })
 
+  it('⚠️ `.press` 的 transition 必须包含颜色属性（无层级声明会压掉 transition-colors）', () => {
+    /**
+     * 2026-10-20 用户反馈「鼠标移动到组件、点击之后没有明显的交互」时定位到的缺陷。
+     *
+     * `.press` 是**无层级声明**，优先级高于 `@layer utilities`；而 Tailwind 的
+     * `transition-colors` 在 layer 内。两者都声明 `transition` 属性 → 无层级那条
+     * **整条覆盖**掉 layer 内那条 → `transition-colors` 完全失效 →
+     * **hover 变色从平滑过渡退化为瞬间跳变**（按钮上尤其明显）。
+     *
+     * 修法是让 `.press` 自己把颜色属性也列进同一条 transition（与 `.lift` 同范式）。
+     * 这条锁防止有人日后「精简」掉看似冗余的颜色项，导致缺陷复发。
+     */
+    const pressBlock = code.match(/\.press\s*\{([\s\S]*?)\}/)?.[1] ?? ''
+    expect(pressBlock, '.press 规则不见了').not.toBe('')
+    // 至少要有颜色相关的过渡项，否则 transition-colors 会被压掉
+    for (const prop of ['color', 'background-color']) {
+      expect(pressBlock, `.press 的 transition 缺少「${prop}」—— transition-colors 会被压掉`).toContain(
+        prop,
+      )
+    }
+    // 按压缩放本身不能丢
+    expect(pressBlock).toContain('transform')
+  })
+
   it('语义类齐全（.anim-* / .press / .lift）', () => {
     for (const name of [
       '.anim-overlay-in',

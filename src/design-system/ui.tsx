@@ -184,7 +184,10 @@ export function Button({
   disabled?: boolean
 }) {
   const base =
-    'press inline-flex items-center gap-1.5 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:pointer-events-none'
+    // ⚠️ 刻意**不写** `transition-colors`：`.press` 是无层级声明，它的 transition
+    // 会整条压掉 layer 内的 Tailwind 过渡类 → 写了也是死代码、还会误导下一个人。
+    // 颜色过渡已由 `.press` 自己承担（transform 与颜色属性并列，见 styles/index.css）。
+    'press inline-flex items-center gap-1.5 rounded-lg font-medium disabled:opacity-50 disabled:pointer-events-none'
   const sizes = size === 'sm' ? 'h-8 px-3 text-[0.9286rem]' : 'h-9 px-4'
   const variants = {
     primary: 'bg-primary text-on-primary hover:bg-primary-container',

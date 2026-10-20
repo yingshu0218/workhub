@@ -764,12 +764,22 @@ export default function TodoPage() {
                        （行内编辑/删除按钮靠 `group-hover:opacity-100` 显隐）；
                        2) 本仓库多个测试用 `closest('.group')` 定位行根
                        （todoRowLayout / todoRowDetail / todoRowExit）——
-                       曾把它挪进 leaving 分支，导致退场行定位不到、测试全红。 */
+                       曾把它挪进 leaving 分支，导致退场行定位不到、测试全红。
+
+                       交互反馈（2026-10-20 用户反馈「悬停与点击没有明显交互」后加强）：
+                       原先只有 `hover:bg-surface-container-low/40` —— 40% 不透明度太淡，
+                       悬停几乎看不出来；点击更是**零反馈**（没有 active 态）。
+                       现在补三件事：
+                        ① `.press` —— 按下时整行轻微缩放（与按钮同一套手感）；
+                        ② 悬停底色提到 /70 并补 `hover:shadow-sm` —— 让「这一行可点」显形；
+                        ③ 过渡交给 `.press` 统一承担（它已把 transform 与颜色属性并列），
+                           故移除 `transition-all`（那条会与 `.press` 的无层级 transition
+                           打架，且 `all` 会把布局属性也拖进过渡，代价高）。 */
                     className={`${
                       leaving
                         ? 'anim-row-out pointer-events-none'
-                        : 'anim-list-item cursor-pointer'
-                    } group flex items-center gap-3 rounded-lg py-3.5 transition-all duration-300 hover:bg-surface-container-low/40 ${
+                        : 'anim-list-item press cursor-pointer hover:bg-surface-container-low/70 hover:shadow-sm'
+                    } group flex items-center gap-3 rounded-lg py-3.5 ${
                       isFocusRing
                         ? 'focus:outline-2 focus:outline-primary bg-primary-fixed/60 -mx-2 px-2'
                         : ''

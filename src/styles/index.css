@@ -637,10 +637,28 @@ body {
 }
 
 /* ---- 交互反馈：按压 / 悬停抬升 ----
-   取代散落各处的 active:scale-90 / active:scale-95（原值不统一，视觉上「有的按得深有的浅」）。 */
+   取代散落各处的 active:scale-90 / active:scale-95（原值不统一，视觉上「有的按得深有的浅」）。
+
+   ⚠️⚠️ 这里的 transition **必须把颜色属性也写进去**（不能只写 transform）。
+   原因：`.press` 是**无层级声明**，优先级高于 `@layer utilities` ——
+   而 Tailwind 的 `transition-colors` 在 layer 内。两者都声明 `transition` 属性时，
+   无层级那条会**整条覆盖**掉 layer 内那条 → `transition-colors` 完全失效
+   → **hover 变色退化成瞬间跳变**（2026-10-20 用户反馈「悬停与点击没有明显交互」时定位到）。
+   把 color/background-color/border-color/opacity/fill/stroke 一并列出，
+   既保留按压缩放、又保住颜色过渡。`.lift` 早就是同范式（两条属性并列），此处对齐它。
+
+   时长取 fast（150ms）：按压反馈要跟手，比颜色过渡（base 200ms）更短才不粘。 */
 .press {
-  transition: transform calc(var(--motion-duration-fast) * var(--motion-duration-scale))
-    var(--skin-motion-ease, var(--ease-standard));
+  transition:
+    transform calc(var(--motion-duration-fast) * var(--motion-duration-scale))
+      var(--skin-motion-ease, var(--ease-standard)),
+    color calc(var(--motion-duration-base) * var(--motion-duration-scale)) var(--ease-standard),
+    background-color calc(var(--motion-duration-base) * var(--motion-duration-scale))
+      var(--ease-standard),
+    border-color calc(var(--motion-duration-base) * var(--motion-duration-scale))
+      var(--ease-standard),
+    box-shadow calc(var(--motion-duration-base) * var(--motion-duration-scale)) var(--ease-standard),
+    opacity calc(var(--motion-duration-base) * var(--motion-duration-scale)) var(--ease-standard);
 }
 
 .press:active {
