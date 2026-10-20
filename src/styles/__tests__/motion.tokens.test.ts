@@ -160,6 +160,36 @@ describe('motion token 层（src/styles/index.css）', () => {
     expect(pressBlock).toContain('transform')
   })
 
+  it('⚠️ `.press` 必须真的产生位移效果、`.press-flat` 必须**不**产生（宽窄两类元素分工）', () => {
+    /**
+     * ⚠️⚠️ 2026-10-21 用户实测：「待办事项要点击好几次才能勾选完成」。
+     *
+     * 根因：我前一天给**待办行根**加了 `.press`。`.press:active` 是
+     * `transform: scale(0.97)`，而行宽约 800px → 按下瞬间左右各收缩约 12px
+     * → **行内子元素（含 20px 的勾选框）跟着位移**；若 pointerup 时指针已不在
+     * 按钮上，**click 根本不触发** → 表现为「点好几次才成功」。
+     *
+     * 分工原则（这条锁钉住它）：
+     *   · `.press`      → 窄元素（按钮/图标）。缩放 3% 只有零点几像素，安全。
+     *   · `.press-flat` → 宽交互面（列表行、整块卡片）。**只换色、不位移**。
+     *
+     * 若有人把 `.press-flat` 也加上 transform，同样的问题会在所有宽行上复发；
+     * 若有人把 `.press` 的 transform 删掉，按钮的按压手感会整体消失。
+     */
+    const press = code.match(/\n\.press \{([\s\S]*?)\}/)?.[1] ?? ''
+    expect(press, '.press 规则不见了').not.toBe('')
+    expect(press, '.press 丢了 transform —— 按钮按压缩放会失效').toContain('transform')
+
+    const flat = code.match(/\.press-flat \{([\s\S]*?)\}/)?.[1] ?? ''
+    expect(flat, '.press-flat 规则不见了（宽交互面专用）').not.toBe('')
+    expect(
+      flat,
+      '⚠️ .press-flat 不得含 transform —— 宽元素位移会让内部按钮点不中',
+    ).not.toContain('transform')
+    // 但它必须承接颜色过渡，否则宽行的 hover/active 会瞬间跳变
+    expect(flat, '.press-flat 需要 background-color 过渡').toContain('background-color')
+  })
+
   it('语义类齐全（.anim-* / .press / .lift）', () => {
     for (const name of [
       '.anim-overlay-in',

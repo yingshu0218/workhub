@@ -689,6 +689,26 @@ body {
   transform: scale(var(--motion-press));
 }
 
+/* ---- `.press-flat`：宽交互面专用的「不位移」按压反馈 ----
+   ⚠️⚠️ 为什么宽元素不能用 `.press`（2026-10-21 用户实测：「待办要点击好几次才能勾选完成」）：
+   `.press:active` 是 `transform: scale(0.97)`。元素**越宽、边缘位移越大** ——
+   待办行宽约 800px，按下瞬间左右各收缩约 12px，**行内子元素（含 20px 的勾选框）
+   跟着位移**。若 pointerup 时指针已落在按钮之外，**click 根本不触发**，
+   表现为「点好几次才成功」——越靠近行的右半边、越容易踩到。
+   故：**宽交互面（列表行、整块卡片）只能用不产生位移的反馈**，
+   窄元素（按钮、图标）才适合缩放 —— 它们缩放 3% 也只有零点几像素。
+
+   本类只做颜色过渡（不碰 transform），配合 `active:bg-*` 使用。
+   时长取 base（200ms 与悬停同速），比 `.press` 的 fast 稍慢 ——
+   大面积变色若太快会显得闪。 */
+.press-flat {
+  transition:
+    background-color calc(var(--motion-duration-base) * var(--motion-duration-scale))
+      var(--ease-standard),
+    color calc(var(--motion-duration-base) * var(--motion-duration-scale)) var(--ease-standard),
+    box-shadow calc(var(--motion-duration-base) * var(--motion-duration-scale)) var(--ease-standard);
+}
+
 .lift {
   transition:
     box-shadow calc(var(--motion-duration-base) * var(--motion-duration-scale)) var(--ease-standard),

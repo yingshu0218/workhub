@@ -70,7 +70,9 @@ function rowOf(title: string): HTMLElement | null {
  * ⚠️ 不能用 `row.querySelector('button')` —— 行内有 5 个 button
  * （勾选框 / 作废 / 编辑 / 删除，加终态视图的恢复），只知道「第一个」不可靠：
  * 实测过一次「第二次点击打到了别的按钮」导致断言莫名其妙地失败。
- * 勾选框的稳定特征：**`class="shrink-0"` 且没有 title**（其余按钮都带 title）。
+ * 勾选框的稳定特征：**含 `shrink-0` 类且没有 title**（其余按钮都带 title）。
+ * ⚠️ 用 `includes` 而不是 `=== 'shrink-0'` —— 它的类名会随样式演进增减
+ * （例如 2026-10-21 加了 `press`），严格相等会让测试无谓地碎掉。
  *
  * 每次调用都**重新查询** DOM —— 勾选后该行会重渲染，旧节点已失效。
  */
@@ -78,7 +80,7 @@ function checkBoxEl(title: string): HTMLButtonElement {
   const row = rowOf(title)
   if (!row) throw new Error(`「${title}」行不在 DOM 上`)
   const btns = Array.from(row.querySelectorAll('button'))
-  const cb = btns.find((b) => b.className === 'shrink-0' && !b.getAttribute('title'))
+  const cb = btns.find((b) => b.className.includes('shrink-0') && !b.getAttribute('title'))
   if (!cb) throw new Error(`未找到「${title}」行内的状态勾选框`)
   return cb as HTMLButtonElement
 }
@@ -225,5 +227,54 @@ describe('待办行退场 · 单条（清空场景，2026-10-20 修复的缺陷�
 describe('待办行退场 · 常量', () => {
   it('ROW_EXIT_DURATION_MS 非零 —— 若被改成 0，退场能力整体失效', () => {
     expect(ROW_EXIT_DURATION_MS).toBeGreaterThan(0)
+  })
+})
+
+describe('⚠️ 勾选必须「一次点中」（2026-10-21 用户实测缺陷）', () => {
+  /**
+   * 用户原话：「现在待办事项我要点击好几次才能勾选完成」。
+   *
+   * 根因：前一天我给**行根**加了 `.press`（`transform: scale(0.97)`）。
+   * 待办行宽约 800px → 按下瞬间整行左右各收缩约 12px → **行内 20px 的勾选框
+   * 跟着位移**；pointerup 时指针若已不在按钮上，**click 根本不触发**。
+   * 越靠行的右半边、越容易踩到（因此用户感觉「要试好几次」）。
+   *
+   * 修法：行根改用 `.press-flat`（只换色不位移），`.press` 只留给窄元素。
+   *
+   * ⚠️ 这条测试**只能在 jsdom 里验「类名与 transform 的关系」**，没法模拟真实
+   * 指针位移（jsdom 不做布局、不算点击命中）。所以它对上面那个像素级因果
+   * 只能做到「防止类名回退」—— 真正的验收必须是**人眼在真机点一次**。
+   * 这里两条断言就是那道防线。
+   */
+  it('行根不得含 `.press`（宽行缩放会让内部按钮点不中）', async () => {
+    await renderWith([todo('t1', '甲', 2), todo('t2', '乙', 1)])
+    const row = rowOf('甲')!
+    const cls = row.className
+
+    // ⚠️ 用词界正则：不能直接 includes('press')，因为 press-flat 里含该子串
+    expect(/(^|\s)press(\s|$)/.test(cls), `行根仍在用 .press：${cls}`).toBe(false)
+    expect(cls, '行根应改用 .press-flat').toContain('press-flat')
+  })
+
+  it('按压反馈靠换底色，不靠位移（active:bg-* 就位）', async () => {
+    await renderWith([todo('t1', '甲', 2)])
+    // active 态用背景色变化 —— 这是宽交互面唯一安全的反馈方式
+    expect(rowOf('甲')!.className).toContain('active:bg-')
+  })
+
+  it('勾选框自身仍保留 `.press`（它是窄元素，缩放安全且有手感）', async () => {
+    await renderWith([todo('t1', '甲', 2)])
+    const cb = checkBoxEl('甲')
+    expect(cb.className, '勾选框丢了 .press —— 按压手感会消失').toMatch(/(^|\s)press(\s|$)/)
+  })
+
+  it('单次点击即可完成（不能出现「点了没反应」）', async () => {
+    // 行为层兜底：确认一次点击真的改到了 DB
+    await renderWith([todo('t1', '甲', 2), todo('t2', '乙', 1)])
+    expect((await db.todos.get('t1'))!.status).toBe('todo')
+    check('甲')
+    await waitFor(async () => {
+      expect((await db.todos.get('t1'))!.status).toBe('done')
+    })
   })
 })

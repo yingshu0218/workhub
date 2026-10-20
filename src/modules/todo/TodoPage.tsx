@@ -766,19 +766,24 @@ export default function TodoPage() {
                        （todoRowLayout / todoRowDetail / todoRowExit）——
                        曾把它挪进 leaving 分支，导致退场行定位不到、测试全红。
 
-                       交互反馈（2026-10-20 用户反馈「悬停与点击没有明显交互」后加强）：
-                       原先只有 `hover:bg-surface-hover-low` —— 40% 不透明度太淡，
-                       悬停几乎看不出来；点击更是**零反馈**（没有 active 态）。
-                       现在补三件事：
-                        ① `.press` —— 按下时整行轻微缩放（与按钮同一套手感）；
-                        ② 悬停底色提到 /70 并补 `hover:shadow-sm` —— 让「这一行可点」显形；
-                        ③ 过渡交给 `.press` 统一承担（它已把 transform 与颜色属性并列），
-                           故移除 `transition-all`（那条会与 `.press` 的无层级 transition
-                           打架，且 `all` 会把布局属性也拖进过渡，代价高）。 */
+                       交互反馈（2026-10-20/21 用户两轮反馈后定型）：
+                       原先只有 `hover:bg-surface-container-low/40` —— 太淡、看不出；
+                       点击更是**零反馈**。现改为：
+                        ① 悬停用**专用档** `hover:bg-surface-hover-low` + `hover:shadow-sm`
+                           —— 让「这一行可点」显形；
+                        ② 按压反馈走 `active:bg-surface-hover`（**不是** `.press`）。
+
+                       ⚠️⚠️ **行根绝不能用 `.press`**（2026-10-20 我加过、2026-10-21 被用户
+                       实测打回：「要点击好几次才能勾选完成」）。原因：`.press:active` 是
+                       `transform: scale(0.97)`，而行**很宽**（约 800px）→ 按下瞬间整行左右
+                       各收缩约 12px，**行内所有子元素（含 20px 的勾选框）跟着位移**；
+                       若 pointerup 时指针已不在按钮上，**click 根本不触发** → 表现为
+                       「点好几次才成功」。宽容器只能用「换底色」这类**不产生位移**的反馈。
+                       窄元素（按钮）才适合缩放 —— 故 `.press` 只加在行内的勾选框上。 */
                     className={`${
                       leaving
                         ? 'anim-row-out pointer-events-none'
-                        : 'anim-list-item press cursor-pointer hover:bg-surface-hover-low hover:shadow-sm'
+                        : 'anim-list-item press-flat cursor-pointer hover:bg-surface-hover-low hover:shadow-sm active:bg-surface-hover'
                     } group flex items-center gap-3 rounded-lg py-3.5 ${
                       isFocusRing
                         ? 'focus:outline-2 focus:outline-primary bg-primary-fixed/60 -mx-2 px-2'
@@ -802,7 +807,7 @@ export default function TodoPage() {
                           e.stopPropagation()
                           void toggle(t)
                         }}
-                        className="shrink-0"
+                        className="press shrink-0"
                       >
                         <Icon
                           name={isTodoDone(t) ? 'check_circle' : 'radio_button_unchecked'}
