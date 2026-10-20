@@ -688,7 +688,13 @@ export default function TodoPage() {
               </span>
             </div>
           </Card>
-          {filtered.length === 0 ? (
+          {/* ⚠️ 判空必须用 `rows.length` 而不是 `filtered.length`（2026-10-20 实测发现的缺陷）：
+              `rows` 含**正在退场的行**。若这里用 `filtered.length === 0`，
+              打勾**最后一条**时 filtered 变空 → 走空态分支 → **整个列表容器连同
+              `useRowExit` 一起被卸载**，退场中的行跟着消失、动画根本没机会播。
+              这正是「清空今日待办」这个最该有退场表现的场景。
+              用 rows.length 则空态会等退场播完（200ms）后再出现，语义也对。 */}
+            {rows.length === 0 ? (
             <Card className="p-6">
               {chipPriority && baseScope.length > 0 ? (
                 <EmptyState
@@ -730,21 +736,40 @@ export default function TodoPage() {
                       if (el) rowRefs.current.set(t.id, el)
                       else rowRefs.current.delete(t.id)
                     }}
-                    draggable={isTodoOpen(t)}
+                    draggable={!leaving && isTodoOpen(t)}
                     onDragStart={(e) => {
                       e.dataTransfer.setData('application/x-nexus-todo', t.id)
                       e.dataTransfer.effectAllowed = 'move'
                     }}
-                    title={isTodoOpen(t) ? '拖动到左侧清单可移动归属' : undefined}
-                    onClick={() => setDetailId(t.id)}
+                    title={!leaving && isTodoOpen(t) ? '拖动到左侧清单可移动归属' : undefined}
+                    /* ⚠️ 退场行**必须彻底不可交互**（2026-10-20 实测发现的真 bug）。
+                       退场行的数据来自 useRowExit 的**快照**，而快照是「该行被移出
+                       filtered 之前」抓的 —— 打勾后就完成的行，其快照 status 仍是
+                       'todo'。此时点勾选框 → `toggleTodoDone(快照)` 用 done=false 分支
+                       → **把 status 又写成 'done'**，等于拿过期数据覆盖当前数据。
+                       表现为「点了没反应」，实则写坏了记录（同理影响作废/删除/编辑）。
+                       两条防线都要，因为作用域不同：
+                        · `pointer-events-none` —— 真浏览器里覆盖**行内全部子元素**
+                         （含 5 个按钮与行点击），是主防线；
+                        · 下面各写库按钮的 `disabled={leaving}` —— jsdom 不跑 CSS，
+                         `pointer-events-none` 在那里不生效，需 JS 层兜底（也才好测）。 */
+                    aria-hidden={leaving}
+                    onClick={leaving ? undefined : () => setDetailId(t.id)}
                     /* 错峰入场挂在**行根**：绝不能在 flex 主列内插元素——
                        `todoRowLayout` 的 `firstElementChild` 链依赖当前结构。
                        正在退场的行改用 `.anim-row-out`（淡出 + 高度收拢），
                        并且**不挂** staggerStyle —— 出场是即时的，延迟只会让它更晚消失。 */
                     style={leaving ? undefined : staggerStyle(i)}
+                    /* ⚠️ `group` 必须**无条件**保留：1) 它是 Tailwind 的 group-hover 锚点
+                       （行内编辑/删除按钮靠 `group-hover:opacity-100` 显隐）；
+                       2) 本仓库多个测试用 `closest('.group')` 定位行根
+                       （todoRowLayout / todoRowDetail / todoRowExit）——
+                       曾把它挪进 leaving 分支，导致退场行定位不到、测试全红。 */
                     className={`${
-                      leaving ? 'anim-row-out' : 'anim-list-item'
-                    } group flex cursor-pointer items-center gap-3 rounded-lg py-3.5 transition-all duration-300 hover:bg-surface-container-low/40 ${
+                      leaving
+                        ? 'anim-row-out pointer-events-none'
+                        : 'anim-list-item cursor-pointer'
+                    } group flex items-center gap-3 rounded-lg py-3.5 transition-all duration-300 hover:bg-surface-container-low/40 ${
                       isFocusRing
                         ? 'focus:outline-2 focus:outline-primary bg-primary-fixed/60 -mx-2 px-2'
                         : ''
@@ -759,6 +784,9 @@ export default function TodoPage() {
                       </span>
                     ) : (
                       <button
+                        /* 退场行禁用：其数据是过期快照，写库会用陈旧字段覆盖当前记录
+                           （详见行根 className 处的说明）。真浏览器另有 pointer-events-none。 */
+                        disabled={leaving}
                         onClick={(e) => {
                           // 行内动作不穿透到「打开详情」（Issue #162 行点击）
                           e.stopPropagation()
@@ -944,7 +972,8 @@ export default function TodoPage() {
                     ) : (
                       <button
                         title="作废（终止事项，记录保留，可恢复）"
-                        className="flex shrink-0 items-center gap-1 rounded-lg border border-outline-variant/60 px-2.5 py-1 text-[0.8571rem] text-on-surface-variant transition-colors hover:border-warning hover:text-warning"
+                        disabled={leaving}
+                        className="flex shrink-0 items-center gap-1 rounded-lg border border-outline-variant/60 px-2.5 py-1 text-[0.8571rem] text-on-surface-variant transition-colors hover:border-warning hover:text-warning disabled:pointer-events-none"
                         onClick={(e) => {
                           e.stopPropagation()
                           void handleVoid(t)
@@ -956,7 +985,8 @@ export default function TodoPage() {
                     )}
                     <button
                       title="编辑待办"
-                      className="text-outline opacity-0 transition-opacity hover:text-primary group-hover:opacity-100"
+                      disabled={leaving}
+                      className="text-outline opacity-0 transition-opacity hover:text-primary group-hover:opacity-100 disabled:pointer-events-none"
                       onClick={(e) => {
                         e.stopPropagation()
                         setEditing(t)
@@ -966,7 +996,8 @@ export default function TodoPage() {
                     </button>
                     <button
                       title="删除待办"
-                      className="text-outline opacity-0 transition-opacity hover:text-danger group-hover:opacity-100"
+                      disabled={leaving}
+                      className="text-outline opacity-0 transition-opacity hover:text-danger group-hover:opacity-100 disabled:pointer-events-none"
                       onClick={(e) => {
                         e.stopPropagation()
                         setConfirmTodo(t)
