@@ -109,6 +109,23 @@ export function resolveFocusAction(todos: readonly Pick<Todo, 'id'>[], focusId: 
 }
 
 /**
+ * 时间戳是否已写入（渲染层专用判据，2026-10-19）。
+ *
+ * 为什么需要它：`dueAt` / `completedAt` / `voidedAt` 在远端 PocketBase 是 **number 字段、
+ * 缺省落 0**，本地类型却标成可选（`number | undefined`）。渲染层惯用的
+ * `{t.dueAt && <div>截止 …</div>}` 在 `0` 时判据为假没错，但**前提是它没被当表达式值渲染** ——
+ * 一旦写成数组/children 里的元素（`{t.dueAt && <div>…</div>}` 在 JSX 里求值是 `0`），
+ * React 会把 `0` **当文本渲染出来**，行里就凭空多出一个孤立的「0」
+ * （用户 2026-10-19 截图：未设截止的待办在时间那一行显示「0」）。
+ *
+ * 判定收口到这里：0 / undefined / null / NaN 一律视为「未设置」，
+ * 渲染层一律写 `hasTime(t.dueAt) && …`，不再手写 `t.dueAt &&`。
+ */
+export function hasTime(ts: number | null | undefined): ts is number {
+  return typeof ts === 'number' && Number.isFinite(ts) && ts > 0
+}
+
+/**
  * 「今天」口径（待办软件通行做法）：今日截止 ∪ 逾期未完成。
  * 待办中心筛选/计数、工作台今日日程卡、待办达成分母统一引用本函数。
  * 作废条目（Issue #128）不进本口径：事项已终止，不再催办、不计逾期。

@@ -1,6 +1,6 @@
 # agentOps 服务端化方案（AI 操作点：浏览器 → VPS 数据中心）
 
-> 状态：**v0.4 · P1 + P2 + P3 已落地并经测试站真实验收**（P1/P2 2026-10-14；P3 2026-10-15 凌晨完成端到端验收；P4 未开始）
+> 状态：**v0.5 · P1-P4 全链路闭环**（P1/P2 2026-10-14；P3 2026-10-15 凌晨；P4 2026-10-15 完成并综合测试通过。唯一遗留：正式站白名单开启由部署 env 决定，基础设施已随镜像就位）
 > 背景：阿蓝 2026-10-14 拍板架构方向 —— 网页版（VPS）= 数据同步中心 + **AI 的操作点**；
 > AI 写入直达中心，经既有 LWW 同步分发到所有客户端。本方案回答「怎么落地」。
 > 关联：`docs/agent-bridge-skill-v0.4.md`（浏览器桥 v0.7，本方案的前置与过渡形态）。
@@ -71,6 +71,27 @@
 >    才是正确形态，正式站 P4 沿用服务账号方案。
 > 8. 验证：780 passed / 0 failed（+2 pbAdapter 写路径、parity 扩为路由边界+闸门用例、
 >    todoRowDetail ②固定 sleep 改 vi.waitFor 修全量并发 flaky）。
+>
+> **P4 完成记录（2026-10-15）**：
+> 1. **agent_events 事件流**（§5.4-A 落地）：PB 新集合（登录可写可读、update/delete
+>    仅超管——事件不可改删）；eventBus 加 setEventForwarder（注入式转发，浏览器端
+>    不注入行为零变化）；PocketBaseAdapter.recordEvent 落库（失败不阻断写操作本身）；
+>    客户端 drainAgentEvents（sync 引擎每轮 pull 后 replay 到本地 eventBus，游标
+>    db.meta，重复 emit 由评估侧幂等兜底）——奖杯/EXP 评估零改动；
+> 2. **镜像化**：Dockerfile 构建阶段 build:server + COPY dist-server；compose 权威副本
+>    登记执行器 env 五件套（默认全关，正式站开启 = 部署时改 env，符合 §7.5 拍板）；
+> 3. **浏览器桥终局（决策点 4）**：保留为 fallback 不退役（服务端执行器不可用时桥仍
+>    是完整能力面；设置页入口不动）；
+> 4. **验证**：791 passed / 0 failed（+5 agentEvents）；测试站综合测试通过——
+>    low（habit_checkin 直执行）/ medium（fin_recordTransaction 全票据流程，领域层
+>    「多账本无默认」可操作错误正常给出）/ high（todo_deleteTodo irreversible 流程）
+>    三风险级端到端，PB 直查 agent_events 两条领域事件（habit:checked +
+>    transaction:created）完整落库，listTransactions 读回 amount/customerIds 一致。
+>
+> **P1-P4 全链路最终形态**：Agent 经 MCP 连 relay → 全部 27 工具（读+写）在 VPS
+> 服务端执行器执行（直读/直写 PB 中心，走 repositories 复合函数语义）；中/高风险
+> 走 preview→confirm 票据闸门；领域事件落 agent_events 供各客户端评估奖杯/EXP；
+> 浏览器桥保留为 fallback；正式站基础设施已随镜像就位，开启 = env 三行 + 白名单。
 
 ## 0. 一句话
 

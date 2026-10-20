@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Icon } from '@/design-system/Icon'
 import { inputCls } from '@/design-system/ui'
+import { usePresence } from '@/shared/usePresence'
 
 /**
  * 模糊匹配基建已提升至 `@/shared/search`（Issue #33 agentOps P1 第 1 步：消除 shared ↔ design-system 反向依赖）。
@@ -141,34 +142,34 @@ export function MatchCombobox({
           >
             <Icon name="close" size={16} />
           </button>
-          {open && (
-            <DropdownPortal anchorRef={boxRef} onClose={() => setOpen(false)}>
-              {listItems.length === 0 ? (
-                <div className="px-3 py-2 text-[0.8571rem] text-outline">{emptyText}</div>
-              ) : (
-                listItems.map((o, i) => (
-                  <button
-                    key={o.id || '__none__'}
-                    onClick={() => commit(o.id)}
-                    onMouseEnter={() => setActiveIdx(i)}
-                    className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[0.9286rem] transition-colors ${
-                      i === safeIdx ? 'bg-primary-fixed text-primary' : 'hover:bg-surface-container'
-                    }`}
-                  >
-                    <Icon
-                      name={o.id ? (o.icon ?? 'person') : 'person_off'}
-                      size={15}
-                      className="shrink-0 text-outline"
-                    />
-                    <span className="min-w-0 flex-1 truncate">{o.label}</span>
-                    {o.sub && (
-                      <span className="shrink-0 text-[0.7857rem] text-outline">{o.sub}</span>
-                    )}
-                  </button>
-                ))
-              )}
-            </DropdownPortal>
-          )}
+          {/* 浮层由 DropdownPortal 内部管 presence：这里不再用 {open && …} 包一层，
+              否则关闭时整棵子树会被父级同步摘掉、出场动画没机会播。 */}
+          <DropdownPortal open={open} anchorRef={boxRef} onClose={() => setOpen(false)}>
+            {listItems.length === 0 ? (
+              <div className="px-3 py-2 text-[0.8571rem] text-outline">{emptyText}</div>
+            ) : (
+              listItems.map((o, i) => (
+                <button
+                  key={o.id || '__none__'}
+                  onClick={() => commit(o.id)}
+                  onMouseEnter={() => setActiveIdx(i)}
+                  className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[0.9286rem] transition-colors ${
+                    i === safeIdx ? 'bg-primary-fixed text-primary' : 'hover:bg-surface-container'
+                  }`}
+                >
+                  <Icon
+                    name={o.id ? (o.icon ?? 'person') : 'person_off'}
+                    size={15}
+                    className="shrink-0 text-outline"
+                  />
+                  <span className="min-w-0 flex-1 truncate">{o.label}</span>
+                  {o.sub && (
+                    <span className="shrink-0 text-[0.7857rem] text-outline">{o.sub}</span>
+                  )}
+                </button>
+              ))
+            )}
+          </DropdownPortal>
         </div>
       ) : (
         <input
@@ -184,8 +185,8 @@ export function MatchCombobox({
           placeholder={placeholder}
         />
       )}
-      {open && !selected && (
-        <DropdownPortal anchorRef={boxRef} onClose={() => setOpen(false)}>
+      {!selected && (
+        <DropdownPortal open={open} anchorRef={boxRef} onClose={() => setOpen(false)}>
           {listItems.length === 0 ? (
             <div className="px-3 py-2 text-[0.8571rem] text-outline">{emptyText}</div>
           ) : (
@@ -224,23 +225,78 @@ export function MatchCombobox({
  * 一旦浮层把这些事件吃掉，窗口级监听就收不到「点在了外部」这个事实，
  * `setOpen(false)` 永不执行 → 表现为**下拉菜单收不回去**。
  * 浮层只保留 `click` 阻断，用于防止点选冒泡到 Modal 遮罩把整张表单关掉。
+ *
+ * 出场动画与其它弹层同法：把 `open` 收进来、自己用 presence 管挂载时机。
+ * 调用方**不要**再套 `{open && …}`——父级同步卸载会让出场动画没机会播。
  */
 function DropdownPortal({
+  open,
   anchorRef,
   onClose,
   children,
 }: {
+  open: boolean
   anchorRef: React.RefObject<HTMLDivElement | null>
   onClose: () => void
   children: React.ReactNode
 }) {
-  const [rect, setRect] = useState<DOMRect | null>(null)
   // 视口下方空间不足时向上翻转弹出（审计：触发框贴近视口底部时固定向下会溢出）
   const [flipUp, setFlipUp] = useState(false)
+  const { present, phase, ref: presenceRef } = usePresence(open, 150)
+  const closing = phase === 'out'
+  const rect = useAnchorRect(anchorRef, present, setFlipUp)
 
-  // 只量**锚点**即可：portal 挂到 body 后浮层位置完全由锚点推导，
-  // 不需要读浮层自身的 DOM（那是 portal 子树，首帧尚未挂载）。
+  if (!present || !rect) return null
+  return createPortal(
+    <div
+      ref={presenceRef}
+      data-dropdown-root
+      className={`fixed z-[70] max-h-56 overflow-y-auto surface-card py-1 shadow-lg ${
+        closing ? 'anim-panel-out' : 'anim-pop'
+      }`}
+      style={
+        flipUp
+          ? {
+              left: rect.left,
+              bottom: window.innerHeight - rect.top + 4,
+              width: rect.width,
+              // 缩放轴跟着弹出方向走：向上弹以底边为轴，否则会「从错误的一侧长出来」
+              transformOrigin: 'bottom center',
+            }
+          : {
+              left: rect.left,
+              top: rect.bottom + 4,
+              width: rect.width,
+              transformOrigin: 'top center',
+            }
+      }
+      // 只阻断 click：防止浮层内点选冒泡到 Modal 遮罩把整个弹窗关掉。
+      // 不再阻断 mousedown / pointerdown —— 见上方注释（阻断它们会让点外关闭失效）。
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => e.key === 'Escape' && onClose()}
+    >
+      {children}
+    </div>,
+    document.body,
+  )
+}
+
+/**
+ * 量锚点矩形（浮层位置完全由锚点推导，不需要读浮层自身 DOM —— 那是 portal 子树）。
+ * 只在浮层「存在」期间监听滚动/尺寸变化，收起时自动摘掉监听。
+ */
+function useAnchorRect(
+  anchorRef: React.RefObject<HTMLDivElement | null>,
+  active: boolean,
+  setFlipUp: (v: boolean) => void,
+): DOMRect | null {
+  const [rect, setRect] = useState<DOMRect | null>(null)
+
   useLayoutEffect(() => {
+    if (!active) {
+      setRect(null)
+      return
+    }
     const update = () => {
       const r = anchorRef.current?.getBoundingClientRect() ?? null
       setRect(r)
@@ -257,25 +313,7 @@ function DropdownPortal({
       window.removeEventListener('scroll', update, true)
       window.removeEventListener('resize', update)
     }
-  }, [anchorRef])
+  }, [anchorRef, active, setFlipUp])
 
-  if (!rect) return null
-  return createPortal(
-    <div
-      data-dropdown-root
-      className="fixed z-[70] max-h-56 overflow-y-auto surface-card py-1 shadow-lg"
-      style={
-        flipUp
-          ? { left: rect.left, bottom: window.innerHeight - rect.top + 4, width: rect.width }
-          : { left: rect.left, top: rect.bottom + 4, width: rect.width }
-      }
-      // 只阻断 click：防止浮层内点选冒泡到 Modal 遮罩把整个弹窗关掉。
-      // 不再阻断 mousedown / pointerdown —— 见上方注释（阻断它们会让点外关闭失效）。
-      onClick={(e) => e.stopPropagation()}
-      onKeyDown={(e) => e.key === 'Escape' && onClose()}
-    >
-      {children}
-    </div>,
-    document.body,
-  )
+  return rect
 }

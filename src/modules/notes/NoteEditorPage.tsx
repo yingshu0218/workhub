@@ -28,6 +28,7 @@ import {
 import { useCustomerScoreRows } from '@/modules/crm/hooks'
 import { resolveHealthScoreDisplay } from '@/modules/crm/healthScore'
 import { useProjects, moveNoteToProject } from '@/modules/projects/hooks'
+import { staggerStyle } from '@/shared/stagger'
 import {
   NOTE_PROSE_CSS,
   extractMentions,
@@ -202,8 +203,11 @@ export default function NoteEditorPage() {
         <Button variant="ghost" icon="arrow_back" onClick={() => navigate('/notes')}>
           返回列表
         </Button>
-        <Card className="mt-4 p-10">
-          <div className="flex flex-col items-center gap-3 text-on-surface-variant">
+        <Card className="anim-enter mt-4 p-10">
+          {/* 骨架闪光叠在转圈之上：只加视觉层，**不改文案** ——
+              「笔记加载中…」有既有测试按文本查询，换掉会红。
+              `.anim-skeleton` 只做 ::after 的微光，不碰布局属性。 */}
+          <div className="anim-skeleton flex flex-col items-center gap-3 rounded-lg text-on-surface-variant">
             <span className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
             <span className="text-[0.9286rem]">笔记加载中…</span>
           </div>
@@ -971,7 +975,7 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
             </div>
           ) : (
             <div className="mb-5 space-y-1.5">
-              {backlinks.map((b) => (
+              {backlinks.map((b, i) => (
                 <button
                   key={b.id}
                   onClick={() => {
@@ -979,7 +983,8 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
                     if (editing) setHoverCard({ kind: 'backlink', noteId: b.id, title: b.title })
                     else navigate(`/notes/${b.id}`)
                   }}
-                  className="flex w-full items-center gap-1.5 surface-card px-2.5 py-1.5 text-left text-[0.8571rem] transition-colors hover:border-primary"
+                  style={staggerStyle(i)}
+                  className="anim-list-item flex w-full items-center gap-1.5 surface-card px-2.5 py-1.5 text-left text-[0.8571rem] transition-colors hover:border-primary"
                 >
                   <Icon name="link" className="shrink-0 text-[1rem] text-primary" />
                   <span className="truncate">{b.title}</span>

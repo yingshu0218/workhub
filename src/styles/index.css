@@ -39,6 +39,42 @@
   --radius-lg: 8px;
   --radius-xl: 8px;
   --radius-2xl: 16px;
+
+  /* ===== 交互动效（DESIGN.md「Motion」章节的实现侧命名空间）=====
+     Tailwind v4 只会为 --ease-* / --animate-* 自动生成工具类（ease-standard / animate-nx-fade-in…）；
+     时长没有 --duration-* 命名空间，故时长走普通 CSS 变量 + duration-[var(--motion-…)] 表达。
+     命名都放 @theme 内，保证本文件自洽、不出现在别处定义的第二份。 */
+
+  /* 时长阶梯：fast = Tailwind 默认 150ms（=「原样」锚点，改造零回归） */
+  --motion-duration-instant: 100ms;
+  --motion-duration-fast: 150ms;
+  --motion-duration-base: 200ms;
+  --motion-duration-slow: 300ms;
+  --motion-duration-slower: 500ms;
+  --motion-duration-crawl: 700ms;
+  /* ⚠️ 全局时长倍率：皮肤 / 系统设置 / 无障碍降级都只改这一个值。
+     默认值刻意**引用皮肤倍率**（而不是写死 1）——这样皮肤想调「动起来的性格」
+     （pixel 要更急促、glass 要更绵长）只需覆写 --skin-motion-scale，
+     不必去动本文件；none 皮肤该值为 1，动效与不挂皮肤逐帧一致。 */
+  --motion-duration-scale: var(--skin-motion-scale);
+
+  /* 缓动：进入用 decelerate（东西到来），离开用 accelerate（东西消失） */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-decelerate: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --ease-accelerate: cubic-bezier(0.3, 0, 0.8, 0.15);
+  --ease-emphasized: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+
+  /* 力度 / 距离 */
+  --motion-lift: -2px;
+  --motion-press: 0.97;
+  --motion-slide: 16px;
+
+  /* 供 Tailwind 工具类消费的两条（animate-nx-fade-in / animate-nx-pop-in） */
+  --animate-nx-fade-in: nx-fade-in calc(var(--motion-duration-base) * var(--motion-duration-scale))
+    var(--ease-decelerate) both;
+  --animate-nx-pop-in: nx-pop-in calc(var(--motion-duration-slow) * var(--motion-duration-scale))
+    var(--ease-spring) both;
 }
 
 /* ===== 深浅模式（Phase 6 系统设置）：工具类引用 var(--color-*)，.dark 覆盖变量即全局换肤 ===== */
@@ -84,7 +120,17 @@ body {
 }
 
 .card-hover {
-  @apply transition-shadow hover:shadow-[0_4px_12px_rgba(0,0,0,0.08)];
+  /* 悬停「抬升」：阴影加深 + 上移 1px（DESIGN.md L147 的「tactile feedback」）。
+     阴影用 skin token（皮肤可覆写），位移与缓动走 motion token。
+     刻意不挂 .lift 语义类——两处都声明 transition 会互相覆盖，这里直接写全。 */
+  transition:
+    box-shadow calc(var(--motion-duration-base) * var(--motion-duration-scale)) var(--ease-standard),
+    transform calc(var(--motion-duration-base) * var(--motion-duration-scale)) var(--ease-standard);
+  @apply hover:shadow-[0_4px_12px_rgba(0,0,0,0.08)];
+}
+
+.card-hover:hover {
+  transform: translateY(var(--motion-lift));
 }
 
 /* ===== 语义类层（Issue #43 S0）：高频裸 Tailwind 组合收敛 =====
@@ -178,6 +224,607 @@ body {
 }
 
 /* =====================================================================
+   交互动效原语（Phase M1）
+   =====================================================================
+   三条硬纪律，改之前先读完：
+
+   ① **只动 transform / opacity**。width / height / top / left 一律不做动画——
+      它们每帧触发 layout，在 4+ 台设备（含 Tauri 移动 WebView）上代价完全不同。
+      全仓仅有的例外是两处既有进度条 `width` 过渡（习惯闭环 / 奖杯里程碑），
+      那是「填充条」这一控件本身的语义，保持 token 化但不扩大范围。
+
+   ② **时长一律 `calc(基时 * var(--motion-duration-scale))`**。
+      皮肤 / 系统设置 / 无障碍降级都只改倍率，绝不逐条改写时长——
+      否则三处降级逻辑会各改一遍、迟早漂移。
+
+   ③ **语义类（.anim-* / .press / .lift）是皮肤层唯一允许覆写的动效接口**。
+      swell 的 keyframes 不直接挂到组件上，一律经语义类转一层
+      （与 .surface-card / .btn-primary 的收敛思路一致）。
+
+   前缀 `nx-`（Nexus）防与第三方类名相撞。
+   ===================================================================== */
+
+/* ---- 进出场：淡入淡出 ---- */
+@keyframes nx-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes nx-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* ---- 进出场：缩放（桌面弹窗；0.96 起，不做 0.8，避免「弹出来」的廉价感） ---- */
+@keyframes nx-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes nx-scale-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+/* ---- 进出场：右侧抽屉 ---- */
+@keyframes nx-slide-in-right {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes nx-slide-out-right {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+/* ---- 进出场：底部贴层（<768px 的 Modal 形态） ---- */
+@keyframes nx-slide-in-bottom {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes nx-slide-out-bottom {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(100%);
+  }
+}
+
+/* ---- 进出场：顶部下落（Toast / 命令面板）---- */
+@keyframes nx-slide-in-down {
+  from {
+    opacity: 0;
+    transform: translateY(calc(var(--motion-slide) * -1));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes nx-slide-out-up {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(calc(var(--motion-slide) * -1));
+  }
+}
+
+/* ---- 强调：弹入（奖杯解锁 / 徽章；唯一允许回弹的地方） ---- */
+@keyframes nx-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ---- 强调：列表项 / 页面入场（上移 8px + 淡入） ---- */
+@keyframes nx-enter-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ---- 强调：行退出 ----
+   ⚠️ 这条**刻意动了布局属性**（max-height / padding / margin），是 DESIGN.md 规则 1
+   的第二处豁免，理由与 `.anim-fill` 的 width 同源：**「这一行腾出位置」正是退场这件事的
+   语义本身**。只做淡出+位移的话，视觉上是「行先变淡 → 然后位置被突兀填上」，
+   中间那次上跳比不做动画还刺眼。
+
+   为什么用 max-height 而不是 height：height 需要知道确切行高（各列表不等），
+   而 max-height 从一个足够大的上界收到 0，配合同时进行的 opacity 淡出，
+   缓动的非线性被完全掩盖（200ms 内肉眼只看到「淡出并收拢」）。
+   `overflow: hidden` 必须留着，否则内容会溢出到已收拢的盒外。
+
+   上界 120px 的取法：覆盖本仓最高的列表行（待办行含两行文本 + 标签约 88px），
+   再留余量；收拢过程前半段几乎不可见（120→80），后半段快速合上。 */
+@keyframes nx-row-out {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+    max-height: 120px;
+    overflow: hidden;
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-8px);
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    margin-top: 0;
+    margin-bottom: 0;
+    overflow: hidden;
+  }
+}
+
+/* ---- 环境：光晕呼吸（只 opacity + scale，绝不做 blur 动画） ---- */
+@keyframes nx-breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.06);
+  }
+}
+
+/* ---- 状态：一次性提醒脉冲（同步徽章 / 保存指示） ---- */
+@keyframes nx-pulse-soft {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  40% {
+    opacity: 0.7;
+    transform: scale(1.04);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ---- 反馈：打勾确认 ---- */
+@keyframes nx-check-pop {
+  0% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(1.18);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* ---- 加载：骨架屏扫光 ---- */
+@keyframes nx-shimmer {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+/* ---- 皮肤专属（skins.css 只在对应皮肤下引用它们） ---- */
+@keyframes nx-scanline {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes nx-blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes nx-sparkle {
+  0%,
+  100% {
+    opacity: 0;
+    transform: scale(0.6) rotate(0deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1) rotate(90deg);
+  }
+}
+
+/* =====================================================================
+   语义类：组件的唯一动效接口
+   =====================================================================
+   ⚠️ **入场类一律 `backwards`、出场类一律 `both`** —— 这条不对称是刻意的，别「统一」掉。
+
+   成因：CSS 动画声明的优先级**高于** :hover / :active 规则与 transition。
+   入场动画若用 `both`，播完后仍会持续持有 `transform: translateY(0)` / `scale(1)`，
+   于是这些元素上的 hover 抬升（`.card-hover`）、`hover:scale-*`、`.press:active`
+   **全部静默失效**（无任何报错，只是「点了没反应」）。
+   实测冲突点（2026-10-19）：`habits/HabitsPage.tsx` 月历格的 `hover:scale-105`、
+   `projects/ProjectsPage.tsx` 的 `<Card hover>`。
+
+   `backwards` 仍然保证：动画延迟期间显示 `from` 态（错峰入场不会「先亮后跳」），
+   而动画结束后**释放填充**，回到元素自身的自然态 → hover/active 正常工作。
+   入场类的 from→to 都是 `opacity 0→1` / `translateY,scale → 0,1`，
+   释放后与自然态完全一致，**视觉零变化**。
+
+   出场类必须保持 `both`：元素要在动画播完、被卸载之前的整段时间里持有终点态
+   （否则会先闪回原样再消失）。
+   ===================================================================== */
+
+/* ---- 遮罩：进出 ---- */
+.anim-overlay-in {
+  animation: nx-fade-in calc(var(--motion-duration-base) * var(--motion-duration-scale))
+    var(--ease-decelerate) backwards;
+}
+
+.anim-overlay-out {
+  animation: nx-fade-out calc(var(--motion-duration-fast) * var(--motion-duration-scale))
+    var(--ease-accelerate) both;
+}
+
+/* ---- 桌面弹窗面板 ---- */
+.anim-panel-in {
+  animation: nx-scale-in calc(var(--motion-duration-slow) * var(--motion-duration-scale))
+    var(--ease-emphasized) backwards;
+}
+
+.anim-panel-out {
+  animation: nx-scale-out calc(var(--motion-duration-base) * var(--motion-duration-scale))
+    var(--ease-accelerate) both;
+}
+
+/* ---- 右侧抽屉 ---- */
+.anim-drawer-in {
+  animation: nx-slide-in-right calc(var(--motion-duration-slow) * var(--motion-duration-scale))
+    var(--ease-decelerate) backwards;
+}
+
+.anim-drawer-out {
+  animation: nx-slide-out-right calc(var(--motion-duration-base) * var(--motion-duration-scale))
+    var(--ease-accelerate) both;
+}
+
+/* ---- 底部贴层（窄屏 Modal） ---- */
+.anim-sheet-in {
+  animation: nx-slide-in-bottom calc(var(--motion-duration-slow) * var(--motion-duration-scale))
+    var(--ease-decelerate) backwards;
+}
+
+.anim-sheet-out {
+  animation: nx-slide-out-bottom calc(var(--motion-duration-base) * var(--motion-duration-scale))
+    var(--ease-accelerate) both;
+}
+
+/* ---- 顶部下落（Toast / 命令面板） ---- */
+.anim-toast-in {
+  animation: nx-slide-in-down calc(var(--motion-duration-base) * var(--motion-duration-scale))
+    var(--ease-decelerate) backwards;
+}
+
+.anim-toast-out {
+  animation: nx-slide-out-up calc(var(--motion-duration-fast) * var(--motion-duration-scale))
+    var(--ease-accelerate) both;
+}
+
+/* ---- 通用进出 / 强调 ---- */
+.anim-enter {
+  animation: nx-fade-in calc(var(--motion-duration-base) * var(--motion-duration-scale))
+    var(--ease-decelerate) backwards;
+}
+
+.anim-enter-up {
+  animation: nx-enter-up calc(var(--motion-duration-base) * var(--motion-duration-scale))
+    var(--ease-decelerate) backwards;
+}
+
+.anim-pop {
+  /* 缓动走皮肤通道：这是「动起来的性格」最外显的一处
+     （cartoon 回弹更弹、pixel 直接瞬移、glass 更绵长）。 */
+  animation: nx-pop-in calc(var(--motion-duration-fast) * var(--motion-duration-scale))
+    var(--skin-motion-ease, var(--ease-spring)) backwards;
+}
+
+/* ---- 页面级入场（路由切换；只做入场，不做退场） ---- */
+.anim-page {
+  animation: nx-enter-up calc(var(--motion-duration-slow) * var(--motion-duration-scale))
+    var(--ease-decelerate) backwards;
+}
+
+/* ---- 列表项入场 / 退场 ---- */
+.anim-list-item {
+  animation: nx-enter-up calc(var(--motion-duration-base) * var(--motion-duration-scale))
+    var(--ease-decelerate) backwards;
+}
+
+.anim-row-out {
+  animation: nx-row-out calc(var(--motion-duration-base) * var(--motion-duration-scale))
+    var(--ease-accelerate) both;
+}
+
+/* ---- 环境光晕 ---- */
+.anim-breathe {
+  animation: nx-breathe calc(var(--motion-duration-crawl) * 6 * var(--motion-duration-scale))
+    var(--ease-standard) infinite;
+}
+
+/* ---- 一次性提醒（挂上即播一次，不 infinite） ---- */
+.anim-pulse-soft {
+  animation: nx-pulse-soft calc(var(--motion-duration-slower) * var(--motion-duration-scale))
+    var(--ease-standard) 1;
+}
+
+.anim-check-pop {
+  animation: nx-check-pop calc(var(--motion-duration-base) * var(--motion-duration-scale))
+    var(--ease-spring) 1;
+}
+
+/* ---- 骨架屏 ---- */
+.anim-skeleton {
+  position: relative;
+  overflow: hidden;
+}
+
+.anim-skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--color-on-surface) 6%, transparent),
+    transparent
+  );
+  animation: nx-shimmer calc(var(--motion-duration-slower) * 3 * var(--motion-duration-scale))
+    var(--ease-standard) infinite;
+}
+
+/* ---- 交互反馈：按压 / 悬停抬升 ----
+   取代散落各处的 active:scale-90 / active:scale-95（原值不统一，视觉上「有的按得深有的浅」）。 */
+.press {
+  transition: transform calc(var(--motion-duration-fast) * var(--motion-duration-scale))
+    var(--skin-motion-ease, var(--ease-standard));
+}
+
+.press:active {
+  transform: scale(var(--motion-press));
+}
+
+.lift {
+  transition:
+    box-shadow calc(var(--motion-duration-base) * var(--motion-duration-scale)) var(--ease-standard),
+    transform calc(var(--motion-duration-base) * var(--motion-duration-scale)) var(--ease-standard);
+}
+
+.lift:hover {
+  transform: translateY(var(--motion-lift));
+}
+
+/* 键盘可达性：只在真正的键盘聚焦时给反馈（:focus-visible 而非 :focus） */
+.press:focus-visible,
+.lift:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* ---- 填充条（进度条）----
+   唯一被允许做布局动画的地方：`width` 是「填充条」这一控件的语义本身
+   （DESIGN.md 规则 1 的豁免项）。全仓 6 处进度条本来就在写 width 过渡，
+   这里只是把它们收口到同一个时长档，不再逐处写 transition-all。 */
+.anim-fill {
+  transition: width calc(var(--motion-duration-slower) * var(--motion-duration-scale))
+    var(--ease-standard);
+}
+
+/* ---- 导航项 / 胶囊 Tab 的动效接口 ----
+   ⚠️ 刻意**不挂 `.press`**：`.press` 与本规则同为无层级声明、特异性相同，
+   后出现的那条会整条盖掉 transition → 颜色渐入当场失效。
+   故把 transform 一并写进同一条 transition 里。
+   ⚠️ 刻意**不新增 `::before`**：cyber 皮肤已占用 `.app-nav-link.is-active::before`
+   （见 skins.css），再加会变成两个霓虹标。
+
+   为什么放在这个文件而不是组件里：`.app-nav-link` 是无层级声明，优先级高于
+   Tailwind 的 `transition-all` 工具类 —— 自动压掉，AppLayout 一个字都不用改
+   （那是并行会话的热区，能不动就不动）。
+   皮肤覆写的 border-radius / border / box-shadow 带 `:root[data-skin=…]` 前缀、
+   特异性更高，不受影响；而 box-shadow 进入 transition，恰好让 pixel/cartoon/glass
+   的激活态硬投影「渐入」。 */
+.app-nav-link {
+  transition:
+    background-color calc(var(--motion-duration-base) * var(--motion-duration-scale))
+      var(--ease-standard),
+    color calc(var(--motion-duration-base) * var(--motion-duration-scale)) var(--ease-standard),
+    box-shadow calc(var(--motion-duration-base) * var(--motion-duration-scale)) var(--ease-standard),
+    transform calc(var(--motion-duration-fast) * var(--motion-duration-scale))
+      var(--skin-motion-ease, var(--ease-standard));
+}
+
+.app-nav-link:active {
+  transform: scale(var(--motion-press));
+}
+
+/* 移动端底部导航的胶囊 Tab / FAB：同构规则 */
+.app-tab-pill {
+  transition:
+    background-color calc(var(--motion-duration-base) * var(--motion-duration-scale))
+      var(--ease-standard),
+    color calc(var(--motion-duration-base) * var(--motion-duration-scale)) var(--ease-standard),
+    transform calc(var(--motion-duration-fast) * var(--motion-duration-scale))
+      var(--skin-motion-ease, var(--ease-standard));
+}
+
+.app-tab-pill:active {
+  transform: scale(var(--motion-press));
+}
+
+/* ---- 纯淡入（**只 opacity、零 transform**）----
+   专供画布 SVG 节点入场：SVG 的 `transform` 是**呈现属性**，
+   若给它挂含 transform 的 CSS 动画，CSS 会覆盖 `translate(x, y)` 定位、
+   节点集体飘到原点。故画布一律用这个只有 opacity 的类。 */
+.anim-fade {
+  animation: nx-fade-in calc(var(--motion-duration-base) * var(--motion-duration-scale))
+    var(--ease-decelerate) backwards;
+}
+
+/* =====================================================================
+   降级：可配置（系统设置）+ 无障碍（系统偏好）双层
+   =====================================================================
+   ⚠️ 决策级的差异，不要合并成一条：
+   · data-motion 是**用户在应用内选的**（设置页），作用域可控、可回退；
+   · prefers-reduced-motion 是**操作系统的前庭功能设置**，属 WCAG 2.1 SC 2.3.3，
+     必须无条件生效、且不能被应用内设置覆盖。
+   两者都是「倍率置 0 + 停掉所有 animation + 去掉 transform 反馈」。
+   ===================================================================== */
+
+:root[data-motion='reduced'] {
+  --motion-duration-scale: 0.55;
+}
+
+/* 关闭态：倍率归零不够——`both` 填充下 0s 动画仍会跳到位移终点，
+   所以还要显式停掉 animation 与 transform 反馈。 */
+:root[data-motion='off'] {
+  --motion-duration-scale: 0;
+}
+
+:root[data-motion='off'] .anim-overlay-in,
+:root[data-motion='off'] .anim-overlay-out,
+:root[data-motion='off'] .anim-panel-in,
+:root[data-motion='off'] .anim-panel-out,
+:root[data-motion='off'] .anim-drawer-in,
+:root[data-motion='off'] .anim-drawer-out,
+:root[data-motion='off'] .anim-sheet-in,
+:root[data-motion='off'] .anim-sheet-out,
+:root[data-motion='off'] .anim-toast-in,
+:root[data-motion='off'] .anim-toast-out,
+:root[data-motion='off'] .anim-enter,
+:root[data-motion='off'] .anim-enter-up,
+:root[data-motion='off'] .anim-pop,
+:root[data-motion='off'] .anim-page,
+:root[data-motion='off'] .anim-list-item,
+:root[data-motion='off'] .anim-row-out,
+:root[data-motion='off'] .anim-breathe,
+:root[data-motion='off'] .anim-pulse-soft,
+:root[data-motion='off'] .anim-check-pop,
+:root[data-motion='off'] .anim-fade,
+:root[data-motion='off'] .anim-skeleton::after {
+  animation: none !important;
+}
+
+:root[data-motion='off'] .press:active,
+:root[data-motion='off'] .app-nav-link:active,
+:root[data-motion='off'] .app-tab-pill:active {
+  transform: none;
+}
+
+:root[data-motion='off'] .lift:hover {
+  transform: none;
+}
+
+/* 进度条走的是 transition 而非 animation —— `animation: none !important` 管不到它，
+   必须单独停（否则无障碍下填充条仍在动）。 */
+:root[data-motion='off'] .anim-fill {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-duration-scale: 0;
+  }
+
+  .anim-overlay-in,
+  .anim-overlay-out,
+  .anim-panel-in,
+  .anim-panel-out,
+  .anim-drawer-in,
+  .anim-drawer-out,
+  .anim-sheet-in,
+  .anim-sheet-out,
+  .anim-toast-in,
+  .anim-toast-out,
+  .anim-enter,
+  .anim-enter-up,
+  .anim-pop,
+  .anim-page,
+  .anim-list-item,
+  .anim-row-out,
+  .anim-breathe,
+  .anim-pulse-soft,
+  .anim-check-pop,
+  .anim-fade,
+  .anim-skeleton::after {
+    animation: none !important;
+  }
+
+  .press:active,
+  .app-nav-link:active,
+  .app-tab-pill:active,
+  .lift:hover {
+    transform: none;
+  }
+
+  .anim-fill {
+    transition: none;
+  }
+}
+
+/* =====================================================================
    移动壳（<768px）
    分界与 AppLayout 的 Tailwind `md` 断点、shared/useIsMobile.ts 三处保持一致。
    桌面端（≥768px）不受本段任何规则影响。
@@ -223,5 +870,16 @@ body {
     max-height: 85dvh;
     border-radius:
       var(--skin-card-radius, var(--radius-2xl)) var(--skin-card-radius, var(--radius-2xl)) 0 0;
+  }
+
+  /* 动效随形态一起换：桌面弹窗是「缩放淡入」，贴底抽屉必须是「从下方滑入」——
+     否则一个贴底的抽屉从中心 scale 出来，观感上是「从屏幕中间掉下来」，与形态矛盾。
+     与上面高度/圆角同理：组件里不做断点判断，一切交给这条媒体查询。 */
+  .anim-panel-in {
+    animation-name: nx-slide-in-bottom;
+  }
+
+  .anim-panel-out {
+    animation-name: nx-slide-out-bottom;
   }
 }

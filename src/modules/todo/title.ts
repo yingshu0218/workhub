@@ -70,6 +70,35 @@ export function splitTodoText(content: string): { title: string; desc: string } 
 }
 
 /**
+ * 列表行「内容」预览（用户 2026-10-19 口径：待办行第一行标题、第二行内容）。
+ *
+ * 口径 = **备注里去掉标题那一行后剩下的部分**，压成单行。
+ *
+ * 为什么不直接渲染 `desc`：现行写入口径下 `desc` 保存的是**正文全文**，首行即等于
+ * `title`（见 `splitTodoText`）。直接把 `desc` 铺在标题下面，会把标题原样重复一遍，
+ * 第二行看起来只是「标题的二连击」而不是内容。历史数据（Agent 建的 title≠desc 首行）
+ * 经 `toTodoText` 补出标题行后再切，同样只留真正的备注。
+ *
+ * 为什么压成单行：列表行是**固定一行的预览**，多行备注（含速记转入的 `\n\n— 由…转入`）
+ * 直接铺开会把行高撑成不定值；换行折成空格、空行丢弃，与 `truncate` 配合才稳定。
+ *
+ * 注意这是**展示口径，不落库**：`desc` 字段本身一个字节都不改。
+ */
+export function todoBodyPreview(todo: Pick<Todo, 'title' | 'desc'> | null | undefined): string {
+  const desc = (todo?.desc ?? '').trim()
+  if (!desc) return ''
+  // toTodoText：历史数据补上标题行 ⇒ 首行恒为标题（幂等，不重复补）
+  const lines = toTodoText(todo).split('\n')
+  // 新口径下 desc 首行就是标题 → 去掉；但若整条正文只有一行（desc === title），
+  // 切完为空 ⇒ 列表第二行不渲染，不会出现一行空壳
+  const rest = lines.slice(1)
+  return rest
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .join(' ')
+}
+
+/**
  * 历史数据判定：`{title, desc}` 是否与新口径「首行 = 标题」不一致。
  *
  * 不一致 = 「编辑回填后再保存会改变 `desc`」。用于迁移动作的计数与预览，

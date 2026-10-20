@@ -26,6 +26,7 @@ import IntimacyPicker from './intimacy/IntimacyPicker'
 import { customerRepo } from '@/repositories'
 import { useCustomerGroups } from './hooks'
 import type { CustomerGroup } from '@/db/types'
+import { staggerStyle } from '@/shared/stagger'
 import {
   TIMELINE_FILTERS,
   fmtTimelineTime,
@@ -368,7 +369,9 @@ export default function CustomerDetailPage() {
         </div>
 
         {tab === 'timeline' && (
-          <div>
+          /* tab 分支是条件渲染：切换 = 旧分支卸载、新分支新挂载 → anim-enter 自动重播，
+             无需 key、无需 presence、无需新增状态。 */
+          <div className="anim-enter">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <div className="text-[0.8571rem] text-on-surface-variant">
                 手写沟通 + 关联动态投影，交易/待办详列见对应 Tab
@@ -396,8 +399,14 @@ export default function CustomerDetailPage() {
               </div>
             ) : (
               <div className="relative space-y-4 border-l border-outline-variant/40 pl-4">
-                {visibleTimeline.map((e) => (
-                  <TimelineItem key={e.id} event={e} onOpenTxn={(id) => navigate(financeFocusPath(id))} />
+                {visibleTimeline.map((e, i) => (
+                  /* 错峰入场挂在 wrapper 而非 TimelineItem 内部：
+                     该组件有 4 个 return 分支，逐分支加类容易漏；
+                     而 wrapper **不设 position**，条目内 `absolute -left-[22px]`
+                     仍会向上找到外层的 relative 容器，竖线小圆点定位不受影响。 */
+                  <div key={e.id} className="anim-list-item" style={staggerStyle(i)}>
+                    <TimelineItem event={e} onOpenTxn={(id) => navigate(financeFocusPath(id))} />
+                  </div>
                 ))}
               </div>
             )}
@@ -405,22 +414,33 @@ export default function CustomerDetailPage() {
         )}
 
         {tab === 'finance' && (
-          <FinanceTable
-            transactions={transactions}
-            onFocusTxn={(txnId) => navigate(financeFocusPath(txnId))}
-          />
+          /* 三个子组件各有多个 return 分支，逐分支挂类易漏 → 在调用处包一层。
+             这几处都在 Card 内、无 divide-y / absolute 定位依赖，包 wrapper 安全。 */
+          <div className="anim-enter">
+            <FinanceTable
+              transactions={transactions}
+              onFocusTxn={(txnId) => navigate(financeFocusPath(txnId))}
+            />
+          </div>
         )}
 
         {tab === 'project' && (
-          <ProjectList projects={customerProjects} onOpen={(pid) => navigate(`/projects/${pid}`)} />
+          <div className="anim-enter">
+            <ProjectList
+              projects={customerProjects}
+              onOpen={(pid) => navigate(`/projects/${pid}`)}
+            />
+          </div>
         )}
 
         {tab === 'profile' && (
-          <ProfileTab
-            customer={customer}
-            notes={customerNotes}
-            onOpenNote={(noteId) => navigate(`/notes/${noteId}`)}
-          />
+          <div className="anim-enter">
+            <ProfileTab
+              customer={customer}
+              notes={customerNotes}
+              onOpenNote={(noteId) => navigate(`/notes/${noteId}`)}
+            />
+          </div>
         )}
       </Card>
 

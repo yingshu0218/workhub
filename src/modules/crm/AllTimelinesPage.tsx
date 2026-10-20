@@ -232,7 +232,11 @@ export default function AllTimelinesPage() {
                 {shownCustomers.map((c, i) => {
                   const laneY = i * 96
                   return (
-                    <g key={c.id}>
+                    <g
+                      key={c.id}
+                      className="anim-fade"
+                      style={{ animationDelay: `${Math.min(i, 12) * 20}ms` }}
+                    >
                       <rect
                         x={0}
                         y={laneY - 34}
@@ -265,7 +269,7 @@ export default function AllTimelinesPage() {
                 })}
 
                 {/* 骨刺（分带内锚定带中心线） */}
-                {layout.bones.map((b) => {
+                {layout.bones.map((b, i) => {
                   const target = boneTarget(b.event)
                   const cid = b.event.customerId ?? ''
                   const laneY = (shownLaneMap.get(cid) ?? 0) * 96
@@ -273,8 +277,13 @@ export default function AllTimelinesPage() {
                   const customer = customerById.get(cid)
                   return (
                     <g
-                      key={`${cid}-${b.event.id}`}
-                      className={target ? 'cursor-pointer' : ''}
+                      /* 两个筛选并入 key：切换时骨刺重挂 → 淡入重播（不新增状态） */
+                      key={`${filter}:${customerFilter}:${cid}-${b.event.id}`}
+                      /* ⚠️ 只用 anim-fade（纯 opacity）。骨刺坐标由 layout 与泳道计算，
+                         含 transform 的动画会与 panZoom 容器变换叠加出偏移；
+                         rect/line/circle 数量与 stroke 属性一律不动（测试按此断言）。 */
+                      className={`anim-fade${target ? ' cursor-pointer' : ''}`}
+                      style={{ animationDelay: `${Math.min(i, 12) * 20}ms` }}
                       onPointerDown={(e) => {
                         e.stopPropagation()
                         draggedRef.current = false

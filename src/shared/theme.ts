@@ -30,6 +30,22 @@ export const RADIUS_PRESETS = [
 ] as const
 
 /**
+ * 动效强度档位（2026-10-19）。
+ *
+ * 三档语义（与 CSS 侧的选择器一一对应，见 src/styles/index.css）：
+ * · full    —— **不写 data-motion 属性**，回到默认 `--motion-duration-scale: 1`；
+ * · reduced —— `--motion-duration-scale: 0.55`，动画照播但明显更快；
+ * · off     —— 倍率归零 + `animation: none !important` + 去掉位移反馈。
+ *
+ * ⚠️ 系统级 `prefers-reduced-motion` 独立于本档位且优先级更高（WCAG 2.1 SC 2.3.3）。
+ */
+export const MOTION_PRESETS = [
+  { id: 'full', label: '全效' },
+  { id: 'reduced', label: '降速' },
+  { id: 'off', label: '关闭' },
+] as const
+
+/**
  * 深色模式下强调色的提亮口径（Material 3 的 tonality 提升）：`--color-primary` 保留的百分比，
  * 其余混白；`--color-on-primary` 同法混黑（提亮后的主色上必须压深字，否则按钮与导航激活项
  * 的白字同样不可读）。应用见 effects.ts applySettingsToDom。

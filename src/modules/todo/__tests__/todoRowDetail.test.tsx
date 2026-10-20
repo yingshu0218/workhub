@@ -13,7 +13,7 @@
  *   ④ 打开首帧不闪「待办不存在或已删除」（未回填 ≠ 查无此记录）。
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { render, screen, fireEvent, cleanup, within } from '@testing-library/react'
+import { render, screen, fireEvent, cleanup, within, waitFor } from '@testing-library/react'
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
 import 'fake-indexeddb/auto'
 import { db } from '@/db/db'
@@ -64,12 +64,27 @@ function drawerOf(): HTMLElement {
   return screen.getByText('待办详情').closest('.fixed') as HTMLElement
 }
 
+/**
+ * 等详情抽屉回填完成。
+ *
+ * ⚠️ 为什么不能再用 `screen.findByText(/本周五前给出报价/)` 当「抽屉已回填」的信号
+ * （2026-10-19）：列表行现在按用户口径**第二行也显示备注剩余部分**，同一段文字在
+ * **列表行**里就存在了 —— 全局 `findByText` 会被列表行立刻满足，而此刻抽屉首帧
+ * 还没读到记录（渲染为空），断言随之落空。等待必须**限定在抽屉内**。
+ */
+async function waitDrawerBody() {
+  await screen.findByText('待办详情')
+  return within(drawerOf()).findByText(/本周五前给出报价/)
+}
+
 describe('待办列表行点击 → 详情抽屉（Issue #162）', () => {
-  it('① 点列表行打开详情，正文备注全文可见（列表行只有截断标题）', async () => {
+  it('① 点列表行打开详情，正文备注全文可见（列表行只给一行预览）', async () => {
     await db.todos.put(todo() as never)
     renderApp()
     fireEvent.click(await screen.findByText('跟进深蓝续约'))
-    expect(await screen.findByText(/本周五前给出报价，并确认合同条款/)).toBeTruthy()
+    // ⚠️ 断言限定在抽屉内（2026-10-19）：列表行第二行现在也显示备注预览，
+    // 全局 findByText 会被列表行抢先满足，抽屉首帧尚空 → 断言落空
+    expect(await waitDrawerBody()).toBeTruthy()
     expect(drawerOf().textContent).toContain('高')
   })
 
@@ -89,11 +104,13 @@ describe('待办列表行点击 → 详情抽屉（Issue #162）', () => {
     await db.todos.put(todo() as never)
     renderApp()
     fireEvent.click(await screen.findByText('跟进深蓝续约'))
-    await screen.findByText(/本周五前给出报价/)
+    await waitDrawerBody()
     // 列表行的编辑钮是 hover 出来的图标钮，用 within 限定到抽屉内那颗
     fireEvent.click(within(drawerOf()).getByText('编辑'))
     expect(await screen.findByText('编辑待办')).toBeTruthy()
-    expect(screen.queryByText('待办详情')).toBeNull()
+    // ⚠️ 抽屉现在带 200ms 出场动画：点「编辑」后不会同步消失，
+    // 而是保持挂载播出场再卸载（Phase M1 起，见 shared/usePresence）→ 必须等待。
+    await waitFor(() => expect(screen.queryByText('待办详情')).toBeNull())
   })
 
   it('④ 关联账目按 transactions.todoIds 反查，点击穿透 /finance 凭证详情', async () => {
@@ -127,7 +144,7 @@ describe('待办列表行点击 → 详情抽屉（Issue #162）', () => {
 
     renderApp()
     fireEvent.click(await screen.findByText('跟进深蓝续约'))
-    await screen.findByText(/本周五前给出报价/)
+    await waitDrawerBody()
     expect(screen.getByText('关联账目（1）')).toBeTruthy()
     fireEvent.click(screen.getByText('查看凭证'))
     // 落到财务中心并自动打开该笔凭证详情（深链消费后清参数）
@@ -139,7 +156,7 @@ describe('待办列表行点击 → 详情抽屉（Issue #162）', () => {
     await db.todos.put(todo() as never)
     renderApp()
     fireEvent.click(await screen.findByText('跟进深蓝续约'))
-    await screen.findByText(/本周五前给出报价/)
+    await waitDrawerBody()
     fireEvent.click(within(drawerOf()).getByText('标记完成'))
     await new Promise((r) => setTimeout(r, 50))
     const saved = (await db.todos.get('td1')) as { status: string; completedAt?: number }
@@ -154,7 +171,7 @@ describe('待办列表行点击 → 详情抽屉（Issue #162）', () => {
     fireEvent.click(await screen.findByText('已作废'))
     const title = (await screen.findAllByText('跟进深蓝续约'))[0]
     fireEvent.click(title)
-    await screen.findByText(/本周五前给出报价/)
+    await waitDrawerBody()
     const scope = within(drawerOf())
     expect(scope.queryByText('标记完成')).toBeNull()
     expect(scope.getByText('恢复')).toBeTruthy()
@@ -167,7 +184,7 @@ describe('待办列表行点击 → 详情抽屉（Issue #162）', () => {
     // 首帧（同步读取，未经 await）不得出现误导性的空态
     expect(drawerOf().textContent).not.toContain('待办不存在或已删除')
     // 回填后渲染真实内容
-    expect(await screen.findByText(/本周五前给出报价/)).toBeTruthy()
+    expect(await waitDrawerBody()).toBeTruthy()
   })
 
   it('⑧ 深链 /todo?focus=<id> 直达详情抽屉，而非只落到列表', async () => {
@@ -175,7 +192,7 @@ describe('待办列表行点击 → 详情抽屉（Issue #162）', () => {
     renderApp('/todo?focus=td1')
     // 深链语义就是「定位到这一条」：直接打开详情，正文全文可见
     expect(await screen.findByText('待办详情')).toBeTruthy()
-    expect(await screen.findByText(/本周五前给出报价/)).toBeTruthy()
+    expect(await waitDrawerBody()).toBeTruthy()
     // 消费后清参数，避免返回/刷新重复触发
     expect(document.querySelector('[data-testid=loc]')?.textContent).toBe('/todo')
   })
@@ -184,7 +201,7 @@ describe('待办列表行点击 → 详情抽屉（Issue #162）', () => {
     await db.todos.put(todo({ status: 'done', completedAt: 1_700_000_002_000 }) as never)
     renderApp('/todo?focus=td1')
     expect(await screen.findByText('待办详情')).toBeTruthy()
-    expect(await screen.findByText(/本周五前给出报价/)).toBeTruthy()
+    expect(await waitDrawerBody()).toBeTruthy()
   })
 
   it('⑩ 深链指向不存在的 id → 不弹误导性空态抽屉，静默清参数', async () => {
@@ -228,6 +245,6 @@ describe('待办列表行点击 → 详情抽屉（Issue #162）', () => {
     // 凭证详情里「查看待办详情」承诺了详情，就应落到详情（此前只 navigate('/todo') 落到列表）
     fireEvent.click(await screen.findByText('查看待办详情'))
     expect(await screen.findByText('待办详情')).toBeTruthy()
-    expect(await screen.findByText(/本周五前给出报价/)).toBeTruthy()
+    expect(await waitDrawerBody()).toBeTruthy()
   })
 })

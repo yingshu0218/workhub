@@ -344,6 +344,15 @@ export interface SettingsAppearance {
    * （亮 → morning / 暗 → night）；手动选过则固定该套。只存本地偏好，不进同步。
    */
   canvasTheme?: 'auto' | 'morning' | 'night' | 'paper' | 'celadon'
+  /**
+   * 动效强度（2026-10-19）：full 全效 / reduced 降速 / off 关闭。
+   * 由 effects.ts 写成 `<html data-motion>`，CSS 侧据此调 `--motion-duration-scale`。
+   *
+   * ⚠️ 只存本地偏好、不进同步（与 canvasTheme 同一处置）：动效强弱是**设备属性**
+   * （老机器/移动端可能想要更省电），同步到别的设备是负收益。
+   * ⚠️ 它**不能**覆盖 `prefers-reduced-motion`（那是 WCAG 2.1 SC 2.3.3 的无条件降级）。
+   */
+  motion?: 'full' | 'reduced' | 'off'
 }
 
 export interface SettingsTypography {
@@ -469,6 +478,9 @@ export const DEFAULT_SETTINGS: Settings = {
     radius: 'medium',
     canvasTheme: 'auto',
     density: 'comfortable',
+    // 动效强度缺省「全效」。刻意入 DEFAULT（与 canvasTheme 同先例）：
+    // 与 style 不同，这里没有「迁移桥」需求——老用户升级后行为就是全效（= 改造前手感）。
+    motion: 'full',
     // Issue #54：style 不进 DEFAULT，缺省=「未手动选过风格」，
     // effects.ts 据此回退主题 recommendStyle（迁移桥），老用户零感知；
     // 用户一旦在设置页显式选风格（含 none）即持久化覆盖。

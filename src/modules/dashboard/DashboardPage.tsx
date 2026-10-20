@@ -71,7 +71,7 @@ export default function DashboardPage() {
         {MOBILE_ENTRIES.map((entry) => (
           <button
             key={entry.to}
-            className="surface-card flex flex-col items-center gap-1.5 py-3 transition-transform active:scale-95"
+            className="press surface-card flex flex-col items-center gap-1.5 py-3"
             onClick={() => navigate(entry.to)}
           >
             <Icon name={entry.icon} size={20} className="text-primary" />
@@ -89,7 +89,12 @@ export default function DashboardPage() {
             深度专注
           </div>
           {/* 读数一律 nowrap：窄屏 2 列时卡宽仅 ~139px，换行会把数字与单位拆开成两行 */}
-          <div className="mt-1 text-[1.8571rem] font-bold whitespace-nowrap text-primary">
+          {/* key 随读数变化 → 数值更新时整块重挂、anim-enter 淡入一次，
+              让「专注分钟在走 / 待办又减一条」这类变化被看见（而非静默改数字）。 */}
+          <div
+            key={`focus-${focusMinutes}`}
+            className="anim-enter mt-1 text-[1.8571rem] font-bold whitespace-nowrap text-primary"
+          >
             {focusMinutes}
             <span className="text-[0.9286rem] text-outline"> 分钟</span>
           </div>
@@ -98,7 +103,7 @@ export default function DashboardPage() {
           <div className="text-[0.8571rem] font-medium uppercase tracking-wide text-outline">
             今日待办
           </div>
-          <div className="mt-1 text-[1.8571rem] font-bold whitespace-nowrap">
+          <div key={`todo-${openToday}`} className="anim-enter mt-1 text-[1.8571rem] font-bold whitespace-nowrap">
             {openToday <= 0 ? (
               <span className="text-[1.0714rem] text-success">今日已清空</span>
             ) : (
@@ -123,7 +128,10 @@ export default function DashboardPage() {
           <div className="text-[0.8571rem] font-medium uppercase tracking-wide text-outline">
             习惯连击
           </div>
-          <div className="mt-1 text-[1.8571rem] font-bold whitespace-nowrap text-warning">
+          <div
+            key={`streak-${bestStreak}`}
+            className="anim-enter mt-1 text-[1.8571rem] font-bold whitespace-nowrap text-warning"
+          >
             {bestStreak}
             <span className="text-[0.9286rem] text-outline"> 天</span>
           </div>
@@ -132,7 +140,10 @@ export default function DashboardPage() {
           <div className="text-[0.8571rem] font-medium uppercase tracking-wide text-outline">
             累计收款
           </div>
-          <div className="mt-1 text-[1.8571rem] font-bold whitespace-nowrap text-success">
+          <div
+            key={`income-${income}`}
+            className="anim-enter mt-1 text-[1.8571rem] font-bold whitespace-nowrap text-success"
+          >
             ¥{income >= 10000 ? `${(income / 10000).toFixed(1)}万` : income.toLocaleString()}
           </div>
           <div className="mt-0.5 text-[0.7857rem] text-outline">{customers.length} 位客户在册</div>

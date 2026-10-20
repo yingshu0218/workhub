@@ -11,6 +11,7 @@ import { todoPriorityFullLabel } from '@/modules/todo/priority'
 import { useIntimacyConfig } from '@/modules/crm/intimacy'
 import { useCustomerScoreRows } from '@/modules/crm/hooks'
 import { resolveHealthScoreDisplay } from '@/modules/crm/healthScore'
+import { usePresence } from '@/shared/usePresence'
 import type { Customer, Ledger, Todo } from '@/db/types'
 
 /**
@@ -141,8 +142,17 @@ export function EntitySummary({ type, id }: HoverTarget) {
 }
 
 /**
- * 悬浮摘要卡（受控）：由 `useEntityHover` 驱动，调用方只管把 target 传进来。
- * 卡片自带「打开详情」跳转；内容区滚动上限 60vh，长摘要不撑破视口。
+ * 悬浮摘要卡（受控）。
+ *
+ * ⚠️ `target` 传 `null` 表示「当前无悬浮」——调用方**必须常驻**渲染本组件、
+ * 用 null 表达收起，不要再套 `{hover && …}`：父级同步卸载会让淡出动画没机会播
+ * （与其它弹层同一条纪律，见 shared/usePresence）。
+ *
+ * 内部分成「外壳 + 卡片」两层，是有原因的：外层要常驻才能播出场，
+ * 但内层依赖 `useNavigate`（即必须在 Router 上下文里）。若把 useNavigate 提到外层，
+ * 那些**没有套 Router 就单独渲染表单**的场景（若干既有测试）会在挂载时就抛错——
+ * 明明收起态什么也不显示，却因为一个用不到的 hook 而崩。
+ * 故：外壳只做 presence 判定，内层（含 useNavigate）在真正可见时才挂载。
  */
 export function EntityHoverCard({
   target,
@@ -152,7 +162,8 @@ export function EntityHoverCard({
   onMouseEnter,
   onMouseLeave,
 }: {
-  target: HoverTarget
+  /** null = 收起态（组件内部自己播出场再卸载） */
+  target: HoverTarget | null
   /** 芯片展示文案（卡片标题），如「深蓝科技 · 张三」 */
   label: string
   /** 锚点位置（芯片 getBoundingClientRect），用于把卡片定位到芯片下方 */
@@ -161,13 +172,64 @@ export function EntityHoverCard({
   onMouseEnter?: () => void
   onMouseLeave?: () => void
 }) {
-  const cardRef = useRef<HTMLDivElement>(null)
+  const { present, phase, ref } = usePresence<HTMLDivElement>(Boolean(target), 150)
+
+  /**
+   * 收起期间仍要渲染内容：target 变 null 后若无内容可画，出场动画只会播出一个空框。
+   * 与奖杯解锁弹窗同一处手法——留最后一次拿到的 target/label。
+   */
+  const [last, setLast] = useState<{ target: HoverTarget; label: string } | null>(null)
+  useEffect(() => {
+    if (target) setLast({ target, label })
+    // label 随 target 一起冻结，避免只更新其中一个导致标题与内容串位
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [target])
+
+  const closing = phase === 'out'
+  const shown = target ? { target, label } : closing ? last : null
+  if (!present || !shown) return null
+
+  return (
+    <HoverCardBody
+      nodeRef={ref}
+      target={shown.target}
+      label={shown.label}
+      anchorRect={anchorRect}
+      closing={closing}
+      onClose={onClose}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+    />
+  )
+}
+
+/** 卡片本体：只在可见时挂载（因此可以安全依赖 Router 上下文） */
+function HoverCardBody({
+  nodeRef,
+  target,
+  label,
+  anchorRect,
+  closing,
+  onClose,
+  onMouseEnter,
+  onMouseLeave,
+}: {
+  nodeRef: (node: HTMLDivElement | null) => void
+  target: HoverTarget
+  label: string
+  anchorRect: DOMRect | null
+  closing: boolean
+  onClose: () => void
+  onMouseEnter?: () => void
+  onMouseLeave?: () => void
+}) {
   const navigate = useNavigate()
+  const cardNode = useRef<HTMLDivElement | null>(null)
 
   // 点外部 / Esc 关闭
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
-      if (cardRef.current?.contains(e.target as Node)) return
+      if (cardNode.current?.contains(e.target as Node)) return
       onClose()
     }
     const onKey = (e: KeyboardEvent) => {
@@ -192,8 +254,14 @@ export function EntityHoverCard({
 
   return createPortal(
     <div
-      ref={cardRef}
-      className="fixed z-[80] w-72 surface-card-xl p-4 shadow-[0_8px_28px_rgba(0,0,0,0.18)]"
+      ref={(node) => {
+        // 一个节点喂两处：cardNode 供「点外关闭」判定子树，nodeRef 供 presence 收口
+        cardNode.current = node
+        nodeRef(node)
+      }}
+      className={`fixed z-[80] w-72 surface-card-xl p-4 shadow-[0_8px_28px_rgba(0,0,0,0.18)] ${
+        closing ? 'anim-panel-out' : 'anim-pop'
+      }`}
       style={style}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}

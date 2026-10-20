@@ -12,8 +12,13 @@ const CONFIRM_MS = 2600
  * 折叠时仅一行空白输入框（无提示文字），点击/聚焦即输入；Enter 存、Esc/失焦收起；Shift+Enter 展开多行、
  * mod+Enter 提交。每次保存 = saveQuickCapture 落一条正式 Note（tag「速记」+ 默认目录）。
  * 保存即走，不内联展示历史条目，仅短暂提示并提供「查看」跳转对应笔记。
+ *
+ * `collapsed`（2026-10-19 侧栏伸缩）：侧栏收到 56px 图标轨时，整条便签收成一枚图标钮
+ * （挂 title 提示）—— 否则窄轨里那行输入框会被压成一条缝。**刻意不给它点开输入的能力**：
+ * 56px 里没法打字，鼠标悬浮会先让侧栏浮出（railOpen），届时 `collapsed` 已转 false、
+ * 便签恢复完整形态，用户再点即可输入。
  */
-export default function QuickCapture() {
+export default function QuickCapture({ collapsed = false }: { collapsed?: boolean }) {
   const navigate = useNavigate()
   // open: 折叠 → 展开输入；multiline: 单行 → 多行 textarea
   const [open, setOpen] = useState(false)
@@ -117,6 +122,24 @@ export default function QuickCapture() {
         <Icon name="edit_note" className="text-[1.1429rem] text-success" />
         <span className="flex-1 truncate">已记入速记</span>
         <Icon name="chevron_right" className="text-[1.0714rem] text-success" />
+      </button>
+    )
+  }
+
+  // 图标轨态：收成一枚图标钮（悬浮由侧栏 railOpen 接管后自然恢复完整形态）
+  if (collapsed) {
+    return (
+      <button
+        type="button"
+        className="flex w-full items-center justify-center rounded-lg py-2 text-primary hover:bg-surface-container"
+        title="快速便签（悬停侧栏后展开输入）"
+        aria-label="快速便签"
+        onClick={() => {
+          setOpen(true)
+          setMultiline(false)
+        }}
+      >
+        <Icon name="edit_note" className="text-[1.2857rem]" />
       </button>
     )
   }

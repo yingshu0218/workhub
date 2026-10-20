@@ -56,7 +56,11 @@ export default function MobileTabBar() {
       {!onInspiration && (
         <NavLink
           to="/inspiration"
-          className="absolute bottom-full right-5 mb-3 flex h-11 items-center gap-1.5 rounded-full bg-primary pl-3.5 pr-4 text-on-primary shadow-[0_8px_20px_rgba(0,74,198,0.32)] transition-transform active:scale-95"
+          /* anim-pop 入场（依赖 .anim-pop 的 backwards 填充，否则会锁死 transform、
+             让 .app-tab-pill:active 的按压失效）；app-tab-pill 提供按压与颜色过渡。
+             出场不做：触发它的场景就是跳到 /inspiration（整页切换），
+             为它引入 presence 的收益低于成本。 */
+          className="app-tab-pill anim-pop absolute bottom-full right-5 mb-3 flex h-11 items-center gap-1.5 rounded-full bg-primary pl-3.5 pr-4 text-on-primary shadow-[0_8px_20px_rgba(0,74,198,0.32)]"
         >
           <Icon name="auto_awesome" size={18} />
           <span className="text-[0.9286rem] font-semibold">灵感闪现</span>
@@ -71,7 +75,7 @@ export default function MobileTabBar() {
               key={tab.to}
               to={tab.to}
               aria-current={active ? 'page' : undefined}
-              className={`flex h-full flex-1 flex-col items-center justify-center gap-0.5 rounded-2xl transition-colors ${
+              className={`app-tab-pill flex h-full flex-1 flex-col items-center justify-center gap-0.5 rounded-2xl ${
                 active ? 'bg-primary text-on-primary' : 'text-outline'
               }`}
             >

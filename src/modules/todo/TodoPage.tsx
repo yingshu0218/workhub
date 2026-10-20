@@ -20,7 +20,7 @@ import {
 import { MatchCombobox } from '@/design-system/MatchCombobox'
 import { chipTagStyle } from '@/design-system/ChipTagInput'
 import { toArchivedFlag } from '@/shared/search'
-import { deriveTodoTitle, toTodoText, splitTodoText } from './title'
+import { deriveTodoTitle, toTodoText, splitTodoText, todoBodyPreview } from './title'
 import {
   TODO_PRIORITY_LEVELS,
   TODO_PRIORITY_META,
@@ -48,6 +48,11 @@ import { toggleTodoDone, voidTodo, restoreTodo } from './toggle'
 import { useToast } from '@/design-system/Toast'
 import { txnTodoIds, financeFocusPath } from '@/modules/finance/links'
 import { hiddenCustomerIds, useIntimacyConfig } from '@/modules/crm/intimacy'
+import { staggerStyle } from '@/shared/stagger'
+import { ROW_EXIT_DURATION_MS, useRowExit } from '@/shared/useRowExit'
+
+/** 待办行的稳定取键（模块级常量：`useRowExit` 的 keyOf 必须是稳定引用） */
+const todoKeyOf = (t: Todo): string => t.id
 import {
   isTodoOpen,
   isTodoDone,
@@ -55,6 +60,7 @@ import {
   isDueToday,
   isTodoOverdue,
   overdueDays,
+  hasTime,
   resolveFocusViewKind,
   resolveFocusAction,
   todoStatusLabel,
@@ -250,6 +256,15 @@ export default function TodoPage() {
     if (!isTodoOpen(t) && chipPriority) return false
     return matchesPriorityFilter(t.priority, chipPriority)
   })
+  /**
+   * 行退场存活层：打勾完成会让该行**立刻从 filtered 里消失**，
+   * 不接这一层的话 `anim-row-out` 永远没机会播（元素已被 React 摘掉），
+   * 表现为「啪」地不见、下方行同时上跳。
+   *
+   * 只在「未完成视图」接：终态视图里打勾是**把行移进来**而不是移走，
+   * 在那里播退场反而会看起来像操作失败。
+   */
+  const rows = useRowExit(filtered, todoKeyOf, ROW_EXIT_DURATION_MS, 'todo')
   // 当前视图是否为终态视图（已完成/已作废）：决定空态文案与行内可用操作
   const isDoneView = selKind === 'done' && !selListId
   const isVoidedView = selKind === 'voided' && !selListId
@@ -698,8 +713,14 @@ export default function TodoPage() {
               )}
             </Card>
           ) : (
-            <Card className="divide-y divide-outline-variant/30 px-5">
-              {filtered.map((t) => {
+            <Card
+              /* key 随清单/筛选变化 → 切换时列表整块重挂、条目错峰重新入场。
+                 挂在 Card 上而不是包 wrapper：本 Card 用 `divide-y` 做行分隔线，
+                 包一层 div 会破坏「直接子元素」关系。 */
+              key={`${selKind}-${selListId ?? 'none'}`}
+              className="divide-y divide-outline-variant/30 px-5"
+            >
+              {rows.map(({ item: t, leaving }, i) => {
                 const isDoing = focus.todoId === t.id && focus.status === 'running'
                 const isFocusRing = focusRingId === t.id
                 return (
@@ -716,7 +737,14 @@ export default function TodoPage() {
                     }}
                     title={isTodoOpen(t) ? '拖动到左侧清单可移动归属' : undefined}
                     onClick={() => setDetailId(t.id)}
-                    className={`group flex cursor-pointer items-center gap-3 rounded-lg py-3.5 transition-all duration-300 hover:bg-surface-container-low/40 ${
+                    /* 错峰入场挂在**行根**：绝不能在 flex 主列内插元素——
+                       `todoRowLayout` 的 `firstElementChild` 链依赖当前结构。
+                       正在退场的行改用 `.anim-row-out`（淡出 + 高度收拢），
+                       并且**不挂** staggerStyle —— 出场是即时的，延迟只会让它更晚消失。 */
+                    style={leaving ? undefined : staggerStyle(i)}
+                    className={`${
+                      leaving ? 'anim-row-out' : 'anim-list-item'
+                    } group flex cursor-pointer items-center gap-3 rounded-lg py-3.5 transition-all duration-300 hover:bg-surface-container-low/40 ${
                       isFocusRing
                         ? 'focus:outline-2 focus:outline-primary bg-primary-fixed/60 -mx-2 px-2'
                         : ''
@@ -753,69 +781,134 @@ export default function TodoPage() {
                       </button>
                     )}
                     <div className="min-w-0 flex-1">
-                      <div
-                        className={`truncate text-[1rem] ${
-                          isTodoOpen(t)
-                            ? 'font-medium'
-                            : isTodoDone(t)
-                              ? 'text-outline line-through'
-                              : 'text-outline/70 line-through'
-                        }`}
-                      >
-                        {t.title}
-                        {/* 「专注中」为专注计时运行时态，与持久化状态独立；作废条目不再显示 */}
-                        {isDoing && isTodoOpen(t) && (
-                          <span className="ml-2 align-middle">
-                            <Chip tone="blue" icon="timer">
-                              专注中
-                            </Chip>
-                          </span>
-                        )}
-                        {isTodoVoided(t) && (
-                          <span className="ml-2 align-middle">
-                            <Chip tone="gray" icon="block">
-                              已作废
-                            </Chip>
-                          </span>
-                        )}
-                      </div>
-                      {t.dueAt && (
-                        <div className="mt-0.5 text-[0.8571rem] text-outline">
-                          截止 {dayjs(t.dueAt).format('M月D日 HH:mm')}
-                          {isTodoOverdue(t, todayStr) && (
-                            <span className="ml-1.5 text-danger">
-                              已逾期 {overdueDays(t, todayStr)} 天
+                      {/* 第一行（2026-10-19 用户口径）：标题在左，标签与关联在标题右侧。
+                          标题 `min-w-0 truncate`，过长一律省略号截断 —— 右侧元信息 `shrink-0`
+                          保证不被压缩；空间不足时**先牺牲标题**而不是把标签挤成碎片。 */}
+                      <div className="flex items-center gap-2">
+                        <div
+                          className={`min-w-0 flex-1 truncate text-[1rem] ${
+                            isTodoOpen(t)
+                              ? 'font-medium'
+                              : isTodoDone(t)
+                                ? 'text-outline line-through'
+                                : 'text-outline/70 line-through'
+                          }`}
+                        >
+                          {t.title}
+                          {/* 「专注中」为专注计时运行时态，与持久化状态独立；作废条目不再显示 */}
+                          {isDoing && isTodoOpen(t) && (
+                            <span className="ml-2 align-middle">
+                              <Chip tone="blue" icon="timer">
+                                专注中
+                              </Chip>
+                            </span>
+                          )}
+                          {isTodoVoided(t) && (
+                            <span className="ml-2 align-middle">
+                              <Chip tone="gray" icon="block">
+                                已作废
+                              </Chip>
                             </span>
                           )}
                         </div>
-                      )}
-                      {/* 终态时间说明：完成/作废时间各自展示，口径可追溯 */}
-                      {isTodoDone(t) && t.completedAt && (
-                        <div className="mt-0.5 text-[0.8571rem] text-success/80">
-                          完成于 {dayjs(t.completedAt).format('M月D日 HH:mm')}
-                        </div>
-                      )}
-                      {isTodoVoided(t) && (
-                        <div className="mt-0.5 text-[0.8571rem] text-outline/80">
-                          {t.voidedAt
-                            ? `作废于 ${dayjs(t.voidedAt).format('M月D日 HH:mm')}`
-                            : '已作废'}
-                          {' · 记录保留，可随时恢复'}
-                        </div>
-                      )}
-                      {/* 归属信息：仅在有归属时展示；弱引用被级联解绑后自然消失，可即时感知 */}
+                        {(() => {
+                          // 标题右侧元信息：标签（前 3 枚 + 溢出计数）+ 归属弱引用。
+                          // 标签限幅的理由与笔记列表行同款：待办最多 12 枚标签，全铺会把标题挤没；
+                          // 完整清单在 tooltip 与详情抽屉里
+                          const quickTags = (t.tags ?? []).slice(0, 3)
+                          const moreTags = (t.tags ?? []).length - quickTags.length
+                          const owner = [
+                            t.customerId
+                              ? `客户 ${customerName.get(t.customerId) ?? '已删除'}`
+                              : null,
+                            t.projectId ? `项目 ${projectName.get(t.projectId) ?? '已删除'}` : null,
+                            t.listId ? `清单 ${listName.get(t.listId) ?? '已删除'}` : null,
+                          ].filter(Boolean)
+                          if (!quickTags.length && !owner.length) return null
+                          return (
+                            <div className="flex shrink-0 items-center gap-1.5">
+                              {quickTags.map((tag) => (
+                                <span
+                                  key={tag}
+                                  className="rounded-full px-2 py-0.5 text-[0.7857rem] font-medium leading-none"
+                                  style={chipTagStyle(tag)}
+                                  title={(t.tags ?? []).map((x) => `#${x}`).join(' ')}
+                                >
+                                  #{tag}
+                                </span>
+                              ))}
+                              {moreTags > 0 && (
+                                <span
+                                  className="text-[0.7857rem] text-outline"
+                                  title={(t.tags ?? []).map((x) => `#${x}`).join(' ')}
+                                >
+                                  +{moreTags}
+                                </span>
+                              )}
+                              {owner.length > 0 && (
+                                <span
+                                  className="max-w-[22rem] truncate text-[0.7857rem] text-outline/80"
+                                  title={owner.join(' · ')}
+                                >
+                                  {owner.join(' · ')}
+                                </span>
+                              )}
+                            </div>
+                          )
+                        })()}
+                      </div>
+                      {/* 第二行：内容（备注去掉标题行后的剩余）· 时间信息。
+                          内容 `min-w-0 truncate` 自然宽度、时间 `shrink-0` 紧随其后 ——
+                          备注长时先截断备注、时间不被挤出；备注短时两者紧挨着。 */}
                       {(() => {
-                        const owner = [
-                          t.customerId
-                            ? `客户 ${customerName.get(t.customerId) ?? '已删除'}`
-                            : null,
-                          t.projectId ? `项目 ${projectName.get(t.projectId) ?? '已删除'}` : null,
-                          t.listId ? `清单 ${listName.get(t.listId) ?? '已删除'}` : null,
-                        ].filter(Boolean)
-                        if (!owner.length) return null
+                        const preview = todoBodyPreview(t)
+                        const timeNodes: React.ReactNode[] = []
+                        // hasTime 而非 `t.dueAt &&`：远端该字段缺省是 0，`{0 && …}` 在 JSX 里
+                        // 求值为 0 会被 React **当文本渲染**，行里凭空多一个「0」（用户截图所指）
+                        if (hasTime(t.dueAt)) {
+                          timeNodes.push(
+                            <span key="due">
+                              截止 {dayjs(t.dueAt).format('M月D日 HH:mm')}
+                              {isTodoOverdue(t, todayStr) && (
+                                <span className="ml-1.5 text-danger">
+                                  已逾期 {overdueDays(t, todayStr)} 天
+                                </span>
+                              )}
+                            </span>,
+                          )
+                        }
+                        // 终态时间说明：完成/作废时间各自展示，口径可追溯
+                        if (isTodoDone(t) && hasTime(t.completedAt)) {
+                          timeNodes.push(
+                            <span key="done" className="text-success/80">
+                              完成于 {dayjs(t.completedAt).format('M月D日 HH:mm')}
+                            </span>,
+                          )
+                        }
+                        if (isTodoVoided(t)) {
+                          timeNodes.push(
+                            <span key="void" className="text-outline/80">
+                              {hasTime(t.voidedAt)
+                                ? `作废于 ${dayjs(t.voidedAt).format('M月D日 HH:mm')}`
+                                : '已作废'}
+                              {' · 记录保留，可随时恢复'}
+                            </span>,
+                          )
+                        }
+                        if (!preview && !timeNodes.length) return null
                         return (
-                          <div className="mt-0.5 truncate text-[0.7857rem] text-outline/80">
-                            {owner.join(' · ')}
+                          <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[0.8571rem] text-outline">
+                            {preview && (
+                              <span className="min-w-0 truncate" title={t.desc}>
+                                {preview}
+                              </span>
+                            )}
+                            {timeNodes.map((node, i) => (
+                              <span key={i} className="flex shrink-0 items-center gap-1.5">
+                                {i > 0 && <span className="text-outline/40">·</span>}
+                                {node}
+                              </span>
+                            ))}
                           </div>
                         )
                       })()}
@@ -1535,7 +1628,7 @@ export function TodoDetailDrawer({
                 ? (projectLabelOf(projects, todo.projectId) ?? '已删除')
                 : '未关联'}
             </TodoDetailField>
-            {isTodoOpen(todo) && todo.dueAt && isTodoOverdue(todo, todayStr) && (
+            {isTodoOpen(todo) && hasTime(todo.dueAt) && isTodoOverdue(todo, todayStr) && (
               <TodoDetailField label="逾期">
                 <span className="text-danger">已逾期 {overdueDays(todo, todayStr)} 天</span>
               </TodoDetailField>

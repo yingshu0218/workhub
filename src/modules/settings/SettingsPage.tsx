@@ -34,6 +34,7 @@ import { downloadBlob, downloadText } from '@/shared/download'
 import {
   ACCENT_PRESETS,
   RADIUS_PRESETS,
+  MOTION_PRESETS,
   FONT_SIZE_STEPS,
   LINE_HEIGHT_STEPS,
   FONT_PRESETS,
@@ -330,7 +331,12 @@ export default function SettingsPage() {
   }, [])
 
   if (!settings) {
-    return <div className="py-20 text-center text-[0.9286rem] text-outline">设置载入中…</div>
+    // 骨架微光叠在文案上（只加视觉层，文案保持不变 —— 它有既有断言按文本查询）
+    return (
+      <div className="anim-skeleton py-20 text-center text-[0.9286rem] text-outline">
+        设置载入中…
+      </div>
+    )
   }
 
   const save = (patch: Partial<Omit<Settings, 'key'>>) => {
@@ -666,7 +672,7 @@ export default function SettingsPage() {
 
       {/* ── 外观与主题 ── */}
       {tab === 'appearance' && (
-        <div className="space-y-4">
+        <div className="anim-enter space-y-4">
           <Section
             icon="texture"
             title="界面风格"
@@ -814,7 +820,7 @@ export default function SettingsPage() {
 
       {/* ── 色彩与密度 ── */}
       {tab === 'density' && (
-        <div className="space-y-4">
+        <div className="anim-enter space-y-4">
           <Section
             icon="format_color_fill"
             title="强调色"
@@ -856,7 +862,7 @@ export default function SettingsPage() {
                 onChange={(v) => save({ appearance: { ...settings.appearance, radius: v } })}
               />
             </div>
-            <div className="flex items-center justify-between">
+            <div className="mb-4 flex items-center justify-between">
               <span className="text-[0.9286rem] font-medium">信息密度</span>
               <Segmented
                 options={['comfortable', 'compact'] as const}
@@ -865,13 +871,24 @@ export default function SettingsPage() {
                 onChange={(v) => save({ appearance: { ...settings.appearance, density: v } })}
               />
             </div>
+            {/* 动效强度：与圆角/密度同区（都是「手感」而非「配色」）。
+                系统级 prefers-reduced-motion 优先于本档位，故说明里点出这一层。 */}
+            <div className="flex items-center justify-between">
+              <span className="text-[0.9286rem] font-medium">动效强度</span>
+              <Segmented
+                options={MOTION_PRESETS.map((m) => m.id)}
+                value={settings.appearance.motion ?? 'full'}
+                format={(v) => MOTION_PRESETS.find((m) => m.id === v)!.label}
+                onChange={(v) => save({ appearance: { ...settings.appearance, motion: v } })}
+              />
+            </div>
           </Section>
         </div>
       )}
 
       {/* ── 字体与排版 ── */}
       {tab === 'typography' && (
-        <div className="space-y-4">
+        <div className="anim-enter space-y-4">
           <Section
             icon="text_fields"
             title="字体组合"
@@ -988,7 +1005,7 @@ export default function SettingsPage() {
 
       {/* ── 通用与快捷键 ── */}
       {tab === 'shortcuts' && (
-        <div className="space-y-4">
+        <div className="anim-enter space-y-4">
           {/* 用户身份（Issue #123）：画布「我」节点、侧栏、首页问候、个人主页统一读这里 */}
           <Section
             icon="badge"
@@ -1163,8 +1180,9 @@ export default function SettingsPage() {
 
       {/* ── 提醒与协同 ── */}
       {tab === 'notifications' && (
-        <Section
-          icon="notifications_active"
+        <div className="anim-enter">
+          <Section
+            icon="notifications_active"
           title="通知推送与业务联动提醒"
           desc="开关即时持久化 · 本期仅存本地偏好，真实推送通道 Phase 7 接入"
         >
@@ -1229,13 +1247,14 @@ export default function SettingsPage() {
                 />
               </div>
             ))}
-          </div>
-        </Section>
+            </div>
+          </Section>
+        </div>
       )}
 
       {/* ── 云端同步 ── */}
       {tab === 'sync' && syncForm && (
-        <div className="space-y-4">
+        <div className="anim-enter space-y-4">
           <Section
             icon="cloud_sync"
             title="自托管同步服务（PocketBase）"
@@ -1360,7 +1379,7 @@ export default function SettingsPage() {
 
       {/* ── 数据与安全 ── */}
       {tab === 'security' && (
-        <div className="space-y-4">
+        <div className="anim-enter space-y-4">
           <div className="flex items-start gap-3 rounded-xl border border-success/30 bg-success-container/30 px-5 py-4">
             <Icon name="verified_user" fill className="text-[1.4286rem] text-success" />
             <div>

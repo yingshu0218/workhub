@@ -11,6 +11,7 @@ import {
   deriveProfileSummary,
 } from './hooks'
 import { downloadTrophyPoster } from './poster'
+import { staggerStyle } from '@/shared/stagger'
 
 /** tier → 主题配色（边框/渐变/文字/标签）；ProfilePage 复用 */
 export const TIER_THEME: Record<
@@ -159,7 +160,7 @@ export default function TrophiesPage() {
             </div>
             <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-container">
               <div
-                className="h-full rounded-full bg-primary transition-all"
+                className="anim-fill h-full rounded-full bg-primary"
                 style={{ width: `${milestone.pct}%` }}
               />
             </div>
@@ -187,7 +188,7 @@ export default function TrophiesPage() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {sorted.map((t) => {
+          {sorted.map((t, i) => {
             const theme = TIER_THEME[t.tier]
             const current = computeConditionValue(t.conditionType, stats)
             const target = t.conditionValue ?? 0
@@ -195,7 +196,8 @@ export default function TrophiesPage() {
             return (
               <Card
                 key={t.id}
-                className={`flex h-44 flex-col justify-between p-5 ${t.unlockedAt ? `border ${theme.border}` : 'opacity-75 grayscale'}`}
+                style={staggerStyle(i)}
+                className={`anim-list-item flex h-44 flex-col justify-between p-5 ${t.unlockedAt ? `border ${theme.border}` : 'opacity-75 grayscale'}`}
               >
                 <div className="flex items-start justify-between">
                   <div
@@ -260,7 +262,7 @@ export default function TrophiesPage() {
                     </div>
                     <div className="h-1.5 overflow-hidden rounded-full bg-surface-container">
                       <div
-                        className="h-full rounded-full bg-primary transition-all"
+                        className="anim-fill h-full rounded-full bg-primary"
                         style={{ width: `${pct}%` }}
                       />
                     </div>

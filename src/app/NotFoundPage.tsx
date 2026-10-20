@@ -14,7 +14,7 @@ import { Button, EmptyState } from '@/design-system/ui'
 export default function NotFoundPage() {
   const navigate = useNavigate()
   return (
-    <div className="mx-auto max-w-[1200px]">
+    <div className="anim-enter mx-auto max-w-[1200px]">
       <EmptyState
         icon="search"
         title="页面不存在"

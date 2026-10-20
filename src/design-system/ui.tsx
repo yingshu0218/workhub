@@ -1,5 +1,6 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { Icon } from './Icon'
+import { usePresence } from '@/shared/usePresence'
 
 /** 基础组件库（对齐 DESIGN.md：白卡/8px 圆角/1px 边框/柔和阴影/胶囊 Chip） */
 
@@ -44,12 +45,21 @@ export function Drawer({
 }) {
   useEscapeLayer(open, onClose)
 
-  if (!open) return null
+  // 出场动画靠 presence：关闭后保持挂载一小段。时长与 .anim-drawer-out 的基时对齐。
+  const { present, phase, ref } = usePresence(open, 200)
+  const closing = phase === 'out'
+
+  if (!present) return null
   return (
-    <div className="fixed inset-0 z-50">
-      <div className="absolute inset-0 bg-black/25" onClick={onClose} />
+    <div className="fixed inset-0 z-50" ref={ref}>
       <div
-        className="absolute right-0 top-0 flex h-full flex-col bg-surface-container-lowest shadow-[-8px_0_24px_rgba(0,0,0,0.10)]"
+        className={`absolute inset-0 bg-black/25 ${closing ? 'anim-overlay-out' : 'anim-overlay-in'}`}
+        onClick={onClose}
+      />
+      <div
+        className={`absolute right-0 top-0 flex h-full flex-col bg-surface-container-lowest shadow-[-8px_0_24px_rgba(0,0,0,0.10)] ${
+          closing ? 'anim-drawer-out' : 'anim-drawer-in'
+        }`}
         style={{ width }}
       >
         <div className="flex h-14 shrink-0 items-center justify-between border-b border-outline-variant/40 px-5">
@@ -84,22 +94,35 @@ export function Modal({
 }) {
   useEscapeLayer(open, onClose)
 
-  if (!open) return null
+  // 出场动画靠 presence（关闭后保持挂载播完出场再卸载）；基时 200ms 与 .anim-panel-out 对齐
+  const { present, phase, ref } = usePresence(open, 200)
+  const closing = phase === 'out'
+
+  if (!present) return null
   // 断点统一用 md(768) 而非原来的 sm(640)：全站桌面/移动分界定在 768，
   // 否则 640~768 这一段会同时命中两套规则、结果取决于 CSS 生成顺序。
   const sizes = { md: 'md:max-w-2xl', lg: 'md:max-w-4xl', xl: 'md:max-w-5xl' }[size]
   return (
     <div
+      ref={ref}
       className={`modal-overlay fixed inset-0 flex items-center justify-center p-0 md:p-6 ${
         elevated ? 'z-[55]' : 'z-50'
       }`}
     >
-      <div className="absolute inset-0 bg-black/25" onClick={onClose} />
+      <div
+        className={`absolute inset-0 bg-black/25 ${closing ? 'anim-overlay-out' : 'anim-overlay-in'}`}
+        onClick={onClose}
+      />
       {/* 形态由 styles/index.css 的 .modal-overlay / .modal-panel 表达：
           <768px = 贴底抽屉（只圆上两角、最高 85dvh）；≥768px = 居中对话框。
-          这里不写 h-full / rounded-* 工具类——会被无层级的 .surface-card-dialog 盖掉。 */}
+          这里不写 h-full / rounded-* 工具类——会被无层级的 .surface-card-dialog 盖掉。
+
+          动效同理：面板统一挂 .anim-panel-*，由 index.css 的窄屏媒体查询把它换成
+          「底部滑入」的 keyframes —— 与上面形态的做法一致，组件里不做断点判断。 */}
       <div
-        className={`modal-panel relative flex w-full flex-col overflow-hidden surface-card-dialog md:h-auto md:max-h-[90vh] ${sizes}`}
+        className={`modal-panel relative flex w-full flex-col overflow-hidden surface-card-dialog md:h-auto md:max-h-[90vh] ${
+          closing ? 'anim-panel-out' : 'anim-panel-in'
+        } ${sizes}`}
       >
         <div className="flex h-14 shrink-0 items-center justify-between border-b border-outline-variant/40 px-5">
           <h2 className="text-[1.0714rem] font-semibold">{title}</h2>
@@ -161,7 +184,7 @@ export function Button({
   disabled?: boolean
 }) {
   const base =
-    'inline-flex items-center gap-1.5 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:pointer-events-none'
+    'press inline-flex items-center gap-1.5 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:pointer-events-none'
   const sizes = size === 'sm' ? 'h-8 px-3 text-[0.9286rem]' : 'h-9 px-4'
   const variants = {
     primary: 'bg-primary text-on-primary hover:bg-primary-container',
@@ -186,16 +209,20 @@ export function Card({
   className = '',
   hover,
   onClick,
+  style,
 }: {
   children: ReactNode
   className?: string
   hover?: boolean
   onClick?: () => void
+  /** 内联样式（可选）：列表错峰入场需要 `animationDelay`，见 shared/stagger */
+  style?: React.CSSProperties
 }) {
   return (
     <div
       className={`card ${hover ? 'card-hover cursor-pointer' : ''} ${className}`}
       onClick={onClick}
+      style={style}
     >
       {children}
     </div>
@@ -316,11 +343,21 @@ export function ConfirmDialog({
     return () => window.removeEventListener('keydown', onKey)
   }, [open, onConfirm])
 
-  if (!open) return null
+  const { present, phase, ref } = usePresence(open, 150)
+  const closing = phase === 'out'
+
+  if (!present) return null
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/25" onClick={onCancel} />
-      <div className="relative w-full max-w-sm rounded-xl border border-outline-variant/40 bg-surface-container-lowest p-6 shadow-[0_8px_32px_rgba(0,0,0,0.16)]">
+    <div ref={ref} className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+      <div
+        className={`absolute inset-0 bg-black/25 ${closing ? 'anim-overlay-out' : 'anim-overlay-in'}`}
+        onClick={onCancel}
+      />
+      <div
+        className={`relative w-full max-w-sm rounded-xl border border-outline-variant/40 bg-surface-container-lowest p-6 shadow-[0_8px_32px_rgba(0,0,0,0.16)] ${
+          closing ? 'anim-panel-out' : 'anim-panel-in'
+        }`}
+      >
         <h3 className="text-[1.0714rem] font-semibold">{title}</h3>
         {message && (
           <div className="mt-2 text-[0.9286rem] leading-relaxed text-on-surface-variant">
@@ -373,12 +410,22 @@ export function PromptDialog({
 
   useEscapeLayer(open, onCancel, 'dialog')
 
-  if (!open) return null
+  const { present, phase, ref } = usePresence(open, 150)
+  const closing = phase === 'out'
+
+  if (!present) return null
   const submit = () => onConfirm(value.trim())
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/25" onClick={onCancel} />
-      <div className="relative w-full max-w-sm rounded-xl border border-outline-variant/40 bg-surface-container-lowest p-6 shadow-[0_8px_32px_rgba(0,0,0,0.16)]">
+    <div ref={ref} className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+      <div
+        className={`absolute inset-0 bg-black/25 ${closing ? 'anim-overlay-out' : 'anim-overlay-in'}`}
+        onClick={onCancel}
+      />
+      <div
+        className={`relative w-full max-w-sm rounded-xl border border-outline-variant/40 bg-surface-container-lowest p-6 shadow-[0_8px_32px_rgba(0,0,0,0.16)] ${
+          closing ? 'anim-panel-out' : 'anim-panel-in'
+        }`}
+      >
         <h3 className="text-[1.0714rem] font-semibold">{title}</h3>
         {message && (
           <div className="mt-2 text-[0.9286rem] leading-relaxed text-on-surface-variant">

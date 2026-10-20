@@ -60,7 +60,7 @@ export default function ProfilePage() {
             </div>
             <div className="h-2.5 overflow-hidden rounded-full bg-surface-container">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-primary to-secondary transition-all"
+                className="anim-fill h-full rounded-full bg-gradient-to-r from-primary to-secondary"
                 style={{ width: `${levelPct}%` }}
               />
             </div>
@@ -134,7 +134,7 @@ export default function ProfilePage() {
                   </div>
                   <div className="h-2 overflow-hidden rounded-full bg-surface-container">
                     <div
-                      className={`h-full rounded-full bg-gradient-to-r ${theme.gradient} transition-all`}
+                      className={`anim-fill h-full rounded-full bg-gradient-to-r ${theme.gradient}`}
                       style={{ width: `${pct}%` }}
                     />
                   </div>

@@ -259,12 +259,18 @@ export default function CustomerTimelinePage() {
                 </text>
 
                 {/* 骨刺 */}
-                {layout.bones.map((b) => {
+                {layout.bones.map((b, i) => {
                   const target = boneTarget(b.event)
                   return (
                     <g
-                      key={b.event.id}
-                      className={target ? 'cursor-pointer' : ''}
+                      key={`${filter}:${b.event.id}`}
+                      /* filter 并入 key：切换筛选时骨刺重挂 → 淡入重播（不必额外状态）。
+                         骨刺入场淡入。⚠️ **只能用 anim-fade（纯 opacity）**：
+                         骨刺坐标由 layout 计算，若挂含 transform 的动画会与 panZoom
+                         的容器变换叠加出偏移。rect/line/circle 数量与 stroke 属性
+                         **一律不动** —— timelineSpine / crmSpine 测试按元素数与属性断言。 */
+                      className={`anim-fade${target ? ' cursor-pointer' : ''}`}
+                      style={{ animationDelay: `${Math.min(i, 12) * 20}ms` }}
                       onPointerDown={(e) => {
                         e.stopPropagation()
                         draggedRef.current = false

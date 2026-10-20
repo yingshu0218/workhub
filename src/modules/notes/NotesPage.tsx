@@ -25,6 +25,7 @@ import {
   moveNoteToFolder,
 } from './hooks'
 import type { NoteFolder } from '@/db/types'
+import { staggerStyle } from '@/shared/stagger'
 
 /** 相对时间（列表行右侧） */
 function fmtTime(ts: number): string {
@@ -299,11 +300,12 @@ export default function NotesPage() {
               </span>
               <span>{list.length} 篇</span>
             </div>
-            {list.map((n) => (
+            {list.map((n, i) => (
               <div
                 key={n.id}
                 onClick={() => setViewId(n.id)}
-                className="group flex h-11 shrink-0 cursor-pointer items-center gap-2 rounded-lg px-2 -mx-2 transition-colors hover:bg-surface-container-low/60"
+                style={staggerStyle(i)}
+                className="anim-list-item group flex h-11 shrink-0 cursor-pointer items-center gap-2 rounded-lg px-2 -mx-2 transition-colors hover:bg-surface-container-low/60"
               >
                 <Icon name="description" className="shrink-0 text-[1.2857rem] text-primary" />
                 <span className="min-w-0 flex-1 truncate text-[1rem] font-medium group-hover:text-primary">

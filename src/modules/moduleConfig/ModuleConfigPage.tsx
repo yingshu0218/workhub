@@ -81,7 +81,8 @@ export default function ModuleConfigPage() {
         {/* 右侧：当前子项配置面板 */}
         <div className="min-w-0">
           {ActivePanel ? (
-            <>
+            /* key 随路由子项变化 → 换配置项时整块重挂、anim-enter 淡入重播 */
+            <div key={`${moduleId}/${itemId}`} className="anim-enter">
               {activeModule && activeItem && (
                 <div className="mb-4 flex items-center gap-2 text-[0.9286rem] text-on-surface-variant">
                   <Icon name={activeModule.icon} size={16} className="text-outline" />
@@ -92,7 +93,7 @@ export default function ModuleConfigPage() {
                 </div>
               )}
               <ActivePanel />
-            </>
+            </div>
           ) : (
             <EmptyState
               icon="tune"

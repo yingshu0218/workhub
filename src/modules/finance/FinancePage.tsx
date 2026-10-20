@@ -29,6 +29,7 @@ import {
   reorderLedgers,
 } from './hooks'
 import { ledgerRepo, transactionRepo } from '@/repositories'
+import { staggerStyle } from '@/shared/stagger'
 
 type TypeFilter = 'all' | 'income' | 'expense'
 type StatusFilter = 'all' | '已结算' | '待对账'
@@ -378,14 +379,21 @@ export default function FinancePage() {
               />
             </Card>
           ) : (
-            <Card className="divide-y divide-outline-variant/30 px-3 md:px-5">
-              {pageItems.map((t) =>
+            <Card
+              /* key 随筛选变化 → 切换账本/类型/状态时整块重挂，条目错峰重新入场。
+                 挂 key 在 Card 上而不是包 wrapper：本 Card 用 `divide-y` 做行分隔线，
+                 包一层 div 会破坏「直接子元素」关系。 */
+              key={`${scope}-${typeFilter}-${statusFilter}-${page}`}
+              className="divide-y divide-outline-variant/30 px-3 md:px-5"
+            >
+              {pageItems.map((t, i) =>
                 isMobile ? (
                   <TransactionRowCompact
                     key={t.id}
                     txn={t}
                     ledger={ledgerMap.get(t.ledgerId)}
                     showLedger={scope === 'all'}
+                    index={i}
                     onOpen={() => setDetailId(t.id)}
                   />
                 ) : (
@@ -395,6 +403,7 @@ export default function FinancePage() {
                     ledger={ledgerMap.get(t.ledgerId)}
                     customers={customers.filter((c) => txnCustomerIds(t).includes(c.id))}
                     showLedger={scope === 'all'}
+                    index={i}
                     onOpen={() => setDetailId(t.id)}
                   />
                 ),
@@ -630,11 +639,14 @@ function TransactionRowCompact({
   ledger,
   showLedger,
   onOpen,
+  index,
 }: {
   txn: Transaction
   ledger: Ledger | undefined
   showLedger: boolean
   onOpen: () => void
+  /** 列表序号：仅用于错峰入场延迟（可选，不传则不参与错峰） */
+  index?: number
 }) {
   const symbol = symbolOf(ledger?.currency)
   const isIncome = txn.type === 'income'
@@ -650,7 +662,9 @@ function TransactionRowCompact({
   return (
     <div
       onClick={onOpen}
-      className="flex cursor-pointer items-center gap-2.5 px-1 py-3 transition-colors active:bg-surface-container-low/60"
+      /* 错峰入场挂在行根：外层 Card 用 `divide-y` 做分隔线、依赖直接子元素，不能包 div */
+      style={staggerStyle(index)}
+      className="anim-list-item flex cursor-pointer items-center gap-2.5 px-1 py-3 transition-colors active:bg-surface-container-low/60"
     >
       <span
         className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
@@ -681,6 +695,7 @@ function TransactionRow({
   customers,
   showLedger,
   onOpen,
+  index,
 }: {
   txn: Transaction
   ledger: Ledger | undefined
@@ -688,6 +703,8 @@ function TransactionRow({
   customers: Customer[]
   showLedger: boolean
   onOpen: () => void
+  /** 列表序号：仅用于错峰入场延迟（可选，不传则不参与错峰） */
+  index?: number
 }) {
   // 每行独立计数 Hook：count() 只走索引计数，不反序列化 Blob
   const attCount = useAttachmentCount(txn.id)
@@ -696,7 +713,8 @@ function TransactionRow({
   return (
     <div
       onClick={onOpen}
-      className="group flex cursor-pointer items-start gap-3 px-2 py-3.5 transition-colors hover:bg-surface-container-low/40"
+      style={staggerStyle(index)}
+      className="anim-list-item group flex cursor-pointer items-start gap-3 px-2 py-3.5 transition-colors hover:bg-surface-container-low/40"
     >
       <span
         className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${

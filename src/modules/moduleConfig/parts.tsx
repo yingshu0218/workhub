@@ -52,9 +52,13 @@ export function Toggle({
       }`}
       onClick={() => onChange(!checked)}
     >
+      /* 开关滑块：用 translate-x 而非 left 做位移 ——
+     left 每帧触发 layout，translate 只走合成层（DESIGN.md 规则 1）。
+     视觉等价：容器 w-11(44px) - 滑块 w-5(20px) = 24px 行程，
+     原 left 从 2px 到 22px 也是 24px，两端对齐一致。 */
       <span
-        className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${
-          checked ? 'left-[22px]' : 'left-0.5'
+        className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform duration-[calc(var(--motion-duration-base)*var(--motion-duration-scale))] ${
+          checked ? 'translate-x-[24px]' : 'translate-x-0'
         }`}
       />
     </button>

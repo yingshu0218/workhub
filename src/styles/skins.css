@@ -20,6 +20,15 @@
   --skin-heading-spacing: 0;
   --skin-card-radius: var(--radius-lg);
   --skin-surface-filter: none;
+
+  /* 动效维度（Phase M1）：与上面「形态」token 同族，但走**独立通道**——
+     皮肤改的是「动起来的性格」，不是「长什么样」。
+     默认（none）= 倍率 1 + 回弹缓动（= 改造前的既有手感），
+     即「皮肤没选」时动效与不挂皮肤逐帧一致（零回归锚点）。
+     缓动只作用于「性格最外显」的两处：弹入 .anim-pop 与按压 .press；
+     进出场等结构性动画仍走 --ease-standard/decelerate，不因换皮肤而变形。 */
+  --skin-motion-scale: 1;
+  --skin-motion-ease: var(--ease-spring);
 }
 
 /* 标题域字体（h1-h4 / 卡片标题）：仅皮肤层接管，none 时为继承 */
@@ -498,4 +507,68 @@ h4,
 
 :root[data-skin='glass'] .app-header {
   border-bottom-color: var(--skin-border-color);
+}
+
+/* =====================================================================
+   皮肤动效维度（Phase M1）
+   ---- 四种性格，与各自的「形态语言」同构（不是单纯快慢） ----
+   pixel  0.6 + steps()  → 8-bit 的**步进瞬移**：参数式硬切换，不做补间
+   cartoon 1.15 + spring → 回弹更明显（贴纸感）
+   cyber  1.0 + 标准      → 干脆利落（霓虹不需要拖泥带水）
+   glass  1.3 + emphasized→ 慢而顺滑（玻璃拟态的重量感）
+
+   ⚠️ 倍率只改 --skin-motion-scale（由 index.css 的 --motion-duration-scale 引用），
+   缓动只改 --skin-motion-ease（作用于 .anim-pop / .press 两处性格外显点）。
+   任何皮肤都**不要**逐个覆写 .anim-* 类的时长 ——
+   那样三处降级逻辑（皮肤/设置/无障碍）会各改一遍、迟早漂移。
+   ===================================================================== */
+
+:root[data-skin='pixel'] {
+  --skin-motion-scale: 0.6;
+  /* steps() 而非缓动曲线：像素风的时间也是「格子」的，补间会立刻破功 */
+  --skin-motion-ease: steps(4, end);
+}
+
+:root[data-skin='cartoon'] {
+  --skin-motion-scale: 1.15;
+  --skin-motion-ease: var(--ease-spring);
+}
+
+:root[data-skin='cyber'] {
+  --skin-motion-scale: 1;
+  --skin-motion-ease: var(--ease-standard);
+}
+
+:root[data-skin='glass'] {
+  --skin-motion-scale: 1.3;
+  --skin-motion-ease: var(--ease-emphasized);
+}
+
+/* 皮肤专属点缀：只在对应皮肤下生效，且各自都是纯装饰、不影响可用性 */
+/* cyber 扫描线**只挂在弹窗面板**上，不挂普通卡片：
+   同一屏里可能铺几十张卡片，逐张跑 infinite 动画既费电又是纯噪音；
+   弹窗同屏最多一两张，且「HUD 面板正在扫描」的语义正好落在它身上。 */
+:root[data-skin='cyber'] .surface-card-dialog {
+  position: relative;
+}
+
+:root[data-skin='cyber'] .surface-card-dialog::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit; /* 跟随面板圆角/切角，不溢出边角 */
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    color-mix(in srgb, var(--color-primary) 10%, transparent),
+    transparent
+  );
+  animation: nx-scanline calc(var(--motion-duration-slower) * 4 * var(--motion-duration-scale))
+    linear infinite;
+}
+
+:root[data-skin='pixel'] .section-title::after {
+  content: '_';
+  animation: nx-blink 1s steps(1, end) infinite;
 }

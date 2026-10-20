@@ -9,6 +9,7 @@ import { isTodoOpen } from '@/modules/todo/domain'
 import ProjectFormDrawer from './ProjectFormDrawer'
 import { projectStatusMeta, useProjects } from './hooks'
 import { txnProjectIds } from '@/modules/finance/links'
+import { staggerStyle } from '@/shared/stagger'
 
 type ScopeFilter = 'active' | 'all' | 'archived'
 
@@ -94,12 +95,15 @@ export default function ProjectsPage() {
           />
         </Card>
       ) : (
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {filtered.map((p) => {
+        // key 随筛选变化 → 切换 scope 时整块重挂、配合条目错峰重新入场
+        <div key={scope} className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {filtered.map((p, i) => {
             const st = stats.get(p.id) ?? { income: 0, expense: 0, openTodos: 0 }
             const meta = projectStatusMeta(p.status)
             return (
-              <Card key={p.id} hover onClick={() => navigate(`/projects/${p.id}`)} className="p-5">
+              /* ⚠️ hover 触发 .card-hover:hover 的 translateY —— 依赖 .anim-list-item
+                 的 backwards 填充，否则入场动画播完后会锁死 transform、抬升失效。 */
+              <Card key={p.id} hover style={staggerStyle(i)} onClick={() => navigate(`/projects/${p.id}`)} className="anim-list-item p-5">
                 <div className="flex items-start gap-3">
                   <span
                     className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-white"

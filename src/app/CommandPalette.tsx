@@ -9,6 +9,7 @@ import type { SearchItem } from '@/shared/search'
 import type { Customer, Project, Todo, Transaction, Note, Habit } from '@/db/types'
 import { noteRepo, newId } from '@/repositories'
 import { useToast } from '@/design-system/Toast'
+import { usePresence } from '@/shared/usePresence'
 
 /**
  * ⌘K 全局命令面板（对齐原型 11-global-search）
@@ -164,18 +165,26 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
     }
   }
 
-  if (!open) return null
+  const { present, phase, ref: presenceRef } = usePresence(open, 150)
+  const closing = phase === 'out'
+
+  if (!present) return null
   let cursor = -1
 
   return (
     <div
+      ref={presenceRef}
       className="fixed inset-0 z-50 flex items-start justify-center pt-[12vh]"
       onClick={onClose}
       onKeyDown={onKeyDown}
     >
-      <div className="absolute inset-0 bg-black/30" />
       <div
-        className="relative w-[640px] max-w-[92vw] overflow-hidden rounded-2xl border border-outline-variant/40 bg-surface-container-lowest shadow-2xl"
+        className={`absolute inset-0 bg-black/30 ${closing ? 'anim-overlay-out' : 'anim-overlay-in'}`}
+      />
+      <div
+        className={`relative w-[640px] max-w-[92vw] overflow-hidden rounded-2xl border border-outline-variant/40 bg-surface-container-lowest shadow-2xl ${
+          closing ? 'anim-toast-out' : 'anim-toast-in'
+        }`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* 搜索输入 */}
@@ -211,7 +220,10 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
                   return (
                     <button
                       key={`${it.type}-${it.id}`}
-                      className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors ${
+                      /* 错峰入场：只对前 10 项给延迟——再往后的条目本来就在滚动区下方，
+                         多给延迟只会让「滚下去看」的那几条白白晚出现。 */
+                      style={idx < 10 ? { animationDelay: `${idx * 20}ms` } : undefined}
+                      className={`anim-enter-up flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors ${
                         idx === activeIndex ? 'bg-primary-fixed' : 'hover:bg-surface-container'
                       }`}
                       onMouseEnter={() => setActive(idx)}

@@ -151,6 +151,11 @@ describe('EntityLinkField 悬浮摘要卡', () => {
     })
     expect(screen.getByRole('dialog')).toBeTruthy()
     fireEvent.keyDown(document, { key: 'Escape' })
+    // ⚠️ 卡片现在带 150ms 出场动画，不会同步消失（Phase M1 起，见 shared/usePresence）。
+    // 本文件用 fake timers，动画卸载由 hook 内定时器驱动 —— 直接推进时间即可，无需 waitFor。
+    await act(async () => {
+      vi.advanceTimersByTime(200)
+    })
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 })

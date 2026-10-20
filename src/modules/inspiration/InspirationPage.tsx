@@ -10,6 +10,7 @@ import { registerShortcut } from '@/shared/shortcuts'
 import { useFocusStore } from '@/stores/focus'
 import buildCandidates from './engine'
 import type { CandidateKind, InspirationCandidate } from './engine'
+import { staggerStyle } from '@/shared/stagger'
 
 /**
  * 灵感闪现全屏决策态（对齐原型 02-inspiration-flash · 全屏决策态（样式走设计 token，自动跟随深浅模式与主题包），不套 AppLayout）
@@ -320,7 +321,8 @@ export default function InspirationPage() {
             {/* 候选卡片 */}
             <div
               key={current.id}
-              className="rounded-b-2xl border border-t-0 border-outline-variant/40 bg-surface-container-lowest px-7 py-6"
+              /* 已有 key={current.id} → 换卡即重挂，anim-enter 自然重播（无需新增状态） */
+              className="anim-enter rounded-b-2xl border border-t-0 border-outline-variant/40 bg-surface-container-lowest px-7 py-6"
             >
               <div className="flex items-start justify-between gap-6">
                 <div className="min-w-0">
@@ -354,8 +356,12 @@ export default function InspirationPage() {
               {/* 执行上下文（客户 · 款项 · 笔记） */}
               {current.context.length > 0 && (
                 <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  {current.context.map((ctx) => (
-                    <div key={ctx.label} className="surface-card-low rounded-xl px-4 py-3">
+                  {current.context.map((ctx, i) => (
+                    <div
+                      key={ctx.label}
+                      style={staggerStyle(i)}
+                      className="anim-list-item surface-card-low rounded-xl px-4 py-3"
+                    >
                       <div className="flex items-center gap-1.5 text-[0.7857rem] font-medium text-outline">
                         <Icon name={ctx.icon} size={14} />
                         {ctx.label}

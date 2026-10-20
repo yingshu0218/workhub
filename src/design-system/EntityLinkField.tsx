@@ -254,16 +254,16 @@ export default function EntityLinkField({
         </DropdownPortal>
       )}
 
-      {hover.hover && (
-        <EntityHoverCard
-          target={hover.hover.target}
-          label={hover.hover.label}
-          anchorRect={hover.hover.rect}
-          onClose={hover.close}
-          onMouseEnter={hover.keepOpen}
-          onMouseLeave={hover.leave}
-        />
-      )}
+      {/* ⚠️ 常驻渲染（不套 {hover.hover && …}）：悬浮卡收起时要把 target 传成 null，
+          让组件自己播出场动画再卸载。父级同步卸载会让淡出没机会播。 */}
+      <EntityHoverCard
+        target={hover.hover?.target ?? null}
+        label={hover.hover?.label ?? ''}
+        anchorRect={hover.hover?.rect ?? null}
+        onClose={hover.close}
+        onMouseEnter={hover.keepOpen}
+        onMouseLeave={hover.leave}
+      />
     </div>
   )
 }

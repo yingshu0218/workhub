@@ -163,3 +163,44 @@ The design system uses **Soft** roundedness to strike a balance between professi
 - **Chips:** Small, pill-shaped indicators. For financial/success chips, use a light green background (#D1FAE5) with dark green text (#065F46).
 - **Lists:** Use subtle horizontal dividers (1px, #F1F5F9) rather than boxed containers for long-form data to keep the interface airy.
 - **Collaboration Elements:** Avatars should always be circular. "Presence" indicators (online/offline) should be 8px dots positioned at the bottom right of the avatar.
+
+## Motion
+
+Motion in this system exists to **explain where things came from and where they went** — never to decorate. If an animation does not help the user understand a state change, it should not exist.
+
+The direction language is deliberately restrained: content **enters** with a decelerating ease (it arrives), and **leaves** with an accelerating ease (it departs). Nothing lingers.
+
+### Duration
+
+All durations are **multiples of a shared base**, scaled globally by a single multiplier (`--motion-duration-scale`). Skins, the in-app setting, and the OS accessibility preference all adjust that one value — never individual durations.
+
+| Token | Value | Use for |
+|---|---|---|
+| `instant` | 100ms | Color/icon state swaps (hover tints) |
+| `fast` | 150ms | Small controls — **equals Tailwind's default**, so tokenizing an existing `transition-*` is visually a no-op |
+| `base` | 200ms | Buttons, chips, list rows |
+| `slow` | 300ms | Drawers, modals, large panels |
+| `slower` | 500ms | Progress fills, chart entrances |
+
+### Easing
+
+| Token | Curve | Meaning |
+|---|---|---|
+| `standard` | `cubic-bezier(0.2, 0, 0, 1)` | General purpose |
+| `decelerate` | `cubic-bezier(0.05, 0.7, 0.1, 1)` | **Entering** — the thing arrives |
+| `accelerate` | `cubic-bezier(0.3, 0, 0.8, 0.15)` | **Leaving** — the thing departs |
+| `emphasized` | `cubic-bezier(0.05, 0.7, 0.1, 1)` | Large panels |
+| `spring` | `cubic-bezier(0.34, 1.4, 0.64, 1)` | Overshoot — reserved for trophy unlocks and skin personality |
+
+### Rules
+
+1. **Only `transform` and `opacity` animate.** Width, height, `top`, and `left` trigger layout on every frame — unacceptable on Tauri mobile WebViews. The sole exception is the fill bar (`width`), which is the semantic of that control itself.
+2. **Layers always animate out.** Anything that appears must also disappear with a transition — never blink out. Overlays are kept mounted for the duration of their exit (see `src/shared/usePresence.ts`).
+3. **Exit is faster than entry.** Leaving should feel decisive; arriving may take its time.
+4. **Interactive feedback is uniform.** Press = `scale(0.97)` (`.press`), hover lift = shadow + `translateY(-2px)` (`.lift` / `.card-hover`). Not per-component values.
+5. **Stagger only the first ~10 items.** Beyond that they are below the fold; delaying them only makes the list feel slow.
+6. **Motion must be degradable.** `prefers-reduced-motion: reduce` disables all animation and movement unconditionally (WCAG 2.1 SC 2.3.3). An in-app setting (`data-motion="reduced" | "off"`) offers a softer opt-out, but can never override the OS preference.
+
+### Skins
+
+Skins carry **personality of motion**, not just of shape. Each adjusts `--skin-motion-scale` and `--skin-motion-ease`; the four animated personalities are: `pixel` (stepped, 8-bit — no interpolation), `cartoon` (bouncier spring), `cyber` (crisp and immediate), `glass` (slower, more fluid). The default (`none`) skin reproduces the pre-existing feel exactly.

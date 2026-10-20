@@ -19,6 +19,7 @@ import {
   inputCls,
 } from '@/design-system/ui'
 import CustomerFormDrawer from './CustomerFormDrawer'
+import { staggerStyle } from '@/shared/stagger'
 import { fmtRelative, normalizeTags, tagsForGroupJoin } from './shared'
 import { fmtMoney } from './timeline'
 import { filterBlacklisted, useIntimacyConfig, resolveIntimacyLevel } from './intimacy'
@@ -349,7 +350,8 @@ export default function CrmPage() {
                   <Icon
                     name="keyboard_arrow_down"
                     size={18}
-                    className="text-outline transition-transform group-open:rotate-180"
+                    /* 时长走 token（原为 Tailwind 默认 150ms，与 fast 档等价） */
+                    className="text-outline transition-transform duration-[calc(var(--motion-duration-fast)*var(--motion-duration-scale))] group-open:rotate-180"
                   />
                 </summary>
                 <div className="card mt-2 p-3">
@@ -397,12 +399,13 @@ export default function CrmPage() {
               {/* 桌面（≥768px）：原结构逐像素不变 */}
               {!isMobile && (
                 <Card className="hidden divide-y divide-outline-variant/30 px-5 md:block">
-                  {list.map((c) => (
+                  {list.map((c, i) => (
                     <CustomerRow
                       key={c.id}
                       customer={c}
                       intimacyCfg={intimacyCfg}
                       scoreInputs={scoreInputs}
+                      index={i}
                       onOpen={() => navigate(`/crm/${c.id}`)}
                     />
                   ))}
@@ -412,12 +415,13 @@ export default function CrmPage() {
                   390px 下这两列没有摆放空间（连名带公司都会截断），所以整体换成卡片。 */}
               {isMobile && (
                 <div className="flex flex-col gap-2 md:hidden">
-                  {list.map((c) => (
+                  {list.map((c, i) => (
                     <CustomerCard
                       key={c.id}
                       customer={c}
                       intimacyCfg={intimacyCfg}
                       scoreInputs={scoreInputs}
+                      index={i}
                       onOpen={() => navigate(`/crm/${c.id}`)}
                     />
                   ))}
@@ -613,12 +617,15 @@ function CustomerRow({
   intimacyCfg,
   scoreInputs,
   onOpen,
+  index,
 }: {
   customer: Customer
   intimacyCfg: ReturnType<typeof useIntimacyConfig>
   /** 未手动设置档位的客户的算法入参（批次查询结果，缺失即「未设置」文案的旧口径兜底） */
   scoreInputs: Record<string, Parameters<typeof resolveIntimacyLevel>[2]>
   onOpen: () => void
+  /** 列表序号：仅用于错峰入场延迟（可选，不传则不参与错峰） */
+  index?: number
 }) {
   // 健康分档位（原亲密度，Issue #108）：手动优先 → 算法兜底。
   // 未手动设置时不再显示「未设置」——按用户拍板，算法推断的档位用括号标出，与详情页口径统一。
@@ -632,7 +639,10 @@ function CustomerRow({
         e.dataTransfer.effectAllowed = 'move'
       }}
       title="拖动到左侧分组可加入该分组（按分组规则补齐标签）"
-      className="group flex cursor-pointer items-center gap-4 px-2 py-3.5 transition-colors hover:bg-surface-container-low/40"
+      /* 错峰入场挂在行根：桌面 Card 用 `divide-y` 做分隔线、依赖直接子元素，
+         故**不能**在外面包一层 div。 */
+      style={staggerStyle(index)}
+      className="anim-list-item group flex cursor-pointer items-center gap-4 px-2 py-3.5 transition-colors hover:bg-surface-container-low/40"
     >
       <Avatar name={c.name} size={40} />
       <div className="min-w-0 flex-1">
@@ -695,20 +705,24 @@ function CustomerCard({
   intimacyCfg,
   scoreInputs,
   onOpen,
+  index,
 }: {
   customer: Customer
   intimacyCfg: ReturnType<typeof useIntimacyConfig>
   scoreInputs: Record<string, Parameters<typeof resolveIntimacyLevel>[2]>
   onOpen: () => void
+  /** 列表序号：仅用于错峰入场延迟（可选，不传则不参与错峰） */
+  index?: number
 }) {
   const healthLevel = resolveHealthScoreDisplay(c, intimacyCfg, scoreInputs[c.id] ?? null)
   return (
     <button
       type="button"
       onClick={onOpen}
+      style={staggerStyle(index)}
       /* 仍挂 .card 而不是自己拼 border/bg：皮肤层（skins.css）按 `.card` 改圆角/描边/阴影，
          自己拼一份就会在换皮肤时变成唯一不长皮肤的那张卡。 */
-      className="card flex w-full cursor-pointer items-center gap-3 p-3 text-left"
+      className="anim-list-item card flex w-full cursor-pointer items-center gap-3 p-3 text-left"
     >
       <Avatar name={c.name} size={40} />
       <div className="min-w-0 flex-1">

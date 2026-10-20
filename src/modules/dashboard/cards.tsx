@@ -14,8 +14,10 @@ import {
   isTodoOverdue,
   isTodoDueToday,
   overdueDays,
+  hasTime,
   todoFocusPath,
 } from '@/modules/todo/domain'
+import { todoBodyPreview } from '@/modules/todo/title'
 import { isHighPriority, todoPriorityFullLabel } from '@/modules/todo/priority'
 import { useCallback, useRef, useState } from 'react'
 import type { Todo, Customer, Ledger, Habit, HabitLog, QuickNote, Note } from '@/db/types'
@@ -300,8 +302,10 @@ export function TodayTodosCard() {
         </button>
         <div className="min-w-0 flex-1">
           <div className="truncate text-[0.9643rem] font-medium">{t.title}</div>
-          {t.desc && <div className="truncate text-[0.7857rem] text-outline">{t.desc}</div>}
-          {t.dueAt && (
+          {todoBodyPreview(t) && (
+            <div className="truncate text-[0.7857rem] text-outline">{todoBodyPreview(t)}</div>
+          )}
+          {hasTime(t.dueAt) && (
             <div className={`text-[0.7857rem] ${isOver ? 'text-danger' : 'text-outline'}`}>
               {isOver
                 ? `${dayjs(t.dueAt).format('M月D日 HH:mm')} · ${overdueFor(t)}`
@@ -526,7 +530,11 @@ export function HabitLoopCard() {
         </div>
         {habits.length > 0 && (
           <div className="shrink-0 text-right">
-            <div className="text-[1.2857rem] font-bold tabular-nums text-success">
+            {/* key 随完成数变化 → 打卡时读数重挂淡入一次 */}
+            <div
+              key={`habit-${doneCount}`}
+              className="anim-enter text-[1.2857rem] font-bold tabular-nums text-success"
+            >
               {doneCount}
               <span className="text-[0.9286rem] font-medium text-outline"> / {habits.length}</span>
             </div>
@@ -538,7 +546,7 @@ export function HabitLoopCard() {
       {/* 顶部进度条：闭环进度在卡片收起/扫视时也可见 */}
       <div className="mb-3 mt-2 h-1.5 w-full overflow-hidden rounded-full bg-surface-container">
         <div
-          className="h-full rounded-full bg-success transition-[width] duration-500"
+          className="anim-fill h-full rounded-full bg-success"
           style={{ width: `${pct}%` }}
         />
       </div>
@@ -782,15 +790,18 @@ export function QuickNoteCard() {
         </div>
 
         {collapsed ? (
-          <p className="mt-2 text-[0.7857rem] text-outline">
+          <p className="anim-enter mt-2 text-[0.7857rem] text-outline">
             暂存区已收起{pending.length > 0 ? `，${pending.length} 条速记待处置` : ''} ·
             点击标题展开
           </p>
         ) : pending.length === 0 ? (
-          <p className="py-3 text-center text-[0.8571rem] text-outline">暂存区已清空</p>
+          <p className="anim-enter py-3 text-center text-[0.8571rem] text-outline">暂存区已清空</p>
         ) : (
           <>
-            <ul className="mt-2 space-y-2">
+            {/* 折叠展开用「条件渲染 + 淡入」而非 grid-template-rows 高度动画：
+                后者要让内容常驻 DOM、改动 pending.length===0 的分支语义，且是布局动画
+                （违反 DESIGN.md「只动 transform/opacity」）。淡入已足够表达「这块出来了」。 */}
+            <ul className="anim-enter mt-2 space-y-2">
               {visible.map((n) => (
                 <li key={n.id} className="rounded-lg bg-surface-container-low px-3 py-2">
                   <div className="text-[0.9286rem] leading-snug break-words whitespace-pre-wrap">

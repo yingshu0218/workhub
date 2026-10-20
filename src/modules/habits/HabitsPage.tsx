@@ -13,6 +13,7 @@ import {
 } from './hooks'
 import { HabitFormDrawer } from './HabitFormDrawer'
 import { useIsMobile } from '@/shared/useIsMobile'
+import { staggerStyle } from '@/shared/stagger'
 
 const WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日']
 
@@ -167,7 +168,11 @@ export default function HabitsPage() {
                 key={date}
                 disabled={isFuture}
                 onClick={() => setSelectedDate(isSelected ? undefined : date)}
-                className={`flex h-12 flex-col items-center justify-center rounded-lg p-1.5 text-center transition-transform md:h-14 md:items-start md:justify-between md:text-left ${heatClass(count)} ${
+                /* 错峰入场（封顶 10 格，见 shared/stagger）。
+                   ⚠️ 本格自带 hover:scale-105 —— 依赖 .anim-list-item 的 `backwards` 填充，
+                   否则动画播完后会持续持有 transform、hover 放大失效。 */
+                style={staggerStyle(i)}
+                className={`anim-list-item flex h-12 flex-col items-center justify-center rounded-lg p-1.5 text-center transition-transform md:h-14 md:items-start md:justify-between md:text-left ${heatClass(count)} ${
                   isSelected ? 'ring-2 ring-primary' : ''
                 } ${isFuture ? 'opacity-40' : 'hover:scale-105'} ${isToday ? 'ring-1 ring-primary/60' : ''}`}
               >
@@ -239,18 +244,24 @@ export default function HabitsPage() {
           />
         ) : (
           <ul className="divide-y divide-outline-variant/30">
-            {stats.map(({ habit, streak, monthChecks, monthRate, doneToday, totalChecks }) => (
-              <li key={habit.id} className="group flex items-center gap-2 py-3 md:gap-3">
+            {stats.map(({ habit, streak, monthChecks, monthRate, doneToday, totalChecks }, i) => (
+              <li
+                key={habit.id}
+                style={staggerStyle(i)}
+                className="anim-list-item group flex items-center gap-2 py-3 md:gap-3"
+              >
                 <button
                   onClick={() => void toggleCheck(habit, doneToday)}
                   className="shrink-0"
                   title={doneToday ? '取消打卡' : '今日打卡'}
                 >
+                  {/* key 随打卡态变化 → 打勾瞬间重挂，nx-check-pop 播一次（只在「已打卡」时挂） */}
                   <Icon
+                    key={String(doneToday)}
                     name={doneToday ? 'check_circle' : 'circle'}
                     size={26}
                     fill={doneToday}
-                    className={doneToday ? 'text-success' : 'text-outline'}
+                    className={`${doneToday ? 'text-success' : 'text-outline'}${doneToday ? ' anim-check-pop' : ''}`}
                   />
                 </button>
                 <span
@@ -279,7 +290,7 @@ export default function HabitsPage() {
                   </div>
                   <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-surface-container">
                     <div
-                      className="h-full rounded-full bg-secondary transition-all"
+                      className="anim-fill h-full rounded-full bg-secondary"
                       style={{ width: `${monthRate === null ? 0 : Math.min(100, monthRate)}%` }}
                     />
                   </div>

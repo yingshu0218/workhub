@@ -18,7 +18,7 @@
  * 「浮层节点是否存在」与事件语义，不依赖任何尺寸。
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { render, screen, fireEvent, cleanup } from '@testing-library/react'
+import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react'
 import 'fake-indexeddb/auto'
 import { MemoryRouter } from 'react-router-dom'
 import { db } from '@/db/db'
@@ -26,6 +26,16 @@ import ChannelSelect from '../ChannelSelect'
 import EntityLinkField from '../EntityLinkField'
 import { MatchCombobox } from '../MatchCombobox'
 import { Modal } from '../ui'
+
+/**
+ * ⚠️ 关于「关闭后浮层何时消失」的断言口径（Phase M1 起）
+ *
+ * 浮层现在带 150ms 出场动画：点外部 / Esc 之后它**不会同步消失**，
+ * 而是保持挂载播出场、动画播完才卸载（见 shared/usePresence）。
+ * 所以这些用例统一用 `waitFor(() => expect(...).toBeNull())` 而不是直接断言 null ——
+ * 直接断言只会锁住「立即消失」这个已经不成立的旧语义。
+ * jsdom 不派发 animationend，卸载由 hook 内的定时器兜底，故 waitFor 能稳定等到。
+ */
 
 const CHANNELS = [
   { value: '微信', label: '微信 / 微信支付' },
@@ -41,23 +51,23 @@ beforeEach(async () => {
 afterEach(() => cleanup())
 
 describe('ChannelSelect 浮层关闭', () => {
-  it('A 选中渠道即关闭；再次展开后点外部也关闭', () => {
+  it('A 选中渠道即关闭；再次展开后点外部也关闭', async () => {
     render(<ChannelSelect value="" options={CHANNELS} onChange={() => {}} />)
     const trigger = screen.getByRole('combobox', { name: '结算渠道' })
 
     fireEvent.click(trigger)
     expect(screen.getByRole('listbox')).toBeTruthy()
     fireEvent.click(screen.getByRole('option', { name: '支付宝' }))
-    expect(screen.queryByRole('listbox')).toBeNull()
+    await waitFor(() => expect(screen.queryByRole('listbox')).toBeNull())
 
     // 再次展开：点浮层外部（document.body）必须关闭 —— 这是用户截图里的坏路径
     fireEvent.click(trigger)
     expect(screen.getByRole('listbox')).toBeTruthy()
     fireEvent.mouseDown(document.body)
-    expect(screen.queryByRole('listbox')).toBeNull()
+    await waitFor(() => expect(screen.queryByRole('listbox')).toBeNull())
   })
 
-  it('B Esc 只关浮层，不关外层 Modal', () => {
+  it('B Esc 只关浮层，不关外层 Modal', async () => {
     const onClose = vi.fn()
     render(
       <Modal open={true} title="记一笔账" onClose={onClose}>
@@ -68,24 +78,24 @@ describe('ChannelSelect 浮层关闭', () => {
     expect(screen.getByRole('listbox')).toBeTruthy()
 
     fireEvent.keyDown(window, { key: 'Escape' })
-    expect(screen.queryByRole('listbox')).toBeNull()
+    await waitFor(() => expect(screen.queryByRole('listbox')).toBeNull())
     expect(onClose).not.toHaveBeenCalled()
     expect(screen.getByText('记一笔账')).toBeTruthy()
   })
 
-  it('C 点浮层内的候选项 = 正常选中，不算「外部点击」', () => {
+  it('C 点浮层内的候选项 = 正常选中，不算「外部点击」', async () => {
     render(<ChannelSelect value="微信" options={CHANNELS} onChange={() => {}} />)
     const trigger = screen.getByRole('combobox', { name: '结算渠道' })
     fireEvent.click(trigger)
     // 用 role=option 定位（触发器文案与候选文案重名，纯文本查询有歧义）
     fireEvent.click(screen.getByRole('option', { name: '微信 / 微信支付' }))
-    expect(screen.queryByRole('listbox')).toBeNull()
+    await waitFor(() => expect(screen.queryByRole('listbox')).toBeNull())
     expect(trigger.textContent).toContain('微信')
   })
 })
 
 describe('EntityLinkField 浮层关闭', () => {
-  it('点浮层内部不关，点浮层外部则关闭', () => {
+  it('点浮层内部不关，点浮层外部则关闭', async () => {
     render(
       <MemoryRouter>
         <EntityLinkField
@@ -107,14 +117,14 @@ describe('EntityLinkField 浮层关闭', () => {
     fireEvent.mouseDown(option()!)
     expect(option()).toBeTruthy()
 
-    // 点外部：关
+    // 点外部：关（等待出场动画播完）
     fireEvent.mouseDown(document.body)
-    expect(option()).toBeNull()
+    await waitFor(() => expect(option()).toBeNull())
   })
 })
 
 describe('MatchCombobox 浮层关闭', () => {
-  it('点浮层内部不关，点浮层外部则关闭', () => {
+  it('点浮层内部不关，点浮层外部则关闭', async () => {
     render(
       <MatchCombobox
         value=""
@@ -134,6 +144,6 @@ describe('MatchCombobox 浮层关闭', () => {
     expect(option()).toBeTruthy()
 
     fireEvent.mouseDown(document.body)
-    expect(option()).toBeNull()
+    await waitFor(() => expect(option()).toBeNull())
   })
 })

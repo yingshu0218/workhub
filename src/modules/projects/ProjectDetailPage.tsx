@@ -18,10 +18,11 @@ import {
   inputCls,
 } from '@/design-system/ui'
 import dayjs from 'dayjs'
-import { isTodoOpen, isTodoDone, isTodoVoided, isTodoFinished } from '@/modules/todo/domain'
+import { isTodoOpen, isTodoDone, isTodoVoided, isTodoFinished, hasTime } from '@/modules/todo/domain'
 import { todoPriorityLabel, todoPriorityTone } from '@/modules/todo/priority'
 import ProjectFormDrawer from './ProjectFormDrawer'
 import { financeFocusPath } from '@/modules/finance/links'
+import { staggerStyle } from '@/shared/stagger'
 import {
   deleteMilestone,
   deleteProjectCascade,
@@ -224,12 +225,13 @@ export default function ProjectDetailPage() {
               </div>
             ) : (
               <div className="space-y-1.5">
-                {transactions.slice(0, 6).map((t) => (
+                {transactions.slice(0, 6).map((t, i) => (
                   <button
                     key={t.id}
                     type="button"
                     title="点击查看凭证详情"
-                    className="flex w-full cursor-pointer items-center justify-between rounded-lg bg-surface-container-low/50 px-3 py-2 text-left text-[0.8929rem] transition-colors hover:bg-surface-container-low"
+                    style={staggerStyle(i)}
+                    className="anim-list-item flex w-full cursor-pointer items-center justify-between rounded-lg bg-surface-container-low/50 px-3 py-2 text-left text-[0.8929rem] transition-colors hover:bg-surface-container-low"
                     onClick={() => navigate(financeFocusPath(t.id))}
                   >
                     <span className="min-w-0 truncate">
@@ -272,10 +274,11 @@ export default function ProjectDetailPage() {
               </div>
             ) : (
               <div className="space-y-1.5">
-                {visibleTodos.slice(0, 6).map((t) => (
+                {visibleTodos.slice(0, 6).map((t, i) => (
                   <div
                     key={t.id}
-                    className="flex items-center gap-2 rounded-lg bg-surface-container-low/50 px-3 py-2 text-[0.8929rem]"
+                    style={staggerStyle(i)}
+                    className="anim-list-item flex items-center gap-2 rounded-lg bg-surface-container-low/50 px-3 py-2 text-[0.8929rem]"
                   >
                     {/* 三态标注（Issue #128）：完成=绿「完成」/ 作废=灰「已作废」/ 未完成=优先级 */}
                     <Chip
@@ -298,7 +301,7 @@ export default function ProjectDetailPage() {
                     >
                       {t.title}
                     </span>
-                    {t.dueAt && (
+                    {hasTime(t.dueAt) && (
                       <span className="ml-auto shrink-0 text-[0.7857rem] text-outline">
                         {dayjs(t.dueAt).format('MM-DD HH:mm')}
                       </span>
@@ -333,11 +336,12 @@ export default function ProjectDetailPage() {
               </div>
             ) : (
               <div className="space-y-1.5">
-                {notes.map((n) => (
+                {notes.map((n, i) => (
                   <button
                     key={n.id}
                     onClick={() => navigate(`/notes/${n.id}`)}
-                    className="flex w-full items-center gap-2 surface-card !bg-transparent px-3 py-2 text-left text-[0.8929rem] transition-colors hover:border-primary"
+                    style={staggerStyle(i)}
+                    className="anim-list-item flex w-full items-center gap-2 surface-card !bg-transparent px-3 py-2 text-left text-[0.8929rem] transition-colors hover:border-primary"
                   >
                     <Icon name="article" size={15} className="shrink-0 text-primary" />
                     <span className="min-w-0 flex-1 truncate">{n.title || '未命名笔记'}</span>
@@ -363,19 +367,23 @@ export default function ProjectDetailPage() {
                 </div>
               ) : (
                 <div className="relative space-y-4 border-l border-outline-variant/40 pl-4">
-                  {interactions.map((it) => (
-                    <div key={it.id} className="relative">
-                      <span className="absolute -left-[22px] top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-primary-fixed">
-                        <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-                      </span>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-[0.8571rem] text-outline">
-                          {dayjs(it.at).format('YYYY-MM-DD HH:mm')}
+                  {interactions.map((it, i) => (
+                    /* 错峰挂在**不设 position 的** wrapper 上：条目内 `absolute -left-[22px]`
+                       仍向上找到外层 relative 容器，左侧竖线圆点定位不受影响。 */
+                    <div key={it.id} className="anim-list-item" style={staggerStyle(i)}>
+                      <div className="relative">
+                        <span className="absolute -left-[22px] top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-primary-fixed">
+                          <span className="h-1.5 w-1.5 rounded-full bg-primary" />
                         </span>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-[0.8571rem] text-outline">
+                            {dayjs(it.at).format('YYYY-MM-DD HH:mm')}
+                          </span>
+                        </div>
+                        <p className="mt-1 rounded-lg bg-surface-container-low/50 px-3 py-2 text-[0.9286rem] leading-relaxed">
+                          {it.content}
+                        </p>
                       </div>
-                      <p className="mt-1 rounded-lg bg-surface-container-low/50 px-3 py-2 text-[0.9286rem] leading-relaxed">
-                        {it.content}
-                      </p>
                     </div>
                   ))}
                 </div>
@@ -554,12 +562,13 @@ function MilestoneCard({
         </div>
       ) : (
         <div className="space-y-1.5">
-          {milestones.map((m) => {
+          {milestones.map((m, i) => {
             const meta = MILESTONE_STATUS_META[m.status]
             return (
               <div
                 key={m.id}
-                className="flex items-center gap-2 rounded-lg bg-surface-container-low/50 px-3 py-2"
+                style={staggerStyle(i)}
+                className="anim-list-item flex items-center gap-2 rounded-lg bg-surface-container-low/50 px-3 py-2"
               >
                 <button
                   onClick={() => void cycleStatus(m)}
@@ -586,7 +595,7 @@ function MilestoneCard({
                 <span className="shrink-0 text-[0.7857rem] text-outline" title="进度权重">
                   ×{m.weight}
                 </span>
-                {m.dueAt && (
+                {hasTime(m.dueAt) && (
                   <span className="shrink-0 text-[0.7857rem] text-outline">
                     {dayjs(m.dueAt).format('MM-DD')}
                   </span>

@@ -40,6 +40,16 @@ export function applySettingsToDom(settings: import('@/db/types').Settings): voi
   const legacyRecommend = 'recommendStyle' in style ? (style.recommendStyle as SkinStyleId) : undefined
   const styleId = settings.appearance.style ?? legacyRecommend ?? 'none'
   root.dataset.skin = SKIN_STYLES.some((sk) => sk.id === styleId) ? styleId : 'none'
+
+  // 动效强度（2026-10-19）：挂 <html data-motion>，CSS 据此调 --motion-duration-scale。
+  // ⚠️ 'full' 必须**删掉属性**、而不是写 data-motion="full"：
+  //    CSS 只定义了 reduced / off 两个选择器，没有 full —— 写上去等于挂了个谁都不认的值，
+  //    虽然表面上也回落到默认（scale:1），但会让「当前处于哪一档」这件事在 DOM 里撒谎
+  //    （DevTools 里看着像有设置、实际没有对应规则）。删属性才是「回到缺省」的正确表达。
+  // ⚠️ 本档位**不覆盖** prefers-reduced-motion（系统偏好由 CSS 侧无条件生效）。
+  const motion = settings.appearance.motion ?? 'full'
+  if (motion === 'full') delete root.dataset.motion
+  else root.dataset.motion = motion
   const VARS = [
     'surface',
     'surface-container-lowest',

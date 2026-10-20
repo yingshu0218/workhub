@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { Icon } from '@/design-system/Icon'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { Avatar, Chip } from '@/design-system/ui'
@@ -9,8 +9,16 @@ import CommandPalette from './CommandPalette'
 import MobileTabBar from './MobileTabBar'
 import TrophyUnlockToast from './TrophyUnlockToast'
 import { ToastProvider } from '@/design-system/Toast'
+import { usePresence } from '@/shared/usePresence'
 import QuickCapture from '@/modules/notes/QuickCapturePanel'
 import { DEFAULT_WORKSPACE_SUB, useIdentity } from '@/modules/identity'
+import {
+  SIDEBAR_WIDTH_COLLAPSED,
+  SIDEBAR_WIDTH_EXPANDED,
+  isSidebarCollapsed,
+  onSidebarCollapsedChange,
+  toggleSidebarCollapsed,
+} from './sidebarPref'
 
 /**
  * 侧栏菜单（顺序即渲染顺序）。
@@ -128,12 +136,52 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
     })
   }, [])
 
+  // 侧栏伸缩（2026-10-19）：持久化偏好在 sidebarPref 单例里，这里只订阅
+  const collapsed = useSyncExternalStore(onSidebarCollapsedChange, isSidebarCollapsed)
+  useEffect(() => {
+    return registerShortcut({
+      combo: 'mod+b',
+      description: '收起 / 展开左侧菜单',
+      scope: 'global',
+      handler: () => toggleSidebarCollapsed(),
+    })
+  }, [])
+
+  // 悬停临时展开（图标轨态专用）：纯 UI 瞬态，不落偏好 —— 鼠标移开即收回。
+  // 用 120ms 延迟关闭：图标与抽屉之间有间隙，立刻收会让指针「路过」时闪一下。
+  const [hoverOpen, setHoverOpen] = useState(false)
+  const hoverTimer = useRef<number | null>(null)
+  const clearHoverTimer = () => {
+    if (hoverTimer.current !== null) {
+      window.clearTimeout(hoverTimer.current)
+      hoverTimer.current = null
+    }
+  }
+  useEffect(() => clearHoverTimer, [])
+  const openHover = () => {
+    clearHoverTimer()
+    setHoverOpen(true)
+  }
+  const closeHover = () => {
+    clearHoverTimer()
+    hoverTimer.current = window.setTimeout(() => setHoverOpen(false), 120)
+  }
+  // 桌面断点以下侧栏整体隐藏（MobileTabBar 接管），悬停态随之失效
+  const railOpen = collapsed && hoverOpen
+
   // 当前用户身份（Issue #123）：名字/工作区名唯一事实源，默认「阿蓝」
   const identity = useIdentity()
   // 工作区切换面板（轻量：仅 UI 选中态）
   const [activeWs, setActiveWs] = useState(WORKSPACES[0].id)
   const [wsOpen, setWsOpen] = useState(false)
   const wsRef = useRef<HTMLDivElement>(null)
+  // 工作区下拉的进出场（原先 {wsOpen && …} 硬切换，关闭瞬间消失）
+  const {
+    present: wsPresent,
+    phase: wsPhase,
+    ref: wsPanelRef,
+  } = usePresence(wsOpen, 150)
+  const wsClosing = wsPhase === 'out'
   useEffect(() => {
     if (!wsOpen) return
     const onDown = (e: MouseEvent) => {
@@ -145,125 +193,190 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="app-shell flex overflow-hidden">
-      {/* 侧栏：仅在 ≥768px 显示。窄屏改用底部导航（MobileTabBar），
-          桌面端视觉与行为完全不变（md:flex 恢复原 flex）。 */}
-      <aside className="app-sidebar hidden w-[232px] shrink-0 flex-col border-r border-outline-variant/40 bg-surface-container-lowest md:flex">
-        <div className="flex items-center gap-2.5 px-5 py-5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-on-primary">
-            <Icon name="flight_takeoff" fill />
-          </div>
-          <div>
-            <div className="text-[1.0714rem] font-bold leading-tight">寻鸽工作台</div>
-            <div className="text-[0.7857rem] text-outline">Nexus Workspace</div>
-          </div>
-        </div>
+      {/* 侧栏伸缩（2026-10-19 用户需求：「最左侧的菜单没有伸缩按钮」）。
+          形态：232px 完整侧栏 ↔ 56px 图标轨；收起后**鼠标悬浮临时浮出**完整侧栏。
 
-        <nav className="flex-1 space-y-0.5 overflow-y-auto px-3">
-          {NAV_ITEMS.map((item) => {
-            /* 特设高亮：工作台（置顶）+ 灵感闪现（置底）与中部常规项做视觉区分，
-               保持设计 token 驱动，随深浅模式 / 主题包 / 皮肤自动适配 */
-            const featured =
-              item.to === '/' || item.to === '/inspiration'
-                ? item.to === '/'
-                  ? 'workbench' // 工作台：品牌「首页」入口
-                  : 'inspire' // 灵感闪现：置底特设「闪念」入口
-                : undefined
-            const isFirst = item.to === '/'
-            return (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={isFirst}
-                className={() => {
-                  // NavLink 默认前缀匹配会把「待办事项」在 /module-config 等路径下误判为选中
-                  // （Issue #128：色块高亮一直存在），统一改用 isNavItemActive 做精确/受控段判定
-                  const isActive = isNavItemActive(pathname, item.to)
-                  return [
-                    'app-nav-link flex items-center gap-3 rounded-lg px-3 py-2 text-[0.9643rem] transition-all',
-                    isActive ? 'is-active' : '',
-                    featured === 'workbench'
-                      ? isActive
-                        ? 'bg-primary font-semibold text-on-primary ring-1 ring-primary shadow-[0_2px_8px_rgba(0,0,0,0.18)]'
-                        : 'font-medium text-primary hover:bg-primary-fixed/70'
-                      : featured === 'inspire'
-                        ? isActive
-                          ? 'border border-primary bg-gradient-to-r from-primary to-primary-container font-semibold text-on-primary shadow-[0_2px_10px_rgba(0,0,0,0.2)]'
-                          : 'border border-primary/30 bg-primary-fixed/40 font-medium text-primary hover:border-primary hover:bg-primary-fixed/70'
-                        : isActive
-                          ? 'bg-primary-fixed font-semibold text-primary'
-                          : 'text-on-surface-variant hover:bg-surface-container',
-                  ]
-                    .filter(Boolean)
-                    .join(' ')
-                }}
-              >
-                <Icon name={item.icon} />
-                {item.label}
-              </NavLink>
-            )
-          })}
-        </nav>
+          ⚠️ 为什么拆成「占位槽 + 浮层」两层，而不是让 <aside> 自己变宽：
+          若 <aside> 参与文档流并在悬停时撑到 232px，每次划过菜单都会把**主内容区整体
+          重排一遍**（页面持续左右抖动）。所以宽度锚点交给外层的 slot（它只占 56px 不动），
+          <aside> 绝对定位在 slot 内、只向外「叠」出去 —— 与既有弹层同款（absolute + shadow），
+          只叠不挤。展开态（未收起）时 slot 与 aside 同宽 232，视觉与改动前完全一致。
 
-        <div className="p-3">
-          {/* 侧栏快速便签（Issue #70）：设置分隔线上方，Enter 存一条正式 Note */}
-          <QuickCapture />
-        </div>
-
-        <div className="border-t border-outline-variant/40 p-3">
-          <NavLink
-            to="/module-config"
-            className={() =>
-              `app-nav-link mb-1 flex items-center gap-3 rounded-lg px-3 py-2 text-[0.9643rem] ${
-                // 功能配置含子路由（/module-config/:moduleId/:itemId），按段判定才正确高亮
-                isNavItemActive(pathname, '/module-config')
-                  ? 'is-active bg-primary-fixed font-semibold text-primary'
-                  : 'text-on-surface-variant hover:bg-surface-container'
-              }`
-            }
-            title="各业务模块的规则配置（与系统设置的界面偏好分开）"
-          >
-            <Icon name="tune" />
-            功能配置
-          </NavLink>
-
-          <NavLink
-            to="/settings"
-            className={() =>
-              `app-nav-link mb-2 flex items-center gap-3 rounded-lg px-3 py-2 text-[0.9643rem] ${
-                isNavItemActive(pathname, '/settings')
-                  ? 'is-active bg-primary-fixed font-semibold text-primary'
-                  : 'text-on-surface-variant hover:bg-surface-container'
-              }`
-            }
-            title="外观、排版、通知、同步、数据导出等应用级偏好"
-          >
-            <Icon name="settings" />
-            系统设置
-          </NavLink>
-
-          {/* 账号 / 工作区切换 */}
-          <div className="relative" ref={wsRef}>
-            <button
-              className={`app-nav-link flex w-full items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-surface-container ${
-                pathname === '/profile' ? 'is-active bg-primary-fixed' : ''
-              }`}
-              onClick={() => setWsOpen((o) => !o)}
-            >
-              <Avatar name={identity.name} size={32} />
-              <div className="flex-1 text-left">
-                <div className="text-[0.9286rem] font-medium leading-tight">{identity.name}</div>
-                <div className="text-[0.7857rem] text-outline">
-                  {WORKSPACES.find((w) => w.id === activeWs)?.sub ?? DEFAULT_WORKSPACE_SUB}
-                </div>
+          ⚠️ 宽度用**内联 style** 表达，不用 Tailwind 任意值类 `w-[232px]`：那是编译期常量，
+          拼不出运行时可变宽度；且皮肤层（skins.css）对 `.app-sidebar` 有接管规则，
+          内联宽度与它正交（皮肤只管 border/形态，不管宽度）。 */}
+      <div
+        className="app-sidebar-slot relative hidden shrink-0 md:block"
+        style={{ width: collapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH_EXPANDED }}
+      >
+        <aside
+          className={`app-sidebar absolute inset-y-0 left-0 flex flex-col bg-surface-container-lowest transition-[width] duration-200 ${
+            railOpen ? 'z-30 border-r border-outline-variant/40 shadow-[8px_0_24px_rgba(0,0,0,0.10)]' : 'border-r border-outline-variant/40'
+          }`}
+          style={{ width: railOpen ? SIDEBAR_WIDTH_EXPANDED : collapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH_EXPANDED }}
+          data-collapsed={collapsed ? 'true' : 'false'}
+          data-rail-open={railOpen ? 'true' : 'false'}
+          onMouseEnter={collapsed ? openHover : undefined}
+          onMouseLeave={collapsed ? closeHover : undefined}
+        >
+          <div className={`flex items-center gap-2.5 py-5 ${railOpen ? 'px-5' : 'justify-center px-2'}`}>
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary text-on-primary">
+              <Icon name="flight_takeoff" fill />
+            </div>
+            {railOpen && (
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[1.0714rem] font-bold leading-tight">寻鸽工作台</div>
+                <div className="truncate text-[0.7857rem] text-outline">Nexus Workspace</div>
               </div>
-              <Icon
-                name={wsOpen ? 'keyboard_arrow_up' : 'keyboard_arrow_down'}
-                className="text-[1.2857rem] text-outline"
-              />
+            )}
+            {/* 伸缩按钮。三态语义统一为「按下后往哪边走」：
+                - 图标轨未展开 → 面板展开图标（点一下钉住展开）
+                - 图标轨悬浮展开 / 完整侧栏 → 面板收起图标 */}
+            <button
+              type="button"
+              className={`shrink-0 rounded-lg p-1.5 text-outline transition-colors hover:bg-surface-container hover:text-on-surface ${
+                railOpen ? 'ml-auto' : ''
+              }`}
+              onClick={() => {
+                closeHover()
+                setHoverOpen(false)
+                toggleSidebarCollapsed()
+              }}
+              title={collapsed ? '展开左侧菜单（⌘B）' : '收起左侧菜单（⌘B）'}
+              aria-label={collapsed ? '展开左侧菜单' : '收起左侧菜单'}
+              aria-expanded={!collapsed}
+            >
+              <Icon name={collapsed ? 'left_panel_open' : 'left_panel_close'} size={20} />
             </button>
+          </div>
 
-            {wsOpen && (
-              <div className="absolute bottom-full left-0 z-40 mb-2 w-full overflow-hidden surface-card-xl shadow-xl">
+          <nav className={`flex-1 space-y-0.5 overflow-y-auto ${railOpen ? 'px-3' : 'px-2'}`}>
+            {NAV_ITEMS.map((item) => {
+              /* 特设高亮：工作台（置顶）+ 灵感闪现（置底）与中部常规项做视觉区分，
+                 保持设计 token 驱动，随深浅模式 / 主题包 / 皮肤自动适配 */
+              const featured =
+                item.to === '/' || item.to === '/inspiration'
+                  ? item.to === '/'
+                    ? 'workbench' // 工作台：品牌「首页」入口
+                    : 'inspire' // 灵感闪现：置底特设「闪念」入口
+                  : undefined
+              const isFirst = item.to === '/'
+              const isActive = isNavItemActive(pathname, item.to)
+              // 图标轨态（收起且未浮出）：只留图标，名称交给 title 悬浮提示
+              const iconOnly = collapsed && !railOpen
+              return (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={isFirst}
+                  title={iconOnly ? item.label : undefined}
+                  className={() => {
+                    // NavLink 默认前缀匹配会把「待办事项」在 /module-config 等路径下误判为选中
+                    // （Issue #128：色块高亮一直存在），统一改用 isNavItemActive 做精确/受控段判定
+                    return [
+                      'app-nav-link flex items-center gap-3 rounded-lg px-3 py-2 text-[0.9643rem] transition-all',
+                      iconOnly ? 'justify-center px-0' : '',
+                      isActive ? 'is-active' : '',
+                      featured === 'workbench'
+                        ? isActive
+                          ? 'bg-primary font-semibold text-on-primary ring-1 ring-primary shadow-[0_2px_8px_rgba(0,0,0,0.18)]'
+                          : 'font-medium text-primary hover:bg-primary-fixed/70'
+                        : featured === 'inspire'
+                          ? isActive
+                            ? 'border border-primary bg-gradient-to-r from-primary to-primary-container font-semibold text-on-primary shadow-[0_2px_10px_rgba(0,0,0,0.2)]'
+                            : 'border border-primary/30 bg-primary-fixed/40 font-medium text-primary hover:border-primary hover:bg-primary-fixed/70'
+                          : isActive
+                            ? 'bg-primary-fixed font-semibold text-primary'
+                            : 'text-on-surface-variant hover:bg-surface-container',
+                    ]
+                      .filter(Boolean)
+                      .join(' ')
+                  }}
+                >
+                  <Icon name={item.icon} />
+                  {!iconOnly && item.label}
+                </NavLink>
+              )
+            })}
+          </nav>
+
+          <div className={railOpen ? 'p-3' : 'px-2 py-3'}>
+            {/* 侧栏快速便签（Issue #70）：设置分隔线上方，Enter 存一条正式 Note。
+                图标轨态下收成一枚图标钮（挂 title 提示），点它先浮出侧栏再展开输入。 */}
+            <QuickCapture collapsed={collapsed && !railOpen} />
+          </div>
+
+          <div className={`border-t border-outline-variant/40 ${railOpen ? 'p-3' : 'px-2 py-3'}`}>
+            <NavLink
+              to="/module-config"
+              title={collapsed && !railOpen ? '功能配置' : '各业务模块的规则配置（与系统设置的界面偏好分开）'}
+              className={() =>
+                `app-nav-link mb-1 flex items-center gap-3 rounded-lg px-3 py-2 text-[0.9643rem] ${
+                  collapsed && !railOpen ? 'justify-center px-0' : ''
+                } ${
+                  // 功能配置含子路由（/module-config/:moduleId/:itemId），按段判定才正确高亮
+                  isNavItemActive(pathname, '/module-config')
+                    ? 'is-active bg-primary-fixed font-semibold text-primary'
+                    : 'text-on-surface-variant hover:bg-surface-container'
+                }`
+              }
+            >
+              <Icon name="tune" />
+              {!(collapsed && !railOpen) && '功能配置'}
+            </NavLink>
+
+            <NavLink
+              to="/settings"
+              title={collapsed && !railOpen ? '系统设置' : '外观、排版、通知、同步、数据导出等应用级偏好'}
+              className={() =>
+                `app-nav-link mb-2 flex items-center gap-3 rounded-lg px-3 py-2 text-[0.9643rem] ${
+                  collapsed && !railOpen ? 'justify-center px-0' : ''
+                } ${
+                  isNavItemActive(pathname, '/settings')
+                    ? 'is-active bg-primary-fixed font-semibold text-primary'
+                    : 'text-on-surface-variant hover:bg-surface-container'
+                }`
+              }
+            >
+              <Icon name="settings" />
+              {!(collapsed && !railOpen) && '系统设置'}
+            </NavLink>
+
+            {/* 账号 / 工作区切换 */}
+            <div className="relative" ref={wsRef}>
+              <button
+                className={`app-nav-link flex w-full items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-surface-container ${
+                  collapsed && !railOpen ? 'justify-center px-0' : ''
+                } ${pathname === '/profile' ? 'is-active bg-primary-fixed' : ''}`}
+                onClick={() => setWsOpen((o) => !o)}
+                title={collapsed && !railOpen ? `${identity.name} · 工作区与身份` : undefined}
+              >
+                <Avatar name={identity.name} size={32} />
+                {!(collapsed && !railOpen) && (
+                  <>
+                    <div className="flex-1 text-left">
+                      <div className="text-[0.9286rem] font-medium leading-tight">{identity.name}</div>
+                      <div className="text-[0.7857rem] text-outline">
+                        {WORKSPACES.find((w) => w.id === activeWs)?.sub ?? DEFAULT_WORKSPACE_SUB}
+                      </div>
+                    </div>
+                    <Icon
+                      name={wsOpen ? 'keyboard_arrow_up' : 'keyboard_arrow_down'}
+                      className="text-[1.2857rem] text-outline"
+                    />
+                  </>
+                )}
+              </button>
+
+            {wsPresent && (
+              <div
+                ref={wsPanelRef}
+                /* 从底部向上弹（面板贴在按钮上方），缩放轴落在底边 */
+                style={{ transformOrigin: 'bottom center' }}
+                className={`absolute bottom-full left-0 z-40 mb-2 w-full overflow-hidden surface-card-xl shadow-xl ${
+                  wsClosing ? 'anim-panel-out' : 'anim-pop'
+                }`}
+              >
                 <div className="border-b border-outline-variant/30 px-3.5 py-2 text-[0.7857rem] font-semibold uppercase tracking-wide text-outline">
                   工作空间与身份
                 </div>
@@ -309,9 +422,10 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
                 </div>
               </div>
             )}
+            </div>
           </div>
-        </div>
-      </aside>
+        </aside>
+      </div>
 
       {/* 主区域 */}
       <div className="relative flex flex-1 flex-col overflow-hidden">

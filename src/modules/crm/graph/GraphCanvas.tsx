@@ -488,13 +488,14 @@ export default function GraphCanvas({
                       <g
                         key={n.id}
                         transform={`translate(${n.x},${n.y})`}
-                        className={
-                          n.kind === 'customer'
-                            ? 'cursor-pointer'
-                            : n.kind === 'self'
-                              ? 'cursor-default'
-                              : 'cursor-grab'
-                        }
+                        /* 节点入场淡入。
+                           ⚠️ **只能用 anim-fade（纯 opacity）**：SVG 的 transform 是
+                           **呈现属性**，若挂含 transform 的 CSS 动画（.anim-pop/.anim-enter），
+                           CSS 会覆盖上面那个 `translate(n.x, n.y)`，所有节点会集体飘到原点。
+                           同理：绝不给这里加任何 React 状态驱动的动画 ——
+                           useForceGraph 的依赖必须保持稳定引用，否则力仿真会反复重建
+                           （历史事故：20 秒重建 44 次、布局不收敛）。 */
+                        className={`${n.kind === 'customer' ? 'cursor-pointer' : n.kind === 'self' ? 'cursor-default' : 'cursor-grab'} anim-fade`}
                         onPointerDown={(e) => onNodePointerDown(e, n)}
                         onClick={(e) => {
                           // 阻止冒泡到画布背景（背景单击关卡），节点自身不触发背景关闭
