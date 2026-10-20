@@ -39,7 +39,10 @@ export default function ModuleConfigPage() {
         title="功能配置"
       />
 
-      <div className="grid grid-cols-[232px_1fr] items-start gap-4">
+      {/* ⚠️ 双栏必须带响应式断点（2026-10-21 与待办页同批修）：原为无条件的
+          `grid-cols-[232px_1fr]`，窄屏时左栏仍占 232px、右栏被压到百来像素。
+          窄屏改单栏堆叠，`lg:` 起恢复双栏（与 TodoPage 同一断点口径）。 */}
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[232px_1fr]">
         {/* 左栏：模块分组 + 配置子菜单 */}
         <nav className="surface-card-xl sticky top-0 p-2">
           {MODULE_CONFIGS.length === 0 ? (

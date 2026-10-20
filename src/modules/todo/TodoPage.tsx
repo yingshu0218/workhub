@@ -470,7 +470,16 @@ export default function TodoPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-[240px_1fr] gap-4 items-start">
+      {/* ⚠️ 双栏必须带响应式断点（2026-10-21 用户截图反馈「0 条未完成」被压成竖排）。
+          原写法 `grid-cols-[240px_1fr]` 是**无条件**双栏：窄屏时左栏仍占 240px，
+          右栏只剩一百多像素 → 列表头的控件组（4 个优先级芯片 + 2 个排序按钮 + 计数）
+          被压窄，计数文字逐字换行成 5 行。
+
+          实测临界值（headless Chrome + 产物 CSS）：右栏需 ≥ 344px 才不竖排；
+          换算到窗口 = 344 + 240(左栏) + 16(gap) + 232(侧栏展开) + 64(主区 padding) ≈ 896px。
+          故取 `lg:`（1024px）作为断点，留出安全余量。
+          窄屏改单栏堆叠：左栏清单在上、列表在下，两者都占满宽度。 */}
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[240px_1fr]">
         {/* 左侧清单：智能清单 + 我的清单（增删改/拖拽排序） */}
         <Card className="p-2">
           <div className="px-3 pt-2 pb-1 text-[0.7857rem] font-semibold uppercase tracking-wider text-outline">
@@ -619,7 +628,11 @@ export default function TodoPage() {
 
         {/* 右侧待办列表 */}
         <div>
-          <Card className="mb-3 flex items-center justify-between px-4 py-2.5">
+          {/* ⚠️ `flex-wrap` + 计数 `whitespace-nowrap`（2026-10-21 用户截图）。
+              `justify-between` 的单行 flex 在空间不足时**不会换行**，而是把子项压窄 ——
+              计数文字于是被逐字挤成 5 行（「0 条 未 完 成」）。加 wrap 后空间不足时
+              整组换到第二行，可读性不受损。计数再加 nowrap 兜底，绝不允许断开。 */}
+          <Card className="mb-3 flex flex-wrap items-center justify-between gap-2 px-4 py-2.5">
             <div className="flex items-center gap-2">
               <span className="text-[0.9286rem] font-semibold">{selLabel}</span>
               {/* 状态徽标：终态视图给一个明确的状态标记，避免与未完成视图混淆（Issue #128） */}
@@ -683,7 +696,7 @@ export default function TodoPage() {
               >
                 <Icon name="arrow_downward" size={18} />
               </button>
-              <span className="text-[0.7857rem] text-outline">
+              <span className="whitespace-nowrap text-[0.7857rem] text-outline">
                 {isTerminalView ? `${filtered.length} 条` : `${filtered.length} 条未完成`}
               </span>
             </div>

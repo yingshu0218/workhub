@@ -926,7 +926,12 @@ export default function SettingsPage() {
             </div>
           </Section>
 
-          <div className="grid grid-cols-[1fr_380px] items-start gap-4">
+          {/* ⚠️ 双栏必须带响应式断点（2026-10-21 与待办页同批修）。
+              原为无条件的 `grid-cols-[1fr_380px]` —— 右栏固定 380px，
+              窄屏时左栏（表单本体）被压到极窄、输入控件变形。
+              窄屏改单栏堆叠：说明在上、示例在下，`xl:` 起才并排
+              （这处右栏要 380px，比另两处的 240px 更宽，故断点取更大的一档）。 */}
+          <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[1fr_380px]">
             <Section
               icon="text_fields"
               title="基准字号与阅读间距"

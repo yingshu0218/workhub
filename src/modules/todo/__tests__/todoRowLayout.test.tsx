@@ -238,6 +238,59 @@ describe('⑤ 勾选框与「标题行」垂直对齐（2026-10-21 用户口径�
   })
 })
 
+describe('⑥ 窄屏不得被压坏（2026-10-21 用户截图：计数被挤成竖排）', () => {
+  /**
+   * 用户截图里「全部待办」右侧的 `0 条未完成` 被压成了 **5 行竖排**。
+   *
+   * ## 实测根因（headless Chrome + 产物 CSS）
+   * 双栏原为**无条件** `grid-cols-[240px_1fr]` —— 窄屏时左栏仍占 240px，
+   * 右栏被挤到百来像素；而列表头的 `justify-between` **没有 flex-wrap**，
+   * 空间不足时不会换行、只会把子项压窄 → 计数文字逐字断开。
+   * 临界值：右栏需 ≥ 344px；换算到窗口 ≈ 896px（344 + 240 + 16 + 232 侧栏 + 64 padding）。
+   *
+   * ## 修法
+   * · 双栏加断点：`grid-cols-1 lg:grid-cols-[240px_1fr]`（窄屏单栏堆叠）
+   * · 列表头 `flex-wrap` + 计数 `whitespace-nowrap`（空间不足时整组换行，绝不逐字断）
+   *
+   * ⚠️ 这些是**布局属性**，jsdom 不布局 → 锁只能防「类名被改回去」；
+   * 真实 px 由 headless 实测（断点 1024 起并排，760~900 单栏，全宽度计数单行）。
+   */
+  it('双栏必须带响应式断点（窄屏单栏、lg 起才并排）', async () => {
+    await db.todos.put(todo() as never)
+    renderPage()
+    await screen.findByText('跟进深蓝续约')
+
+    // 取页面里那个两栏 grid 容器
+    const grid = document.querySelector('.grid.grid-cols-1')
+    expect(grid, '两栏容器不见了（或不再是 grid-cols-1 起手）').not.toBeNull()
+    const cls = grid!.className
+    expect(cls, '窄屏必须单栏：缺 grid-cols-1').toContain('grid-cols-1')
+    expect(
+      /lg:grid-cols-\[240px_1fr\]/.test(cls),
+      '缺少 lg: 断点 —— 窄屏会回到「左栏固定 240px 挤压右栏」的老问题',
+    ).toBe(true)
+    // 反向控制：不得再出现无条件的固定双栏
+    expect(cls, '不得再有无条件的 grid-cols-[240px_1fr]').not.toMatch(
+      /(^|\s)grid-cols-\[240px_1fr\]/,
+    )
+  })
+
+  it('列表头可换行、计数不断字', async () => {
+    await db.todos.put(todo() as never)
+    renderPage()
+    await screen.findByText('跟进深蓝续约')
+
+    const count = await screen.findByText(/条未完成/)
+    // 计数本身禁止断行
+    expect(count.className, '计数缺 whitespace-nowrap —— 会被逐字挤成竖排').toContain(
+      'whitespace-nowrap',
+    )
+    // 表头允许换行（否则空间不足时压窄子项而非换行）
+    const header = count.closest('.flex-wrap')
+    expect(header, '列表头缺 flex-wrap —— 空间不足时会压窄子项而不是换行').not.toBeNull()
+  })
+})
+
 describe('todoBodyPreview / hasTime 纯函数口径', () => {
   it('todoBodyPreview：去掉标题行、其余压成单行', () => {
     expect(
