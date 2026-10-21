@@ -12,6 +12,7 @@
     "lint": "eslint src",
     "format": "prettier --write src",
     "check:icons": "node scripts/check-icons.mjs",
+    "check:schema": "node scripts/check-schema.mjs",
     "test": "vitest run",
     "relay": "node relay/index.mjs",
     "relay:stdio": "node relay/index.mjs --stdio",

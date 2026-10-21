@@ -1,10 +1,8 @@
 import type { Attachment } from '@/db/db'
 import { db } from '@/db/db'
-import { storage } from '@/storage'
 import { nextSortOrder, reorderBySortOrder } from '@/repositories/sortOrder'
 
 import { useQuery } from '@/queries/hooks'
-import type { Transaction } from '@/db/types'
 
 /**
  * 财务模块领域查询 Hook（附件读写在 hooks 层封装，组件不直碰 Dexie）
@@ -52,40 +50,14 @@ export function useAttachmentCount(refId: string | undefined): number {
 }
 
 /**
- * 交易级联删除：单事务覆盖 transactions / attachments / syncQueue 三表，
- * 任一步失败整体回滚。语义：
- * 1. 软删交易（盖章 + 入队 delete）
- * 2. 软删该交易全部附件存根（盖章 + 入队 delete）
- * 交易不存在或已删时静默返回（幂等）。
+ * 交易级联删除（保存凭证时同事务清附件存根）。
  *
- * ⚠️ 写入经 `storage.transaction`（StorageAdapter 原语），不直写 Dexie
- * —— 审计 P1（2026-10-21）：模块直写 `db.transaction` 的 30 处不会随存储适配器迁移。
+ * ⚠️ **实现已下沉到 `@/repositories`（2026-10-21）**：级联语义属落库口径，与
+ * `deleteCustomerCascade` / `deleteHabitCascade` 同处才谈得上「单一事实源」；
+ * 本文件带 React 查询钩子，agentOps 引用它会被绑到 UI 层。这里只做 re-export，
+ * UI / 测试的导入路径保持不变，UI 与 AI 走同一条落库路径。
  */
-export async function deleteTransactionCascade(txnId: string): Promise<void> {
-  const now = Date.now()
-  await storage.transaction(['transactions', 'attachments', 'syncQueue'], async (tx) => {
-    const prev = await tx.get<Transaction>('transactions', txnId)
-    if (!prev || prev.deleted) return
-
-    await tx.update('transactions', txnId, {
-      deleted: 1,
-      updatedAt: now,
-      rev: prev.rev + 1,
-    })
-    await tx.enqueue('transactions', txnId, 'delete', now)
-
-    const atts = (await tx.list<Attachment>('attachments')).filter((a) => a.refId === txnId)
-    for (const att of atts) {
-      await tx.update('attachments', att.id, {
-        deleted: 1,
-        updatedAt: now,
-        rev: (att.rev ?? 0) + 1,
-      })
-      await tx.enqueue('attachments', att.id, 'delete', now)
-    }
-  })
-  storage.requestSync()
-}
+export { deleteTransactionCascade } from '@/repositories'
 
 // ===== 账本左侧树（数据层与 todo 自定义清单同款事务纪律） =====
 

@@ -16,7 +16,7 @@
 - **relay 不是安全边界**：真正的防线是 agentOps 的 zod 校验 + 风险分级 + confirmToken + 白名单；
 - relay 是**通道、不持有数据**：权威数据在浏览器 IndexedDB，agentOps 在页面进程内执行。
 
-## 工具总览（27 个）
+## 工具总览（34 个）
 
 | 工具 | 域 | 风险 | 能力 |
 |---|---|---|---|
@@ -37,6 +37,13 @@
 | [`note_updateNote`](./note_updateNote.md) | note | medium | 编辑笔记（标题/正文/标签/归属） |
 | [`note_createFolder`](./note_createFolder.md) | note | low | 新建笔记文件夹 |
 | [`habit_deleteHabit`](./habit_deleteHabit.md) | habit | high | 删除习惯（不可逆，级联清打卡记录） |
+| [`habit_createHabit`](./habit_createHabit.md) | habit | low | 新建习惯（名称/图标/色板/节奏/目标时长） |
+| [`habit_updateHabit`](./habit_updateHabit.md) | habit | low | 编辑习惯（名称/图标/色板/节奏/目标时长/专注联动） |
+| [`fin_updateTransaction`](./fin_updateTransaction.md) | fin | medium | 编辑流水（金额/类型/日期/账本/状态/关联） |
+| [`fin_deleteTransaction`](./fin_deleteTransaction.md) | fin | high | 删除流水（不可逆，级联清凭证存根） |
+| [`note_deleteNote`](./note_deleteNote.md) | note | high | 删除笔记（不可逆） |
+| [`crm_deleteCustomer`](./crm_deleteCustomer.md) | crm | high | 删除客户（不可逆，级联日志 + 解绑四表 + 清关系） |
+| [`project_deleteProject`](./project_deleteProject.md) | project | high | 删除项目（不可逆，级联里程碑 + 解绑四表） |
 | [`resolveEntity`](./resolveEntity.md) | read | low | 把自然语言里的实体名消解为真实 id（写工具的前置） |
 | [`searchEntities`](./searchEntities.md) | read | low | 全局搜索（客户/项目/待办/笔记/账本/习惯） |
 | [`getCustomer`](./getCustomer.md) | read | low | 读取单个客户档案摘要 |

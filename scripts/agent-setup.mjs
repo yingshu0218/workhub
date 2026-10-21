@@ -64,6 +64,25 @@ const PROJECT_ROOT = process.env.WORKHUB_PROJECT_ROOT
 export const CRED_FILE = path.join(HOME, '.workhub', 'relay.json')
 /** 桥在 MCP 里的服务器名（各工具配置里的 key） */
 export const SERVER_NAME = 'workhub'
+
+/**
+ * 当前生效的凭据文件 —— `--env <name>` 会把它切到 `~/.workhub/relay.<name>.json`。
+ *
+ * 为什么需要多份：测试站与正式站是**两套独立部署**，relay token 完全不同
+ * （2026-10-21 实测：拿正式站 token 连测试站，直接报「接入 token 无效」）。
+ * 单份凭据意味着「去测试站验收 AI 桥」必须先覆盖掉正式站配置、验完再改回来 ——
+ * 忘一次就是两头都连不上，而且从报错上看不出是自己忘改了。
+ */
+let activeCredFile = CRED_FILE
+
+/** 按 --env 切换凭据文件；未指定时保持默认 relay.json（向后兼容，现有配置零影响） */
+function applyEnv(envName) {
+  if (!envName) return
+  if (!/^[A-Za-z0-9_-]+$/.test(envName)) {
+    throw new Error(`--env 只接受字母、数字、下划线与连字符，收到：${envName}`)
+  }
+  activeCredFile = path.join(HOME, '.workhub', `relay.${envName}.json`)
+}
 /** 托管块标记：只替换标记之间的内容，用户自己的配置不动 */
 const MARK = 'workhub-agent-setup'
 /** 随本脚本投放的技能名 */
@@ -82,6 +101,9 @@ const usage = () => `寻鸽工作台 · Agent 一键接入
   --port <n>                 配合 --transport local 指定端口（dev 通常 5173，serve 默认 9001）
   --url <ws(s)://…/relay>    显式指定 relay 地址（远程部署用这个）
   --token <token>            指定接入 token（缺省复用已有凭据）
+  --env <name>               把凭据存到 ~/.workhub/relay.<name>.json，且**不改 MCP 配置**
+                             （用途：去测试站验收桥，不动正式站那套配置；
+                               配 --check 即「用该环境凭据自检」）
 
 写入范围
   --only <id,id>             只处理指定目标
@@ -577,6 +599,7 @@ function parseArgs(argv) {
     url: get('--url', ''),
     token: get('--token', ''),
     port: get('--port', '9001'),
+    env: get('--env', ''),
     skills: get('--skills', 'meta'),
     opencodeSchema: get('--opencode-schema', 'auto'),
     node: get('--node', ''),
@@ -585,7 +608,7 @@ function parseArgs(argv) {
 
 /** 解析出要写进凭据文件的 {url, token}；返回 null 表示本次不需要写凭据 */
 function resolveCredentialForWrite(opts) {
-  const existing = readJson(CRED_FILE) ?? {}
+  const existing = readJson(activeCredFile) ?? {}
   if (opts.transport === 'local' || opts.url.startsWith('ws://')) {
     const url = opts.url || `ws://127.0.0.1:${opts.port}/relay`
     return { url, token: opts.token || existing.token || '' }
@@ -602,8 +625,21 @@ function writeCredential(cred) {
   if (!cred.url) missing.push('url')
   if (!cred.token) missing.push('token（`npm run dev` 启动时会打印）')
   const payload = { url: cred.url, token: cred.token, note: '由 npm run agent:setup 写入；token 轮换后请重跑本命令' }
-  const r = writeIfChanged(CRED_FILE, `${JSON.stringify(payload, null, 2)}\n`)
+  const r = writeIfChanged(activeCredFile, `${JSON.stringify(payload, null, 2)}\n`)
   return { ...r, missing }
+}
+
+/**
+ * 连通性自检：显式把本次解析出的地址与 token 传给 shim ——
+ * 否则 `--url/--token` 覆盖项会被自检忽略，验的就不再是「刚才写下去的那份凭据」。
+ */
+function runCheck(resolvedCred) {
+  process.stdout.write(c.bold('连通性自检\n'))
+  const args = [SHIM, '--verify']
+  if (resolvedCred?.url) args.push('--url', resolvedCred.url)
+  if (resolvedCred?.token) args.push('--token', resolvedCred.token)
+  const r = spawnSync(process.execPath, args, { stdio: 'inherit' })
+  process.exitCode = r.status ?? 1
 }
 
 function main() {
@@ -616,6 +652,8 @@ function main() {
     return
   }
 
+  applyEnv(opts.env)
+
   const prefix = DRY_RUN ? c.yellow('[dry-run] ') : ''
   process.stdout.write(`\n${prefix}${c.bold('寻鸽工作台 · Agent 一键接入')}\n`)
   process.stdout.write(`${prefix}仓库：${REPO_ROOT}\n\n`)
@@ -625,8 +663,8 @@ function main() {
   /** @type {{url:string, token:string} | null} */
   let resolvedCred = null
   if (opts.uninstall) {
-    if (existsSync(CRED_FILE)) {
-      if (tryRemove(CRED_FILE, '删除凭据文件')) changes.push(`删除凭据文件 ${rel(CRED_FILE)}`)
+    if (existsSync(activeCredFile)) {
+      if (tryRemove(activeCredFile, '删除凭据文件')) changes.push(`删除凭据文件 ${rel(activeCredFile)}`)
     }
   } else {
     const cred = resolveCredentialForWrite(opts)
@@ -642,16 +680,31 @@ function main() {
     }
     resolvedCred = cred
     const r = writeCredential(cred)
-    if (r.changed) changes.push(`写入凭据 ${rel(CRED_FILE)} → ${cred.url}`)
+    if (r.changed) changes.push(`写入凭据 ${rel(activeCredFile)} → ${cred.url}`)
     if (r.missing.length) {
       process.stdout.write(
         c.yellow(`⚠️  凭据缺少 ${r.missing.join(' / ')}，Agent 侧会连不上。\n`) +
-          `   填好后重跑，或直接编辑 ${rel(CRED_FILE)}。\n\n`,
+          `   填好后重跑，或直接编辑 ${rel(activeCredFile)}。\n\n`,
       )
     }
   }
 
   /* ---- 2. 逐目标写入 ---- */
+  // `--env` 模式只维护该环境的凭据，**不动各 Agent 的 MCP 配置**：
+  // MCP 条目只有一套（server 名固定 workhub），改它等于把默认接入点从正式站切走 ——
+  // 而「不覆盖正式站配置」正是 --env 存在的理由。要真在测试站长期使用，
+  // 再手工给对应工具的 MCP 条目加 `WORKHUB_RELAY_CRED_FILE=<relay.<env>.json>`。
+  if (opts.env) {
+    process.stdout.write(
+      `${prefix}${c.bold(`环境凭据：${opts.env}`)}\n` +
+        `${prefix}  · ${rel(activeCredFile)}${resolvedCred ? ` → ${resolvedCred.url}` : ''}\n` +
+        `${prefix}  · MCP 配置未改动（默认接入点仍是正式站）\n` +
+        `${prefix}  · 自检：npm run agent:setup -- --env ${opts.env} --check\n\n`,
+    )
+    if (opts.check) runCheck(resolvedCred)
+    return
+  }
+
   const rows = []
   for (const t of TARGETS) {
     if (opts.only.length && !opts.only.includes(t.id)) continue
@@ -804,16 +857,7 @@ function main() {
   process.stdout.write('\n')
 
   /* ---- 5. 可选自检 ---- */
-  if (opts.check) {
-    process.stdout.write(c.bold('连通性自检\n'))
-    // 显式把本次解析出的地址与 token 传给 shim —— 否则 --url/--token 覆盖项会被自检忽略，
-    // 自检的就不再是「刚才写下去的那份凭据」，验证结论失去意义
-    const args = [SHIM, '--verify']
-    if (resolvedCred?.url) args.push('--url', resolvedCred.url)
-    if (resolvedCred?.token) args.push('--token', resolvedCred.token)
-    const r = spawnSync(process.execPath, args, { stdio: 'inherit' })
-    process.exitCode = r.status ?? 1
-  }
+  if (opts.check) runCheck(resolvedCred)
 }
 
 /** opencode 的 mcp 结构在 V1/V2 间变了：从已有配置里找线索，找不到就按 V1（长期文档口径） */

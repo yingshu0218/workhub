@@ -21,6 +21,12 @@ export type SweepResult = {
   edges: SweepEdge[]
   schemaDiffs: string[]
   ctx: Record<string, string>
+  /**
+   * 运行期 tools/list 实际下发的工具名（不含 `confirm_preview`）。
+   * 覆盖度自检以此为准 —— **别再写死数字**：此前断言硬编码 `27`，
+   * 每加一个工具就要改测试，改了还容易忘（这次补 7 个工具时它就先红了）。
+   */
+  toolNames: string[]
 }
 
 export type SweepDeps = {
@@ -82,6 +88,7 @@ export async function runToolSweep(mcp: McpClient, deps: SweepDeps = {}): Promis
   const rows: SweepRow[] = []
   const edges: SweepEdge[] = []
   const schemaDiffs: string[] = []
+  const toolNames: string[] = []
   const ctx: Record<string, string> = {}
 
   const g = (key: string): string => {
@@ -154,7 +161,12 @@ export async function runToolSweep(mcp: McpClient, deps: SweepDeps = {}): Promis
   {
     const all = await mcp.listTools()
     const tools = all.filter((t) => t.name !== 'confirm_preview')
-    if (tools.length !== 27) schemaDiffs.push(`下发业务工具数 ${tools.length}，期望 27`)
+    // 工具数以**静态快照**为基准（快照由 gen:skills 从同一份 skillSource 生成），
+    // 不写死常量 —— 否则每加一个工具都要改测试，且数字与实现漂移时无从判断谁对。
+    if (tools.length !== snapshot.tools.length) {
+      schemaDiffs.push(`下发业务工具数 ${tools.length}，静态快照 ${snapshot.tools.length}`)
+    }
+    toolNames.push(...tools.map((t) => t.name))
     const snapMap = new Map(snapshot.tools.map((t) => [t.name, t.inputSchema]))
     for (const t of tools) {
       const snap = snapMap.get(t.name)
@@ -222,15 +234,22 @@ export async function runToolSweep(mcp: McpClient, deps: SweepDeps = {}): Promis
     ctx.todoId = d.todoId
   })
 
-  // 习惯域没有「创建习惯」工具、`resolveEntity` 也不含 habit（观察项）：
-  // 本地由测试预置固定 id；线上从 `listHabits` 取一个已有习惯（取不到则相关用例如实标注跳过）
-  if (deps.records) {
-    ctx.habitId = 'habit-sweep'
-  } else {
+  // 习惯域已补 `habit_createHabit`（2026-10-21）→ 不再依赖「本地预置 / 线上已有习惯」：
+  // 本地与线上用同一句自造，顺带把 create/update 两个新工具覆盖掉。
+  // （旧实现靠 deps.records 注入固定 id、线上挑第一个已有习惯，缺习惯时只能标跳过。）
+  await kase('habit_createHabit', { name: `晨跑-${RUN_ID}`, targetMinutes: 30 }, (r) => {
+    const d = r.data as { habitId?: string }
+    need(d?.habitId, '未返回 habitId')
+    ctx.habitId = d.habitId
+  })
+
+  await kase('habit_updateHabit', () => ({ habitId: g('habitId'), schedule: '工作日' }), async () => {
     const h = await invoke('listHabits', {})
-    const d = h.data as ReadEnvelope<{ id: string }>
-    if (d.items?.length) ctx.habitId = d.items[0].id
-  }
+    const d = h.data as ReadEnvelope<{ id: string; schedule?: string }>
+    const row = d.items?.find((i) => i.id === g('habitId'))
+    need(row, '改后 listHabits 未查到该习惯')
+    need(row?.schedule === '工作日', `节奏期望「工作日」，实际 ${String(row?.schedule)}`)
+  })
 
   // —— 写工具 ——
   await kase(
@@ -279,10 +298,9 @@ export async function runToolSweep(mcp: McpClient, deps: SweepDeps = {}): Promis
     }
   })
 
-  // 打卡（含幂等复测）—— 需要环境中存在习惯；没有则**如实标注跳过**，不伪装成通过
-  if (ctx.habitId) {
-    // 线上沿用的是「已有习惯」，它今天可能已经打过卡 —— 先取消，确保从「未打卡」态出发，
-    // 否则首次打卡会返回 created=false，看起来像缺陷，实际是用例前提没对齐
+  // 打卡（含幂等复测）。习惯由本用例自造 → 无条件执行，不再有「环境缺习惯就跳过」的分支。
+  {
+    // 从「未打卡」态出发：否则首次打卡返回 created=false，看起来像缺陷，实际是用例前提没对齐
     const day = new Date().toLocaleDateString('sv-SE')
     await invoke('habit_checkin', { habitId: ctx.habitId, date: day, undo: true })
     await kase('habit_checkin', () => ({ habitId: g('habitId'), date: day }), (r) => {
@@ -292,14 +310,6 @@ export async function runToolSweep(mcp: McpClient, deps: SweepDeps = {}): Promis
     await kase('habit_checkin', () => ({ habitId: g('habitId'), date: day }), (r) => {
       const d = r.data as { created?: boolean }
       need(d?.created === false, `重复打卡期望 created=false（幂等），实际 ${String(d?.created)}`)
-    })
-  } else {
-    rows.push({
-      tool: 'habit_checkin',
-      phase: 'skip',
-      ok: true,
-      ms: 0,
-      detail: '跳过：环境中没有可用习惯（habit 域无「创建习惯」工具，无法自造）',
     })
   }
 
@@ -345,9 +355,8 @@ export async function runToolSweep(mcp: McpClient, deps: SweepDeps = {}): Promis
   await kase('listHabits', {}, (r) => {
     const d = r.data as ReadEnvelope<{ id: string }>
     need(Array.isArray(d.items), 'listHabits 未返回 items 数组')
-    if (deps.records) {
-      need(d.items.some((i) => i.id === ctx.habitId), `未查到本地预置习惯 ${ctx.habitId}`)
-    }
+    // 习惯已由本用例自造（habit_createHabit），本地线上口径一致 → 无条件断言
+    need(d.items.some((i) => i.id === ctx.habitId), `未查到刚建的习惯 ${ctx.habitId}`)
   })
 
   await kase('listProjects', { status: 'archived' }, (r) => {
@@ -366,7 +375,38 @@ export async function runToolSweep(mcp: McpClient, deps: SweepDeps = {}): Promis
     need(d.items?.some((i) => i.id === ctx.folderId), '未查到笔记文件夹')
   })
 
+  await kase('fin_updateTransaction', () => ({ transactionId: g('transactionId'), status: '已结算' }), async () => {
+    const t = await invoke('listTransactions', { customerId: g('customerId') })
+    const d = t.data as ReadEnvelope<{ id: string; status?: string }>
+    const row = d.items?.find((i) => i.id === g('transactionId'))
+    need(row, '改后 listTransactions 未查到该流水')
+    need(row?.status === '已结算', `状态期望「已结算」，实际 ${String(row?.status)}`)
+  })
+
   // 删除类殿后（避免影响上面的读断言）
+  await kase('fin_deleteTransaction', () => ({ transactionId: g('transactionId') }), (r) => {
+    const d = r.data as { sideEffects?: { cascadedAttachments?: number } }
+    // 本例没传附件 → 级联附件数必须是 0；若报非 0 说明统计口径错了（把别人的附件算进来）
+    need(
+      d.sideEffects?.cascadedAttachments === 0,
+      `本例无附件，期望 cascadedAttachments=0，实际 ${String(d.sideEffects?.cascadedAttachments)}`,
+    )
+  })
+
+  await kase('note_deleteNote', () => ({ noteId: g('noteId') }), async () => {
+    const n = await invoke('listNotes', {})
+    const d = n.data as ReadEnvelope<{ id: string }>
+    need(!d.items?.some((i) => i.id === g('noteId')), '删除后 listNotes 仍能查到')
+  })
+
+  await kase('project_deleteProject', () => ({ projectId: g('projectId') }), (r) => {
+    const d = r.data as { sideEffects?: { cascadedMilestones?: number } }
+    need(
+      d.sideEffects?.cascadedMilestones === 0,
+      `本例无里程碑，期望 cascadedMilestones=0，实际 ${String(d.sideEffects?.cascadedMilestones)}`,
+    )
+  })
+
   await kase('todo_deleteTodo', () => ({ todoId: g('todoId') }), async () => {
     if (deps.records) {
       const row = await deps.records.todo(g('todoId'))
@@ -378,26 +418,29 @@ export async function runToolSweep(mcp: McpClient, deps: SweepDeps = {}): Promis
     }
   })
 
-  if (ctx.habitId) {
-    await kase('habit_deleteHabit', () => ({ habitId: g('habitId') }), async () => {
-      if (deps.records) {
-        const row = await deps.records.habit(g('habitId'))
-        need(row?.deleted === 1, `期望习惯已软删，实际 deleted=${row?.deleted}`)
-      } else {
-        const h = await invoke('listHabits', {})
-        const d = h.data as ReadEnvelope<{ id: string }>
-        need(!d.items?.some((i) => i.id === ctx.habitId), '删除后 listHabits 仍能查到')
-      }
-    })
-  } else {
-    rows.push({
-      tool: 'habit_deleteHabit',
-      phase: 'skip',
-      ok: true,
-      ms: 0,
-      detail: '跳过：环境中没有可用习惯（habit 域无「创建习惯」工具，无法自造）',
-    })
-  }
+  // ⚠️ 删客户必须排在 `todo_deleteTodo` **之后**：删客户会把待办上的 customerId 解绑，
+  // 若先删客户，上面那条「删除后用 customerId 查不到」会在空结果集上**假通过**
+  // （本来是「删掉了所以查不到」，会变成「解绑了所以查不到」）。
+  await kase('crm_deleteCustomer', () => ({ customerId: g('customerId') }), (r) => {
+    const d = r.data as { sideEffects?: { cascadedInteractions?: number } }
+    // 上面记过 1 条沟通日志 → 级联日志数应 ≥ 1
+    need(
+      (d.sideEffects?.cascadedInteractions ?? 0) >= 1,
+      `期望级联 ≥1 条沟通日志，实际 ${String(d.sideEffects?.cascadedInteractions)}`,
+    )
+  })
+
+  // 习惯由本用例自造（habit_createHabit），ctx.habitId 恒存在 → 无条件执行
+  await kase('habit_deleteHabit', () => ({ habitId: g('habitId') }), async () => {
+    if (deps.records) {
+      const row = await deps.records.habit(g('habitId'))
+      need(row?.deleted === 1, `期望习惯已软删，实际 deleted=${row?.deleted}`)
+    } else {
+      const h = await invoke('listHabits', {})
+      const d = h.data as ReadEnvelope<{ id: string }>
+      need(!d.items?.some((i) => i.id === ctx.habitId), '删除后 listHabits 仍能查到')
+    }
+  })
 
   /* ==================== ③ 边界与异常 ==================== */
   const L = ctx.ledgerId ?? 'ldg-missing'
@@ -430,6 +473,35 @@ export async function runToolSweep(mcp: McpClient, deps: SweepDeps = {}): Promis
   await probe('fin_createLedger', 'C4 建账本→空名称', { name: '' }, 'error')
   await probe('todo_createTodo', 'C5 建待办→标题与正文皆空', { title: '', desc: '' }, 'error')
   await probe('crm_createCustomer', 'C6 建客户→空名称', { name: '' }, 'error')
+  // —— 动作面补全（2026-10-21）新增工具的边界 ——
+  await probe('habit_createHabit', 'C7 建习惯→非法 schedule', { name: 'x', schedule: '每月一次' }, 'error')
+  await probe('habit_createHabit', 'C8 建习惯→空名称', { name: '  ' }, 'error')
+  await probe('fin_updateTransaction', 'C9 改流水→流水不存在', { transactionId: 'txn-not-exist', amount: 1 }, 'error')
+  await probe('fin_updateTransaction', 'C10 改流水→无任何修改字段', { transactionId: 'txn-not-exist' }, 'error')
+  await probe('fin_deleteTransaction', 'C11 删流水→流水不存在', { transactionId: 'txn-not-exist' }, 'error')
+  await probe('note_deleteNote', 'C12 删笔记→笔记不存在', { noteId: 'nt-not-exist' }, 'error')
+  await probe('crm_deleteCustomer', 'C13 删客户→客户不存在', { customerId: 'cus-not-exist' }, 'error')
+  await probe('project_deleteProject', 'C14 删项目→项目不存在', { projectId: 'prj-not-exist' }, 'error')
+  await probe('habit_updateHabit', 'C15 改习惯→习惯不存在', { habitId: 'habit-not-exist', targetMinutes: 10 }, 'error')
+  await probe('habit_updateHabit', 'C16 改习惯→无任何修改字段', { habitId: 'habit-not-exist' }, 'error')
+
+  // C17：改流水的**关联校验**必须前置（挂到不存在的客户上要拒绝，不能留悬挂引用）。
+  // 删除类用例已把前面那笔流水删掉，这里另记一笔临时流水，用完即删。
+  {
+    const tmp = await invoke('fin_recordTransaction', { summary: '边界探针临时流水', amount: 1 })
+    const tmpId = (tmp.data as { transactionId?: string }).transactionId
+    if (!tmpId) {
+      edges.push({ label: 'C17 改流水→关联客户不存在', ok: false, ms: 0, detail: '临时流水未创建成功' })
+    } else {
+      await probe(
+        'fin_updateTransaction',
+        'C17 改流水→关联客户不存在',
+        { transactionId: tmpId, customerId: 'cus-not-exist' },
+        'error',
+      )
+      await invoke('fin_deleteTransaction', { transactionId: tmpId })
+    }
+  }
 
   // D. 消解歧义（经工具造同名两人，线上同样可行）
   await kase('crm_createCustomer', { name: '李四', company: '甲公司' })
@@ -488,7 +560,7 @@ export async function runToolSweep(mcp: McpClient, deps: SweepDeps = {}): Promis
     }
   }
 
-  return { rows, edges, schemaDiffs, ctx }
+  return { rows, edges, schemaDiffs, ctx, toolNames }
 }
 
 /** 统一的结果打印（两个入口测试共用，避免报告格式漂移） */

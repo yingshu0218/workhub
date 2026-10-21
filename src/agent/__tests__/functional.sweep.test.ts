@@ -87,8 +87,8 @@ afterAll(async () => {
   await relay?.stop()
 })
 
-describe('本地功能性遍历（27 工具）', () => {
-  it('① 正向遍历：27 个工具全部可调通', () => {
+describe('本地功能性遍历（全部工具）', () => {
+  it('① 正向遍历：每个工具都可调通', () => {
     const fails = result.rows.filter((r) => !r.ok)
     expect(fails.map((f) => `${f.tool}: ${f.detail}`)).toEqual([])
   })
@@ -102,9 +102,13 @@ describe('本地功能性遍历（27 工具）', () => {
     expect(result.schemaDiffs).toEqual([])
   })
 
-  it('④ 覆盖度自检：27 个工具都被跑到', () => {
+  it('④ 覆盖度自检：tools/list 下发的每个工具都被跑到', () => {
+    // 以运行期 tools/list 为基准逐项比对，**不写死数字** ——
+    // 此前是 `expect(covered.size).toBeGreaterThanOrEqual(27)`，补 7 个工具后它只能靠改数字维持，
+    // 且「数字对得上但漏跑某个工具」这种情况它抓不到（多跑一个别的工具就能凑够）。
     const covered = new Set(result.rows.map((r) => r.tool))
-    expect(covered.size).toBeGreaterThanOrEqual(27)
+    const missing = result.toolNames.filter((n) => !covered.has(n))
+    expect(missing).toEqual([])
     expect(failuresOf(result)).toEqual([])
   })
 })

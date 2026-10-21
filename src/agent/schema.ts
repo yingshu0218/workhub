@@ -385,6 +385,127 @@ export const deleteHabitSchema = z.object({
   habitId: z.string().min(1, 'habitId 必须由 resolveEntity 消解产出'),
 })
 
+/* ───────────── 动作面补全（2026-10-21）：补齐 CRUD 闭环 ───────────── *
+ * 上一轮扩面后仍有三个「AI 建得出、改不了 / 删不掉」的洞：
+ * - 习惯：只能打卡与删除 —— **无法新建**（用户说「加个跑步习惯」AI 只能拒绝）；
+ * - 财务：只能记账 —— 记错了改不了、删不掉（UI 两个入口都有）；
+ * - 客户 / 笔记 / 项目：只能建、不能删（UI 均有确认弹窗入口）。
+ * 取舍仍守原纪律：**只补 UI 已有入口、语义明确**的动作；删除一律走既有级联函数
+ * （`deleteTransactionCascade` / `deleteCustomerCascade` / `deleteProjectCascade`），
+ * 不新写删除逻辑、不新增领域事件。
+ * ⚠️ `note_deleteFolder` **刻意不做**：UI 没有删除文件夹入口（只有新建），
+ * 为 AI 发明一个 UI 都没有的破坏性动作，属扩大面而非补齐面。
+ * ------------------------------------------------------------------- */
+
+/**
+ * habit_createHabit —— 新建习惯。
+ * 默认值与 `HabitFormDrawer` 初值逐字段对齐（§9.4「工具层口径对齐 UI」）：
+ * icon=fitness_center、color=#2563eb、category=成长、schedule=每日、targetMinutes=25。
+ */
+export const createHabitSchema = z.object({
+  name: z.string().trim().min(1, '请填写习惯名称'),
+  icon: z.string().optional(),
+  color: z.string().optional(),
+  category: z.string().optional(),
+  /** '每日' | '工作日' | '每周N次'（N=1..7）；与 UI 的 scheduleText() 同口径 */
+  schedule: z
+    .string()
+    .regex(/^(每日|工作日|每周[1-7]次)$/, 'schedule 只能是「每日」「工作日」或「每周N次」（N=1-7）')
+    .optional(),
+  /** 单次目标分钟（UI 缺省 25；负数会被夹到 0） */
+  targetMinutes: z.number().int().min(0).optional(),
+  motivationNote: z.string().optional(),
+  /** 与专注计时联动（UI 同款开关，缺省 false） */
+  crossModuleSync: z.boolean().optional(),
+})
+
+/** habit_updateHabit —— 编辑习惯（打卡走 habit_checkin，不在此内联，避免两处写日志） */
+export const updateHabitSchema = z
+  .object({
+    habitId: z.string().min(1, 'habitId 必须由 resolveEntity 消解产出'),
+    name: z.string().trim().min(1).optional(),
+    icon: z.string().optional(),
+    color: z.string().optional(),
+    category: z.string().optional(),
+    schedule: z
+      .string()
+      .regex(
+        /^(每日|工作日|每周[1-7]次)$/,
+        'schedule 只能是「每日」「工作日」或「每周N次」（N=1-7）',
+      )
+      .optional(),
+    targetMinutes: z.number().int().min(0).optional(),
+    motivationNote: z.string().optional(),
+    crossModuleSync: z.boolean().optional(),
+  })
+  .refine(
+    (v) =>
+      Object.keys(v).some((k) => k !== 'habitId' && (v as Record<string, unknown>)[k] !== undefined),
+    '至少提供一个要修改的字段',
+  )
+
+/**
+ * fin_updateTransaction —— 编辑流水。
+ *
+ * **不含附件**：附件是 Blob 通道（`attachments` 表 + 二进制），agentOps 投影与入参都不碰它，
+ * 避免 Agent 一次误传就把凭证清空。改附件仍走 UI。
+ * `occurredAt` 沿用记账日期口径（挡幻觉日期）；金额/账本变更同样过校验。
+ */
+export const updateTransactionSchema = z
+  .object({
+    transactionId: z.string().min(1, 'transactionId 必须由 resolveEntity 消解产出'),
+    ledgerId: z.string().min(1).optional(),
+    summary: z.string().trim().min(1).optional(),
+    amount: amountSchema.optional(),
+    type: z.enum(['income', 'expense']).optional(),
+    occurredAt: occurredAtSchema.optional(),
+    channel: z.enum(CHANNELS).optional(),
+    status: z.enum(['已结算', '待对账']).optional(),
+    tags: z.array(z.string()).optional(),
+    note: z.string().optional(),
+    /**
+     * 关联字段（Issue #140 多值化）：单值或数组都收，executor 归一为去重数组；
+     * 显式传空（`[]` 或 `''`）= 清空该关联。
+     *
+     * ⚠️ 这里**刻意不展开 `txnLinkField()`**（create 那侧用了它）：计算属性键会让
+     * `z.object()` 的输出退化成索引签名，`.refine()` 之后类型信息丢失 → `d.customerIds`
+     * 在 executor 侧报「属性不存在」。写成显式键虽多几行，但类型是实的。
+     */
+    customerIds: z.union([z.string(), z.array(z.string())]).optional(),
+    customerId: z.union([z.string(), z.array(z.string())]).optional(),
+    todoIds: z.union([z.string(), z.array(z.string())]).optional(),
+    todoId: z.union([z.string(), z.array(z.string())]).optional(),
+    projectIds: z.union([z.string(), z.array(z.string())]).optional(),
+    projectId: z.union([z.string(), z.array(z.string())]).optional(),
+  })
+  .refine(
+    (v) =>
+      Object.keys(v).some(
+        (k) => k !== 'transactionId' && (v as Record<string, unknown>)[k] !== undefined,
+      ),
+    '至少提供一个要修改的字段',
+  )
+
+/** fin_deleteTransaction —— 删除流水（级联清附件存根，走 deleteTransactionCascade） */
+export const deleteTransactionSchema = z.object({
+  transactionId: z.string().min(1, 'transactionId 必须由 resolveEntity 消解产出'),
+})
+
+/** note_deleteNote —— 删除笔记（软删 + 入队，与 UI 删除同源） */
+export const deleteNoteSchema = z.object({
+  noteId: z.string().min(1, 'noteId 必须由 resolveEntity 消解产出'),
+})
+
+/** crm_deleteCustomer —— 删除客户（走 deleteCustomerCascade：级联日志 + 解绑四表 + 清 relations） */
+export const deleteCustomerSchema = z.object({
+  customerId: z.string().min(1, 'customerId 必须由 resolveEntity 消解产出'),
+})
+
+/** project_deleteProject —— 删除项目（走 deleteProjectCascade：级联里程碑 + 解绑四表） */
+export const deleteProjectSchema = z.object({
+  projectId: z.string().min(1, 'projectId 必须由 resolveEntity 消解产出'),
+})
+
 /** 各写工具的风险分级（§四.4：低=执行+undo；中=先 preview 拿 confirmToken 再 execute） */
 export const TOOL_RISK: Record<string, RiskLevel> = {
   'fin_recordTransaction': 'medium',
@@ -405,6 +526,16 @@ export const TOOL_RISK: Record<string, RiskLevel> = {
   'note_updateNote': 'medium',
   'note_createFolder': 'low',
   'habit_deleteHabit': 'high',
+  // ── 动作面补全：习惯 CRUD 闭环 + 流水改删 + 三个删除入口 ──
+  // 习惯的建/改属个人轻量记录（与 habit_checkin 同为 low），不进中风险预览；
+  // 流水编辑要改金额/日期（脏统计的源头）故 medium；删除一律 high（不可逆 + 副作用清单）。
+  'habit_createHabit': 'low',
+  'habit_updateHabit': 'low',
+  'fin_updateTransaction': 'medium',
+  'fin_deleteTransaction': 'high',
+  'note_deleteNote': 'high',
+  'crm_deleteCustomer': 'high',
+  'project_deleteProject': 'high',
   /** 读工具：无副作用，风险恒为 low（不进 TOOL_EVENTS，读操作不产领域事件） */
   'resolveEntity': 'low',
   'searchEntities': 'low',
@@ -478,6 +609,14 @@ export const TOOL_DOMAIN: Record<string, AiDomain> = {
   note_createNote: 'note',
   note_updateNote: 'note',
   note_createFolder: 'note',
+  // ── 动作面补全（2026-10-21）──
+  habit_createHabit: 'habit',
+  habit_updateHabit: 'habit',
+  fin_updateTransaction: 'fin',
+  fin_deleteTransaction: 'fin',
+  note_deleteNote: 'note',
+  crm_deleteCustomer: 'crm',
+  project_deleteProject: 'project',
   resolveEntity: 'read',
   searchEntities: 'read',
   getCustomer: 'read',

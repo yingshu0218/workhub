@@ -2,7 +2,7 @@
   "generatedBy": "scripts/gen-skills.mjs",
   "source": "src/agent/skillSource.ts",
   "protocolVersion": "2024-11-05",
-  "toolCount": 27,
+  "toolCount": 34,
   "tools": [
     {
       "name": "fin_recordTransaction",
@@ -795,6 +795,321 @@
       "annotations": {
         "risk": "high",
         "domain": "habit",
+        "readOnly": false
+      },
+      "events": []
+    },
+    {
+      "name": "habit_createHabit",
+      "description": "新建习惯（名称/图标/色板/节奏/目标时长）",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "icon": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "schedule": {
+            "type": "string"
+          },
+          "targetMinutes": {
+            "type": "number"
+          },
+          "motivationNote": {
+            "type": "string"
+          },
+          "crossModuleSync": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "annotations": {
+        "risk": "low",
+        "domain": "habit",
+        "readOnly": false
+      },
+      "events": []
+    },
+    {
+      "name": "habit_updateHabit",
+      "description": "编辑习惯（名称/图标/色板/节奏/目标时长/专注联动）",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "habitId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "icon": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "schedule": {
+            "type": "string"
+          },
+          "targetMinutes": {
+            "type": "number"
+          },
+          "motivationNote": {
+            "type": "string"
+          },
+          "crossModuleSync": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "habitId"
+        ]
+      },
+      "annotations": {
+        "risk": "low",
+        "domain": "habit",
+        "readOnly": false
+      },
+      "events": []
+    },
+    {
+      "name": "fin_updateTransaction",
+      "description": "编辑流水（金额/类型/日期/账本/状态/关联）",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "transactionId": {
+            "type": "string"
+          },
+          "ledgerId": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "income",
+              "expense"
+            ]
+          },
+          "occurredAt": {
+            "type": "string"
+          },
+          "channel": {
+            "type": "string",
+            "enum": [
+              "微信",
+              "支付宝",
+              "银行卡",
+              "现金",
+              "对公转账"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "已结算",
+              "待对账"
+            ]
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "note": {
+            "type": "string"
+          },
+          "customerIds": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
+          },
+          "customerId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
+          },
+          "todoIds": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
+          },
+          "todoId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
+          },
+          "projectIds": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
+          },
+          "projectId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
+          }
+        },
+        "required": [
+          "transactionId"
+        ]
+      },
+      "annotations": {
+        "risk": "medium",
+        "domain": "fin",
+        "readOnly": false
+      },
+      "events": []
+    },
+    {
+      "name": "fin_deleteTransaction",
+      "description": "删除流水（不可逆，级联清凭证存根）",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "transactionId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "transactionId"
+        ]
+      },
+      "annotations": {
+        "risk": "high",
+        "domain": "fin",
+        "readOnly": false
+      },
+      "events": []
+    },
+    {
+      "name": "note_deleteNote",
+      "description": "删除笔记（不可逆）",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "noteId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "noteId"
+        ]
+      },
+      "annotations": {
+        "risk": "high",
+        "domain": "note",
+        "readOnly": false
+      },
+      "events": []
+    },
+    {
+      "name": "crm_deleteCustomer",
+      "description": "删除客户（不可逆，级联日志 + 解绑四表 + 清关系）",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "customerId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "customerId"
+        ]
+      },
+      "annotations": {
+        "risk": "high",
+        "domain": "crm",
+        "readOnly": false
+      },
+      "events": []
+    },
+    {
+      "name": "project_deleteProject",
+      "description": "删除项目（不可逆，级联里程碑 + 解绑四表）",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId"
+        ]
+      },
+      "annotations": {
+        "risk": "high",
+        "domain": "project",
         "readOnly": false
       },
       "events": []

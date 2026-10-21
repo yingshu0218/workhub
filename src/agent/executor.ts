@@ -9,14 +9,42 @@ import {
   checkinHabit,
   uncheckHabit,
   deleteHabitCascade,
+  deleteCustomerCascade,
+  deleteTransactionCascade,
+  deleteProjectCascade,
   addCustomerRelation,
+  saveTransactionWithAttachments,
+  toLinkFieldPatch,
+  txnCustomerIds,
+  txnProjectIds,
+  habitRepo,
+  noteRepo,
   todoRepo,
 } from '@/repositories'
 import { toggleTodoDone } from '@/modules/todo/toggle'
 import { splitTodoText } from '@/modules/todo/title'
 import { normalizeTodoTags, TODO_TAG_MAX_COUNT } from '@/modules/todo/tags'
 import { deleteTodoCascade } from '@/modules/todo/cascade'
-import type { Customer, Habit, HabitLog, Note, Project, Todo } from '@/db/types'
+import type {
+  Customer,
+  Habit,
+  HabitLog,
+  Interaction,
+  Note,
+  Project,
+  ProjectMilestone,
+  Todo,
+  Transaction,
+} from '@/db/types'
+
+/**
+ * 附件存根的**最小形状** —— 只为统计「删流水时会级联删掉几个凭证」。
+ *
+ * ⚠️ 刻意不从 `@/db/db` 引 `Attachment`：`storage/__tests__/boundary.test.ts` 锁住
+ * 「agent 层不得 import db 单例」（执行链必须走 `@/storage` 适配器）。这里只需要
+ * 读几个标量字段，结构化声明比引整个表类型更贴合边界。
+ */
+type AttachmentRow = { id: string; refId: string; deleted?: 0 | 1; rev: number }
 
 /** 行类型别名（mustExist 泛型绑定用；与 db/types 定义同源，不做二次建模） */
 type ProjectRow = Project
@@ -45,6 +73,13 @@ import {
   updateNoteSchema,
   createFolderSchema,
   deleteHabitSchema,
+  createHabitSchema,
+  updateHabitSchema,
+  updateTransactionSchema,
+  deleteTransactionSchema,
+  deleteNoteSchema,
+  deleteCustomerSchema,
+  deleteProjectSchema,
   TOOL_RISK,
   TOOL_EVENTS,
   type RiskLevel,
@@ -714,6 +749,224 @@ export async function habit_deleteHabit(input: unknown): Promise<AgentOpResult> 
   })
 }
 
+/* ─────────── 动作面补全（2026-10-21）：习惯 CRUD / 流水改删 / 三个删除入口 ─────────── *
+ * 动机：上一轮扩面后仍有「AI 建得出、改不了 / 删不掉」的洞 —— 习惯只能打卡与删除，
+ * 流水只能记不能改删，客户/笔记/项目只能建不能删。UI 这些入口早就有，
+ * 补齐后 AI 的动作面才真正与 UI 对齐。删除一律走既有级联函数（不新写删除逻辑），
+ * 并回传 sideEffects 记录数供 Agent 向用户如实转述（high 风险的硬要求）。
+ * ----------------------------------------------------------------------------------- */
+
+/**
+ * habit_createHabit：新建习惯。
+ *
+ * 默认值与 `HabitFormDrawer` 初值逐字段对齐（§9.4「工具层口径对齐 UI」）——
+ * 用户在界面上点「新建习惯」什么都不填，落库的就是这套值。
+ * 不 emit：习惯创建在 UI 侧同样没有领域事件（事件声明表只声明 `habit:checked`）。
+ */
+export async function habit_createHabit(input: unknown): Promise<AgentOpResult> {
+  const parsed = parseOrError(createHabitSchema, input)
+  if (!parsed.ok) return parsed
+  const d = parsed.data
+  const id = newId('hb')
+  await habitRepo.put({
+    id,
+    name: d.name,
+    icon: d.icon ?? 'fitness_center',
+    color: d.color ?? '#2563eb',
+    category: d.category?.trim() || '成长',
+    schedule: d.schedule ?? '每日',
+    targetMinutes: Math.max(0, Math.round(d.targetMinutes ?? 25)),
+    motivationNote: d.motivationNote?.trim() ?? '',
+    crossModuleSync: d.crossModuleSync ?? false,
+    createdAt: Date.now(),
+  })
+  return ok({ habitId: id, created: true })
+}
+
+/**
+ * habit_updateHabit：编辑习惯（部分更新）。
+ *
+ * 打卡**不在此内联** —— 一律走 `habit_checkin`（确定性日志 id / 幂等 / 事件都在那边收口）。
+ */
+export async function habit_updateHabit(input: unknown): Promise<AgentOpResult> {
+  const parsed = parseOrError(updateHabitSchema, input)
+  if (!parsed.ok) return parsed
+  const d = parsed.data
+  const found = await mustExist<HabitRow>(tableRef('habits'), d.habitId, '习惯')
+  if (!found.ok) return err(found.error)
+
+  const patch: Partial<Habit> = {}
+  if (d.name !== undefined) patch.name = d.name
+  if (d.icon !== undefined) patch.icon = d.icon
+  if (d.color !== undefined) patch.color = d.color
+  if (d.category !== undefined) patch.category = d.category.trim() || '成长'
+  if (d.schedule !== undefined) patch.schedule = d.schedule
+  if (d.targetMinutes !== undefined) patch.targetMinutes = Math.max(0, Math.round(d.targetMinutes))
+  if (d.motivationNote !== undefined) patch.motivationNote = d.motivationNote.trim()
+  if (d.crossModuleSync !== undefined) patch.crossModuleSync = d.crossModuleSync
+
+  await habitRepo.put({ ...found.record, ...patch })
+  return ok({ habitId: d.habitId, updated: Object.keys(patch) })
+}
+
+/**
+ * fin_updateTransaction：编辑流水（金额 / 类型 / 日期 / 账本 / 归属 / 关联）。
+ *
+ * 落库经 `saveTransactionWithAttachments`（与 UI 同一函数）：它的 create 门控按
+ * 「事务开始前该 id 是否存在」判定，此处 id 恒存在 → **不会重发 `transaction:created`**
+ * （否则改一次金额就触发一次奖杯/EXP 评估，属重复计数）。
+ *
+ * **刻意不含附件**：附件是 Blob 通道，schema 里根本没有这个字段 —— 外部 Agent 无法构造
+ * 二进制，留一个「能改附件」的入口只带来「误传清空凭证」的风险。
+ */
+export async function fin_updateTransaction(input: unknown): Promise<AgentOpResult> {
+  const parsed = parseOrError(updateTransactionSchema, input)
+  if (!parsed.ok) return parsed
+  const d = parsed.data
+  const found = await mustExist<Transaction>(tableRef('transactions'), d.transactionId, '流水')
+  if (!found.ok) return err(found.error)
+  const prev = found.record
+
+  const patch: Partial<Transaction> = {}
+  if (d.summary !== undefined) patch.summary = d.summary
+  if (d.amount !== undefined) patch.amount = d.amount
+  if (d.type !== undefined) patch.type = d.type
+  // 记账时间口径与 UI 同源：只认日期，落当天 00:00
+  if (d.occurredAt !== undefined) patch.occurredAt = dayjs(d.occurredAt).startOf('day').valueOf()
+  if (d.channel !== undefined) patch.channel = d.channel
+  if (d.status !== undefined) patch.status = d.status
+  if (d.tags !== undefined) patch.tags = d.tags
+  if (d.note !== undefined) patch.note = d.note
+  if (d.ledgerId !== undefined) patch.ledgerId = d.ledgerId
+
+  // 关联字段：单值 / 数组都收（兼容已分发契约），归一为去重数组；显式传空 = 清空该关联。
+  // 走 toLinkFieldPatch 而非直接写 [] —— 空数组会被序列化进库，形成「有键但空」的噪声态。
+  if (d.customerIds !== undefined || d.customerId !== undefined) {
+    Object.assign(patch, toLinkFieldPatch('customerIds', linkIds(d.customerIds, d.customerId)))
+  }
+  if (d.todoIds !== undefined || d.todoId !== undefined) {
+    Object.assign(patch, toLinkFieldPatch('todoIds', linkIds(d.todoIds, d.todoId)))
+  }
+  if (d.projectIds !== undefined || d.projectId !== undefined) {
+    Object.assign(patch, toLinkFieldPatch('projectIds', linkIds(d.projectIds, d.projectId)))
+  }
+
+  // 关联校验前置：账本 / 客户 / 待办 / 项目都必须存在（不产生悬挂引用）
+  const links = await assertLinks([
+    { id: patch.ledgerId, table: tableRef('ledgers'), what: '账本' },
+    ...(patch.customerIds ?? []).map((id) => ({
+      id,
+      table: tableRef('customers'),
+      what: '客户',
+    })),
+    ...(patch.todoIds ?? []).map((id) => ({ id, table: tableRef('todos'), what: '待办' })),
+    ...(patch.projectIds ?? []).map((id) => ({ id, table: tableRef('projects'), what: '项目' })),
+  ])
+  if (!links.ok) return err(links.error)
+
+  await saveTransactionWithAttachments({ ...prev, ...patch })
+  return ok({ transactionId: d.transactionId, updated: Object.keys(patch) })
+}
+
+/**
+ * fin_deleteTransaction：删除流水（级联软删附件存根）。
+ *
+ * 统计必须在删除**之前**做 —— 删完就查不到附件了，sideEffects 会恒为 0（假报「无副作用」）。
+ */
+export async function fin_deleteTransaction(input: unknown): Promise<AgentOpResult> {
+  const parsed = parseOrError(deleteTransactionSchema, input)
+  if (!parsed.ok) return parsed
+  const id = parsed.data.transactionId
+  const found = await mustExist<Transaction>(tableRef('transactions'), id, '流水')
+  if (!found.ok) return err(found.error)
+
+  const attachments = (await storage.list<AttachmentRow>('attachments')).filter(
+    (a) => a.refId === id && !a.deleted,
+  )
+  await deleteTransactionCascade(id)
+  return ok({
+    transactionId: id,
+    deleted: true,
+    sideEffects: { cascadedAttachments: attachments.length },
+  })
+}
+
+/** note_deleteNote：删除笔记（软删 + 入队，与 UI 删除同源；无级联） */
+export async function note_deleteNote(input: unknown): Promise<AgentOpResult> {
+  const parsed = parseOrError(deleteNoteSchema, input)
+  if (!parsed.ok) return parsed
+  const id = parsed.data.noteId
+  const found = await mustExist<NoteRow>(tableRef('notes'), id, '笔记')
+  if (!found.ok) return err(found.error)
+  await noteRepo.softDelete(id)
+  return ok({ noteId: id, deleted: true, sideEffects: { cascaded: 0 } })
+}
+
+/**
+ * crm_deleteCustomer：删除客户（走 `deleteCustomerCascade`）。
+ *
+ * 影响面必须**先统计后删除**：沟通日志随之软删；流水 / 待办 / 项目**只解绑不删除**；
+ * 其它客户 relations 里指向它的条目会被清掉（双向弱引用）。
+ * high 风险 → sideEffects 逐项回传，Agent 必须先念给用户听。
+ */
+export async function crm_deleteCustomer(input: unknown): Promise<AgentOpResult> {
+  const parsed = parseOrError(deleteCustomerSchema, input)
+  if (!parsed.ok) return parsed
+  const id = parsed.data.customerId
+  const found = await mustExist<Customer>(tableRef('customers'), id, '客户')
+  if (!found.ok) return err(found.error)
+
+  const [logs, txns, todos, projects, allCustomers] = await Promise.all([
+    storage.list<Interaction>('interactions'),
+    storage.list<Transaction>('transactions'),
+    storage.list<Todo>('todos'),
+    storage.list<Project>('projects'),
+    storage.list<Customer>('customers'),
+  ])
+  const sideEffects = {
+    cascadedInteractions: logs.filter((l) => l.customerId === id && !l.deleted).length,
+    unlinkedTransactions: txns.filter((t) => !t.deleted && txnCustomerIds(t).includes(id)).length,
+    unlinkedTodos: todos.filter((t) => t.customerId === id && !t.deleted).length,
+    unlinkedProjects: projects.filter((p) => p.customerId === id && !p.deleted).length,
+    clearedRelations: allCustomers.filter(
+      (c) => !c.deleted && c.id !== id && (c.relations ?? []).some((r) => r.targetId === id),
+    ).length,
+  }
+  await deleteCustomerCascade(id)
+  return ok({ customerId: id, deleted: true, sideEffects })
+}
+
+/**
+ * project_deleteProject：删除项目（走 `deleteProjectCascade`）。
+ *
+ * 影响面：里程碑随项目软删；流水 / 待办 / 笔记 / 跟进**只解绑不删除**（「待办只是一次」语义）。
+ * 同样先统计后删除。
+ */
+export async function project_deleteProject(input: unknown): Promise<AgentOpResult> {
+  const parsed = parseOrError(deleteProjectSchema, input)
+  if (!parsed.ok) return parsed
+  const id = parsed.data.projectId
+  const found = await mustExist<Project>(tableRef('projects'), id, '项目')
+  if (!found.ok) return err(found.error)
+
+  const [milestones, txns, todos, notes, interactions] = await Promise.all([
+    storage.list<ProjectMilestone>('projectMilestones'),
+    storage.list<Transaction>('transactions'),
+    storage.list<Todo>('todos'),
+    storage.list<Note>('notes'),
+    storage.list<Interaction>('interactions'),
+  ])
+  const sideEffects = {
+    cascadedMilestones: milestones.filter((m) => m.projectId === id && !m.deleted).length,
+    unlinkedTransactions: txns.filter((t) => !t.deleted && txnProjectIds(t).includes(id)).length,
+    unlinkedTodos: todos.filter((t) => t.projectId === id && !t.deleted).length,
+    unlinkedNotes: notes.filter((n) => n.projectId === id && !n.deleted).length,
+    unlinkedInteractions: interactions.filter((i) => i.projectId === id && !i.deleted).length,
+  }
+  await deleteProjectCascade(id)
+  return ok({ projectId: id, deleted: true, sideEffects })
+}
+
 /* ------------------------------- 读工具出口 ------------------------------- *
  * 读工具**不产领域事件**（§2.2），故不进 TOOL_EVENTS / emitDeclared；
  * 参数经 schema 校验（parseOrError 统一可操作错误），异常统一转 `ok/err` 信封。
@@ -829,6 +1082,14 @@ export const AGENT_TOOLS = {
   'note_updateNote': { risk: TOOL_RISK['note_updateNote'], schema: updateNoteSchema, run: note_updateNote },
   'note_createFolder': { risk: TOOL_RISK['note_createFolder'], schema: createFolderSchema, run: note_createFolder },
   'habit_deleteHabit': { risk: TOOL_RISK['habit_deleteHabit'], schema: deleteHabitSchema, run: habit_deleteHabit },
+  // ── 动作面补全：习惯 CRUD / 流水改删 / 三个删除入口 ──
+  'habit_createHabit': { risk: TOOL_RISK['habit_createHabit'], schema: createHabitSchema, run: habit_createHabit },
+  'habit_updateHabit': { risk: TOOL_RISK['habit_updateHabit'], schema: updateHabitSchema, run: habit_updateHabit },
+  'fin_updateTransaction': { risk: TOOL_RISK['fin_updateTransaction'], schema: updateTransactionSchema, run: fin_updateTransaction },
+  'fin_deleteTransaction': { risk: TOOL_RISK['fin_deleteTransaction'], schema: deleteTransactionSchema, run: fin_deleteTransaction },
+  'note_deleteNote': { risk: TOOL_RISK['note_deleteNote'], schema: deleteNoteSchema, run: note_deleteNote },
+  'crm_deleteCustomer': { risk: TOOL_RISK['crm_deleteCustomer'], schema: deleteCustomerSchema, run: crm_deleteCustomer },
+  'project_deleteProject': { risk: TOOL_RISK['project_deleteProject'], schema: deleteProjectSchema, run: project_deleteProject },
   'resolveEntity': { risk: TOOL_RISK['resolveEntity'], schema: resolveEntitySchema, run: agent_resolveEntity },
   'searchEntities': { risk: TOOL_RISK['searchEntities'], schema: searchEntitiesSchema, run: agent_searchEntities },
   'getCustomer': { risk: TOOL_RISK['getCustomer'], schema: getCustomerSchema, run: agent_getCustomer },

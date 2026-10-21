@@ -1,6 +1,6 @@
 # 一键接入任意 Agent
 
-> 一条命令，把「寻鸽工作台」的 27 个业务工具 + 项目规则 + 桥使用技能，塞进你本机**已有**的 Agent 工具里。
+> 一条命令，把「寻鸽工作台」的 34 个业务工具 + 项目规则 + 桥使用技能，塞进你本机**已有**的 Agent 工具里。
 >
 > 对标飞书 CLI 的 `npx @larksuite/cli@latest install`：探测 → 写配置 → 提示重启。
 
@@ -89,15 +89,15 @@ npm run agent:setup                      # 复用已有凭据，重跑一次（�
 npm run agent:setup -- --dry-run         # 只预览，一个文件都不落盘
 npm run agent:setup -- --only codex,hermes
 npm run agent:setup -- --check           # 连通性自检：真起 shim 走 MCP 握手 + tools/list
-npm run agent:setup -- --skills full     # 另投 27 个逐工具技能（通常不需要，见下）
+npm run agent:setup -- --skills full     # 另投 34 个逐工具技能（通常不需要，见下）
 npm run agent:setup -- --uninstall       # 把写入的全部摘干净（含凭据文件与技能目录）
 npm run agent:setup -- --help
 ```
 
 ## 设计取舍（几个「为什么不是那样」）
 
-**为什么默认不投 27 个逐工具技能？**
-MCP 的 `tools/list` 本身就把 27 个工具的名称 / 描述 / schema 交给 Agent 了。
+**为什么默认不投 34 个逐工具技能？**
+MCP 的 `tools/list` 本身就把 34 个工具的名称 / 描述 / schema 交给 Agent 了。
 再写成 27 份技能是**重复投喂**，只会抬高每次请求的固定成本。所以默认只投一份元技能，
 只讲 MCP schema 表达不了的四件事：桥在线是前置条件、中风险确认四步、实体消解不许猜 id、读工具会截断。
 需要时 `--skills full` 才全投。

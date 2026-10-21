@@ -4,7 +4,7 @@ import { newId } from '@/repositories'
 import { useCollection, useQuery } from '@/queries/hooks'
 import type { Project, ProjectMilestone, Todo, Transaction, Note, Interaction } from '@/db/types'
 import { isTodoOpen } from '@/modules/todo/domain'
-import { toLinkFieldPatch, txnProjectIds } from '@/repositories'
+import { txnProjectIds } from '@/repositories'
 
 /**
  * 项目模块数据层（组件禁止直连 Dexie）
@@ -229,78 +229,13 @@ export async function deleteMilestone(id: string): Promise<void> {
 }
 
 /**
- * 项目级联删除（照 deleteCustomerCascade / deleteTodoListCascade 纪律，单事务）：
- * 1. 软删项目 + 软删名下全部里程碑（里程碑是项目专属刻度，随项目消亡）
- * 2. 解绑弱引用：transactions/todos/notes/interactions 的 projectId 置 undefined
- *    —— 账目/待办/笔记不能因项目没了而消失（「待办只是一次」语义），只清关联。
- * 项目不存在时静默返回（幂等）。
+ * 项目级联删除（软删项目 + 里程碑，解绑四表 projectId）。
+ *
+ * ⚠️ **实现已下沉到 `@/repositories`（2026-10-21）**：级联语义属落库口径，与
+ * `deleteCustomerCascade` 同处才谈得上「单一事实源」；本文件带 React 查询钩子，
+ * agentOps 引用它会被绑到 UI 层。这里只做 re-export，UI / 测试导入路径不变。
  */
-export async function deleteProjectCascade(projectId: string): Promise<void> {
-  const now = Date.now()
-  await storage.transaction(
-    ['projects', 'projectMilestones', 'transactions', 'todos', 'notes', 'interactions', 'syncQueue'],
-    async (tx) => {
-      const prev = await tx.get<Project>('projects', projectId)
-      if (!prev || prev.deleted) return
-
-      await tx.put('projects', { ...prev, deleted: 1, updatedAt: now, rev: prev.rev + 1 })
-      await tx.enqueue('projects', projectId, 'delete', now)
-
-      const milestones = (await tx.list<ProjectMilestone>('projectMilestones')).filter(
-        (m) => m.projectId === projectId && !m.deleted,
-      )
-      for (const m of milestones) {
-        await tx.put('projectMilestones', { ...m, deleted: 1, updatedAt: now, rev: m.rev + 1 })
-        await tx.enqueue('projectMilestones', m.id, 'delete', now)
-      }
-
-      // 单值弱引用表（todos/notes/interactions）：projectId 置 undefined 即解绑
-      const unbindSingle = async (
-        table: 'todos' | 'notes' | 'interactions',
-        records: { id: string; rev: number; deleted?: number }[],
-      ) => {
-        for (const r of records) {
-          if (r.deleted) continue
-          await tx.update(table, r.id, { projectId: undefined, updatedAt: now, rev: r.rev + 1 })
-          await tx.enqueue(table, r.id, 'upsert', now)
-        }
-      }
-      // transactions 关联已数组化（Issue #140 v11）：projectId 旧键已删，走 projectIds 数组解绑。
-      // 不能写 `projectId: undefined` —— 既解不掉 projectIds 里的项目，还按「双写不双读」留下一个
-      // 永不读取的旧键；必须走 toLinkFieldPatch('projectIds', …)（空数组不落键）。
-      const txns = (await tx.list<Transaction>('transactions'))
-        .filter((t) => !t.deleted)
-        .filter((t) => txnProjectIds(t).includes(projectId))
-      for (const txn of txns) {
-        await tx.update('transactions', txn.id, {
-          ...toLinkFieldPatch('projectIds', txnProjectIds(txn).filter((id) => id !== projectId)),
-          updatedAt: now,
-          rev: txn.rev + 1,
-        })
-        await tx.enqueue('transactions', txn.id, 'upsert', now)
-      }
-
-      const [todos, notes, interactions] = await Promise.all([
-        tx.list<Todo>('todos'),
-        tx.list<Note>('notes'),
-        tx.list<Interaction>('interactions'),
-      ])
-      await unbindSingle(
-        'todos',
-        todos.filter((r) => r.projectId === projectId),
-      )
-      await unbindSingle(
-        'notes',
-        notes.filter((r) => r.projectId === projectId),
-      )
-      await unbindSingle(
-        'interactions',
-        interactions.filter((r) => r.projectId === projectId),
-      )
-    },
-  )
-  storage.requestSync()
-}
+export { deleteProjectCascade } from '@/repositories'
 
 /** 笔记归属项目（projectId=undefined 即移出项目；照 moveNoteToFolder 纪律） */
 export async function moveNoteToProject(

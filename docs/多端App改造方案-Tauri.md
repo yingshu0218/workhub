@@ -15,7 +15,7 @@
 理由（逐条对应本仓库既有设计）：
 
 - `AGENTS.md` §4 已声明 `src/repositories/` 是**存储无关的唯一写入口**（`Dexie / TauriSqlite 可替换`），技术栈里也预留了 `SQLite WASM 迁移口`。**这套设计的前提就是同一份代码跑在两个平台**；拆仓会把这个接口降级成「跨仓版本契约」。
-- App 还要复用 `src/domain/` 的编排口径、`src/agent/skillSource.ts` 的 27 个 Agent 工具 schema、`relay/` 的桥、`AGENTS.md` 的规则。拆仓后只能复制或做私有包。
+- App 还要复用 `src/domain/` 的编排口径、`src/agent/skillSource.ts` 的 34 个 Agent 工具 schema、`relay/` 的桥、`AGENTS.md` 的规则。拆仓后只能复制或做私有包。
 - 同步协议（LWW + `syncQueue` + 心跳）两端必须**同版本**，否则出现「App 写进去、Web 认不出」的静默数据问题。同 commit 是唯一结构性保证。
 
 ---

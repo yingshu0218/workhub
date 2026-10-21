@@ -47,9 +47,39 @@ const patterns = [
 // 这类「行内图标整体隐形」的问题；这里把 {} 表达式内的字符串字面量也纳入扫描。
 const exprPatterns = [/\bname=\{([^}]*)\}/g, /\bicon=\{([^}]*)\}/g]
 const stringLiteral = /'([a-z0-9_]+)'/g
+/**
+ * 图标名**常量数组**：`export const HABIT_ICONS = ['a','b',…]`。
+ *
+ * 这类名字不经过 `Icon name=/icon=` 属性，而是运行时被 `icon={state}` 间接喂进去 ——
+ * 上面的正则**整类扫不到**。实测后果：`HABIT_ICONS` 里的 `briefcase` / `brain`
+ * 长期没有对应 SVG，用户在习惯表单选中即**渲染成空白**，而构建、lint、测试全绿
+ * （2026-10-21 补工具测试时被顺带撞出来）。故按整块扫，跨多行也覆盖。
+ */
+const iconSetDecl = /export const [A-Z0-9_]*ICONS?\s*=\s*\[([\s\S]*?)\]/g
+
+/** 偏移量 → 行号（1 基），用于报错定位 */
+function lineOf(src, index) {
+  let line = 1
+  for (let i = 0; i < index && i < src.length; i += 1) if (src[i] === '\n') line += 1
+  return line
+}
+
 for (const file of walk(SRC)) {
   if (file.endsWith('Icon.tsx')) continue
-  const lines = readFileSync(file, 'utf8').split('\n')
+  const src = readFileSync(file, 'utf8')
+  const lines = src.split('\n')
+
+  // ① 图标名常量数组（跨行，必须在整文件上扫，逐行扫不到）
+  iconSetDecl.lastIndex = 0
+  for (const m of src.matchAll(iconSetDecl)) {
+    for (const lit of m[1].matchAll(stringLiteral)) {
+      const name = lit[1]
+      if (!used.has(name)) used.set(name, [])
+      used.get(name).push(`${relative(ROOT, file)}:${lineOf(src, m.index)}`)
+    }
+  }
+
+  // ② 属性与表达式形态（原逻辑，逐行）
   lines.forEach((line, i) => {
     for (const re of patterns) {
       re.lastIndex = 0
