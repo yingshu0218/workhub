@@ -3,7 +3,7 @@ import type { Settings } from '@/db/types'
 import { DEFAULT_SETTINGS } from '@/db/types'
 import { SETTINGS_KEY } from '@/db/types'
 import type { SyncAdapter } from './adapter'
-import { mergeRemoteRecord } from './mergeRemote'
+import { mergeRemoteRecord, buildPendingUpsertIndex } from './mergeRemote'
 import { eventBus, type AppEvent } from '@/shared/eventBus'
 import { isHealthPayload } from './connectivity'
 import type { AttachmentBlobLoader, PbRecord as MergePbRecord } from './mergeRemote'
@@ -512,6 +512,10 @@ async function pullImpl(cursor: number): Promise<{ cursor: number; changes: unkn
   if (!isSyncConfigured(cfg)) return { cursor, changes: [] }
   if (hasCreds(cfg) && !(await isTokenFresh(cfg))) await login(cfg)
   const changes: unknown[] = []
+  // 待推送 upsert 索引（审计 C-12）：整轮 pull 只读一次 syncQueue，供各表逐条合并时做集合查找。
+  // ⚠️ 可在整轮开始时建一次即安全：mergeRemoteRecord 只写业务表 + 盖 rev，**不入队**，
+  // 故这个集合在合并过程中不会变化（旧实现是逐条 filter().count()，属 O(N×M) 重复扫描）。
+  const pendingIndex = await buildPendingUpsertIndex()
   for (const table of SYNC_TABLES) {
     const cur = await loadCursor(table)
     const remotes = await pbListAll(cfg, table, cur)
@@ -531,7 +535,7 @@ async function pullImpl(cursor: number): Promise<{ cursor: number; changes: unkn
       try {
         const loadAttachmentBlob: AttachmentBlobLoader = (r) =>
           downloadAttachmentFile(cfg, r as unknown as MergePbRecord)
-        changes.push(await mergeRemoteRecord(table, remote, loadAttachmentBlob))
+        changes.push(await mergeRemoteRecord(table, remote, loadAttachmentBlob, pendingIndex))
       } catch (err) {
         // 单条失败不阻塞整表增量（队列断点续传同款纪律）
         console.warn(`[sync] 合并失败 ${table}/${remote.id}`, err)

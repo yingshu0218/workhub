@@ -48,12 +48,38 @@ function bizTable(table: string) {
  * 本地是否有「尚未确认推送成功」的 upsert 队列条目。
  * 用于远端拉取合并时保护本地刚落库的编辑：队列中还有该记录的 upsert，
  * 说明本地版本还未被服务端接受，此时被远端旧值整体覆盖 = 用户编辑静默丢失。
+ *
+ * ⚠️ 性能（审计 C-12 · 2026-10-21）：本函数是**在整表拉取循环里逐条调用**的，
+ * 原实现在每次调用时都对 syncQueue 做一次 `filter().count()` —— 即
+ * **O(远端条数 × 队列条数)** 的重复全表扫描。实测口径：一次 pull 若拉到 N 条远端记录、
+ * 队列有 M 条待推送，就是 N 次扫描。
+ *
+ * 修法：调用方（`pullImpl`）**每表拉取前一次性**构建 `Set<'table:recordId'>`，
+ * 经可选参数 `pendingIndex` 传入；未传时回落旧行为（保持该函数作为独立 API 的语义，
+ * 且 12+ 处既有单测直接调 `mergeRemoteRecord` 不传该参数，行为完全不变）。
  */
-async function hasPendingUpsert(table: string, recordId: string): Promise<boolean> {
+async function hasPendingUpsert(
+  table: string,
+  recordId: string,
+  pendingIndex?: ReadonlySet<string>,
+): Promise<boolean> {
+  if (pendingIndex) return pendingIndex.has(`${table}:${recordId}`)
   const pending = await db.syncQueue
     .filter((q) => q.table === table && q.recordId === recordId && q.op === 'upsert')
     .count()
   return pending > 0
+}
+
+/**
+ * 一次性构建「待推送 upsert 索引」（审计 C-12）。
+ *
+ * 调用方在**每表拉取开始前**调一次，把结果传给 `mergeRemoteRecord(…, pendingIndex)`，
+ * 把原来的「逐条查队列」变成「一次读队列 + N 次集合查找」。
+ * 只收 `op === 'upsert'`（delete 不参与「本地编辑优先保护」的比较，与旧口径一致）。
+ */
+export async function buildPendingUpsertIndex(): Promise<Set<string>> {
+  const rows = await db.syncQueue.filter((q) => q.op === 'upsert').toArray()
+  return new Set(rows.map((q) => `${q.table}:${q.recordId}`))
 }
 
 /**
@@ -109,6 +135,11 @@ export async function mergeRemoteRecord(
   table: string,
   remote: PbRecord,
   loadAttachmentBlob?: AttachmentBlobLoader,
+  /**
+   * 待推送 upsert 索引（审计 C-12）：由 `buildPendingUpsertIndex()` 构建、
+   * 调用方按「每表拉取一次」复用。缺省时回落到逐条查队列（旧行为）。
+   */
+  pendingIndex?: ReadonlySet<string>,
 ): Promise<'write' | 'skip'> {
   const table0 = bizTable(table)
   // 由远端 localId 字段还原本地 id（服务端主键是哈希 pbId，不可直接当本地 id 用）
@@ -170,7 +201,7 @@ export async function mergeRemoteRecord(
   //
   // 注：走到这里远端必然**不是**墓碑 —— 墓碑已在上方「删除优先」分支收口（2026-09-15 拍板），
   // 因此本分支只需处理「双方都是活记录」的字段级合并，不再需要操心 deleted 被回写的问题。
-  const hasPendingLocalEdit = await hasPendingUpsert(table, localId)
+  const hasPendingLocalEdit = await hasPendingUpsert(table, localId, pendingIndex)
   if (hasPendingLocalEdit && local) {
     const mirroredPending = stripPbMeta(revived)
     const merged: Record<string, unknown> = {

@@ -16,6 +16,24 @@
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' blob: https: http:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
     />
+    <!--
+      ⚠️ connect-src 放行 `https: http:`（任意主机）是**刻意为之，勿收窄** —— 审计 C-16 决策记录（2026-10-21）。
+
+      审计当时的建议是「收窄为 'self' + 显式同步中心域名」。**该建议不成立**，因为它与产品能力冲突：
+      同步中心地址由用户在「设置 → 同步」**运行时自行填写**（`settings.sync.serverUrl`，
+      见 src/modules/settings/SettingsPage.tsx 的保存逻辑）——本项目是自托管、本地优先，
+      用户可指向任意自己的 PocketBase。CSP 若写死域名，用户填任何其它地址都会被浏览器**静默拦截**
+      （表现为「填了地址但永远同步不上」，是本项目最难排查的一类故障）。
+
+      为什么这不是「安全上有缺口」：
+        · 关键防线是 `script-src 'self'` —— 它才是拦注入的闸门，`connect-src` 只是纵深防御；
+        · `default-src 'self'` 已挡住外部加载；`frame-ancestors 'none'` 已防嵌套；
+        · 真要防「脚本被注入后外发」，前提是注入已发生 —— 那时 `script-src` 才是第一道也是唯一有效的一道。
+
+      另注：原生壳（Tauri）需要额外放行 `ipc:` / `http://ipc.localhost`，
+      由 scripts/vite-tauri-plugin.mjs 在构建期注入（**勿把 ipc: 写进本文件** —— Web 端不需要，
+      写进来等于白白放宽浏览器策略）。该插件带锚点断言：本行若被改动而插件未同步，构建会失败。
+    -->
     <meta name="description" content="寻鸽工作台 - 一体化数字工作台：CRM、财务、待办、笔记、习惯全链路闭环" />
     <title>寻鸽工作台 · Nexus Workspace</title>
   </head>
