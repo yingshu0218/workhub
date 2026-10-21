@@ -92,7 +92,7 @@
 | 服务端 Schema | 以 `pb_setup/collections.json` 为准：**20 个集合条目**（业务实体 18 + 同步基础设施 2：`sync_state`/`agent_events`）。⚠️ 正文历史轮次里的「17 collections / 13 张业务表」等数字是**当时快照**，不代表现状 |
 | 审计问题 | P0×2 / P1×19 / P2×60 **全部清零** |
 | 同步机制完善 | P0-1 墓碑清理竞态修复 + P0-2 推送侧 LWW ✅；P1-3 服务端墓碑 cron ✅；**P1-4 HTTPS/PWA 未闭环**（2026-10-09 更正，见下方 P1-4 行与「二、遗留问题」）；正式环境 `team.fpigeon.fun` 已上线（LE 证书 + `http→https` 301），但 **PWA 装机/离线能力需在该正式域名上复验**；Issue #140 多关联 json 字段已入 `collections.json`（**自托管端需重新导入并重启**，见部署指南） |
-| 正式环境（**已上线**） | **https://team.fpigeon.fun** 已部署运行（2026-10-09）。CNB 制品库 `docker.cnb.cool/blueteam0715/workhub:latest` → 主机 `1204pigeon`(124.221.74.170) 的 `/opt/workhub/`，**单容器全包**（前端 + relay + PocketBase，同源路由；**不含 Tauri 手机端/桌面端**），只绑回环 `127.0.0.1:8790` + 宿主 nginx 反代（acme.sh 单独签发的 TLS）。数据持久化在 `/opt/workhub/data`；资源上限 768m / 1.0 核 / 256 PIDs。**已关闭 `users` 集合的公开注册**（PB 默认 `createRule` 为空 = 任何人可自助注册，而业务集合规则是「登录即可读写全部」→ 组合起来等于公网裸奔；现设为 Locked，账号改由超管手工建。⚠️ **该设置只存在数据卷的 `data.db` 里、不在代码里**，换机/重建空库后需重做一次）。流程、端口占用、排错与这条加固步骤见 `docs/Docker镜像构建与部署.md` |
+| 正式环境（**已上线**） | **https://team.fpigeon.fun** 已部署运行（2026-10-09）。CNB 制品库 `docker.cnb.cool/blueteam0715/workhub:latest` → 主机 `1204pigeon`(124.221.74.170) 的 `/opt/workhub/`，**单容器全包**（前端 + relay + PocketBase，同源路由；**不含 Tauri 手机端/桌面端**），只绑回环 `127.0.0.1:8790` + 宿主 nginx 反代（acme.sh 单独签发的 TLS）。数据持久化在 `/opt/workhub/data`；资源上限 768m / 1.0 核 / 256 PIDs。**已关闭 `users` 集合的公开注册**（PB 默认 `createRule` 为空 = 任何人可自助注册，而业务集合规则是「登录即可读写全部」→ 组合起来等于公网裸奔；现设为 Locked，账号改由超管手工建。⚠️ **该设置只存在数据卷的 `data.db` 里、不在代码里**，换机/重建空库后需重做一次）。流程、端口占用、排错与这条加固步骤见 `docs/Docker镜像构建与部署.md`。⚠️ **2026-10-21 核查：线上镜像仍停在 `20dac51`（10-10 11:09），落后本地 47 个提交，且 schema 停在 `8af6a93` 时代 —— 缺 `agent_events` 整表与 `customers.groupId`/`customerGroups.kind`**。判据不是猜的：镜像 label `org.opencontainers.image.revision` + 容器内 `dist` 只有 6 个 asset（本地 39）。升级步骤见「五、待办与挂起事项 → 正式站升级」 |
 | 多端 App（Tauri v2） | 阶段 1 代码已落盘（`src-tauri/` 桌面壳 + `src/platform/env.ts` 运行环境探测 + 构建期 CSP 插件 + `app:*` 脚本）。**macOS 客户端已交付（2026-10-12）**：`Nexus Workspace.app`（9.42 MiB / arm64 / ad-hoc 签名）+ `Nexus Workspace_0.1.0_aarch64.dmg`（3.76 MiB，`hdiutil verify` 通过、内含 app 与 `Applications` 软链）双产物打通，产物新鲜度以「包内嵌资源名与 `dist` 逐字一致」为证；分发出货走 ad-hoc（自用），**签名/公证不做**。渲染 / 托盘生命周期 / 真实同步三项**待人工点击验收**（清单见 `docs/多端App改造方案-Tauri.md` §11）。**Web 镜像刻意排除它**（`.dockerignore` 挡 `src-tauri/`、插件按 `TAURI_ENV_PLATFORM` 自判空转），故不影响正式环境。方案见 `docs/多端App改造方案-Tauri.md`。⚠️ `src-tauri/target/`（Rust 编译产物，约 1.1G）由 `src-tauri/.gitignore` 的 `/target/` 规则忽略，**不会入库** |
 | Changelog | **已改为版本级**（2026-10-09）：发版本时往根 `CHANGELOG.md` 追加一节，**不再逐条记流水**；日常记录见本文件与 git 提交历史。旧逐条表格（#1~#128）已归档至 `docs/CHANGELOG-详细流水-v1.0.0至v1.2.1.md` |
 
@@ -135,9 +135,9 @@
 
 | 事项 | 说明 |
 |---|---|
-| 绑定域名 + HTTPS | 激活 PWA 离线缓存/可安装、消除明文警告；绑好跑一次 certbot |
+| **正式站升级（待拍板）** | 线上停在 `20dac51`（10-10 11:09），落后 **47 个提交**且 schema 缺 `agent_events` 等 3 项。步骤：① 在 CNB 流水线页确认 `build-web-image` 为绿（本轮推送 `d03961f` 已触发，`main` 分支推送即构建）；② 主机 `1204pigeon`：`cd /opt/workhub && sudo docker compose pull && sudo docker compose up -d` —— ⚠️ **前置是恢复制品库凭据**，2026-10-21 实测 `docker pull` 直接 **401**（凭据过期会连累同机全部镜像）；③ **schema 导入**（容器首启策略是「集合部分存在就刻意不动」，**不会自动补表**）：`PUT /api/collections/import` 导入 `pb_setup/collections.json`；⚠️ 这步要**正式站超管**，而 `.deploy.env` 里的 `deploy@nexus.local` 只在测试站存在（正式站返回 400）→ 需用户提供；④ 复核：`npm run check:schema -- --url https://team.fpigeon.fun` 应输出「完全一致」 |
+| 正式站 AI 桥 | 部署新版后需在页面「设置 → AI Agent 桥」手工启用（工具实现在页面进程内）；`tools/list` 报 `-32001` **不是配置错** |
 | 双端真机日常使用 | 手机+电脑配同步各一次，用几天验证 LWW/断网补传实际体验 |
-| 服务端重导入 collections.json | 笔记文件夹上线需导入新表 noteFolders + notes.folderId 字段（Dexie v6）；Issue #34 亲密度配置新增 module_configs 集合 + customers.intimacy json 字段（Dexie v9，本地自动升版）；Issue #74 补 todos.sortOrder 字段（待办自定义顺序同步）；**Issue #128 补 todos.voidedAt 字段（待办作废时间跨设备同步，缺字段会导致作废态回拉时丢时间戳）**，见部署指南「Schema 升级流程」；完成后执行一次「全量推送」 |
 
 ### 工作台首页布局重构与随记收集箱（Issue #134，已提 PR）
 
