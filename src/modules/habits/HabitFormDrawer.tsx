@@ -3,6 +3,7 @@ import { Icon } from '@/design-system/Icon'
 import type { Habit } from '@/db/types'
 import { habitRepo, newId } from '@/repositories'
 import { Field, Modal, inputCls, Button, useAutoFocus } from '@/design-system/ui'
+import { useFormReset } from '@/shared/useFormReset'
 
 /** 预设图标（material symbols 8 选 1） */
 export const HABIT_ICONS = [
@@ -57,11 +58,11 @@ export function HabitFormDrawer({
   const [error, setError] = useState('')
   const nameRef = useAutoFocus<HTMLInputElement>(open)
 
-  // 打开时以旧记录为基底重置表单
+  // 打开时以旧记录为基底重置表单（收口 C-10：骨架走 useFormReset）
+  // ⚠️ 本处**刻意不在关闭时提前 return**：所有字段都有 `?? 默认值` 兜底，
+  // 关闭时重置成默认值无害，且能顺带清掉上次的 error（与既有行为一致）。
   const openKey = `${open}-${habit?.id ?? 'new'}`
-  const [lastKey, setLastKey] = useState('')
-  if (openKey !== lastKey) {
-    setLastKey(openKey)
+  useFormReset(openKey, open, () => {
     setName(habit?.name ?? '')
     setIcon(habit?.icon ?? HABIT_ICONS[0])
     setColor(habit?.color ?? HABIT_COLORS[0])
@@ -73,7 +74,7 @@ export function HabitFormDrawer({
     setCategory(habit?.category ?? '成长')
     setCrossModuleSync(habit?.crossModuleSync ?? false)
     setError('')
-  }
+  })
 
   function scheduleText(): string {
     if (kind === '工作日') return '工作日'

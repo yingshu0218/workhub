@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { clearOtherDefaultLedgers, ledgerRepo, newId } from '@/repositories'
 import { syncEngine } from '@/sync/engine'
 import { nextLedgerSortOrder } from './hooks'
+import { useFormReset } from '@/shared/useFormReset'
 import type { Ledger } from '@/db/types'
 import { Button, Field, Modal, inputCls, useAutoFocus } from '@/design-system/ui'
 
@@ -31,15 +32,13 @@ export default function LedgerFormDrawer({
   const [cycle, setCycle] = useState<Ledger['closingCycle']>('月结')
   const [isDefault, setIsDefault] = useState(false)
   const [error, setError] = useState('')
-  const [seedKey, setSeedKey] = useState(0)
   const nameRef = useAutoFocus<HTMLInputElement>(open)
 
-  // 打开时重置（渲染期重置模式，同 TodoFormDrawer）；编辑模式回填旧值
+  // 打开时重置（收口 C-10：骨架走 useFormReset）；编辑模式回填旧值
   const openKey = `${open}-${editLedger?.id ?? ''}`
-  const [lastKey, setLastKey] = useState('')
-  if (openKey !== lastKey) {
-    setLastKey(openKey)
-    if (open) {
+  const { seedKey } = useFormReset(openKey, open, (isOpen) => {
+    if (!isOpen) return
+    {
       if (editLedger) {
         setName(editLedger.name)
         setCurrency(
@@ -58,9 +57,8 @@ export default function LedgerFormDrawer({
         setIsDefault(false)
       }
       setError('')
-      setSeedKey((k) => k + 1)
     }
-  }
+  })
 
   async function save() {
     if (!name.trim()) {

@@ -4,6 +4,7 @@ import type { Customer, CustomerGroup } from '@/db/types'
 import { matchGroup } from '@/db/types'
 import { normalizeTags } from './shared'
 import { createCustomerGroup, updateCustomerGroup, useTagSuggestions } from './hooks'
+import { useFormReset } from '@/shared/useFormReset'
 
 /**
  * 新建 / 编辑分组弹层 + 标签规则字段（**自 CrmPage.tsx 拆出** · 审计 C-7 · 2026-10-21）
@@ -39,18 +40,16 @@ export function GroupEditorDrawer({
   const [mode, setMode] = useState<'manual' | 'rule'>('rule')
   const nameRef = useAutoFocus<HTMLInputElement>(open)
 
+  // 打开时重置（收口 C-10：骨架走 useFormReset）
   const openKey = `${open}-${group?.id ?? 'new'}`
-  const [lastKey, setLastKey] = useState('')
-  if (openKey !== lastKey) {
-    setLastKey(openKey)
-    if (open) {
-      setName(group?.name ?? '')
-      setMode(group?.kind ?? 'rule')
-      setIncludeRaw(group?.includeTags.join(', ') ?? '')
-      setExcludeRaw(group?.excludeTags.join(', ') ?? '')
-      setError('')
-    }
-  }
+  useFormReset(openKey, open, (isOpen) => {
+    if (!isOpen) return
+    setName(group?.name ?? '')
+    setMode(group?.kind ?? 'rule')
+    setIncludeRaw(group?.includeTags.join(', ') ?? '')
+    setExcludeRaw(group?.excludeTags.join(', ') ?? '')
+    setError('')
+  })
 
   // 标签归一化抽共享工具（Issue #63）：配组界面与客户表单共用，避免打错字导致分组失效
   const includeTags = normalizeTags(includeRaw)

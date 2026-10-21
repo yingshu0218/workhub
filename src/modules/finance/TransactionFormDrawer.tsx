@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { useCollection } from '@/queries/hooks'
+import { useFormReset } from '@/shared/useFormReset'
 import { newId, saveTransactionWithAttachments } from '@/repositories'
 import { normalizeOccurredAt } from '@/domain'
 import type { PutInput } from '@/repositories/repository'
@@ -91,53 +92,48 @@ export default function TransactionFormDrawer({
   const [files, setFiles] = useState<File[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [error, setError] = useState('')
-  const [seedKey, setSeedKey] = useState(0)
   const summaryRef = useAutoFocus<HTMLInputElement>(open)
 
-  // 打开时重置（渲染期重置模式，同 TodoFormDrawer）；编辑模式以旧记录回填
+  // 打开时重置（收口 C-10：骨架走 useFormReset）；编辑模式以旧记录回填
   const openKey = `${open}-${defaultLedgerId}-${editTxn?.id ?? ''}`
-  const [lastKey, setLastKey] = useState('')
-  if (openKey !== lastKey) {
-    setLastKey(openKey)
-    if (open) {
-      if (editTxn) {
-        setType(editTxn.type)
-        setLedgerId(editTxn.ledgerId)
-        setChannel(editTxn.channel ?? '')
-        setSummary(editTxn.summary)
-        setAmount(String(editTxn.amount))
-        setOccurredAt(dayjs(editTxn.occurredAt).format('YYYY-MM-DD'))
-        setTags(editTxn.tags)
-        setTagInput('')
-        // 多关联回填（Issue #140）：兼容旧单值记录（迁移前/远端未升级）由 links 读取器统一兜底
-        setCustomerIds(txnCustomerIds(editTxn))
-        setTodoIds(txnTodoIds(editTxn))
-        setProjectIds(txnProjectIds(editTxn))
-        setNote(editTxn.note ?? '')
-      } else {
-        // 归属账本默认值：左侧选中具体账本直接用；「全部账本」优先默认账本，再回落第一个
-        const initial =
-          defaultLedgerId && defaultLedgerId !== 'all'
-            ? defaultLedgerId
-            : (ledgers.find((l) => l.isDefault)?.id ?? ledgers[0]?.id ?? '')
-        setType('income')
-        setLedgerId(initial)
-        setChannel('')
-        setSummary('')
-        setAmount('')
-        setOccurredAt(dayjs().format('YYYY-MM-DD'))
-        setTags([])
-        setTagInput('')
-        setCustomerIds([])
-        setTodoIds([])
-        setProjectIds([])
-        setNote('')
-      }
-      setFiles([])
-      setError('')
-      setSeedKey((k) => k + 1)
-    }
+  const { seedKey } = useFormReset(openKey, open, (isOpen) => {
+    if (!isOpen) return
+  if (editTxn) {
+    setType(editTxn.type)
+    setLedgerId(editTxn.ledgerId)
+    setChannel(editTxn.channel ?? '')
+    setSummary(editTxn.summary)
+    setAmount(String(editTxn.amount))
+    setOccurredAt(dayjs(editTxn.occurredAt).format('YYYY-MM-DD'))
+    setTags(editTxn.tags)
+    setTagInput('')
+    // 多关联回填（Issue #140）：兼容旧单值记录（迁移前/远端未升级）由 links 读取器统一兜底
+    setCustomerIds(txnCustomerIds(editTxn))
+    setTodoIds(txnTodoIds(editTxn))
+    setProjectIds(txnProjectIds(editTxn))
+    setNote(editTxn.note ?? '')
+  } else {
+    // 归属账本默认值：左侧选中具体账本直接用；「全部账本」优先默认账本，再回落第一个
+    const initial =
+      defaultLedgerId && defaultLedgerId !== 'all'
+        ? defaultLedgerId
+        : (ledgers.find((l) => l.isDefault)?.id ?? ledgers[0]?.id ?? '')
+    setType('income')
+    setLedgerId(initial)
+    setChannel('')
+    setSummary('')
+    setAmount('')
+    setOccurredAt(dayjs().format('YYYY-MM-DD'))
+    setTags([])
+    setTagInput('')
+    setCustomerIds([])
+    setTodoIds([])
+    setProjectIds([])
+    setNote('')
   }
+  setFiles([])
+  setError('')
+  })
 
   // 待办候选：新建态=未完成待办；编辑态若已选待办已完成，单独并入 + sub 标注「已完成」，保证回显不丢
   const todoOptions: { id: string; label: string; sub?: string; icon?: string }[] = openTodos.map((t) => ({

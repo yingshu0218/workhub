@@ -5,6 +5,7 @@ import { Button, Field, Modal, inputCls, useAutoFocus } from '@/design-system/ui
 import { MatchCombobox } from '@/design-system/MatchCombobox'
 import { hiddenCustomerIds, useIntimacyConfig } from '@/modules/crm/intimacy'
 import { saveProject } from './hooks'
+import { useFormReset } from '@/shared/useFormReset'
 
 /** 预设项目色板（区分于客户/标签语义色，取低饱和稳重视觉） */
 const COLOR_PRESETS = [
@@ -42,7 +43,6 @@ export default function ProjectFormDrawer({
   const [budget, setBudget] = useState('')
   const [note, setNote] = useState('')
   const [error, setError] = useState('')
-  const [seedKey, setSeedKey] = useState(0)
   const nameRef = useAutoFocus<HTMLInputElement>(open)
 
   // 客户候选：挂靠客户打通 CRM（客户详情「名下项目」/ 关系画布「客户→项目」层级）
@@ -50,22 +50,18 @@ export default function ProjectFormDrawer({
   // 黑名单「单据选择器排除」（缺陷 D15）：项目也是单据，挂靠客户同样受同一开关约束
   const pickerHiddenIds = hiddenCustomerIds(customers, useIntimacyConfig(), 'excludeFromPicker')
 
-  // 打开时重置（渲染期重置模式，同 TransactionFormDrawer）
+  // 打开时重置（收口 C-10）：渲染期重置骨架统一走 useFormReset，逐处只写「重置哪些字段」
   const openKey = `${open}-${project?.id ?? 'new'}`
-  const [lastKey, setLastKey] = useState('')
-  if (openKey !== lastKey) {
-    setLastKey(openKey)
-    if (open) {
-      setName(project?.name ?? '')
-      setColor(project?.color ?? COLOR_PRESETS[0])
-      setStatus(project?.status ?? 'active')
-      setCustomerId(project?.customerId ?? '')
-      setBudget(project?.budget != null ? String(project.budget) : '')
-      setNote(project?.note ?? '')
-      setError('')
-      setSeedKey((k) => k + 1)
-    }
-  }
+  const { seedKey } = useFormReset(openKey, open, (isOpen) => {
+    if (!isOpen) return
+    setName(project?.name ?? '')
+    setColor(project?.color ?? COLOR_PRESETS[0])
+    setStatus(project?.status ?? 'active')
+    setCustomerId(project?.customerId ?? '')
+    setBudget(project?.budget != null ? String(project.budget) : '')
+    setNote(project?.note ?? '')
+    setError('')
+  })
 
   async function save() {
     if (!name.trim()) {

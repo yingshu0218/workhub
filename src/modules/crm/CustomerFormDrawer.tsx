@@ -4,6 +4,7 @@ import { customerRepo, newId } from '@/repositories'
 import type { Customer, CustomerRelation, RelationCategory, Transaction } from '@/db/types'
 import { RELATION_CATEGORIES } from '@/db/types'
 import { Button, Field, Modal, inputCls, useAutoFocus } from '@/design-system/ui'
+import { useFormReset } from '@/shared/useFormReset'
 import { Icon } from '@/design-system/Icon'
 import { MatchCombobox } from '@/design-system/MatchCombobox'
 import ChipTagInput, { chipTagStyle, mergeDraftInto } from '@/design-system/ChipTagInput'
@@ -74,38 +75,33 @@ export default function CustomerFormDrawer({
   const [initLog, setInitLog] = useState(false)
   const [initTxnId, setInitTxnId] = useState('')
   const [error, setError] = useState('')
-  const [seedKey, setSeedKey] = useState(0)
   // 打开时聚焦姓名且不滚动页面
   const nameRef = useAutoFocus<HTMLInputElement>(open)
 
-  // 打开时重置（渲染期重置模式，同 TodoFormDrawer / TransactionFormDrawer）
+  // 打开时重置（收口 C-10：骨架走 useFormReset）
   const openKey = `${open}-${customer?.id ?? 'new'}`
-  const [lastKey, setLastKey] = useState('')
-  if (openKey !== lastKey) {
-    setLastKey(openKey)
-    if (open) {
-      setName(customer?.name ?? '')
-      setCompany(customer?.company ?? '')
-      setTitle(customer?.title ?? '')
-      setDecisionLevel(customer?.decisionLevel ?? '决策人')
-      setTags(customer?.tags ?? [])
-      setPhone(customer?.phone ?? '')
-      setWechat(customer?.wechat ?? '')
-      setEmail(customer?.email ?? '')
-      setAddress(customer?.address ?? '')
-      setRelations(customer?.relations ?? [])
-      setPendingTags('')
-      setRelTargets([])
-      setRelLabels([])
-      setPendingRelTargets('')
-      setPendingRelLabels('')
-      setRelCategory('')
-      setInitLog(false)
-      setInitTxnId('')
-      setError('')
-      setSeedKey((k) => k + 1)
-    }
-  }
+  const { seedKey } = useFormReset(openKey, open, (isOpen) => {
+    if (!isOpen) return
+  setName(customer?.name ?? '')
+  setCompany(customer?.company ?? '')
+  setTitle(customer?.title ?? '')
+  setDecisionLevel(customer?.decisionLevel ?? '决策人')
+  setTags(customer?.tags ?? [])
+  setPhone(customer?.phone ?? '')
+  setWechat(customer?.wechat ?? '')
+  setEmail(customer?.email ?? '')
+  setAddress(customer?.address ?? '')
+  setRelations(customer?.relations ?? [])
+  setPendingTags('')
+  setRelTargets([])
+  setRelLabels([])
+  setPendingRelTargets('')
+  setPendingRelLabels('')
+  setRelCategory('')
+  setInitLog(false)
+  setInitTxnId('')
+  setError('')
+  })
 
   // 第 4 步可关联的交易：仅列出尚未归属任何客户的流水（已关联的可通过财务侧改）
   const transactions = useCollection<Transaction>('transactions')
