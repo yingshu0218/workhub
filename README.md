@@ -17,8 +17,8 @@
 | 阶段 | 形态 | 状态 |
 |---|---|---|
 | 一（本期） | Web 浏览器优先（React + Vite + TS） | 🚧 开发中 |
-| 二（过渡） | PWA（manifest + 基础 Service Worker） | 📋 已规划 |
-| 三（终态） | Tauri 2 原生 App：Android / Windows / macOS | 📋 已规划 |
+| 二（过渡） | PWA（manifest + 基础 Service Worker） | 🟡 基础件已就绪（`public/sw.js` + `manifest.webmanifest` 已落盘），待正式环境 HTTPS 激活 |
+| 三（终态） | Tauri 2 原生 App：Android / Windows / macOS | 🟡 阶段 1 桌面壳已交付（macOS `.app` + `.dmg`）；Android 未构建 |
 
 - **数据架构**：Local-First —— 本地 IndexedDB（Dexie）为离线读写源，自托管 PocketBase（自有云服务器）为数据真源，LWW（最后写入胜出）多端同步
 - **明确原则**：浏览器本地数据是可丢弃的工作副本，清缓存/换设备登录即全量恢复；服务器数据才是持久真源

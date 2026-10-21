@@ -1,5 +1,9 @@
 # agentOps P1 — 交付说明（第 1~6 步）
 
+> ⚠️ **本文是交付存档（截至 2026-09-11），不是进度看板。**
+> **当前进度事实源一律以 `docs/PROGRESS.md` 为准**；本文仅作 agentOps P1/P2 的交付过程留档与对照点。
+> （2026-10-21 加注：此前有文档把本文件当作「当前态基准」引用，已一并更正。）
+
 > Issue: #33 · 方案: docs/agent-bridge-skill-v0.4.md（v0.7）§9.7 第 1 步
 > 分支: feat/agentops-facade · 作者: npc/CodeBuddy(glm-5.3-flash)
 
