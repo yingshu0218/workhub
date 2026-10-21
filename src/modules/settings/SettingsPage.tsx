@@ -1,56 +1,22 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Icon } from '@/design-system/Icon'
-import { Card, PageHeader, Button, ConfirmDialog, inputCls } from '@/design-system/ui'
+import { PageHeader, Button, ConfirmDialog, inputCls } from '@/design-system/ui'
 import { AiBridgeSection } from './AiBridgeSection'
-import { useToast } from '@/design-system/Toast'
+import { DEFAULT_SETTINGS } from '@/db/types'
 import type { Settings, SettingsSync } from '@/db/types'
-import {
-  resetAndSeedLocalData,
-  restoreFromJson,
-  settingsRepo,
-  focusSessionRepo,
-} from '@/repositories/localAdmin'
-import {
-  workspaceRepo,
-  customerRepo,
-  interactionRepo,
-  ledgerRepo,
-  transactionRepo,
-  todoRepo,
-  noteRepo,
-  quickNoteRepo,
-  habitRepo,
-  habitLogRepo,
-  trophyRepo,
-  attachmentRepo,
-  todoListRepo,
-  noteFolderRepo,
-  projectRepo,
-  projectMilestoneRepo,
-} from '@/repositories'
+import { settingsRepo } from '@/repositories/localAdmin'
 import { useNavigate } from 'react-router-dom'
-import { listShortcuts } from '@/shared/shortcuts'
-import { downloadBlob, downloadText } from '@/shared/download'
-import {
-  ACCENT_PRESETS,
-  RADIUS_PRESETS,
-  MOTION_PRESETS,
-  FONT_SIZE_STEPS,
-  LINE_HEIGHT_STEPS,
-  FONT_PRESETS,
-  THEME_STYLES,
-  SKIN_STYLES,
-  FONT_STACKS,
-  type SkinStyleId,
-} from '@/shared/theme'
+import { THEME_STYLES, SKIN_STYLES } from '@/shared/theme'
 import { pbPing, isSyncConfigured, enqueueAllForPush } from '@/sync/pocketbaseAdapter'
 import { syncEngine } from '@/sync/engine'
-import { migrateLegacyTodoPriority } from '@/modules/todo/backfill'
 import { useSyncStore } from '@/sync/store'
 import { deriveSyncBadge, SYNC_TONE_TEXT_CLASS } from '@/sync/badge'
-import { useNoteFolders } from '@/modules/notes/hooks'
-import { moduleConfigRepo } from '@/repositories'
-import { DEFAULT_IDENTITY, resetIdentity, setIdentity, useIdentity } from '@/modules/identity'
+// 共享基础件已抽到 ./settingsUi（审计 C-7/C-10）：Section/Toggle/Segmented/SkinThumb + toCsv/blobToDataUrl
+import { Section, SkinThumb } from './settingsUi'
+import { NotificationsTab } from './NotificationsTab'
+import { DensityTab, TypographyTab } from './AppearanceTabs'
+import { ShortcutsTab } from './ShortcutsTab'
+import { SecurityTab } from './SecurityTab'
 
 /**
  * 系统设置（对齐原型 13~15/17/18/20 · 7 标签）
@@ -72,211 +38,15 @@ const TABS = [
 
 type TabId = (typeof TABS)[number]['id']
 
-/** 风格缩略预览（Issue #54）：用 mini DOM 表达各风格的形态语言，与配色色带区分开 */
-function SkinThumb({ id }: { id: SkinStyleId }) {
-  switch (id) {
-    case 'pixel':
-      return (
-        <div className="flex flex-col items-center gap-1">
-          <div
-            className="h-6 w-12 border-2 border-on-surface bg-primary"
-            style={{ borderRadius: 0, boxShadow: '3px 3px 0 0 var(--color-on-surface)' }}
-          />
-          <div className="h-1.5 w-8 bg-outline-variant" style={{ borderRadius: 0 }} />
-        </div>
-      )
-    case 'cartoon':
-      return (
-        <div className="flex flex-col items-center gap-1.5">
-          <div
-            className="h-6 w-12 rounded-lg border-2 border-outline bg-primary"
-            style={{ boxShadow: '0 3px 6px rgba(0,0,0,0.15)' }}
-          />
-          <div className="h-1.5 w-8 rounded-full bg-outline-variant" />
-        </div>
-      )
-    case 'cyber':
-      return (
-        <div className="flex flex-col items-center gap-1.5">
-          <div
-            className="flex h-6 w-12 items-center justify-center border border-primary text-[0.6429rem] font-semibold tracking-widest text-primary"
-            style={{
-              clipPath:
-                'polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)',
-              boxShadow: '0 0 8px 0 color-mix(in srgb, var(--color-primary) 40%, transparent)',
-            }}
-          >
-            HUD
-          </div>
-          <div
-            className="h-1.5 w-8"
-            style={{
-              background:
-                'repeating-linear-gradient(90deg, var(--color-outline-variant) 0 2px, transparent 2px 5px)',
-            }}
-          />
-        </div>
-      )
-    case 'glass':
-      return (
-        <div className="relative flex flex-col items-center gap-1.5">
-          <div
-            className="flex h-6 w-12 items-center justify-center rounded-2xl border border-white/60 bg-white/40 backdrop-blur-sm"
-            style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
-          >
-            <span className="text-[0.6429rem] font-semibold text-on-surface-variant">Glass</span>
-          </div>
-          <span className="absolute -top-0.5 right-3 text-[0.7143rem] text-primary">✦</span>
-          <span className="absolute -bottom-1 left-3 text-[0.5714rem] text-primary/70">✦</span>
-          <div className="h-1.5 w-8 rounded-full bg-outline-variant" />
-        </div>
-      )
-    default:
-      return (
-        <div className="flex flex-col items-center gap-1.5">
-          <div
-            className="h-6 w-12 rounded-lg border border-outline-variant/60 bg-surface-container-lowest"
-            style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}
-          />
-          <div className="h-1.5 w-8 rounded-full bg-outline-variant" />
-        </div>
-      )
-  }
-}
-
-/**
- * 下载实现已收口到 `@/shared/download`（P2 #42）。
- * 原实现在此同步调用 `URL.revokeObjectURL`，Safari 下会在浏览器真正读到 Blob 之前
- * 就把对象 URL 释放掉 —— 表现为「点了导出没反应 / 文件 0 字节」，且只在换浏览器时暴露。
- */
-
-/** CSV 序列化：含逗号/引号/换行的字段引号包裹转义，\uFEFF BOM 兼容 Excel 直开 */
-function toCsv(headers: string[], rows: (string | number)[][]): string {
-  const esc = (v: string | number) => {
-    const s = String(v ?? '')
-    return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
-  }
-  return '\uFEFF' + [headers, ...rows].map((r) => r.map(esc).join(',')).join('\r\n')
-}
-
-/** Blob → base64 dataUrl（附件导出用：Blob 不可 JSON 序列化） */
-function blobToDataUrl(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(String(reader.result))
-    reader.onerror = () => reject(reader.error)
-    reader.readAsDataURL(blob)
-  })
-}
-
-function Section({
-  icon,
-  title,
-  desc,
-  badge,
-  children,
-}: {
-  icon: string
-  title: string
-  desc?: string
-  badge?: string
-  children: React.ReactNode
-}) {
-  return (
-    <Card className="p-6">
-      <div className="mb-4 flex items-center gap-2.5">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-fixed text-primary">
-          <Icon name={icon} size={18} />
-        </div>
-        <div className="flex-1">
-          <div className="flex items-center gap-2">
-            <h3 className="text-[1.0357rem] font-semibold">{title}</h3>
-            {badge && (
-              <span className="rounded bg-success-container/60 px-1.5 py-0.5 text-[0.7143rem] font-medium text-success">
-                {badge}
-              </span>
-            )}
-          </div>
-          {desc && <p className="mt-0.5 text-[0.8214rem] text-on-surface-variant">{desc}</p>}
-        </div>
-      </div>
-      {children}
-    </Card>
-  )
-}
-
-function Toggle({
-  checked,
-  onChange,
-  disabled,
-}: {
-  checked: boolean
-  onChange: (v: boolean) => void
-  disabled?: boolean
-}) {
-  return (
-    <button
-      role="switch"
-      aria-checked={checked}
-      disabled={disabled}
-      className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-40 ${
-        checked ? 'bg-primary' : 'bg-outline-variant'
-      }`}
-      onClick={() => onChange(!checked)}
-    >
-      <span
-        className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${
-          checked ? 'left-[22px]' : 'left-0.5'
-        }`}
-      />
-    </button>
-  )
-}
-
-function Segmented<T extends string | number>({
-  options,
-  value,
-  onChange,
-  format,
-}: {
-  options: readonly T[]
-  value: T
-  onChange: (v: T) => void
-  format: (v: T) => string
-}) {
-  return (
-    <div className="inline-flex nav-item !bg-transparent p-0.5">
-      {options.map((opt) => (
-        <button
-          key={String(opt)}
-          className={`rounded-md px-3 py-1.5 text-[0.8929rem] transition-colors ${
-            opt === value
-              ? 'bg-primary font-medium text-on-primary'
-              : 'text-on-surface-variant hover:bg-surface-hover'
-          }`}
-          onClick={() => onChange(opt)}
-        >
-          {format(opt)}
-        </button>
-      ))}
-    </div>
-  )
-}
-
 export default function SettingsPage() {
   const navigate = useNavigate()
   // 当前用户身份（Issue #123）：显示名默认「阿蓝」，改动实时联动全局
-  const identity = useIdentity()
   const [tab, setTab] = useState<TabId>('appearance')
   const [settings, setSettings] = useState<Settings | null>(null)
+  // 本地存储持久化状态：主组件 useEffect 探测，SecurityTab 负责展示（故留在此处并透传）
   const [persisted, setPersisted] = useState<boolean | null>(null)
-  const [exporting, setExporting] = useState(false)
-  const [resetting, setResetting] = useState(false)
-  // 待办优先级档位迁移（Issue #148 后续）：显式动作，避免自动改写破坏跨设备 LWW
-  const [migratingPriority, setMigratingPriority] = useState(false)
-  // 导入迁移：选文件 → 解析 → confirm → 逐表 bulkPut（restoreFromJson）
-  const importInputRef = useRef<HTMLInputElement>(null)
-  const [importing, setImporting] = useState(false)
+  // 设置读取失败提示（不静默：失败时回落默认值并显式告知，见 useEffect 注释）
+  const [loadError, setLoadError] = useState<string | null>(null)
   // 云端同步：表单本地草稿（保存后才生效）、连接测试与全量推送状态
   const [syncForm, setSyncForm] = useState<SettingsSync | null>(null)
   const [syncSaving, setSyncSaving] = useState(false)
@@ -297,7 +67,6 @@ export default function SettingsPage() {
     serverUrl: syncStatus.serverUrl,
     now: Date.now(),
   })
-  const toast = useToast()
   // 应用风格确认弹窗（替代 window.confirm）：pendingConfirm 持有待执行动作
   const [pendingConfirm, setPendingConfirm] = useState<{
     title: string
@@ -315,13 +84,34 @@ export default function SettingsPage() {
     run: () => void
   }) => setPendingConfirm(opts)
   // 笔记默认目录数据源（侧栏快速便签落点；设置「笔记偏好」用）
-  const noteFolders = useNoteFolders()
 
   useEffect(() => {
-    void settingsRepo.get().then((s) => {
-      setSettings(s)
-      setSyncForm(s.sync)
-    })
+    /**
+     * ⚠️ 必须有 `.catch`（本轮修复 · 2026-10-21）：
+     * 此前只有 `.then` —— 一旦 `settingsRepo.get()` 读失败（IndexedDB 被浏览器阻断、
+     * 隐私模式、配额耗尽、库文件损坏），Promise 永远不 resolve，
+     * 页面就**永久停在「设置载入中…」且没有任何错误提示**（本仓最忌讳的静默失败）。
+     *
+     * 此缺陷在 headless 冷启动（IndexedDB 首次打开慢）时被真机验证暴露：
+     * 对照实验显示 `/settings` 卡在载入态，而 `/todo` `/crm` `/finance` 均正常 ——
+     * 差别就在于那些页面走 `useCollection`（有同步默认值，先渲染空态），
+     * 而本页把整页渲染**挂在首个异步结果上**。
+     *
+     * 修法：失败时回落到 `DEFAULT_SETTINGS` 并给出可见提示（**不静默**），
+     * 让用户至少能看到界面、知道出了什么问题，而不是对着一句「载入中…」无限等。
+     */
+    void settingsRepo
+      .get()
+      .then((s) => {
+        setSettings(s)
+        setSyncForm(s.sync)
+      })
+      .catch((err) => {
+        console.error('[settings] 读取设置失败，回落到默认值', err)
+        setSettings(DEFAULT_SETTINGS)
+        setSyncForm(DEFAULT_SETTINGS.sync)
+        setLoadError(err instanceof Error ? err.message : '未知错误')
+      })
     if (navigator.storage?.persisted) {
       void navigator.storage
         .persisted()
@@ -343,233 +133,6 @@ export default function SettingsPage() {
     void settingsRepo.save(patch).then(setSettings)
   }
 
-  // ── 数据导出：全部业务表走 repository.list 汇总；附件 Blob 转 base64 dataUrl、专注会话随档 ──
-  const exportJson = async () => {
-    setExporting(true)
-    try {
-      const [
-        workspaces,
-        customers,
-        interactions,
-        ledgers,
-        transactions,
-        todos,
-        notes,
-        quickNotes,
-        habits,
-        habitLogs,
-        trophies,
-        attachments,
-        focusSessions,
-        todoLists,
-        noteFolders,
-        projects,
-        projectMilestones,
-        moduleConfigs,
-      ] = await Promise.all([
-        workspaceRepo.list(),
-        customerRepo.list(),
-        interactionRepo.list(),
-        ledgerRepo.list(),
-        transactionRepo.list(),
-        todoRepo.list(),
-        noteRepo.list(),
-        quickNoteRepo.list(),
-        habitRepo.list(),
-        habitLogRepo.list(),
-        trophyRepo.list(),
-        attachmentRepo.list(),
-        focusSessionRepo.list(),
-        todoListRepo.list(),
-        noteFolderRepo.list(),
-        projectRepo.list(),
-        projectMilestoneRepo.list(),
-        moduleConfigRepo.list(),
-      ])
-      const attachmentRows = await Promise.all(
-        attachments.map(async ({ blob, ...meta }) => ({
-          ...meta,
-          dataUrl: await blobToDataUrl(blob),
-        })),
-      )
-      const payload = {
-        app: 'nexus-workspace',
-        schemaVersion: 4,
-        exportedAt: new Date().toISOString(),
-        data: {
-          workspaces,
-          customers,
-          interactions,
-          ledgers,
-          transactions,
-          todos,
-          notes,
-          quickNotes,
-          habits,
-          habitLogs,
-          trophies,
-          attachments: attachmentRows,
-          focusSessions,
-          todoLists,
-          noteFolders,
-          projects,
-          projectMilestones,
-          moduleConfigs,
-        },
-      }
-      downloadBlob(
-        new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }),
-        `nexus-workspace-backup-${new Date().toISOString().slice(0, 10)}.json`,
-      )
-    } finally {
-      setExporting(false)
-    }
-  }
-
-  // ── 数据导出：CSV 表格包 —— 交易平表 + 客户档案两张表，各自带 BOM 下载 ──
-  const exportCsv = async () => {
-    setExporting(true)
-    try {
-      const [txns, ledgers, customers] = await Promise.all([
-        transactionRepo.list(),
-        ledgerRepo.list(),
-        customerRepo.list(),
-      ])
-      const currencyOf = new Map(ledgers.map((l) => [l.id, l.currency]))
-      const date = (ts: number) => new Date(ts).toLocaleDateString('zh-CN')
-      const stamp = new Date().toISOString().slice(0, 10)
-      const txnCsv = toCsv(
-        ['日期', '类型', '金额', '币种', '渠道', '摘要', '状态', '标签'],
-        txns.map((t) => [
-          date(t.occurredAt),
-          t.type === 'income' ? '收入' : '支出',
-          t.amount,
-          currencyOf.get(t.ledgerId) ?? '',
-          t.channel,
-          t.summary,
-          t.status,
-          t.tags.join(';'),
-        ]),
-      )
-      downloadText(txnCsv, 'text/csv;charset=utf-8', `nexus-transactions-${stamp}.csv`)
-      const custCsv = toCsv(
-        ['姓名', '公司', '电话', '微信', '邮箱', '健康分'],
-        customers.map((c) => [
-          c.name,
-          c.company,
-          c.phone,
-          c.wechat,
-          c.email,
-          c.intimacy?.level ?? '',
-        ]),
-      )
-      downloadText(custCsv, 'text/csv;charset=utf-8', `nexus-customers-${stamp}.csv`)
-    } finally {
-      setExporting(false)
-    }
-  }
-
-  // ── 数据导出：全部未删笔记合并为单个 .md（# 标题 + 正文 + 标签行，--- 分隔） ──
-  const exportNotesMd = async () => {
-    setExporting(true)
-    try {
-      const notes = await noteRepo.list()
-      const md = notes
-        .map((n) => {
-          const tagsLine = n.tags.length ? `\n\n标签：${n.tags.join('、')}` : ''
-          return `# ${n.title}\n\n${n.markdown}${tagsLine}`
-        })
-        .join('\n\n---\n\n')
-      downloadText(
-        md,
-        'text/markdown;charset=utf-8',
-        `nexus-notes-${new Date().toISOString().slice(0, 10)}.md`,
-      )
-    } finally {
-      setExporting(false)
-    }
-  }
-
-  // ── 导入迁移：JSON 存档恢复（解析 → confirm 覆盖提示 → 逐表 bulkPut） ──
-  const importJson = async (file: File) => {
-    setImporting(true)
-    try {
-      const parsed: unknown = JSON.parse(await file.text())
-      askConfirm({
-        title: '恢复 JSON 存档',
-        message:
-          '存档解析成功。将逐表写回本地数据库，与现有记录同 id 的会被存档内容覆盖，确定恢复？',
-        confirmText: '确定恢复',
-        run: () => {
-          void (async () => {
-            try {
-              const count = await restoreFromJson(parsed)
-              toast.success(`已恢复 ${count} 条记录，界面即将刷新`)
-              window.setTimeout(() => window.location.reload(), 600)
-            } catch (err) {
-              console.error('[settings] JSON 恢复失败', err)
-              toast.error(`恢复失败：${err instanceof Error ? err.message : '文件解析错误'}`)
-            } finally {
-              setImporting(false)
-            }
-          })()
-        },
-      })
-    } catch (err) {
-      console.error('[settings] JSON 恢复失败', err)
-      toast.error(`恢复失败：${err instanceof Error ? err.message : '文件解析错误'}`)
-      setImporting(false)
-    }
-  }
-
-  /**
-   * 待办优先级档位迁移（Issue #148 后续 · 上轮审计建议 4）。
-   *
-   * 老数据 `P1/P2/P3` 读侧已被 `normalizeTodoPriority` 兜住，功能上不缺；
-   * 这里做的是**把口径漂移清掉**（库里不再同时存在两套档位写法）。刻意做成显式动作
-   * 而非启动自动迁移：自动改写会推进老记录 `rev`，破坏跨设备同步的 LWW 判据。
-   */
-  const migrateTodoPriority = () => {
-    askConfirm({
-      title: '迁移待办优先级档位',
-      message:
-        '把存量待办里的旧档位 P1/P2/P3 归一化为高/中/低，并写入同步队列。已是新档位的记录不会被改动，可重复执行。确定继续？',
-      confirmText: '开始迁移',
-      run: () => {
-        setMigratingPriority(true)
-        void migrateLegacyTodoPriority()
-          .then((n) => {
-            toast.success(n > 0 ? `已迁移 ${n} 条待办的优先级档位` : '没有需要迁移的待办')
-            setMigratingPriority(false)
-          })
-          .catch((err) => {
-            console.error('[settings] 优先级迁移失败', err)
-            toast.error(`迁移失败：${err instanceof Error ? err.message : '未知错误'}`)
-            setMigratingPriority(false)
-          })
-      },
-    })
-  }
-
-  // ── 危险区：清空本地数据并重新种子 ──
-  const resetAll = () => {
-    askConfirm({
-      title: '清空本地数据',
-      message:
-        '将清空本地全部数据（IndexedDB）并重新写入演示种子，云端副本不受影响。该操作不可撤销，确定继续？',
-      danger: true,
-      confirmText: '清空并重置',
-      run: () => {
-        setResetting(true)
-        void resetAndSeedLocalData()
-          .then(() => window.location.reload())
-          .catch((err) => {
-            console.error('[settings] 清空失败', err)
-            setResetting(false)
-          })
-      },
-    })
-  }
 
   // ── 云端同步：保存配置 → 连接测试 → 立即同步一次 ──
   const saveSyncAndTest = async () => {
@@ -630,13 +193,25 @@ export default function SettingsPage() {
   }
 
   // 每次切标签重算：注册表随挂载页面动态变化，实时读取当前已注册快捷键
-  const shortcuts = listShortcuts()
 
   return (
     <div className="mx-auto max-w-[1200px]">
       <PageHeader
         title="系统设置"
       />
+
+      {/* 设置读取失败提示（不静默）：失败时已回落默认值，此处显式告知，避免用户以为改动生效了 */}
+      {loadError && (
+        <div className="mb-4 flex items-start gap-3 rounded-xl border border-danger/30 bg-danger/10 px-4 py-3">
+          <Icon name="warning" className="mt-0.5 text-[1.2857rem] text-danger" />
+          <div className="flex-1">
+            <div className="text-[0.9286rem] font-semibold text-danger">设置读取失败，已使用默认值</div>
+            <div className="mt-0.5 text-[0.8214rem] text-on-surface-variant">
+              本页显示的是默认配置，你在此处所做的修改可能无法保存。原因：{loadError}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 功能配置入口（Issue #86）：业务规则配置已独立成页，这里只留指路牌，避免两类配置混用 */}
       <div className="mb-4 flex items-center gap-3 rounded-xl border border-primary/30 bg-primary-fixed/30 px-4 py-3">
@@ -819,443 +394,16 @@ export default function SettingsPage() {
       )}
 
       {/* ── 色彩与密度 ── */}
-      {tab === 'density' && (
-        <div className="anim-enter space-y-4">
-          <Section
-            icon="format_color_fill"
-            title="强调色"
-            desc="覆盖主按钮、选中态与链接色的品牌强调色"
-            badge="实时生效"
-          >
-            <div className="flex flex-wrap gap-3">
-              {ACCENT_PRESETS.map((a) => (
-                <button
-                  key={a.id}
-                  className={`flex items-center gap-2.5 rounded-xl border px-4 py-2.5 transition-colors ${
-                    settings.appearance.accent === a.id
-                      ? 'border-primary bg-primary-fixed/40'
-                      : 'border-outline-variant/50 hover:border-primary/50'
-                  }`}
-                  onClick={() => save({ appearance: { ...settings.appearance, accent: a.id } })}
-                >
-                  <span className="h-5 w-5 rounded-full" style={{ background: a.container }} />
-                  <span className="text-[0.8929rem] font-medium">{a.label}</span>
-                  {settings.appearance.accent === a.id && (
-                    <Icon name="check" fill className="text-[1.1429rem] text-primary" />
-                  )}
-                </button>
-              ))}
-            </div>
-          </Section>
-
-          <Section
-            icon="rounded_corner"
-            title="圆角与信息密度"
-            desc="调整卡片圆角档位与全局间距基数，营造工作台氛围"
-          >
-            <div className="mb-4 flex items-center justify-between">
-              <span className="text-[0.9286rem] font-medium">卡片圆角</span>
-              <Segmented
-                options={RADIUS_PRESETS.map((r) => r.id)}
-                value={settings.appearance.radius}
-                format={(v) => RADIUS_PRESETS.find((r) => r.id === v)!.label}
-                onChange={(v) => save({ appearance: { ...settings.appearance, radius: v } })}
-              />
-            </div>
-            <div className="mb-4 flex items-center justify-between">
-              <span className="text-[0.9286rem] font-medium">信息密度</span>
-              <Segmented
-                options={['comfortable', 'compact'] as const}
-                value={settings.appearance.density}
-                format={(v) => (v === 'comfortable' ? '舒适（4px 基线）' : '紧凑（3.5px 基线）')}
-                onChange={(v) => save({ appearance: { ...settings.appearance, density: v } })}
-              />
-            </div>
-            {/* 动效强度：与圆角/密度同区（都是「手感」而非「配色」）。
-                系统级 prefers-reduced-motion 优先于本档位，故说明里点出这一层。 */}
-            <div className="flex items-center justify-between">
-              <span className="text-[0.9286rem] font-medium">动效强度</span>
-              <Segmented
-                options={MOTION_PRESETS.map((m) => m.id)}
-                value={settings.appearance.motion ?? 'full'}
-                format={(v) => MOTION_PRESETS.find((m) => m.id === v)!.label}
-                onChange={(v) => save({ appearance: { ...settings.appearance, motion: v } })}
-              />
-            </div>
-          </Section>
-        </div>
-      )}
+      {tab === 'density' && <DensityTab settings={settings} save={save} />}
 
       {/* ── 字体与排版 ── */}
-      {tab === 'typography' && (
-        <div className="anim-enter space-y-4">
-          <Section
-            icon="text_fields"
-            title="字体组合"
-            desc="切换全局 font-sans 字体栈，12 组风格预设（黑体/衬线/楷体/等宽/仿宋/草体等）"
-            badge="实时生效"
-          >
-            <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
-              {FONT_PRESETS.map((p) => (
-                <button
-                  key={p.id}
-                  className={`rounded-xl border p-4 text-left transition-colors ${
-                    (settings.typography.fontPreset ?? 'inter') === p.id
-                      ? 'border-primary bg-primary-fixed/40'
-                      : 'border-outline-variant/50 hover:border-primary/50'
-                  }`}
-                  onClick={() => save({ typography: { ...settings.typography, fontPreset: p.id } })}
-                >
-                  <div
-                    className="truncate text-[1.0714rem] font-semibold"
-                    style={{ fontFamily: FONT_STACKS[p.id] }}
-                  >
-                    字体预设 Aa
-                  </div>
-                  <div className="mt-2 flex items-center gap-1.5 text-[0.9286rem] font-medium">
-                    {p.label}
-                    {(settings.typography.fontPreset ?? 'inter') === p.id && (
-                      <Icon name="check_circle" fill className="text-[1.0714rem] text-primary" />
-                    )}
-                  </div>
-                  <p className="mt-1 text-[0.7857rem] leading-snug text-on-surface-variant">
-                    {p.desc}
-                  </p>
-                </button>
-              ))}
-            </div>
-          </Section>
-
-          {/* ⚠️ 双栏必须带响应式断点（2026-10-21 与待办页同批修）。
-              原为无条件的 `grid-cols-[1fr_380px]` —— 右栏固定 380px，
-              窄屏时左栏（表单本体）被压到极窄、输入控件变形。
-              窄屏改单栏堆叠：说明在上、示例在下，`xl:` 起才并排
-              （这处右栏要 380px，比另两处的 240px 更宽，故断点取更大的一档）。 */}
-          <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[1fr_380px]">
-            <Section
-              icon="text_fields"
-              title="基准字号与阅读间距"
-              desc="调整全局文本物理渲染阶梯与行距倍数"
-              badge="实时生效"
-            >
-              <div className="mb-5">
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="text-[0.9286rem] font-medium">
-                    基准字体大小 (Base Font Size)
-                  </span>
-                  <span className="text-[0.8571rem] font-semibold text-primary">
-                    {settings.typography.fontSize} px
-                  </span>
-                </div>
-                <Segmented
-                  options={FONT_SIZE_STEPS}
-                  value={settings.typography.fontSize}
-                  format={(v) => `${v}px${v === 14 ? ' · 默认' : ''}`}
-                  onChange={(v) => save({ typography: { ...settings.typography, fontSize: v } })}
-                />
-              </div>
-              <div>
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="text-[0.9286rem] font-medium">
-                    行高与纵向韵律 (Line Height Ratio)
-                  </span>
-                  <span className="text-[0.8571rem] font-semibold text-primary">
-                    {settings.typography.lineHeight}x
-                  </span>
-                </div>
-                <Segmented
-                  options={LINE_HEIGHT_STEPS}
-                  value={settings.typography.lineHeight}
-                  format={(v) => `${v}x${v === 1.6 ? ' · 推荐' : ''}`}
-                  onChange={(v) => save({ typography: { ...settings.typography, lineHeight: v } })}
-                />
-              </div>
-            </Section>
-
-            <Section
-              icon="visibility"
-              title="实时排版预览"
-              desc="下方预览块即当前全局生效值"
-              badge="Live Rendering"
-            >
-              <div
-                className="surface-card-low rounded-xl/60 p-5"
-                style={{
-                  fontSize: settings.typography.fontSize,
-                  lineHeight: settings.typography.lineHeight,
-                }}
-              >
-                <div className="mb-1 text-[0.75rem] font-semibold uppercase tracking-widest text-primary">
-                  # 核心里程碑 · Q3 Milestone
-                </div>
-                <div className="text-[1.35em] font-bold">多维穿透工作流与团队协作网格</div>
-                <p className="mt-2 text-on-surface-variant">
-                  在团队协作中，沉浸式记录与待办任务可无缝联动。寻鸽工作台深度集成 Inter
-                  字体内核与表格间距韵律，使每次会议纪要、OKR
-                  对齐与财务中心之间实现零损耗上下文传递。当前预览即所保存后的全局正文渲染效果。
-                </p>
-              </div>
-              <div className="mt-3 flex items-center justify-between text-[0.7857rem] text-outline">
-                <span>
-                  阅读舒适度评级 <b className="text-success">99.4%</b>
-                </span>
-                <span>
-                  字符高宽比 <b>0.72 : 1</b>
-                </span>
-              </div>
-            </Section>
-          </div>
-        </div>
-      )}
+      {tab === 'typography' && <TypographyTab settings={settings} save={save} />}
 
       {/* ── 通用与快捷键 ── */}
-      {tab === 'shortcuts' && (
-        <div className="anim-enter space-y-4">
-          {/* 用户身份（Issue #123）：画布「我」节点、侧栏、首页问候、个人主页统一读这里 */}
-          <Section
-            icon="badge"
-            title="用户身份"
-            desc="你是谁 —— 画布中心的「我」节点、侧栏账号、首页问候、个人主页都取这里的显示名"
-            badge="实时生效"
-          >
-            <div className="grid grid-cols-2 gap-x-6 gap-y-3">
-              <label className="block">
-                <div className="mb-1.5 text-[0.8571rem] font-medium text-on-surface-variant">
-                  显示名（画布「我」节点标题）
-                </div>
-                <input
-                  className={inputCls}
-                  value={identity.name}
-                  placeholder={DEFAULT_IDENTITY.name}
-                  onChange={(e) => setIdentity({ name: e.target.value })}
-                  onBlur={(e) => {
-                    // 空值回落默认名，避免把节点文案改成空串
-                    if (!e.target.value.trim()) setIdentity({ name: DEFAULT_IDENTITY.name })
-                  }}
-                />
-              </label>
-              <label className="block">
-                <div className="mb-1.5 text-[0.8571rem] font-medium text-on-surface-variant">
-                  工作区名
-                </div>
-                <input
-                  className={inputCls}
-                  value={identity.workspace}
-                  placeholder={DEFAULT_IDENTITY.workspace}
-                  onChange={(e) => setIdentity({ workspace: e.target.value })}
-                  onBlur={(e) => {
-                    if (!e.target.value.trim())
-                      setIdentity({ workspace: DEFAULT_IDENTITY.workspace })
-                  }}
-                />
-              </label>
-            </div>
-            <div className="mt-3 flex items-center gap-3">
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setIdentity({ name: DEFAULT_IDENTITY.name })}
-              >
-                恢复默认名（{DEFAULT_IDENTITY.name}）
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => resetIdentity()}>
-                全部重置
-              </Button>
-              <span className="text-[0.7857rem] text-outline">
-                默认身份：{DEFAULT_IDENTITY.name} · {DEFAULT_IDENTITY.workspace}
-              </span>
-            </div>
-          </Section>
-
-          <Section
-            icon="tune"
-            title="通用偏好设定"
-            desc="General Preferences & Regional Formatting"
-          >
-            <div className="grid grid-cols-2 gap-x-6 gap-y-3">
-              <label className="block">
-                <div className="mb-1.5 text-[0.8571rem] font-medium text-on-surface-variant">
-                  系统语言 (Language)
-                </div>
-                <input className={inputCls} value="简体中文 (Simplified Chinese)" readOnly />
-              </label>
-              <label className="block">
-                <div className="mb-1.5 text-[0.8571rem] font-medium text-on-surface-variant">
-                  每周起始日
-                </div>
-                <input className={inputCls} value="星期一 (Monday) · 工作日标配" readOnly />
-              </label>
-              <label className="block">
-                <div className="mb-1.5 text-[0.8571rem] font-medium text-on-surface-variant">
-                  时区与时间制
-                </div>
-                <div className="flex items-center gap-2">
-                  <input className={inputCls} value="(GMT+08:00) 北京 · 上海 · 香港" readOnly />
-                  <span className="shrink-0 rounded bg-success-container/60 px-2 py-1.5 text-[0.7857rem] font-medium text-success">
-                    ● 自动对齐网络授时
-                  </span>
-                </div>
-              </label>
-              <label className="block">
-                <div className="mb-1.5 text-[0.8571rem] font-medium text-on-surface-variant">
-                  启动时默认进入的模块
-                </div>
-                <input className={inputCls} value="工作台专注主页 (Nexus Workbench)" readOnly />
-              </label>
-            </div>
-          </Section>
-
-          <Section
-            icon="description"
-            title="笔记偏好"
-            desc="侧栏快速便签保存笔记时的默认目录（数据流 Issue #70）"
-            badge="实时生效"
-          >
-            <label className="block max-w-md">
-              <div className="mb-1.5 text-[0.8571rem] font-medium text-on-surface-variant">
-                默认速记目录
-              </div>
-              <select
-                className={inputCls}
-                value={settings.notes?.defaultFolderId ?? ''}
-                onChange={(e) =>
-                  save({
-                    notes: {
-                      defaultFolderId: e.target.value ? e.target.value : undefined,
-                    },
-                  })
-                }
-              >
-                <option value="">未归档（根层）</option>
-                {noteFolders.map((f) => (
-                  <option key={f.id} value={f.id}>
-                    {f.name}
-                  </option>
-                ))}
-              </select>
-              <p className="mt-1.5 text-[0.7857rem] leading-snug text-on-surface-variant">
-                快速便签每次保存会落一条正式笔记到所选目录，未设则落在「未归档」根层。
-              </p>
-            </label>
-          </Section>
-
-          <Section
-            icon="keyboard_command_key"
-            title="全局高频热键映射"
-            desc="Global Hotkeys Map · 快捷键走统一注册表（listShortcuts 实时读取，Phase 6 只读展示）"
-          >
-            <table className="w-full text-[0.9286rem]">
-              <thead>
-                <tr className="border-b border-outline-variant/40 text-left text-[0.8214rem] uppercase tracking-wide text-outline">
-                  <th className="pb-2 pr-4 font-semibold">动作名称</th>
-                  <th className="pb-2 pr-4 font-semibold">功能描述</th>
-                  <th className="pb-2 text-right font-semibold">快捷键绑定</th>
-                </tr>
-              </thead>
-              <tbody>
-                {shortcuts.map((s, i) => (
-                  <tr
-                    key={`${s.combo}-${i}`}
-                    className="border-b border-outline-variant/20 last:border-0"
-                  >
-                    <td className="py-2.5 pr-4 font-medium">{s.description}</td>
-                    <td className="py-2.5 pr-4 text-on-surface-variant">
-                      {s.scope === 'global' ? '任何页面生效' : '激活页面内生效'}
-                    </td>
-                    <td className="py-2.5 text-right">
-                      <kbd className="rounded-md bg-surface-container-high px-2.5 py-1 text-[0.8571rem] font-semibold text-primary">
-                        {s.combo === 'mod+k'
-                          ? '⌘ K'
-                          : s.combo === 'space'
-                            ? 'Space'
-                            : s.combo === 'enter'
-                              ? 'Enter'
-                              : s.combo === 'esc'
-                                ? 'Esc'
-                                : s.combo}
-                      </kbd>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </Section>
-        </div>
-      )}
+      {tab === 'shortcuts' && <ShortcutsTab settings={settings} save={save} />}
 
       {/* ── 提醒与协同 ── */}
-      {tab === 'notifications' && (
-        <div className="anim-enter">
-          <Section
-            icon="notifications_active"
-          title="通知推送与业务联动提醒"
-          desc="开关即时持久化 · 本期仅存本地偏好，真实推送通道 Phase 7 接入"
-        >
-          <div className="space-y-1">
-            {(
-              [
-                {
-                  key: 'desktopNotice',
-                  title: '系统桌面弹窗通知',
-                  desc: '当工作台切后台最小化时，通过系统 Notification API 发送横幅提示卡片',
-                },
-                {
-                  key: 'soundAlerts',
-                  title: '声音提示 (Sound Alerts)',
-                  desc: '解锁奖杯、到期临门等重磅节点短促清晰提示',
-                },
-                {
-                  key: 'webhook',
-                  title: '企业微信 / 钉钉 Webhook 协同同步',
-                  desc: '团队钉群机器人自动广播优先级看板更新与提醒完成消息',
-                },
-                {
-                  key: 'dailyBrief',
-                  title: '每日待办预告',
-                  desc: '每天 09:00 依据事项清单草拟待办今日完成率简报',
-                },
-                {
-                  key: 'todoDueWarning',
-                  title: '任务逾期预警',
-                  desc: '在待办事项临近截止前推送预警，避免项目节点延误',
-                },
-                {
-                  key: 'habitReminder',
-                  title: '打卡习惯晚间提醒',
-                  desc: '入睡前温和提示今日自律习惯（阅读、代码复盘、健身）待打卡',
-                },
-                {
-                  key: 'monthEndReconcile',
-                  title: '月末流水对账与核算提醒',
-                  desc: '每月最后 18:00 自动提醒核对当月流水与速算税额',
-                },
-                {
-                  key: 'customerStaleAlert',
-                  title: '客户久未跟进关键提醒',
-                  desc: '当重要 VIP 客户超过 14 天无跟进记录，在工作台顶栏提示',
-                },
-              ] as const
-            ).map((item) => (
-              <div
-                key={item.key}
-                className="flex items-center gap-4 border-b border-outline-variant/20 py-3.5 last:border-0"
-              >
-                <div className="flex-1">
-                  <div className="text-[0.9643rem] font-medium">{item.title}</div>
-                  <div className="mt-0.5 text-[0.8214rem] text-on-surface-variant">{item.desc}</div>
-                </div>
-                <Toggle
-                  checked={settings.notifications[item.key]}
-                  onChange={(v) =>
-                    save({ notifications: { ...settings.notifications, [item.key]: v } })
-                  }
-                />
-              </div>
-            ))}
-            </div>
-          </Section>
-        </div>
-      )}
+      {tab === 'notifications' && <NotificationsTab settings={settings} save={save} />}
 
       {/* ── 云端同步 ── */}
       {tab === 'sync' && syncForm && (
@@ -1384,246 +532,13 @@ export default function SettingsPage() {
 
       {/* ── 数据与安全 ── */}
       {tab === 'security' && (
-        <div className="anim-enter space-y-4">
-          <div className="flex items-start gap-3 rounded-xl border border-success/30 bg-success-container/30 px-5 py-4">
-            <Icon name="verified_user" fill className="text-[1.4286rem] text-success" />
-            <div>
-              <div className="text-[0.9643rem] font-semibold">
-                数据主权保障已激活 (Sovereignty Protocol v2.4)
-              </div>
-              <div className="mt-0.5 text-[0.8214rem] leading-relaxed text-on-surface-variant">
-                本地优先 (Local-First)
-                原则：全部文案与档案数据优先存放于您受控的本地资源池中，云端请求不迁移、厂商脱敏托管。
-              </div>
-            </div>
-          </div>
-
-          <Section
-            icon="archive"
-            title="数据导出与多格式打包"
-            desc="您的所有数据归您所有，可随时打包导出成无锁定迁移其他工具生态"
-          >
-            <div className="grid grid-cols-3 gap-3">
-              {[
-                {
-                  icon: 'data_object',
-                  tag: 'SNAPSHOT',
-                  title: 'JSON 全量结构化存档',
-                  desc: '完整流水表结构：CRM · 客户档案 · 财务流水 · 笔记关联关系',
-                  action: exportJson,
-                  label: exporting ? '导出中…' : '导出 JSON 存档',
-                  variant: 'primary' as const,
-                },
-                {
-                  icon: 'table_view',
-                  tag: 'SPREADSHEET',
-                  title: 'CSV 电子表格格式包',
-                  desc: '交易平表与客户档案两张表，带 BOM 兼容 Excel / Numbers / 飞书表格',
-                  action: exportCsv,
-                  label: '导出 CSV 表格包',
-                  variant: 'ghost' as const,
-                },
-                {
-                  icon: 'article',
-                  tag: 'MARKDOWN',
-                  title: 'Markdown 树文本笔记',
-                  desc: '全部笔记 Markdown 源文件可导出 .zip 归档（当前为合并 .md）',
-                  action: exportNotesMd,
-                  label: '导出笔记文档包',
-                  variant: 'ghost' as const,
-                },
-              ].map((c) => (
-                <div
-                  key={c.title}
-                  className="surface-card-xl !bg-transparent border-outline-variant/50 p-4"
-                >
-                  <div className="flex items-center justify-between">
-                    <Icon name={c.icon} className="text-[1.4286rem] text-primary" />
-                    <span className="text-[0.6786rem] font-bold uppercase tracking-widest text-outline">
-                      {c.tag}
-                    </span>
-                  </div>
-                  <div className="mt-2 text-[0.9286rem] font-semibold">{c.title}</div>
-                  <p className="mt-1 line-clamp-2 text-[0.7857rem] leading-snug text-on-surface-variant">
-                    {c.desc}
-                  </p>
-                  <div className="mt-3">
-                    <Button
-                      size="sm"
-                      variant={c.variant}
-                      onClick={() => void c.action()}
-                      disabled={exporting}
-                    >
-                      {c.label}
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* 导入迁移：JSON 存档恢复 */}
-            <div className="mt-3 flex items-center gap-4 surface-card-low rounded-xl/60 px-5 py-4">
-              <div className="flex-1">
-                <div className="text-[0.9643rem] font-semibold">从 JSON 存档恢复（导入迁移）</div>
-                <div className="mt-0.5 text-[0.8214rem] text-on-surface-variant">
-                  选择此前导出的 JSON 存档，逐表写回本地数据库；与现有记录同 id
-                  的将被覆盖，恢复后自动刷新界面。
-                </div>
-              </div>
-              <input
-                ref={importInputRef}
-                type="file"
-                accept="application/json,.json"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0]
-                  if (f) void importJson(f)
-                  e.target.value = ''
-                }}
-              />
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => importInputRef.current?.click()}
-                disabled={importing}
-              >
-                {importing ? '恢复中…' : '选择存档文件'}
-              </Button>
-            </div>
-          </Section>
-
-          <Section
-            icon="settings_backup_restore"
-            title="本地数据持久化状态"
-            desc="启动时已自动申请 Persistent Storage，防浏览器回收 IndexedDB"
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex-1">
-                <div className="text-[0.9643rem] font-medium">高性能本地持久化 (IndexedDB)</div>
-                <div className="mt-0.5 text-[0.8214rem] text-on-surface-variant">
-                  {persisted === null
-                    ? '正在读取浏览器存储持久化状态…'
-                    : persisted
-                      ? '已持久化：浏览器承诺不自动回收本地数据库（离线写入与附件均安全保留）'
-                      : '未持久化：存储空间紧张时浏览器可能回收本地数据，建议将本站添加到主屏幕'}
-                </div>
-              </div>
-              <span
-                className={`mr-4 rounded px-2.5 py-1 text-[0.8214rem] font-semibold ${
-                  persisted
-                    ? 'bg-success-container/60 text-success'
-                    : persisted === false
-                      ? 'bg-warning-container text-warning'
-                      : 'bg-surface-container text-outline'
-                }`}
-              >
-                {persisted === null ? '读取中' : persisted ? '● Already Active' : '○ 未授予'}
-              </span>
-              <Toggle
-                checked={settings.security.persistCache}
-                onChange={(v) => {
-                  if (v && navigator.storage?.persist) {
-                    // 先向浏览器申请持久化授权，按实际授予结果落库
-                    void navigator.storage
-                      .persist()
-                      .then((granted) => {
-                        setPersisted(granted)
-                        save({ security: { ...settings.security, persistCache: true } })
-                      })
-                      .catch(() => save({ security: { ...settings.security, persistCache: true } }))
-                  } else {
-                    // 浏览器无主动撤销 persist 的 API：仅记录偏好，重置需清空站点数据
-                    save({ security: { ...settings.security, persistCache: false } })
-                  }
-                }}
-              />
-            </div>
-          </Section>
-
-          <Section
-            icon="security"
-            title="端侧加密与同步策略"
-            desc="偏好即刻持久化保存；端侧加密与同步频率的真实生效通道随同步引擎迭代接入"
-            badge="即将生效"
-          >
-            <div className="flex items-center justify-between border-b border-outline-variant/20 pb-4">
-              <div className="flex-1">
-                <div className="text-[0.9643rem] font-medium">端侧数据加密 (AES-256-GCM)</div>
-                <div className="mt-0.5 text-[0.8214rem] text-on-surface-variant">
-                  开启后本地数据库敏感字段将加密落盘，密钥驻留本机不上传
-                </div>
-              </div>
-              <span className="mr-4 rounded bg-warning-container px-2 py-0.5 text-[0.75rem] font-medium text-warning">
-                即将生效
-              </span>
-              <Toggle
-                checked={settings.security.encryption}
-                onChange={(v) => save({ security: { ...settings.security, encryption: v } })}
-              />
-            </div>
-            <div className="flex items-center justify-between pt-4">
-              <div className="flex-1">
-                <div className="text-[0.9643rem] font-medium">同步频率</div>
-                <div className="mt-0.5 text-[0.8214rem] text-on-surface-variant">
-                  云端同步的自动触发节奏（当前引擎为写入防抖 + 30s 心跳）
-                </div>
-              </div>
-              <span className="mr-4 rounded bg-warning-container px-2 py-0.5 text-[0.75rem] font-medium text-warning">
-                即将生效
-              </span>
-              <Segmented
-                options={['realtime', '5min', 'manual'] as const}
-                value={settings.security.syncFrequency}
-                format={(v) => (v === 'realtime' ? '实时' : v === '5min' ? '每 5 分钟' : '手动')}
-                onChange={(v) => save({ security: { ...settings.security, syncFrequency: v } })}
-              />
-            </div>
-          </Section>
-
-          <Section
-            icon="healing"
-            title="口径迁移与数据自愈"
-            desc="把历史数据的旧写法归一化到当前口径；均为幂等动作，可重复执行"
-          >
-            <div className="flex items-center gap-4 rounded-xl border border-outline-variant/50 px-5 py-4">
-              <div className="flex-1">
-                <div className="text-[0.9643rem] font-medium">待办优先级档位迁移</div>
-                <div className="mt-0.5 text-[0.8214rem] text-on-surface-variant">
-                  把 P1/P2/P3 旧档位写成高/中/低四档。读侧已兼容旧值，迁移只是清掉库内两套写法；
-                  已是新档位的记录不动、不入同步队列。
-                </div>
-              </div>
-              <Button
-                size="sm"
-                variant="tonal"
-                onClick={migrateTodoPriority}
-                disabled={migratingPriority}
-              >
-                {migratingPriority ? '迁移中…' : '开始迁移'}
-              </Button>
-            </div>
-          </Section>
-
-          <Section
-            icon="warning"
-            title="危险区 (Danger Zone)"
-            desc="以下操作不可逆，云端同步核心数据不受影响"
-          >
-            <div className="flex items-center gap-4 rounded-xl border border-danger/30 bg-danger-container/30 px-5 py-4">
-              <div className="flex-1">
-                <div className="text-[0.9643rem] font-semibold text-danger">
-                  清空本地缓存 (Clear Local Cache)
-                </div>
-                <div className="mt-0.5 text-[0.8214rem] text-on-surface-variant">
-                  彻底重置本地 IndexedDB 数据库并重新写入演示种子，用于恢复出厂演示状态。
-                </div>
-              </div>
-              <Button variant="danger" size="sm" onClick={resetAll} disabled={resetting}>
-                {resetting ? '清空中…' : '清空所有数据'}
-              </Button>
-            </div>
-          </Section>
-        </div>
+        <SecurityTab
+          settings={settings}
+          save={save}
+          askConfirm={askConfirm}
+          persisted={persisted}
+          onPersistedChange={setPersisted}
+        />
       )}
 
       {/* ── AI Agent 桥（能力白名单 + 接入凭据） ── */}
