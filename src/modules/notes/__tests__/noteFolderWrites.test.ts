@@ -106,21 +106,36 @@ describe('级联删除的子表读取在事务内（P2-A）', () => {
     rev: 1,
   }
 
-  /** 源码扫描：`where('folderId')` 的读取必须出现在 `db.transaction` 之后（同一函数体内） */
+  /**
+   * 源码扫描：子表读取必须出现在 `storage.transaction` 之内（同一函数体内）。
+   *
+   * ⚠️ 2026-10-21 审计 P1 收口后判据由 `db.transaction` 改为 `storage.transaction`：
+   * 写入原语从 Dexie 直写换成了 StorageAdapter（换 Tauri SQLite 时随之迁移）。
+   * 找函数结尾改用**括号配平**——旧的 `indexOf('\n}')` 在函数内出现顶格 `}` 时会截断。
+   */
   function functionBody(src: string, name: string): string {
     const idx = src.indexOf(`export async function ${name}`)
     expect(idx).toBeGreaterThan(-1)
-    const rest = src.slice(idx)
-    // 取到函数结尾（顶层 `\n}` 处）
-    const end = rest.indexOf('\n}')
-    return rest.slice(0, end)
+    const braceStart = src.indexOf('{', idx)
+    expect(braceStart).toBeGreaterThan(-1)
+    let depth = 0
+    for (let i = braceStart; i < src.length; i++) {
+      const ch = src[i]
+      if (ch === '{') depth++
+      else if (ch === '}') {
+        depth--
+        if (depth === 0) return src.slice(braceStart, i + 1)
+      }
+    }
+    return src.slice(braceStart)
   }
 
   it('deleteNoteFolderCascade 不在事务外读子表（TOCTOU 窗口）', () => {
     const src = readFileSync(path.resolve(process.cwd(), 'src/modules/notes/hooks.ts'), 'utf8')
     const body = functionBody(src, 'deleteNoteFolderCascade')
-    const txIdx = body.indexOf('db.transaction')
-    const readIdx = body.indexOf("db.notes.where('folderId')")
+    const txIdx = body.indexOf('storage.transaction')
+    // 子表读取（tx.list('notes')）必须在事务体内
+    const readIdx = body.indexOf("tx.list<Note>('notes')")
     expect(txIdx).toBeGreaterThan(-1)
     expect(readIdx).toBeGreaterThan(txIdx)
   })
@@ -128,8 +143,8 @@ describe('级联删除的子表读取在事务内（P2-A）', () => {
   it('deleteTodoListCascade 不在事务外读子表', () => {
     const src = readFileSync(path.resolve(process.cwd(), 'src/modules/todo/hooks.ts'), 'utf8')
     const body = functionBody(src, 'deleteTodoListCascade')
-    const txIdx = body.indexOf('db.transaction')
-    const readIdx = body.indexOf("db.todos.where('listId')")
+    const txIdx = body.indexOf('storage.transaction')
+    const readIdx = body.indexOf("tx.list<Todo>('todos')")
     expect(txIdx).toBeGreaterThan(-1)
     expect(readIdx).toBeGreaterThan(txIdx)
   })
@@ -144,9 +159,13 @@ describe('级联删除的子表读取在事务内（P2-A）', () => {
 
 describe('防漂移锁：入队即触发同步', () => {
   /**
-   * 扫描 `src/modules` 下所有 hooks/写入口文件：函数体内有 `syncQueue.add` 的，
-   * 必须在同一函数体内出现 `requestSync()`；或整体委托给 `repositories` 仓储
-   * （仓储内部已触发，属单一事实源，不重复要求）。
+   * 扫描 `src/modules` 下所有 hooks/写入口文件：函数体内有入队动作（`tx.enqueue` 或
+   * 旧的 `syncQueue.add`）的，必须在同一函数体内触发同步（`requestSync()`）；
+   * 或整体委托给 `repositories` 仓储（仓储内部已触发，属单一事实源，不重复要求）。
+   *
+   * ⚠️ 判据随 2026-10-21 审计 P1 收口扩展：写入口改用 `storage.transaction` 后，
+   * 入队形态由 `db.syncQueue.add` 变为 `tx.enqueue`，两者都要被这条锁覆盖
+   * （否则「已收口」的文件会因判据不匹配而**静默漏检**）。
    */
   function walk(dir: string): string[] {
     return readdirSync(dir).flatMap((e) => {
@@ -156,27 +175,42 @@ describe('防漂移锁：入队即触发同步', () => {
     })
   }
 
-  /** 拆出每个顶层 `export async function NAME(...) { ... }` 的函数体 */
+  /** 拆出每个顶层 `export async function NAME(...) { ... }` 的函数体（括号配平） */
   function exportedFunctionBodies(src: string): { name: string; body: string }[] {
     const out: { name: string; body: string }[] = []
     const re = /export (?:async )?function (\w+)/g
     let m: RegExpExecArray | null
     while ((m = re.exec(src))) {
-      const start = m.index
-      const end = src.indexOf('\n}', start)
-      out.push({ name: m[1], body: src.slice(start, end < 0 ? src.length : end) })
+      const braceStart = src.indexOf('{', m.index)
+      if (braceStart < 0) continue
+      let depth = 0
+      let body = src.slice(braceStart)
+      for (let i = braceStart; i < src.length; i++) {
+        const ch = src[i]
+        if (ch === '{') depth++
+        else if (ch === '}') {
+          depth--
+          if (depth === 0) {
+            body = src.slice(braceStart, i + 1)
+            break
+          }
+        }
+      }
+      out.push({ name: m[1], body })
     }
     return out
   }
 
-  it('凡 syncQueue.add 的函数体都请求了同步（或走仓储）', () => {
+  it('凡有入队动作的函数体都请求了同步（或走仓储）', () => {
     const files = walk(path.resolve(process.cwd(), 'src/modules'))
     const offenders: string[] = []
     for (const file of files) {
       const src = readFileSync(file, 'utf8')
-      if (!src.includes('syncQueue.add')) continue
+      const enqueues = (s: string) =>
+        s.includes('tx.enqueue(') || s.includes('syncQueue.add')
+      if (!enqueues(src)) continue
       for (const { name, body } of exportedFunctionBodies(src)) {
-        if (!body.includes('syncQueue.add')) continue
+        if (!enqueues(body)) continue
         if (body.includes('requestSync()')) continue
         if (body.includes('Repo.')) continue // 委托仓储（仓储内部触发）
         offenders.push(`${path.relative(process.cwd(), file)} → ${name}`)

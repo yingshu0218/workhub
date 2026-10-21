@@ -1,8 +1,8 @@
 import type { Note, NoteFolder, NoteMention } from '@/db/types'
 import { db } from '@/db/db'
+import { storage } from '@/storage'
 import { newId } from '@/repositories'
 import { useCollection, useQuery } from '@/queries/hooks'
-import { syncEngine } from '@/sync/engine'
 
 /**
  * 笔记模块领域查询 Hook（组件不直碰 Dexie，存储切换只改查询层）
@@ -74,10 +74,15 @@ export function useNoteFolders(): NoteFolder[] {
   return folders ?? []
 }
 
-/** 新建文件夹（重名直接复用既有文件夹，避免重复节点） */
+/**
+ * 新建文件夹（重名直接复用既有文件夹，避免重复节点）
+ *
+ * ⚠️ 写入口纪律（2026-10-21 审计 P1 收口）：本模块**禁止** `db.transaction` 直写，
+ * 写一律经 `storage.transaction`（StorageAdapter 原语），读仍走 `db.*`。
+ */
 export async function createNoteFolder(name: string): Promise<NoteFolder> {
   const trimmed = name.trim()
-  const existing = await db.noteFolders.toArray()
+  const existing = await storage.list<NoteFolder>('noteFolders')
   const hit = existing.find((f) => !f.deleted && f.name === trimmed)
   if (hit) return hit
   const now = Date.now()
@@ -89,38 +94,33 @@ export async function createNoteFolder(name: string): Promise<NoteFolder> {
     deleted: 0,
     rev: 1,
   }
-  await db.transaction('rw', [db.noteFolders, db.syncQueue], async () => {
-    await db.noteFolders.put(folder)
-    await db.syncQueue.add({
-      table: 'noteFolders',
-      recordId: folder.id,
-      op: 'upsert',
-      createdAt: now,
-    })
+  await storage.transaction(['noteFolders', 'syncQueue'], async (tx) => {
+    await tx.put('noteFolders', folder)
+    await tx.enqueue('noteFolders', folder.id, 'upsert', now)
   })
   // Issue #169 P1-B：本模块 4 个文件夹写函数里原本只有 moveNoteToFolder 触发同步，
   // 建/改/删三个只入队不唤醒引擎 → 变更只能等 30s 心跳（用户建完文件夹立刻关标签页，
   // 本机可见、其他设备要等到下次心跳；属延迟而非丢失，但对「刚建就看得到」是硬缺陷）。
-  syncEngine.requestSync()
+  storage.requestSync()
   return folder
 }
 
 /** 重命名文件夹 */
 export async function renameNoteFolder(id: string, name: string): Promise<void> {
-  const prev = await db.noteFolders.get(id)
-  if (!prev || prev.deleted) return
   const now = Date.now()
-  await db.transaction('rw', [db.noteFolders, db.syncQueue], async () => {
-    await db.noteFolders.put({ ...prev, name: name.trim(), updatedAt: now, rev: prev.rev + 1 })
-    await db.syncQueue.add({ table: 'noteFolders', recordId: id, op: 'upsert', createdAt: now })
+  await storage.transaction(['noteFolders', 'syncQueue'], async (tx) => {
+    const prev = await tx.get<NoteFolder>('noteFolders', id)
+    if (!prev || prev.deleted) return
+    await tx.put('noteFolders', { ...prev, name: name.trim(), updatedAt: now, rev: prev.rev + 1 })
+    await tx.enqueue('noteFolders', id, 'upsert', now)
   })
-  syncEngine.requestSync()
+  storage.requestSync()
 }
 
 /**
  * 删除文件夹（级联：名下笔记解绑 folderId 回到「全部笔记」根层）
  *
- * Issue #169 P2-A：子表读取**移入事务内**。此前 `db.notes.where('folderId').equals(id).toArray()`
+ * Issue #169 P2-A：子表读取**在事务内**。此前 `db.notes.where('folderId').equals(id).toArray()`
  * 在事务外先读、再进事务改，构成 TOCTOU 窗口 —— 窗口内新建的笔记不会被解绑，
  * 于是留下「folderId 指向已删文件夹」的悬挂外键（该笔记在界面上既不在任何文件夹、也不进根层）。
  * `deleteCustomerCascade` / `deleteProjectCascade` / `deleteTodoCascade` 都在事务内读，本处此前是例外。
@@ -130,18 +130,18 @@ export async function renameNoteFolder(id: string, name: string): Promise<void> 
  */
 export async function deleteNoteFolderCascade(id: string): Promise<void> {
   const now = Date.now()
-  await db.transaction('rw', [db.noteFolders, db.notes, db.syncQueue], async () => {
-    const prev = await db.noteFolders.get(id)
+  await storage.transaction(['noteFolders', 'notes', 'syncQueue'], async (tx) => {
+    const prev = await tx.get<NoteFolder>('noteFolders', id)
     if (!prev || prev.deleted) return
-    await db.noteFolders.put({ ...prev, deleted: 1, updatedAt: now, rev: prev.rev + 1 })
-    await db.syncQueue.add({ table: 'noteFolders', recordId: id, op: 'delete', createdAt: now })
-    const notes = await db.notes.where('folderId').equals(id).toArray()
+    await tx.put('noteFolders', { ...prev, deleted: 1, updatedAt: now, rev: prev.rev + 1 })
+    await tx.enqueue('noteFolders', id, 'delete', now)
+    const notes = (await tx.list<Note>('notes')).filter((n) => n.folderId === id)
     for (const n of notes) {
-      await db.notes.put({ ...n, folderId: undefined, updatedAt: now, rev: n.rev + 1 })
-      await db.syncQueue.add({ table: 'notes', recordId: n.id, op: 'upsert', createdAt: now })
+      await tx.put('notes', { ...n, folderId: undefined, updatedAt: now, rev: n.rev + 1 })
+      await tx.enqueue('notes', n.id, 'upsert', now)
     }
   })
-  syncEngine.requestSync()
+  storage.requestSync()
 }
 
 /** 移动笔记到文件夹（folderId=undefined 即移回根层） */
@@ -149,12 +149,12 @@ export async function moveNoteToFolder(
   noteId: string,
   folderId: string | undefined,
 ): Promise<void> {
-  const prev = await db.notes.get(noteId)
-  if (!prev || prev.deleted) return
   const now = Date.now()
-  await db.transaction('rw', [db.notes, db.syncQueue], async () => {
-    await db.notes.put({ ...prev, folderId, updatedAt: now, rev: prev.rev + 1 })
-    await db.syncQueue.add({ table: 'notes', recordId: noteId, op: 'upsert', createdAt: now })
+  await storage.transaction(['notes', 'syncQueue'], async (tx) => {
+    const prev = await tx.get<Note>('notes', noteId)
+    if (!prev || prev.deleted) return
+    await tx.put('notes', { ...prev, folderId, updatedAt: now, rev: prev.rev + 1 })
+    await tx.enqueue('notes', noteId, 'upsert', now)
   })
-  syncEngine.requestSync()
+  storage.requestSync()
 }

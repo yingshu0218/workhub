@@ -1,7 +1,7 @@
 import { db } from '@/db/db'
+import { storage } from '@/storage'
 import { newId } from '@/repositories'
 import { useCollection, useQuery } from '@/queries/hooks'
-import { syncEngine } from '@/sync/engine'
 import type { Project, ProjectMilestone, Todo, Transaction, Note, Interaction } from '@/db/types'
 import { isTodoOpen } from '@/modules/todo/domain'
 import { toLinkFieldPatch, txnProjectIds } from '@/repositories'
@@ -176,11 +176,11 @@ export async function saveProject(input: {
     deleted: 0,
     rev: (prev?.rev ?? 0) + 1,
   }
-  await db.transaction('rw', [db.projects, db.syncQueue], async () => {
-    await db.projects.put(record)
-    await db.syncQueue.add({ table: 'projects', recordId: record.id, op: 'upsert', createdAt: now })
+  await storage.transaction(['projects', 'syncQueue'], async (tx) => {
+    await tx.put('projects', record)
+    await tx.enqueue('projects', record.id, 'upsert', now)
   })
-  syncEngine.requestSync()
+  storage.requestSync()
   return record
 }
 
@@ -209,33 +209,23 @@ export async function saveMilestone(input: {
     deleted: 0,
     rev: (prev?.rev ?? 0) + 1,
   }
-  await db.transaction('rw', [db.projectMilestones, db.syncQueue], async () => {
-    await db.projectMilestones.put(record)
-    await db.syncQueue.add({
-      table: 'projectMilestones',
-      recordId: record.id,
-      op: 'upsert',
-      createdAt: now,
-    })
+  await storage.transaction(['projectMilestones', 'syncQueue'], async (tx) => {
+    await tx.put('projectMilestones', record)
+    await tx.enqueue('projectMilestones', record.id, 'upsert', now)
   })
-  syncEngine.requestSync()
+  storage.requestSync()
 }
 
 /** 删除里程碑（软删墓碑，照 deleteTodoListCascade 纪律） */
 export async function deleteMilestone(id: string): Promise<void> {
-  const prev = await db.projectMilestones.get(id)
-  if (!prev) return
   const now = Date.now()
-  await db.transaction('rw', [db.projectMilestones, db.syncQueue], async () => {
-    await db.projectMilestones.put({ ...prev, deleted: 1, updatedAt: now, rev: prev.rev + 1 })
-    await db.syncQueue.add({
-      table: 'projectMilestones',
-      recordId: id,
-      op: 'delete',
-      createdAt: now,
-    })
+  await storage.transaction(['projectMilestones', 'syncQueue'], async (tx) => {
+    const prev = await tx.get<ProjectMilestone>('projectMilestones', id)
+    if (!prev || prev.deleted) return
+    await tx.put('projectMilestones', { ...prev, deleted: 1, updatedAt: now, rev: prev.rev + 1 })
+    await tx.enqueue('projectMilestones', id, 'delete', now)
   })
-  syncEngine.requestSync()
+  storage.requestSync()
 }
 
 /**
@@ -247,42 +237,21 @@ export async function deleteMilestone(id: string): Promise<void> {
  */
 export async function deleteProjectCascade(projectId: string): Promise<void> {
   const now = Date.now()
-  await db.transaction(
-    'rw',
-    [
-      db.projects,
-      db.projectMilestones,
-      db.transactions,
-      db.todos,
-      db.notes,
-      db.interactions,
-      db.syncQueue,
-    ],
-    async () => {
-      const prev = await db.projects.get(projectId)
+  await storage.transaction(
+    ['projects', 'projectMilestones', 'transactions', 'todos', 'notes', 'interactions', 'syncQueue'],
+    async (tx) => {
+      const prev = await tx.get<Project>('projects', projectId)
       if (!prev || prev.deleted) return
 
-      await db.projects.put({ ...prev, deleted: 1, updatedAt: now, rev: prev.rev + 1 })
-      await db.syncQueue.add({
-        table: 'projects',
-        recordId: projectId,
-        op: 'delete',
-        createdAt: now,
-      })
+      await tx.put('projects', { ...prev, deleted: 1, updatedAt: now, rev: prev.rev + 1 })
+      await tx.enqueue('projects', projectId, 'delete', now)
 
-      const milestones = await db.projectMilestones
-        .where('projectId')
-        .equals(projectId)
-        .filter((m) => !m.deleted)
-        .toArray()
+      const milestones = (await tx.list<ProjectMilestone>('projectMilestones')).filter(
+        (m) => m.projectId === projectId && !m.deleted,
+      )
       for (const m of milestones) {
-        await db.projectMilestones.put({ ...m, deleted: 1, updatedAt: now, rev: m.rev + 1 })
-        await db.syncQueue.add({
-          table: 'projectMilestones',
-          recordId: m.id,
-          op: 'delete',
-          createdAt: now,
-        })
+        await tx.put('projectMilestones', { ...m, deleted: 1, updatedAt: now, rev: m.rev + 1 })
+        await tx.enqueue('projectMilestones', m.id, 'delete', now)
       }
 
       // 单值弱引用表（todos/notes/interactions）：projectId 置 undefined 即解绑
@@ -292,41 +261,45 @@ export async function deleteProjectCascade(projectId: string): Promise<void> {
       ) => {
         for (const r of records) {
           if (r.deleted) continue
-          await db[table].update(r.id, { projectId: undefined, updatedAt: now, rev: r.rev + 1 })
-          await db.syncQueue.add({ table, recordId: r.id, op: 'upsert', createdAt: now })
+          await tx.update(table, r.id, { projectId: undefined, updatedAt: now, rev: r.rev + 1 })
+          await tx.enqueue(table, r.id, 'upsert', now)
         }
       }
       // transactions 关联已数组化（Issue #140 v11）：projectId 旧键已删，走 projectIds 数组解绑。
       // 不能写 `projectId: undefined` —— 既解不掉 projectIds 里的项目，还按「双写不双读」留下一个
       // 永不读取的旧键；必须走 toLinkFieldPatch('projectIds', …)（空数组不落键）。
-      const txns = (await db.transactions.filter((t) => !t.deleted).toArray()).filter((t) =>
-        txnProjectIds(t).includes(projectId),
-      )
+      const txns = (await tx.list<Transaction>('transactions'))
+        .filter((t) => !t.deleted)
+        .filter((t) => txnProjectIds(t).includes(projectId))
       for (const txn of txns) {
-        await db.transactions.update(txn.id, {
+        await tx.update('transactions', txn.id, {
           ...toLinkFieldPatch('projectIds', txnProjectIds(txn).filter((id) => id !== projectId)),
           updatedAt: now,
           rev: txn.rev + 1,
         })
-        await db.syncQueue.add({
-          table: 'transactions',
-          recordId: txn.id,
-          op: 'upsert',
-          createdAt: now,
-        })
+        await tx.enqueue('transactions', txn.id, 'upsert', now)
       }
 
       const [todos, notes, interactions] = await Promise.all([
-        db.todos.where('projectId').equals(projectId).toArray(),
-        db.notes.where('projectId').equals(projectId).toArray(),
-        db.interactions.where('projectId').equals(projectId).toArray(),
+        tx.list<Todo>('todos'),
+        tx.list<Note>('notes'),
+        tx.list<Interaction>('interactions'),
       ])
-      await unbindSingle('todos', todos)
-      await unbindSingle('notes', notes)
-      await unbindSingle('interactions', interactions)
+      await unbindSingle(
+        'todos',
+        todos.filter((r) => r.projectId === projectId),
+      )
+      await unbindSingle(
+        'notes',
+        notes.filter((r) => r.projectId === projectId),
+      )
+      await unbindSingle(
+        'interactions',
+        interactions.filter((r) => r.projectId === projectId),
+      )
     },
   )
-  syncEngine.requestSync()
+  storage.requestSync()
 }
 
 /** 笔记归属项目（projectId=undefined 即移出项目；照 moveNoteToFolder 纪律） */
@@ -334,12 +307,12 @@ export async function moveNoteToProject(
   noteId: string,
   projectId: string | undefined,
 ): Promise<void> {
-  const prev = await db.notes.get(noteId)
-  if (!prev || prev.deleted) return
   const now = Date.now()
-  await db.transaction('rw', [db.notes, db.syncQueue], async () => {
-    await db.notes.put({ ...prev, projectId, updatedAt: now, rev: prev.rev + 1 })
-    await db.syncQueue.add({ table: 'notes', recordId: noteId, op: 'upsert', createdAt: now })
+  await storage.transaction(['notes', 'syncQueue'], async (tx) => {
+    const prev = await tx.get<Note>('notes', noteId)
+    if (!prev || prev.deleted) return
+    await tx.put('notes', { ...prev, projectId, updatedAt: now, rev: prev.rev + 1 })
+    await tx.enqueue('notes', noteId, 'upsert', now)
   })
-  syncEngine.requestSync()
+  storage.requestSync()
 }

@@ -1,8 +1,8 @@
 import { useMemo } from 'react'
 import { db } from '@/db/db'
+import { storage } from '@/storage'
 import { useQuery } from '@/queries/hooks'
 import { newId } from '@/repositories'
-import { syncEngine } from '@/sync/engine'
 import { eventBus } from '@/shared/eventBus'
 import {
   DEFAULT_INTIMACY_CONFIG,
@@ -61,8 +61,10 @@ export async function saveIntimacyConfig(
   },
 ): Promise<ModuleConfigIntimacy> {
   const now = Date.now()
-  const merged = await db.transaction('rw', [db.moduleConfigs, db.syncQueue], async () => {
-    const prev = (await db.moduleConfigs.get(INTIMACY_CONFIG_ID)) as ModuleConfig | undefined
+  const merged = await storage.transaction(['moduleConfigs', 'syncQueue'], async (tx) => {
+    const prev = (await tx.get<ModuleConfig>('moduleConfigs', INTIMACY_CONFIG_ID)) as
+      | ModuleConfig
+      | undefined
     const base = mergeIntimacyPayload(prev?.payload)
     const next: ModuleConfigIntimacy = {
       levels: patch.levels ? mergeLevels(patch.levels) : base.levels,
@@ -73,22 +75,18 @@ export async function saveIntimacyConfig(
         thresholds: { ...base.algorithm.thresholds, ...(patch.algorithm?.thresholds ?? {}) },
       },
     }
-    await db.moduleConfigs.put({
+    await tx.put('moduleConfigs', {
       id: INTIMACY_CONFIG_ID,
       payload: next,
       updatedAt: now,
       rev: (prev?.rev ?? 0) + 1,
       deleted: 0 as const,
     } as ModuleConfig)
-    await db.syncQueue.add({
-      table: 'moduleConfigs',
-      recordId: INTIMACY_CONFIG_ID,
-      op: 'upsert',
-      createdAt: now,
-    })
+    await tx.enqueue('moduleConfigs', INTIMACY_CONFIG_ID, 'upsert', now)
     return next
   })
-  syncEngine.requestSync()
+  // ⚠️ 事件与同步请求都在事务 commit 之后（§6.1「事件永在事务之后」）
+  storage.requestSync()
   eventBus.emit('moduleConfig:changed', { key: INTIMACY_CONFIG_ID })
   return merged
 }

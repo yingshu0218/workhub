@@ -1,9 +1,9 @@
 import { useMemo } from 'react'
 import dayjs from 'dayjs'
 import { db } from '@/db/db'
+import { storage } from '@/storage'
 import { txnCustomerIds, txnProjectIds } from '@/modules/finance/links'
 import { useQuery } from '@/queries/hooks'
-import { syncEngine } from '@/sync/engine'
 import { newId } from '@/repositories'
 import type {
   Customer,
@@ -475,24 +475,22 @@ export function moveInOrder(ids: readonly string[], from: number, to: number): s
  * 否则本地顺序变了但推不上服务端，换设备就回到旧顺序（本项目最容易踩的同步坑）。
  * `sortOrder` 字段早在 Issue #63 就已在模型与服务端集合里（customerGroups），
  * 缺的只是「改它的入口」—— 本函数补上写入侧，UI 侧在 CrmPage 的分组栏。
+ *
+ * ⚠️ 写入经 `storage.transaction`（StorageAdapter 原语），不直写 Dexie
+ * —— 审计 P1（2026-10-21）：模块直写 `db.transaction` 的 30 处不随存储迁移。
  */
 export async function reorderCustomerGroups(orderedIds: string[]): Promise<void> {
   const now = Date.now()
-  const all = await db.customerGroups.toArray()
-  await db.transaction('rw', [db.customerGroups, db.syncQueue], async () => {
+  await storage.transaction(['customerGroups', 'syncQueue'], async (tx) => {
+    const all = await tx.list<CustomerGroup>('customerGroups')
     for (let i = 0; i < orderedIds.length; i++) {
       const g = all.find((x) => x.id === orderedIds[i])
-      if (!g || g.sortOrder === i) continue
-      await db.customerGroups.put({ ...g, sortOrder: i, updatedAt: now, rev: g.rev + 1 })
-      await db.syncQueue.add({
-        table: 'customerGroups',
-        recordId: g.id,
-        op: 'upsert',
-        createdAt: now,
-      })
+      if (!g || g.deleted || g.sortOrder === i) continue
+      await tx.put('customerGroups', { ...g, sortOrder: i, updatedAt: now, rev: g.rev + 1 })
+      await tx.enqueue('customerGroups', g.id, 'upsert', now)
     }
   })
-  syncEngine.requestSync()
+  storage.requestSync()
 }
 
 /** 新建分组（同事务入同步队列，走 TodoList 先例） */
@@ -503,7 +501,8 @@ export async function createCustomerGroup(input: {
   /** 分组模式（2026-10-17 双模式）：缺省 rule 兼容旧调用方 */
   kind?: 'manual' | 'rule'
 }): Promise<CustomerGroup> {
-  const all = await db.customerGroups.toArray()
+  const all = await storage.list<CustomerGroup>('customerGroups')
+  const now = Date.now()
   const group: CustomerGroup = {
     id: newId('cg'),
     name: input.name.trim(),
@@ -511,22 +510,16 @@ export async function createCustomerGroup(input: {
     includeTags: input.includeTags,
     excludeTags: input.excludeTags,
     sortOrder: all.filter((g) => !g.deleted).length,
-    createdAt: Date.now(),
-    updatedAt: 0,
+    createdAt: now,
+    updatedAt: now,
     deleted: 0,
-    rev: 0,
+    rev: 1,
   }
-  const now = Date.now()
-  await db.transaction('rw', [db.customerGroups, db.syncQueue], async () => {
-    await db.customerGroups.put({ ...group, updatedAt: now, rev: 1 })
-    await db.syncQueue.add({
-      table: 'customerGroups',
-      recordId: group.id,
-      op: 'upsert',
-      createdAt: now,
-    })
+  await storage.transaction(['customerGroups', 'syncQueue'], async (tx) => {
+    await tx.put('customerGroups', group)
+    await tx.enqueue('customerGroups', group.id, 'upsert', now)
   })
-  syncEngine.requestSync()
+  storage.requestSync()
   return group
 }
 
@@ -535,31 +528,26 @@ export async function updateCustomerGroup(
   id: string,
   patch: Partial<Pick<CustomerGroup, 'name' | 'includeTags' | 'excludeTags' | 'kind'>>,
 ): Promise<void> {
-  const prev = await db.customerGroups.get(id)
-  if (!prev || prev.deleted) return
   const now = Date.now()
-  await db.transaction('rw', [db.customerGroups, db.syncQueue], async () => {
-    await db.customerGroups.put({ ...prev, ...patch, updatedAt: now, rev: prev.rev + 1 })
-    await db.syncQueue.add({
-      table: 'customerGroups',
-      recordId: id,
-      op: 'upsert',
-      createdAt: now,
-    })
+  await storage.transaction(['customerGroups', 'syncQueue'], async (tx) => {
+    const prev = await tx.get<CustomerGroup>('customerGroups', id)
+    if (!prev || prev.deleted) return
+    await tx.put('customerGroups', { ...prev, ...patch, updatedAt: now, rev: prev.rev + 1 })
+    await tx.enqueue('customerGroups', id, 'upsert', now)
   })
-  syncEngine.requestSync()
+  storage.requestSync()
 }
 
 /** 删除分组（纯删规则，不动客户档案 —— 分组是视图） */
 export async function deleteCustomerGroup(id: string): Promise<void> {
-  const prev = await db.customerGroups.get(id)
-  if (!prev) return
   const now = Date.now()
-  await db.transaction('rw', [db.customerGroups, db.syncQueue], async () => {
-    await db.customerGroups.put({ ...prev, deleted: 1, updatedAt: now, rev: prev.rev + 1 })
-    await db.syncQueue.add({ table: 'customerGroups', recordId: id, op: 'delete', createdAt: now })
+  await storage.transaction(['customerGroups', 'syncQueue'], async (tx) => {
+    const prev = await tx.get<CustomerGroup>('customerGroups', id)
+    if (!prev || prev.deleted) return
+    await tx.put('customerGroups', { ...prev, deleted: 1, updatedAt: now, rev: prev.rev + 1 })
+    await tx.enqueue('customerGroups', id, 'delete', now)
   })
-  syncEngine.requestSync()
+  storage.requestSync()
 }
 
 /** tag 实时聚合联想：从现有客户 tags distinct 出热门标签（按出现次数降序），录入与配组界面共用 */

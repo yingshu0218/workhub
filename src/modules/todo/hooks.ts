@@ -7,8 +7,13 @@ import { isTodoOpen } from './domain'
 import dayjs from 'dayjs'
 
 /**
- * 待办清单数据层（模块内合法 Dexie 访问层，组件禁止直连）
+ * 待办清单数据层（模块内查询层，组件不直连存储）
  * 自定义清单：增删改 + 拖拽排序 + 级联解绑
+ *
+ * ⚠️ 写入口纪律（2026-10-21 审计 P1 收口）：本文件**禁止** `db.transaction` 直写。
+ * 读走 `db.*`（订阅/查询），**写一律经 `storage.transaction`（StorageAdapter 原语）**
+ * —— 这样换存储（Tauri SQLite）时写入路径随之迁移，而 Dexie 直写会留下不迁移的死角。
+ * 判据与样板见 `repositories/index.ts#deleteHabitCascade` 与 `modules/todo/cascade.ts`。
  */
 
 /** 订阅自定义清单（按 sortOrder 排序，过滤软删） */
@@ -22,22 +27,22 @@ export function useTodoLists(): TodoList[] {
 
 /** 新建清单 */
 export async function createTodoList(name: string): Promise<TodoList> {
-  const existing = await db.todoLists.toArray()
-  const alive = existing.filter((l) => !l.deleted)
+  const all = await storage.list<TodoList>('todoLists')
+  const alive = all.filter((l) => !l.deleted)
+  const now = Date.now()
   const list: TodoList = {
     id: newId('tl'),
     name: name.trim(),
     // 取当前最大 sortOrder + 1：用「列表长度」在删除后会产生重号（如 0,2,3 后再新建又得 3）
     sortOrder: alive.reduce((max, l) => Math.max(max, l.sortOrder), -1) + 1,
-    createdAt: Date.now(),
-    updatedAt: 0,
+    createdAt: now,
+    updatedAt: now,
     deleted: 0,
-    rev: 0,
+    rev: 1,
   }
-  const now = Date.now()
-  await db.transaction('rw', [db.todoLists, db.syncQueue], async () => {
-    await db.todoLists.put({ ...list, updatedAt: now, rev: 1 })
-    await db.syncQueue.add({ table: 'todoLists', recordId: list.id, op: 'upsert', createdAt: now })
+  await storage.transaction(['todoLists', 'syncQueue'], async (tx) => {
+    await tx.put('todoLists', list)
+    await tx.enqueue('todoLists', list.id, 'upsert', now)
   })
   storage.requestSync()
   return list
@@ -45,12 +50,12 @@ export async function createTodoList(name: string): Promise<TodoList> {
 
 /** 重命名 */
 export async function renameTodoList(id: string, name: string): Promise<void> {
-  const prev = await db.todoLists.get(id)
-  if (!prev || prev.deleted) return
   const now = Date.now()
-  await db.transaction('rw', [db.todoLists, db.syncQueue], async () => {
-    await db.todoLists.put({ ...prev, name: name.trim(), updatedAt: now, rev: prev.rev + 1 })
-    await db.syncQueue.add({ table: 'todoLists', recordId: id, op: 'upsert', createdAt: now })
+  await storage.transaction(['todoLists', 'syncQueue'], async (tx) => {
+    const prev = await tx.get<TodoList>('todoLists', id)
+    if (!prev || prev.deleted) return
+    await tx.put('todoLists', { ...prev, name: name.trim(), updatedAt: now, rev: prev.rev + 1 })
+    await tx.enqueue('todoLists', id, 'upsert', now)
   })
   storage.requestSync()
 }
@@ -58,23 +63,23 @@ export async function renameTodoList(id: string, name: string): Promise<void> {
 /**
  * 删除清单（级联：名下待办解绑 listId 归入「全部待办」）
  *
- * Issue #169 P2-A：子表读取**移入事务内**。此前 `db.todos.where('listId').equals(id).toArray()`
+ * Issue #169 P2-A：子表读取**在事务内**。此前 `db.todos.where('listId').equals(id).toArray()`
  * 在事务外先读、再进事务改，构成 TOCTOU 窗口 —— 窗口内新建的待办不会被解绑，
  * 留下「listId 指向已删清单」的悬挂外键（该待办既不在任何清单、也不进「收集箱」）。
  * `deleteCustomerCascade` / `deleteProjectCascade` / `deleteTodoCascade` 都在事务内读，本处此前是例外。
  */
 export async function deleteTodoListCascade(id: string): Promise<void> {
   const now = Date.now()
-  await db.transaction('rw', [db.todoLists, db.todos, db.syncQueue], async () => {
-    const prev = await db.todoLists.get(id)
-    if (!prev) return
-    await db.todoLists.put({ ...prev, deleted: 1, updatedAt: now, rev: prev.rev + 1 })
-    await db.syncQueue.add({ table: 'todoLists', recordId: id, op: 'delete', createdAt: now })
+  await storage.transaction(['todoLists', 'todos', 'syncQueue'], async (tx) => {
+    const prev = await tx.get<TodoList>('todoLists', id)
+    if (!prev || prev.deleted) return
+    await tx.put('todoLists', { ...prev, deleted: 1, updatedAt: now, rev: prev.rev + 1 })
+    await tx.enqueue('todoLists', id, 'delete', now)
     // 含已软删待办一并解绑：否则其 listId 指向已删清单，UI 上既不在任何清单、也不进「收集箱」
-    const todos = await db.todos.where('listId').equals(id).toArray()
+    const todos = (await tx.list<Todo>('todos')).filter((t) => t.listId === id)
     for (const t of todos) {
-      await db.todos.put({ ...t, listId: undefined, updatedAt: now, rev: t.rev + 1 })
-      await db.syncQueue.add({ table: 'todos', recordId: t.id, op: 'upsert', createdAt: now })
+      await tx.put('todos', { ...t, listId: undefined, updatedAt: now, rev: t.rev + 1 })
+      await tx.enqueue('todos', t.id, 'upsert', now)
     }
   })
   storage.requestSync()
@@ -84,13 +89,13 @@ export async function deleteTodoListCascade(id: string): Promise<void> {
 /** 拖拽排序：按传入的 id 顺序重写 sortOrder */
 export async function reorderTodoLists(orderedIds: string[]): Promise<void> {
   const now = Date.now()
-  const all = await db.todoLists.toArray()
-  await db.transaction('rw', [db.todoLists, db.syncQueue], async () => {
+  await storage.transaction(['todoLists', 'syncQueue'], async (tx) => {
+    const all = await tx.list<TodoList>('todoLists')
     for (let i = 0; i < orderedIds.length; i++) {
       const l = all.find((x) => x.id === orderedIds[i])
-      if (!l || l.sortOrder === i) continue
-      await db.todoLists.put({ ...l, sortOrder: i, updatedAt: now, rev: l.rev + 1 })
-      await db.syncQueue.add({ table: 'todoLists', recordId: l.id, op: 'upsert', createdAt: now })
+      if (!l || l.deleted || l.sortOrder === i) continue
+      await tx.put('todoLists', { ...l, sortOrder: i, updatedAt: now, rev: l.rev + 1 })
+      await tx.enqueue('todoLists', l.id, 'upsert', now)
     }
   })
   storage.requestSync()

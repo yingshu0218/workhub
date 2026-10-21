@@ -1,5 +1,4 @@
-import { db } from '@/db/db'
-import { syncEngine } from '@/sync/engine'
+import { storage } from '@/storage'
 import { normalizeTodoPriority } from './priority'
 import type { Todo } from '@/db/types'
 
@@ -9,37 +8,28 @@ import type { Todo } from '@/db/types'
  * 拆出动机：`agent/serverReads.ts` 的服务端 bundle 经 `shared/search.ts#todoFocusPath`
  * 依赖 `modules/todo/domain`，而本组函数直用 Dexie（db/syncEngine）——留在 domain.ts
  * 会把 Dexie 拖进 Node 环境。纯口径函数（isTodoOpen / todoFocusPath 等）留在 domain.ts
- * 零依赖；本文件只装「需要 Dexie」的存量数据动作，语义与原实现逐行一致。
- */
-
-/**
- * 存量数据兜底（一次性，幂等）：凡 status='done' 但缺 completedAt 的待办，
- * 以 updatedAt 补盖完成时间。没有这条兜底，「今日已完成」统计、CRM 时间轴、
- * 工作台完成数（均要求 completedAt）会静默漏计这些记录。
- * 兼容历史散写路径（灵感/CRM 等曾直接写 status='done' 不写 completedAt）。
+ * 零依赖；本文件只装「需要存储访问」的存量数据动作。
+ *
+ * ⚠️ 写入经 `storage.transaction`（StorageAdapter 原语），不直写 Dexie
+ * —— 审计 P1（2026-10-21）：模块直写 `db.transaction` 的 30 处不随存储迁移。
  */
 export async function backfillTodoCompletedAt(): Promise<number> {
-  const todos = await db.todos.toArray()
+  const todos = await storage.list<Todo>('todos')
   const need = todos.filter((t) => !t.deleted && t.status === 'done' && !t.completedAt)
   if (need.length === 0) return 0
   const now = Date.now()
-  await db.transaction('rw', [db.todos, db.syncQueue], async () => {
+  await storage.transaction(['todos', 'syncQueue'], async (tx) => {
     for (const t of need) {
-      await db.todos.put({
+      await tx.put('todos', {
         ...t,
         completedAt: t.updatedAt || now,
         updatedAt: now,
         rev: t.rev + 1,
       })
-      await db.syncQueue.add({
-        table: 'todos',
-        recordId: t.id,
-        op: 'upsert',
-        createdAt: now,
-      })
+      await tx.enqueue('todos', t.id, 'upsert', now)
     }
   })
-  syncEngine.requestSync()
+  storage.requestSync()
   return need.length
 }
 
@@ -57,27 +47,22 @@ export async function backfillTodoCompletedAt(): Promise<number> {
  * - 返回迁移条数，供 UI/Agent 如实反馈。
  */
 export async function migrateLegacyTodoPriority(): Promise<number> {
-  const todos = await db.todos.toArray()
+  const todos = await storage.list<Todo>('todos')
   const need = todos.filter((t) => !t.deleted && t.priority !== normalizeTodoPriority(t.priority))
   if (need.length === 0) return 0
   const now = Date.now()
-  await db.transaction('rw', [db.todos, db.syncQueue], async () => {
+  await storage.transaction(['todos', 'syncQueue'], async (tx) => {
     for (const t of need) {
-      await db.todos.put({
+      await tx.put('todos', {
         ...t,
         priority: normalizeTodoPriority(t.priority),
         updatedAt: now,
         rev: t.rev + 1,
       })
-      await db.syncQueue.add({
-        table: 'todos',
-        recordId: t.id,
-        op: 'upsert',
-        createdAt: now,
-      })
+      await tx.enqueue('todos', t.id, 'upsert', now)
     }
   })
-  syncEngine.requestSync()
+  storage.requestSync()
   return need.length
 }
 
@@ -86,27 +71,22 @@ export async function migrateLegacyTodoPriority(): Promise<number> {
  * 与 backfillTodoCompletedAt 同款纪律（成对写入的字段不允许单边存在）。
  */
 export async function backfillTodoVoidedAt(): Promise<number> {
-  const todos = await db.todos.toArray()
+  const todos = await storage.list<Todo>('todos')
   const need = todos.filter((t) => !t.deleted && t.status === 'voided' && !t.voidedAt)
   if (need.length === 0) return 0
   const now = Date.now()
-  await db.transaction('rw', [db.todos, db.syncQueue], async () => {
+  await storage.transaction(['todos', 'syncQueue'], async (tx) => {
     for (const t of need) {
-      await db.todos.put({
+      await tx.put('todos', {
         ...t,
         voidedAt: t.updatedAt || now,
         updatedAt: now,
         rev: t.rev + 1,
       })
-      await db.syncQueue.add({
-        table: 'todos',
-        recordId: t.id,
-        op: 'upsert',
-        createdAt: now,
-      })
+      await tx.enqueue('todos', t.id, 'upsert', now)
     }
   })
-  syncEngine.requestSync()
+  storage.requestSync()
   return need.length
 }
 

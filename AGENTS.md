@@ -35,6 +35,11 @@ React 18 · Vite · TypeScript strict · Tailwind 4 · Zustand · Dexie(IndexedD
 
 ```
 src/repositories/   写入口唯一层：所有落库走这里（存储无关，Dexie / TauriSqlite 可替换）
+                    ⚠️ 模块层（modules / app / shared）写库**必须经 `storage.transaction`**
+                    （StorageAdapter 原语），**禁止 `db.transaction(...)` 直写** ——
+                    直写不随存储适配器迁移，换 Tauri SQLite 时会静默失效。
+                    由 `repositories/__tests__/writeThroughStorage.test.ts` 锁住（白名单为空）。
+                    读路径（`db.<table>` 查询）不受此限。
 src/domain/         动作编排唯一层：跨表编排（记账口径、默认账本策略…）
 src/agent/          agentOps：MCP 工具 schema / 执行器 / 浏览器侧桥
 src/sync/           LWW 同步引擎（2s 去抖队列 + 30s 心跳 + online 触发）

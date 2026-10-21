@@ -1,9 +1,9 @@
 import type { Attachment } from '@/db/db'
 import { db } from '@/db/db'
+import { storage } from '@/storage'
 
 import { useQuery } from '@/queries/hooks'
-import type { Ledger } from '@/db/types'
-import { syncEngine } from '@/sync/engine'
+import type { Ledger, Transaction } from '@/db/types'
 
 /**
  * 财务模块领域查询 Hook（附件读写在 hooks 层封装，组件不直碰 Dexie）
@@ -51,46 +51,39 @@ export function useAttachmentCount(refId: string | undefined): number {
 }
 
 /**
- * 交易级联删除：单 Dexie 事务覆盖 transactions / attachments / syncQueue 三表，
+ * 交易级联删除：单事务覆盖 transactions / attachments / syncQueue 三表，
  * 任一步失败整体回滚。语义：
  * 1. 软删交易（盖章 + 入队 delete）
  * 2. 软删该交易全部附件存根（盖章 + 入队 delete）
- * 交易不存在时静默返回（幂等）。
+ * 交易不存在或已删时静默返回（幂等）。
+ *
+ * ⚠️ 写入经 `storage.transaction`（StorageAdapter 原语），不直写 Dexie
+ * —— 审计 P1（2026-10-21）：模块直写 `db.transaction` 的 30 处不会随存储适配器迁移。
  */
 export async function deleteTransactionCascade(txnId: string): Promise<void> {
   const now = Date.now()
-  await db.transaction('rw', [db.transactions, db.attachments, db.syncQueue], async () => {
-    const prev = await db.transactions.get(txnId)
+  await storage.transaction(['transactions', 'attachments', 'syncQueue'], async (tx) => {
+    const prev = await tx.get<Transaction>('transactions', txnId)
     if (!prev || prev.deleted) return
 
-    await db.transactions.update(txnId, {
+    await tx.update('transactions', txnId, {
       deleted: 1,
       updatedAt: now,
       rev: prev.rev + 1,
     })
-    await db.syncQueue.add({
-      table: 'transactions',
-      recordId: txnId,
-      op: 'delete',
-      createdAt: now,
-    })
+    await tx.enqueue('transactions', txnId, 'delete', now)
 
-    const atts = await db.attachments.where('refId').equals(txnId).toArray()
+    const atts = (await tx.list<Attachment>('attachments')).filter((a) => a.refId === txnId)
     for (const att of atts) {
-      await db.attachments.update(att.id, {
+      await tx.update('attachments', att.id, {
         deleted: 1,
         updatedAt: now,
         rev: (att.rev ?? 0) + 1,
       })
-      await db.syncQueue.add({
-        table: 'attachments',
-        recordId: att.id,
-        op: 'delete',
-        createdAt: now,
-      })
+      await tx.enqueue('attachments', att.id, 'delete', now)
     }
   })
-  syncEngine.requestSync()
+  storage.requestSync()
 }
 
 // ===== 账本左侧树（数据层与 todo 自定义清单同款事务纪律） =====
@@ -104,15 +97,14 @@ export async function nextLedgerSortOrder(): Promise<number> {
 /** 拖拽排序：按传入的 id 顺序重写 sortOrder（事务 + 入同步队列，同 todoLists） */
 export async function reorderLedgers(orderedIds: string[]): Promise<void> {
   const now = Date.now()
-  const all = await db.ledgers.toArray()
-  await db.transaction('rw', [db.ledgers, db.syncQueue], async () => {
+  await storage.transaction(['ledgers', 'syncQueue'], async (tx) => {
+    const all = await tx.list<Ledger>('ledgers')
     for (let i = 0; i < orderedIds.length; i++) {
       const l = all.find((x) => x.id === orderedIds[i])
       if (!l || l.deleted || l.sortOrder === i) continue
-      const row: Ledger = { ...l, sortOrder: i, updatedAt: now, rev: l.rev + 1 }
-      await db.ledgers.put(row)
-      await db.syncQueue.add({ table: 'ledgers', recordId: l.id, op: 'upsert', createdAt: now })
+      await tx.put('ledgers', { ...l, sortOrder: i, updatedAt: now, rev: l.rev + 1 })
+      await tx.enqueue('ledgers', l.id, 'upsert', now)
     }
   })
-  syncEngine.requestSync()
+  storage.requestSync()
 }
