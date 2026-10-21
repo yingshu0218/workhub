@@ -78,9 +78,9 @@ export const settingsRepo = {
   async save(
     patch: Omit<Partial<Omit<Settings, 'key'>>, 'appearance'> & { appearance?: Partial<Settings['appearance']> },
   ): Promise<Settings> {
-    return db.transaction('rw', [db.settings], async () => {
+    const merged = await db.transaction('rw', [db.settings], async () => {
       const prev = await SETTINGS_TABLE().get('singleton')
-      const merged: Settings = {
+      const next: Settings = {
         ...DEFAULT_SETTINGS,
         ...prev,
         key: 'singleton',
@@ -97,10 +97,16 @@ export const settingsRepo = {
         // 新增段必须在此登记，否则段内单字段 patch 会整体丢失（本函数是段内展开合并）
         ai: { ...DEFAULT_SETTINGS.ai, ...prev?.ai, ...patch.ai },
       }
-      await SETTINGS_TABLE().put(merged)
-      eventBus.emit('settings:changed', { settings: merged })
-      return merged
+      await SETTINGS_TABLE().put(next)
+      return next
     })
+    // ⚠️ 事件永在事务之后（AGENTS.md §6.1）：emit 必须在 db.transaction **commit 之后**。
+    // 此前 emit 写在事务体内（put 之后、commit 之前）—— 事务一旦回滚，订阅方（effects.ts
+    // 的 applySettingsToDom、graph/themes.ts 的画布主题）已应用一份**未落库**的设置 = 幽灵状态。
+    // 全仓其余 6 处 emit（repositories/index.ts、crm/intimacy/config.ts、quickCapture.ts）
+    // 都严格在事务块之外，此处曾是唯一反例。
+    eventBus.emit('settings:changed', { settings: merged })
+    return merged
   },
 }
 

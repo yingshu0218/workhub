@@ -1,27 +1,47 @@
-import { useEffect } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { createBrowserRouter, RouterProvider, Outlet, useLocation } from 'react-router-dom'
 import AppLayout from './AppLayout'
 import ErrorBoundary from './ErrorBoundary'
 import DashboardPage from '@/modules/dashboard/DashboardPage'
-import TodoPage from '@/modules/todo/TodoPage'
-import FinancePage from '@/modules/finance/FinancePage'
-import CrmPage from '@/modules/crm/CrmPage'
-import CrmCanvasPage from '@/modules/crm/CrmCanvasPage'
-import CustomerDetailPage from '@/modules/crm/CustomerDetailPage'
-import CustomerTimelinePage from '@/modules/crm/CustomerTimelinePage'
-import CustomerGraphPage from '@/modules/crm/CustomerGraphPage'
-import AllTimelinesPage from '@/modules/crm/AllTimelinesPage'
-import NotesPage from '@/modules/notes/NotesPage'
-import NoteEditorPage from '@/modules/notes/NoteEditorPage'
-import HabitsPage from '@/modules/habits/HabitsPage'
-import TrophiesPage from '@/modules/trophies/TrophiesPage'
-import ProfilePage from '@/modules/trophies/ProfilePage'
-import SettingsPage from '@/modules/settings/SettingsPage'
 import NotFoundPage from './NotFoundPage'
-import ModuleConfigPage from '@/modules/moduleConfig/ModuleConfigPage'
-import ProjectsPage from '@/modules/projects/ProjectsPage'
-import ProjectDetailPage from '@/modules/projects/ProjectDetailPage'
-import InspirationPage from '@/modules/inspiration/InspirationPage'
+
+/**
+ * 路由级代码分割（审计 P1 · 2026-10-21）：
+ * 此前 24 个页面全部静态 import → 主包 768KB（gzip 197KB），打开工作台只为了看待办，
+ * 却要下载设置页/关系画布/笔记编辑器的全部代码。改为按路由懒加载后，
+ * 各页独立分包、首屏只加载首页与外壳。
+ *
+ * 保留 eager 的只有：DashboardPage（首屏，避免多一次往返与加载闪烁）与 NotFoundPage（catch-all，
+ * 体积极小且必须在任何路径下立即可用）。
+ */
+const TodoPage = lazy(() => import('@/modules/todo/TodoPage'))
+const FinancePage = lazy(() => import('@/modules/finance/FinancePage'))
+const CrmPage = lazy(() => import('@/modules/crm/CrmPage'))
+const CrmCanvasPage = lazy(() => import('@/modules/crm/CrmCanvasPage'))
+const CustomerDetailPage = lazy(() => import('@/modules/crm/CustomerDetailPage'))
+const CustomerTimelinePage = lazy(() => import('@/modules/crm/CustomerTimelinePage'))
+const CustomerGraphPage = lazy(() => import('@/modules/crm/CustomerGraphPage'))
+const AllTimelinesPage = lazy(() => import('@/modules/crm/AllTimelinesPage'))
+const NotesPage = lazy(() => import('@/modules/notes/NotesPage'))
+const NoteEditorPage = lazy(() => import('@/modules/notes/NoteEditorPage'))
+const HabitsPage = lazy(() => import('@/modules/habits/HabitsPage'))
+const TrophiesPage = lazy(() => import('@/modules/trophies/TrophiesPage'))
+const ProfilePage = lazy(() => import('@/modules/trophies/ProfilePage'))
+const SettingsPage = lazy(() => import('@/modules/settings/SettingsPage'))
+const ModuleConfigPage = lazy(() => import('@/modules/moduleConfig/ModuleConfigPage'))
+const ProjectsPage = lazy(() => import('@/modules/projects/ProjectsPage'))
+const ProjectDetailPage = lazy(() => import('@/modules/projects/ProjectDetailPage'))
+const InspirationPage = lazy(() => import('@/modules/inspiration/InspirationPage'))
+
+/**
+ * 懒加载页面的占位。
+ * · `min-h-full` 与真实的 `anim-page` wrapper 同款 —— 否则页面从 auto 高度切到真实高度时
+ *   会把 /inspiration 的 `h-[calc(100%+3rem)]` 基准顶破（见下方 Shell 里的说明）。
+ * · 刻意不引入 spinner 动效：分包加载在本地是一两帧的事，加动效反而制造闪烁。
+ */
+function RouteLoading() {
+  return <div className="min-h-full" aria-busy="true" />
+}
 
 /** 路由映射见 docs/寻鸽工作台-开发计划.md 第四节 */
 function Shell() {
@@ -56,7 +76,11 @@ function Shell() {
               画布/全幅页里 `position: fixed` 的弹层会把 wrapper 的 transform 当成包含块，
               遮罩盖不住侧栏与页头。详见 src/styles/index.css 的说明。 */}
         <div key={pathname} className="anim-page min-h-full">
-          <Outlet />
+          {/* Suspense 必须在 wrapper **内部**：fallback 与真实页面共享同一个 min-h-full 容器，
+              避免懒加载页面切进来时高度基准变化导致的一次跳动。 */}
+          <Suspense fallback={<RouteLoading />}>
+            <Outlet />
+          </Suspense>
         </div>
       </ErrorBoundary>
     </AppLayout>

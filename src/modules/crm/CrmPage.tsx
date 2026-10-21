@@ -1116,26 +1116,31 @@ function GroupEditorDrawer({
       setError('请填写分组名称')
       return
     }
-    if (mode === 'manual') {
-      // 手动分组：只存名字与模式，成员由客户详情单选归属（无标签规则）
+    // 错误处理（审计 P1 同类项）：此前无 try/catch，落库失败的 Promise 无人处理 → 静默失败零提示。
+    try {
+      if (mode === 'manual') {
+        // 手动分组：只存名字与模式，成员由客户详情单选归属（无标签规则）
+        if (group) {
+          await updateCustomerGroup(group.id, { name: name.trim(), kind: 'manual' })
+        } else {
+          await createCustomerGroup({ name, includeTags: [], excludeTags: [], kind: 'manual' })
+        }
+        onClose()
+        return
+      }
+      if (includeTags.length === 0) {
+        setError('至少选择一个须包含的标签')
+        return
+      }
       if (group) {
-        await updateCustomerGroup(group.id, { name: name.trim(), kind: 'manual' })
+        await updateCustomerGroup(group.id, { name: name.trim(), includeTags, excludeTags })
       } else {
-        await createCustomerGroup({ name, includeTags: [], excludeTags: [], kind: 'manual' })
+        await createCustomerGroup({ name, includeTags, excludeTags, kind: 'rule' })
       }
       onClose()
-      return
+    } catch (e) {
+      setError(e instanceof Error ? `保存失败：${e.message}` : '保存失败，请重试')
     }
-    if (includeTags.length === 0) {
-      setError('至少选择一个须包含的标签')
-      return
-    }
-    if (group) {
-      await updateCustomerGroup(group.id, { name: name.trim(), includeTags, excludeTags })
-    } else {
-      await createCustomerGroup({ name, includeTags, excludeTags, kind: 'rule' })
-    }
-    onClose()
   }
 
   return (

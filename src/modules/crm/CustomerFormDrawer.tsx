@@ -211,45 +211,52 @@ export default function CustomerFormDrawer({
       // 未解析出的客户名回显给用户（不静默丢弃），但已解析到的关系照常保存
       setError(settled.error)
     }
-    if (customer) {
-      // 编辑：旧记录为基底，只覆盖表单字段（保留 createdAt 等）
-      await customerRepo.put({
-        ...customer,
-        name: name.trim(),
-        company: company.trim(),
-        title: title.trim(),
-        decisionLevel,
-        tags: settled.tags,
-        phone: phone.trim(),
-        wechat: wechat.trim(),
-        email: email.trim(),
-        address: address.trim(),
-        relations: settled.relations,
-      })
-    } else {
-      const record = {
-        id: newId('cus'),
-        name: name.trim(),
-        company: company.trim(),
-        title: title.trim(),
-        decisionLevel,
-        tags: settled.tags,
-        phone: phone.trim(),
-        wechat: wechat.trim(),
-        email: email.trim(),
-        address: address.trim(),
-        lastContactAt: Date.now(),
-        createdAt: Date.now(),
-        // 新建即关联：与编辑同一份 relations 状态，随记录一并落库（Issue #132）
-        ...(settled.relations.length > 0 ? { relations: settled.relations } : {}),
+    // 错误处理（审计 P1：此前无 try/catch，落库失败的 Promise 无人处理）——
+    // 配额超限 / 隐私模式 / IndexedDB 被回收时用户只看到「点保存没反应、抽屉不关」，
+    // 静默失败且零提示。对齐 TransactionFormDrawer 的做法，失败转为可读错误。
+    try {
+      if (customer) {
+        // 编辑：旧记录为基底，只覆盖表单字段（保留 createdAt 等）
+        await customerRepo.put({
+          ...customer,
+          name: name.trim(),
+          company: company.trim(),
+          title: title.trim(),
+          decisionLevel,
+          tags: settled.tags,
+          phone: phone.trim(),
+          wechat: wechat.trim(),
+          email: email.trim(),
+          address: address.trim(),
+          relations: settled.relations,
+        })
+      } else {
+        const record = {
+          id: newId('cus'),
+          name: name.trim(),
+          company: company.trim(),
+          title: title.trim(),
+          decisionLevel,
+          tags: settled.tags,
+          phone: phone.trim(),
+          wechat: wechat.trim(),
+          email: email.trim(),
+          address: address.trim(),
+          lastContactAt: Date.now(),
+          createdAt: Date.now(),
+          // 新建即关联：与编辑同一份 relations 状态，随记录一并落库（Issue #132）
+          ...(settled.relations.length > 0 ? { relations: settled.relations } : {}),
+        }
+        // 新建走「建档 + 关联初始化」同事务数据层函数，杜绝多步写半成品
+        await createCustomerWithInit(record as Customer, {
+          openingLog: initLog,
+          linkTransactionId: initTxnId || undefined,
+        })
       }
-      // 新建走「建档 + 关联初始化」同事务数据层函数，杜绝多步写半成品
-      await createCustomerWithInit(record as Customer, {
-        openingLog: initLog,
-        linkTransactionId: initTxnId || undefined,
-      })
+      onClose()
+    } catch (e) {
+      setError(e instanceof Error ? `保存失败：${e.message}` : '保存失败，请重试')
     }
-    onClose()
   }
 
   return (

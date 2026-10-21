@@ -103,8 +103,13 @@ export function HabitFormDrawer({
       deleted: 0,
       rev: 0,
     }
-    await habitRepo.put(base)
-    onClose()
+    // 错误处理（审计 P1）：此前无 try/catch，落库失败的 Promise 无人处理 → 静默失败零提示。
+    try {
+      await habitRepo.put(base)
+      onClose()
+    } catch (e) {
+      setError(e instanceof Error ? `保存失败：${e.message}` : '保存失败，请重试')
+    }
   }
 
   return (

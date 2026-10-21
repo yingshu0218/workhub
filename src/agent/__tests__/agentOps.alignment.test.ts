@@ -94,11 +94,28 @@ describe('消解纪律：写工具拒绝未经 resolveEntity 的字符串关联'
     expect(r.error).toContain('resolveEntity')
     expect(await db.interactions.count()).toBe(0)
   })
+
+  /**
+   * P1 修复回归锁（2026-10-21 全仓审计）：projectId 此前**唯一漏网**——
+   * 同文件 todo/note/project 三族写工具全走 assertLinks，唯 crm_addInteraction 原样透传，
+   * 挂到不存在项目上会静默创建成功、在 interactions.projectId 留悬挂引用。
+   * 本用例最初（错误地）传了不存在的 projectId='p1' 却断言成功，正是把漏网放过的原因。
+   */
+  it('projectId 指向不存在项目 → 可操作错误，不落库（不留悬挂引用）', async () => {
+    await db.customers.put({ id: 'c1', name: '王五', company: '', title: '', decisionLevel: '决策人', tags: [], phone: '', wechat: '', email: '', address: '', lastContactAt: 0, createdAt: 1, updatedAt: 0, deleted: 0, rev: 0 })
+    const r = await crm_addInteraction({ customerId: 'c1', content: '跟进', projectId: 'proj:not-exist' })
+    expect(r.ok).toBe(false)
+    expect(r.error).toContain('项目')
+    expect(r.error).toContain('resolveEntity')
+    expect(await db.interactions.count()).toBe(0)
+  })
 })
 
 describe('§9.5 bug2 对齐：agentOps 记沟通日志统一 emit customer:contacted', () => {
   it('含项目跟进场景（projectId）也 emit（UI 侧由事件下沉步骤统一）', async () => {
     await db.customers.put({ id: 'c1', name: '王五', company: '', title: '', decisionLevel: '决策人', tags: [], phone: '', wechat: '', email: '', address: '', lastContactAt: 0, createdAt: 1, updatedAt: 0, deleted: 0, rev: 0 })
+    // 关联校验前置后，projectId 必须是真实存在的项目（此前传 'p1' 是漏网证据）
+    await db.projects.put({ id: 'p1', name: '示例项目', color: '#004AC6', status: 'active', createdAt: 1, updatedAt: 0, deleted: 0, rev: 0 })
     const events: unknown[] = []
     const orig = eventBus.emit.bind(eventBus)
     eventBus.emit = (event, payload) => { if (event === 'customer:contacted') events.push(payload); orig(event, payload) }

@@ -75,34 +75,39 @@ export default function LedgerFormDrawer({
     // 设为默认账本：先清掉其它账本的 isDefault，保证全局唯一。
     // 收口到 repositories（P1 补强）：与 agentOps 的 fin_createLedger 共用同一实现，
     // 消除「UI 一处 / AI 一处」两条内联路径漂移出「双默认账本」的可能。
-    if (isDefault) {
-      await clearOtherDefaultLedgers(editLedger?.id)
+    // 错误处理（审计 P1）：此前无 try/catch，落库失败的 Promise 无人处理 → 静默失败零提示。
+    try {
+      if (isDefault) {
+        await clearOtherDefaultLedgers(editLedger?.id)
+      }
+      if (editLedger) {
+        await ledgerRepo.put({
+          ...editLedger,
+          name: name.trim(),
+          currency,
+          openingBalance: openingNum,
+          closingCycle: cycle,
+          // 未勾选时移除默认标记（可选字段，缺省即非默认）
+          ...(isDefault ? { isDefault: true } : {}),
+        })
+      } else {
+        await ledgerRepo.put({
+          id: newId('ldg'),
+          name: name.trim(),
+          currency,
+          openingBalance: openingNum,
+          closingCycle: cycle,
+          // 新账本排到左侧树末尾
+          sortOrder: await nextLedgerSortOrder(),
+          createdAt: Date.now(),
+          ...(isDefault ? { isDefault: true } : {}),
+        })
+      }
+      if (isDefault) syncEngine.requestSync()
+      onClose()
+    } catch (e) {
+      setError(e instanceof Error ? `保存失败：${e.message}` : '保存失败，请重试')
     }
-    if (editLedger) {
-      await ledgerRepo.put({
-        ...editLedger,
-        name: name.trim(),
-        currency,
-        openingBalance: openingNum,
-        closingCycle: cycle,
-        // 未勾选时移除默认标记（可选字段，缺省即非默认）
-        ...(isDefault ? { isDefault: true } : {}),
-      })
-    } else {
-      await ledgerRepo.put({
-        id: newId('ldg'),
-        name: name.trim(),
-        currency,
-        openingBalance: openingNum,
-        closingCycle: cycle,
-        // 新账本排到左侧树末尾
-        sortOrder: await nextLedgerSortOrder(),
-        createdAt: Date.now(),
-        ...(isDefault ? { isDefault: true } : {}),
-      })
-    }
-    if (isDefault) syncEngine.requestSync()
-    onClose()
   }
 
   return (

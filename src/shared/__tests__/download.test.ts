@@ -119,14 +119,18 @@ describe('② 已收口：源码里不应再有内联的对象 URL 释放', () =
       return /\.(ts|tsx)$/.test(name) ? [p] : []
     })
 
-  const files = walk(SRC).filter(
-    (f) => !f.endsWith('download.ts') && !f.includes('__tests__'),
-  )
+  /**
+   * ⚠️ 源码内容**在模块作用域只读一次**（审计 P1：此前两个 `it` 各遍历读一遍 ~240 个文件，
+   * 全量并发时 I/O 争用把用例拖过 5s 默认阈值 → flaky 红灯；单跑因无争用而通过）。
+   * 键为相对路径（用于报错定位），值为文件内容。
+   */
+  const sources: [string, string][] = walk(SRC)
+    .filter((f) => !f.endsWith('download.ts') && !f.includes('__tests__'))
+    .map((f) => [f, readFileSync(f, 'utf8')])
 
   it('除 shared/download.ts 外，没有任何文件直接调用 URL.revokeObjectURL', () => {
     const offenders: string[] = []
-    for (const f of files) {
-      const text = readFileSync(f, 'utf8')
+    for (const [f, text] of sources) {
       text.split('\n').forEach((line, i) => {
         if (/^\s*(\/\/|\*|\/\*)/.test(line)) return // 注释行不计
         if (/URL\s*\.\s*revokeObjectURL/.test(line)) {
@@ -138,9 +142,7 @@ describe('② 已收口：源码里不应再有内联的对象 URL 释放', () =
   })
 
   it('至少 5 个导出/下载入口接上了统一实现（settings / trophies / finance / notes ×2）', () => {
-    const hits = files.filter((f) =>
-      /from '@\/shared\/download'/.test(readFileSync(f, 'utf8')),
-    )
+    const hits = sources.filter(([, text]) => /from '@\/shared\/download'/.test(text))
     expect(hits.length).toBeGreaterThanOrEqual(5)
   })
 })

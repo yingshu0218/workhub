@@ -236,6 +236,12 @@ export async function crm_addInteraction(input: unknown): Promise<AgentOpResult>
     return err(`客户不存在：${d.customerId}，请先 resolveEntity 消解`)
   }
 
+  // 关联校验前置（P1 修复）：此前 projectId **原样透传无校验** —— 挂到不存在/已删项目上
+  // 会静默创建成功，在 interactions.projectId 留下悬挂引用（图的关联边指向不存在的节点）。
+  // 与 todo/note/project 三族写工具同款收口到 assertLinks；同文件唯一漏网处。
+  const links = await assertLinks([{ id: d.projectId, table: tableRef('projects'), what: '项目' }])
+  if (!links.ok) return err(links.error)
+
   const at = d.at ?? Date.now()
   // 不让 lastContactAt 倒退：补录历史日志时保持客户最近联系时间不后退
   const touchAt = Math.max(customer.lastContactAt ?? 0, at)
