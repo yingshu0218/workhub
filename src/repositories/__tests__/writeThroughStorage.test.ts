@@ -29,10 +29,39 @@ import path from 'node:path'
 const GUARDED_DIRS = ['src/modules', 'src/app', 'src/shared']
 
 /**
+ * ⚠️ 第二批收口范围（2026-10-21 补漏）：`src/repositories` 与 `src/sync` **也在收口面内**。
+ *
+ * 为什么此前漏了：第一版锁只扫 `src/modules|app|shared` —— 而 `repositories/localAdmin.ts`
+ * 与 `sync/pocketbaseAdapter.ts` 同样是「业务写入口」，却因目录不同被整片放过。
+ * **教训：按目录圈范围时，要问「还有哪些目录也承担同名职责」，而不是只看当时改过哪些文件。**
+ *
+ * 这两个目录的情况不同（不是全禁，而是「默认禁 + 逐条署名例外」）：
+ * - `src/repositories/` 本身是**仓储实现层**，Dexie 直写有其正当位置（如需要 `bulkPut` 等
+ *   StorageAdapter 未提供的能力）—— 故以 ALLOWED 逐条署名，不允许悄悄新增。
+ * - `src/sync/` 是同步协议实现层，同理。
+ */
+const GUARDED_DIRS_2 = ['src/repositories', 'src/sync']
+
+/**
  * 允许直写 `db.transaction(` 的例外（相对仓库根的路径 → 理由）。
  * ⚠️ 刻意留空：如需新增，必须在此署名说明，不允许用正则放宽。
+ *
+ * `src/modules|app|shared` 的白名单：**为空**（模块层无任何正当直写理由）。
  */
 const ALLOWED: Record<string, string> = {}
+
+/**
+ * 第二类目录（repositories / sync）的署名例外 —— 逐条列出**确认为能力边界**的直写。
+ *
+ * ⚠️ 每条都必须写清「为什么不能经 StorageAdapter」，而不是「没来得及改」。
+ */
+const ALLOWED_IMPL: Record<string, string> = {
+  'src/repositories/localAdmin.ts':
+    'settingsRepo.save：settings 表主键是 `key`（非 `id`），与 StorageTx 的 `T extends { id: string }` ' +
+    '约束类型不兼容；且它是本地 singleton、刻意不进同步队列，无「随 StorageAdapter 迁移」诉求。' +
+    '（同文件另有 focusSessionRepo.bulkPut / restoreFromJson 用 bulkPut：StorageTx 无该原语。）',
+  'src/repositories/__tests__/writeThroughStorage.test.ts': '本文件自身（判据里的示例字符串）',
+}
 
 function walk(dir: string): string[] {
   return readdirSync(dir).flatMap((e) => {
@@ -66,6 +95,39 @@ describe('防漂移锁：模块层写库必须经 storage.transaction（不得�
       }
     }
     expect(offenders).toEqual([])
+  })
+
+  /**
+   * 第二批：`src/repositories` 与 `src/sync` 的直写必须**逐条署名**（不在允许表里就是漂移）。
+   *
+   * 判据刻意做成「**报告所有未署名的直写点**」而不是「数量断言」——
+   * 后者会在「删一处、加一处」时保持绿灯（数量没变），漏掉新漂移。
+   */
+  it('repositories / sync 下的直写均在署名例外表内（新直写必须署名）', () => {
+    const root = process.cwd()
+    const offenders: string[] = []
+    for (const dir of GUARDED_DIRS_2) {
+      for (const file of walk(path.resolve(root, dir))) {
+        const rel = path.relative(root, file)
+        const hits = findTransactionWrites(readFileSync(file, 'utf8'))
+        if (hits.length === 0) continue
+        // 该文件有直写：必须整体在署名表里（按文件粒度署名 —— 新增一处也需重新审视）
+        if (ALLOWED_IMPL[rel]) continue
+        for (const line of hits) offenders.push(`${rel}:${line}`)
+      }
+    }
+    expect(offenders).toEqual([])
+  })
+
+  /**
+   * 反向校验：证明「署名表」机制真的生效（否则上面那条绿灯不可信）。
+   */
+  it('反向校验：未署名的直写会被点名，已署名的被放过', () => {
+    const allowed = 'src/repositories/localAdmin.ts'
+    const notAllowed = 'src/sync/pocketbaseAdapter.ts'
+    expect(ALLOWED_IMPL[allowed]).toBeTruthy()
+    // pocketbaseAdapter 已经收口（enqueueAllForPush 改为 storage.transaction）→ 不应在署名表里
+    expect(ALLOWED_IMPL[notAllowed]).toBeUndefined()
   })
 
   /**

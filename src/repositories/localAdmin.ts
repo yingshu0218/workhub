@@ -78,6 +78,19 @@ export const settingsRepo = {
   async save(
     patch: Omit<Partial<Omit<Settings, 'key'>>, 'appearance'> & { appearance?: Partial<Settings['appearance']> },
   ): Promise<Settings> {
+    /**
+     * ⚠️ 本处**刻意保留** `db.transaction` 直写（2026-10-21 复核结论，非漏网）：
+     *
+     * `StorageTx` 的原语签名约束是 `T extends { id: string }`，而 **settings 表的主键是 `key`**
+     * （`db.ts` 的 `settings: 'key'`，singleton 行 `key: 'singleton'`）—— 二者类型上不兼容。
+     * 强行收口只能靠 `as unknown as` 骗过类型，那会让「存储无关」的名义收益**变成类型谎言**。
+     *
+     * 另：settings 是**本地 singleton、刻意不进同步队列**（见文件头「不进同步队列」），
+     * 因此它也没有「随 StorageAdapter 迁移」的诉求 —— 迁移到 SQLite 时同样要处理主键差异。
+     *
+     * 结论：此为**能力边界**而非纪律漂移。已在防漂移锁里逐条署名放行
+     * （`writeThroughStorage.test.ts` 的 ALLOWED）。
+     */
     const merged = await db.transaction('rw', [db.settings], async () => {
       const prev = await SETTINGS_TABLE().get('singleton')
       const next: Settings = {

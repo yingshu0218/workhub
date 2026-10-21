@@ -1,4 +1,5 @@
 import { db } from '@/db/db'
+import { storage } from '@/storage'
 import type { Settings } from '@/db/types'
 import { DEFAULT_SETTINGS } from '@/db/types'
 import { SETTINGS_KEY } from '@/db/types'
@@ -661,20 +662,21 @@ export async function pbPing(): Promise<{ ok: boolean; message: string }> {
 export async function enqueueAllForPush(): Promise<number> {
   const now = Date.now()
   let count = 0
-  await db.transaction('rw', [db.syncQueue, ...SYNC_TABLES.map((t) => db[t])], async () => {
-    for (const table of SYNC_TABLES) {
-      const records = await bizTable(table).toArray()
-      for (const rec of records) {
-        await db.syncQueue.add({
-          table,
-          recordId: String(rec.id),
-          op: rec.deleted ? 'delete' : 'upsert',
-          createdAt: now,
-        })
-        count++
+  // 收口（审计 P1 补漏 · 2026-10-21）：原为 `db.transaction('rw', [db.syncQueue, ...])` 直写，
+  // 经 StorageAdapter 原语等价改写 —— `tx.list` 读全表（含墓碑）、`tx.enqueue` 写同一 syncQueue 表。
+  // ⚠️ 语义不变：仍在一个事务内完成「读所有表 + 逐条入队」，失败整体回滚。
+  await storage.transaction(
+    ['syncQueue', ...SYNC_TABLES],
+    async (tx) => {
+      for (const table of SYNC_TABLES) {
+        const records = await tx.list<{ id: string; deleted?: 0 | 1 }>(table)
+        for (const rec of records) {
+          await tx.enqueue(table, String(rec.id), rec.deleted ? 'delete' : 'upsert', now)
+          count++
+        }
       }
-    }
-  })
+    },
+  )
   return count
 }
 
