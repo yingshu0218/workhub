@@ -3,9 +3,9 @@ import { Icon } from '@/design-system/Icon'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useCollection } from '@/queries/hooks'
 import { noteRepo } from '@/repositories'
-import type { Note, NoteMention } from '@/db/types'
+import type { Note } from '@/db/types'
 import type { Customer, Ledger, Todo, Project } from '@/db/types'
-import { Button, Card, Chip, ConfirmDialog, EmptyState } from '@/design-system/ui'
+import { Button, Card, ConfirmDialog, EmptyState } from '@/design-system/ui'
 import { archivedLast, fuzzyMatch, fuzzySort, MatchCombobox } from '@/design-system/MatchCombobox'
 import { toArchivedFlag } from '@/shared/search'
 import { isImeComposing } from '@/shared/ime'
@@ -20,13 +20,8 @@ import { markdown } from '@codemirror/lang-markdown'
 import { defaultHighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import { registerShortcut } from '@/shared/shortcuts'
 import { useBacklinks, useNoteRecord } from './hooks'
-import {
-  filterBlacklisted,
-  useIntimacyConfig,
-  resolveIntimacyLevel,
-} from '@/modules/crm/intimacy'
+import { filterBlacklisted, useIntimacyConfig } from '@/modules/crm/intimacy'
 import { useCustomerScoreRows } from '@/modules/crm/hooks'
-import { resolveHealthScoreDisplay } from '@/modules/crm/healthScore'
 import { useProjects, moveNoteToProject } from '@/modules/projects/hooks'
 import { staggerStyle } from '@/shared/stagger'
 import {
@@ -37,10 +32,18 @@ import {
   tagStyle,
   wordCount,
 } from './shared'
+// 展示层零件与共用类型（审计 C-7）：已拆到 ./NoteEditorPieces，类型以其为单一事实源
+import {
+  PreviewSwitch,
+  MentionHighlight,
+  MentionEntitySummary,
+  CardRow,
+  EntityMissing,
+  SaveBadge,
+  type MentionType,
+  type SaveState,
+} from './NoteEditorPieces'
 
-type SaveState = 'saved' | 'dirty' | 'saving'
-
-type MentionType = NoteMention['type']
 
 interface MentionItem {
   type: MentionType
@@ -246,32 +249,6 @@ export default function NoteEditorPage() {
  * 不受右栏显隐影响。开=右栏双栏实时渲染；关=右栏整条不渲染，左栏专注写作并居中。
  * 语义与外观一致：`role=switch` + `aria-checked`，键盘 Space/Enter 可切。
  */
-function PreviewSwitch({ on, onToggle }: { on: boolean; onToggle: () => void }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      aria-label="实时预览"
-      title={`${on ? '关闭实时预览' : '开启实时预览'}（⌘/Ctrl+Shift+P）`}
-      onClick={onToggle}
-      className="flex shrink-0 items-center gap-1.5 rounded-md px-1.5 py-0.5 text-[0.8571rem] text-on-surface-variant transition-colors hover:bg-surface-hover-high hover:text-on-surface"
-    >
-      <span>预览</span>
-      <span
-        className={`flex h-4 w-7 shrink-0 items-center rounded-full px-[1px] transition-colors ${
-          on ? 'bg-primary' : 'bg-surface-container-high'
-        }`}
-      >
-        <span
-          className={`h-3 w-3 rounded-full bg-white shadow-sm transition-transform ${
-            on ? 'translate-x-3' : 'translate-x-0'
-          }`}
-        />
-      </span>
-    </button>
-  )
-}
 
 function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: boolean }) {
   const navigate = useNavigate()
@@ -1226,127 +1203,3 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
 }
 
 /** 关键词命中片段高亮：仅纯前缀/包含段加粗着色，未命中原文返回 */
-function MentionHighlight({ label, query }: { label: string; query: string }) {
-  const kw = query.trim()
-  if (!kw) return <>{label}</>
-  const idx = label.toLowerCase().indexOf(kw.toLowerCase())
-  if (idx < 0) return <>{label}</>
-  return (
-    <>
-      {label.slice(0, idx)}
-      <span className="font-semibold text-primary">{label.slice(idx, idx + kw.length)}</span>
-      {label.slice(idx + kw.length)}
-    </>
-  )
-}
-
-/** 悬浮卡片实体摘要（按提及类型），数据缺失（实体已删）显示「已失效」占位 */
-function MentionEntitySummary({
-  type,
-  eid,
-  customers,
-  todos,
-  ledgers,
-  projects,
-  intimacyCfg,
-  scoreRows,
-}: {
-  type: MentionType
-  eid: string
-  customers: Customer[]
-  todos: Todo[]
-  ledgers: Ledger[]
-  projects: Project[]
-  intimacyCfg: ReturnType<typeof useIntimacyConfig>
-  /** 未手动设置档位的客户的算法入参（批次查询结果，Issue #108 健康分兜底） */
-  scoreRows: Record<string, Parameters<typeof resolveIntimacyLevel>[2]>
-}) {
-  if (type === 'customer') {
-    const c = customers.find((x) => x.id === eid)
-    if (!c) return <EntityMissing name="客户" />
-    // 健康分口径与详情/列表统一：未手动设置时由算法推断并用括号标注（Issue #108）
-    const health = resolveHealthScoreDisplay(c, intimacyCfg, scoreRows[c.id] ?? null)
-    return (
-      <>
-        <CardRow label="公司" value={c.company || '—'} />
-        <CardRow label="职位" value={c.title || '—'} />
-        <CardRow label="健康分" value={health.label} />
-      </>
-    )
-  }
-  if (type === 'todo') {
-    const t = todos.find((x) => x.id === eid)
-    if (!t) return <EntityMissing name="待办" />
-    return (
-      <>
-        <CardRow label="状态" value={todoStatusLabel(t)} />
-        <CardRow label="优先级" value={todoPriorityFullLabel(t.priority)} />
-        <CardRow label="截止" value={t.dueAt ? dayjs(t.dueAt).format('YYYY-MM-DD') : '无'} />
-      </>
-    )
-  }
-  if (type === 'ledger') {
-    const l = ledgers.find((x) => x.id === eid)
-    if (!l) return <EntityMissing name="账本" />
-    return (
-      <>
-        <CardRow label="币种" value={l.currency} />
-        <CardRow label="期初余额" value={String(l.openingBalance)} />
-        <CardRow label="封账周期" value={l.closingCycle} />
-      </>
-    )
-  }
-  const pj = projects.find((x) => x.id === eid)
-  if (!pj) return <EntityMissing name="项目" />
-  return (
-    <>
-      <CardRow
-        label="状态"
-        value={pj.status === 'archived' ? '已归档' : pj.status === 'paused' ? '已搁置' : '进行中'}
-      />
-      {pj.customerId && (
-        <CardRow
-          label="挂靠客户"
-          value={customers.find((c) => c.id === pj.customerId)?.name ?? '—'}
-        />
-      )}
-    </>
-  )
-}
-
-function CardRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-baseline justify-between gap-3 py-0.5">
-      <span className="shrink-0 text-[0.7857rem] text-outline">{label}</span>
-      <span className="min-w-0 truncate text-right text-[0.8571rem] text-on-surface">{value}</span>
-    </div>
-  )
-}
-
-function EntityMissing({ name }: { name: string }) {
-  return (
-    <div className="flex items-center gap-1.5 text-[0.8571rem] text-outline">
-      <Icon name="person_off" size={14} />原{name}已删除或不存在
-    </div>
-  )
-}
-
-function SaveBadge({ state, at }: { state: SaveState; at: number }) {
-  if (state === 'saving')
-    return (
-      <Chip tone="blue" icon="sync">
-        保存中…
-      </Chip>
-    )
-  if (state === 'dirty')
-    return (
-      <Chip tone="gray" icon="edit">
-        编辑中…
-      </Chip>
-    )
-  return (
-    <Chip tone="green" icon="cloud_done">
-      已保存 {dayjs(at).format('HH:mm')}
-    </Chip>
-  )
-}
