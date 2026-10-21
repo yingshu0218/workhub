@@ -92,4 +92,32 @@ if (missing.length) {
   process.exit(1)
 }
 
+/**
+ * 反向报告（审计 C-13 的配套工具 · 2026-10-21）：`--report-unused`
+ * 列出**未被任何源码引用的可用图标**（只报告、不失败，退出码仍为 0）。
+ *
+ * ⚠️ 为什么只做「报告」而不自动删：
+ * 静态扫描**扫不到数据驱动的图标名** —— 例如奖杯图标来自 `db/seed.ts` 的
+ * `trophies[].icon` 字段（`psychology` / `handshake` …），而 `<Icon name={t.icon} />`
+ * 传的是变量。删图标前必须**同时核对数据源**，否则会删掉运行时真正用到的图标
+ * （而缺失时 Icon 组件**静默渲染空白**，只有肉眼能发现）。
+ * 另经实测：241 个图标 gzip 后仅 ~31KB，删除全部未引用项收益约 **3.6%**（主包 gzip），
+ * 与「误删导致静默空白」的风险不对等 —— 故本仓库**不做图标清理**，只留这个核对工具。
+ */
+if (process.argv.includes('--report-unused')) {
+  const unused = [...available]
+    .filter((n) => !used.has(n) && !used.has(n.replace(/-fill$/, '')))
+    .sort()
+  if (unused.length === 0) {
+    console.log('✅ 无未引用图标（全部可用图标都被源码引用）')
+  } else {
+    console.log(`\nℹ️ 未被源码引用的可用图标 ${unused.length} 个（**候选清单，勿直接删**）：\n`)
+    for (const n of unused) console.log(`  • ${n}`)
+    console.log(
+      '\n⚠️ 删除前必须核对「数据驱动的图标名」（如 db/seed.ts 的 trophies[].icon、' +
+        '模块配置里的图标字段）——静态扫描看不到它们，误删会静默渲染空白。\n',
+    )
+  }
+}
+
 console.log(`✅ 图标校验通过：${used.size} 个引用全部存在（可用图标 ${available.size} 个）`)

@@ -1,6 +1,7 @@
 import { db } from '@/db/db'
 import { storage } from '@/storage'
 import { newId } from '@/repositories'
+import { nextSortOrder, reorderBySortOrder } from '@/repositories/sortOrder'
 import type { TodoList, Todo } from '@/db/types'
 import { useQuery } from '@/queries/hooks'
 import { isTodoOpen } from './domain'
@@ -27,14 +28,12 @@ export function useTodoLists(): TodoList[] {
 
 /** 新建清单 */
 export async function createTodoList(name: string): Promise<TodoList> {
-  const all = await storage.list<TodoList>('todoLists')
-  const alive = all.filter((l) => !l.deleted)
   const now = Date.now()
   const list: TodoList = {
     id: newId('tl'),
     name: name.trim(),
-    // 取当前最大 sortOrder + 1：用「列表长度」在删除后会产生重号（如 0,2,3 后再新建又得 3）
-    sortOrder: alive.reduce((max, l) => Math.max(max, l.sortOrder), -1) + 1,
+    // 尾值走收口实现（max+1，非 length —— length 在删除后会产生重号，见 repositories/sortOrder.ts）
+    sortOrder: await nextSortOrder('todoLists'),
     createdAt: now,
     updatedAt: now,
     deleted: 0,
@@ -86,19 +85,9 @@ export async function deleteTodoListCascade(id: string): Promise<void> {
 }
 
 
-/** 拖拽排序：按传入的 id 顺序重写 sortOrder */
+/** 拖拽排序：按传入的 id 顺序重写 sortOrder（收口实现，见 repositories/sortOrder.ts） */
 export async function reorderTodoLists(orderedIds: string[]): Promise<void> {
-  const now = Date.now()
-  await storage.transaction(['todoLists', 'syncQueue'], async (tx) => {
-    const all = await tx.list<TodoList>('todoLists')
-    for (let i = 0; i < orderedIds.length; i++) {
-      const l = all.find((x) => x.id === orderedIds[i])
-      if (!l || l.deleted || l.sortOrder === i) continue
-      await tx.put('todoLists', { ...l, sortOrder: i, updatedAt: now, rev: l.rev + 1 })
-      await tx.enqueue('todoLists', l.id, 'upsert', now)
-    }
-  })
-  storage.requestSync()
+  await reorderBySortOrder('todoLists', orderedIds)
 }
 
 /** 各清单的未完成计数 */

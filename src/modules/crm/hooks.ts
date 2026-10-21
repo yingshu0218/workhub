@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import dayjs from 'dayjs'
 import { db } from '@/db/db'
 import { storage } from '@/storage'
+import { nextSortOrder, reorderBySortOrder } from '@/repositories/sortOrder'
 import { txnCustomerIds, txnProjectIds } from '@/modules/finance/links'
 import { useQuery } from '@/queries/hooks'
 import { newId } from '@/repositories'
@@ -480,17 +481,7 @@ export function moveInOrder(ids: readonly string[], from: number, to: number): s
  * —— 审计 P1（2026-10-21）：模块直写 `db.transaction` 的 30 处不随存储迁移。
  */
 export async function reorderCustomerGroups(orderedIds: string[]): Promise<void> {
-  const now = Date.now()
-  await storage.transaction(['customerGroups', 'syncQueue'], async (tx) => {
-    const all = await tx.list<CustomerGroup>('customerGroups')
-    for (let i = 0; i < orderedIds.length; i++) {
-      const g = all.find((x) => x.id === orderedIds[i])
-      if (!g || g.deleted || g.sortOrder === i) continue
-      await tx.put('customerGroups', { ...g, sortOrder: i, updatedAt: now, rev: g.rev + 1 })
-      await tx.enqueue('customerGroups', g.id, 'upsert', now)
-    }
-  })
-  storage.requestSync()
+  await reorderBySortOrder('customerGroups', orderedIds)
 }
 
 /** 新建分组（同事务入同步队列，走 TodoList 先例） */
@@ -501,7 +492,6 @@ export async function createCustomerGroup(input: {
   /** 分组模式（2026-10-17 双模式）：缺省 rule 兼容旧调用方 */
   kind?: 'manual' | 'rule'
 }): Promise<CustomerGroup> {
-  const all = await storage.list<CustomerGroup>('customerGroups')
   const now = Date.now()
   const group: CustomerGroup = {
     id: newId('cg'),
@@ -509,7 +499,8 @@ export async function createCustomerGroup(input: {
     kind: input.kind ?? 'rule',
     includeTags: input.includeTags,
     excludeTags: input.excludeTags,
-    sortOrder: all.filter((g) => !g.deleted).length,
+    // 尾值走收口实现（max+1，非 length —— length 在删除后会产生重号，见 repositories/sortOrder.ts）
+    sortOrder: await nextSortOrder('customerGroups'),
     createdAt: now,
     updatedAt: now,
     deleted: 0,

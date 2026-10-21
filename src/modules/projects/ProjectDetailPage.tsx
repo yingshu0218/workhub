@@ -5,6 +5,7 @@ import { useCollection, useRecord } from '@/queries/hooks'
 import { isImeComposing } from '@/shared/ime'
 import { db } from '@/db/db'
 import { interactionRepo, newId, saveInteractionAndTouchCustomer } from '@/repositories'
+import { nextSortOrder } from '@/repositories/sortOrder'
 import type { PutInput } from '@/repositories/repository'
 import type { Customer, Interaction, Project, ProjectMilestone } from '@/db/types'
 import {
@@ -480,7 +481,9 @@ function MilestoneCard({
       weight: w,
       status: 'planned',
       dueAt: dueAt ? dayjs(dueAt).valueOf() : undefined,
-      sortOrder: milestones.length,
+      // 尾值收口（审计 C-9 同类项）：原为 `milestones.length` —— 删除里程碑后会与存活项重号。
+      // 作用域限定「本项目内的里程碑」（不能退化成全表 max，否则会拿到别的项目的尾值）。
+      sortOrder: await nextSortOrder('projectMilestones', (m) => m.projectId === projectId),
     })
     setName('')
     setWeight('1')

@@ -74,8 +74,13 @@ class SyncEngine {
     document.removeEventListener('visibilitychange', this.onVisible)
     if (this.timer) clearInterval(this.timer)
     if (this.probeTimer) clearInterval(this.probeTimer)
+    // ⚠️ 必须一并清去抖定时器（审计 C-11）：`requestSync()` 会挂一个 2s 的 `debounce`，
+    // 而 stop() 此前只清了 timer/probeTimer —— StrictMode 下 effect 卸载再挂载时，
+    // pending 的去抖仍会在 2s 后触发 `syncNow`，即**卸载后的副作用**（对已停引擎再发一次同步）。
+    if (this.debounce) clearTimeout(this.debounce)
     this.timer = null
     this.probeTimer = null
+    this.debounce = null
   }
 
   /** repository 写入后调用：防抖 2s 合并推送 */

@@ -1,9 +1,10 @@
 import type { Attachment } from '@/db/db'
 import { db } from '@/db/db'
 import { storage } from '@/storage'
+import { nextSortOrder, reorderBySortOrder } from '@/repositories/sortOrder'
 
 import { useQuery } from '@/queries/hooks'
-import type { Ledger, Transaction } from '@/db/types'
+import type { Transaction } from '@/db/types'
 
 /**
  * 财务模块领域查询 Hook（附件读写在 hooks 层封装，组件不直碰 Dexie）
@@ -88,23 +89,12 @@ export async function deleteTransactionCascade(txnId: string): Promise<void> {
 
 // ===== 账本左侧树（数据层与 todo 自定义清单同款事务纪律） =====
 
-/** 新建账本的排序尾值 */
+/** 新建账本的排序尾值（收口实现：max+1，非 length —— 见 repositories/sortOrder.ts） */
 export async function nextLedgerSortOrder(): Promise<number> {
-  const all = await db.ledgers.toArray()
-  return all.filter((l) => !l.deleted).length
+  return nextSortOrder('ledgers')
 }
 
-/** 拖拽排序：按传入的 id 顺序重写 sortOrder（事务 + 入同步队列，同 todoLists） */
+/** 拖拽排序：按传入的 id 顺序重写 sortOrder（收口实现，见 repositories/sortOrder.ts） */
 export async function reorderLedgers(orderedIds: string[]): Promise<void> {
-  const now = Date.now()
-  await storage.transaction(['ledgers', 'syncQueue'], async (tx) => {
-    const all = await tx.list<Ledger>('ledgers')
-    for (let i = 0; i < orderedIds.length; i++) {
-      const l = all.find((x) => x.id === orderedIds[i])
-      if (!l || l.deleted || l.sortOrder === i) continue
-      await tx.put('ledgers', { ...l, sortOrder: i, updatedAt: now, rev: l.rev + 1 })
-      await tx.enqueue('ledgers', l.id, 'upsert', now)
-    }
-  })
-  storage.requestSync()
+  await reorderBySortOrder('ledgers', orderedIds)
 }
