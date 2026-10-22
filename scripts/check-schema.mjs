@@ -17,14 +17,15 @@
  *
  * ## 用法
  *
- *   npm run check:schema                                  # 用 .deploy.env 的地址与超管
+ *   npm run check:schema                                  # 用 .deploy.env 的 DEPLOY_*（测试站）
+ *   npm run check:schema -- --prod                        # 用 .deploy.env 的 PROD_*（正式站）
  *   npm run check:schema -- --url https://team.fpigeon.fun
  *   npm run check:schema -- --url http://1.2.3.4:9001 --identity a@b.c --password xxx
  *
- * 凭据优先级：命令行 > 环境变量（WORKHUB_SUPERUSER / WORKHUB_SUPERUSER_PASSWORD）> .deploy.env
+ * 凭据优先级：命令行 > 环境变量（WORKHUB_SUPERUSER / WORKHUB_SUPERUSER_PASSWORD）> .deploy.env 的对应段
  *
- * ⚠️ **正式站与测试站的超管是两套账号**：`.deploy.env` 里那个在正式站会返回 400
- * （实测 2026-10-21）。查正式站时显式传 `--identity/--password`。
+ * ⚠️ **正式站与测试站的超管是两套账号**（同名不同密码），故用 `--prod` 切段，
+ * 不要手工 `--password "$(ssh …)"` —— 每次现取既要连服务器，也容易取错环境。
  *
  * ## 刻意不做的事
  * - 不自动导入、不自动建表 —— 改线上 schema 必须由人确认后执行（破坏性操作的既定纪律）；
@@ -108,17 +109,29 @@ async function main() {
   const argv = process.argv.slice(2)
   const env = readDeployEnv()
 
-  const base = (argOf(argv, '--url', env.DEPLOY_PUBLIC_URL || '') || '').replace(/\/+$/, '')
+  /**
+   * `--prod` → 读 `PROD_*` 段（正式站），缺省 `DEPLOY_*`（测试站 / devtest）。
+   *
+   * 为什么要在脚本里区分：两个环境是**独立部署**，超管同名但密码不同
+   * （正式站以服务器 `/opt/workhub/.env` 为准，24 字符；测试站 20 字符）。
+   * 之前只能 `--password "$(ssh … grep …)"` 现取，每查一次要连一次服务器，
+   * 而 `.deploy.env` 本就被 gitignore —— 凭据落在那儿既安全又省事。
+   */
+  const useProd = argv.includes('--prod')
+  const P = useProd ? 'PROD' : 'DEPLOY'
+  const label = useProd ? '正式站' : '测试站'
+
+  const base = (argOf(argv, '--url', env[`${P}_PUBLIC_URL`] || '') || '').replace(/\/+$/, '')
   const identity =
-    argOf(argv, '--identity') || process.env.WORKHUB_SUPERUSER || env.DEPLOY_SUPERUSER || ''
+    argOf(argv, '--identity') || process.env.WORKHUB_SUPERUSER || env[`${P}_SUPERUSER`] || ''
   const password =
     argOf(argv, '--password') ||
     process.env.WORKHUB_SUPERUSER_PASSWORD ||
-    env.DEPLOY_SUPERUSER_PASSWORD ||
+    env[`${P}_SUPERUSER_PASSWORD`] ||
     ''
 
   if (!base) {
-    console.error('缺少站点地址：用 --url 指定，或在 .deploy.env 里配 DEPLOY_PUBLIC_URL')
+    console.error(`缺少站点地址：用 --url 指定，或在 .deploy.env 里配 ${P}_PUBLIC_URL`)
     process.exit(2)
   }
   if (!identity || !password) {
@@ -131,7 +144,7 @@ async function main() {
 
   console.log(`\n集合 schema 差异检测`)
   console.log(`  本地  pb_setup/collections.json（${localMap.size} 个集合）`)
-  console.log(`  远端  ${base}\n`)
+  console.log(`  远端  ${base}（${label}）\n`)
 
   const token = await login(base, identity, password)
   const remoteRaw = await fetchCollections(base, token)

@@ -142,7 +142,7 @@
 
 | 事项 | 说明 |
 |---|---|
-| **正式站 AI 桥（唯一剩余）** | 新版已上线（`cd74317`）+ schema 已同步。需在浏览器打开 `https://team.fpigeon.fun` → 用 `demo@nexus.local` 登录 → 设置 → AI Agent 桥 → 启用。**这一步自动化不了**（桥的执行体在页面进程内、要访问 IndexedDB），启用后 `node relay/mcp-stdio-shim.mjs --verify` 才能列出 34 个工具；此前报 `-32001` **不是配置错** |
+| **正式站 AI 桥（唯一剩余）** | 新版已上线（`cd74317`）+ schema 已同步。需在浏览器打开 `https://team.fpigeon.fun` → 用 `demo@nexus.local` 登录（密码见 `.deploy.env` 的 `PROD_APP_PASSWORD`，2026-10-22 已重置并验证登录 200）→ 设置 → AI Agent 桥 → 启用。**这一步自动化不了**（桥的执行体在页面进程内、要访问 IndexedDB），启用后 `node relay/mcp-stdio-shim.mjs --verify` 才能列出 34 个工具；此前报 `-32001` **不是配置错** |
 | 双端真机日常使用 | 手机+电脑配同步各一次，用几天验证 LWW/断网补传实际体验 |
 
 ### 工作台首页布局重构与随记收集箱（Issue #134，已提 PR）
