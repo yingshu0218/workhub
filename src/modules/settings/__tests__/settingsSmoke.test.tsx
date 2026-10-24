@@ -14,8 +14,8 @@
  * 判据刻意用**宽松的内容存在性**（不是精确快照）——目的是抓「整块消失/抛错」，
  * 不是锁 UI 细节（细节会随设计迭代变化，锁太死会变成维护负担）。
  */
-import { describe, it, expect, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import 'fake-indexeddb/auto'
@@ -37,6 +37,13 @@ const TABS: { label: string; marker: string }[] = [
 beforeEach(async () => {
   await Promise.all(db.tables.map((t) => t.clear()))
 })
+
+/**
+ * 显式 cleanup（本仓 vitest 未开 `globals`，testing-library 的自动清理不生效）：
+ * 上一条用例挂载的页面会留在 document 里，第二条用例的 `queryAllByRole(...)[0]`
+ * 可能点到**上一个实例**的导航按钮，且 DOM 越大越慢。
+ */
+afterEach(cleanup)
 
 describe('SettingsPage 冒烟：8 个 tab 都能渲染出实质内容', () => {
   it('默认进入「外观与主题」且有内容', async () => {
@@ -97,5 +104,7 @@ describe('SettingsPage 冒烟：8 个 tab 都能渲染出实质内容', () => {
     const bad = results.filter((r) => !r.ok).map((r) => `${r.tab}：${r.detail}`)
     expect(bad).toEqual([])
     expect(results.length).toBe(TABS.length)
-  })
+    // 8 次点击 + 8 次 waitFor，默认 5s 在并发负载下会超时（实测 5.2s）——
+    // 这是「交互次数多」而非「功能坏了」，给足预算而不是删断言
+  }, 20_000)
 })

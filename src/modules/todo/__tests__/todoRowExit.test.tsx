@@ -146,20 +146,31 @@ describe('待办行退场 · 多条（正常路径）', () => {
      */
     await renderWith([todo('t1', '甲', 2), todo('t2', '乙', 1)])
     check('甲')
+
+    /**
+     * ⚠️ 三个断言必须在**同一个** waitFor 里抓元素。
+     *
+     * 退场窗口只有 `ROW_EXIT_DURATION_MS`（200ms）：分两次 `queryByText` 会撞上
+     * 「第一次刚拿到 anim-row-out、第二次该行已被移除」的竞态 —— `rowOf(...)!` 拿到 null，
+     * 报的是 `Cannot read properties of null`，看着像组件崩了，实际是抢窗口。
+     * 抓到引用后行被移除也不影响后续断言（引用仍指向那个已脱离文档的节点）。
+     */
+    let row: HTMLElement | null = null
+    let cb: HTMLButtonElement | null = null
     await waitFor(() => {
-      expect(rowOf('甲')!.className).toContain('anim-row-out')
+      row = rowOf('甲')
+      expect(row?.className).toContain('anim-row-out')
+      cb = checkBoxEl('甲')
+      // ② 勾选框被 disabled（jsdom 里 disabled 的 button 不派发 click）
+      expect(cb.disabled, '退场行的勾选框必须 disabled').toBe(true)
     })
 
     // ① 行根带 pointer-events-none（真浏览器里挡住行内一切交互）
-    expect(rowOf('甲')!.className).toContain('pointer-events-none')
-
-    // ② 勾选框被 disabled（jsdom 里 disabled 的 button 不派发 click）
-    const cb = checkBoxEl('甲')
-    expect(cb.disabled, '退场行的勾选框必须 disabled').toBe(true)
+    expect(row!.className).toContain('pointer-events-none')
 
     // ③ 真的点它：DB 状态不得被改动
     const before = (await db.todos.get('t1'))!.status
-    fireEvent.click(cb)
+    fireEvent.click(cb!)
     await act(async () => {
       await new Promise((r) => setTimeout(r, 60))
     })
@@ -169,13 +180,15 @@ describe('待办行退场 · 多条（正常路径）', () => {
   it('退场行不可拖拽、也点不开详情', async () => {
     await renderWith([todo('t1', '甲', 2), todo('t2', '乙', 1)])
     check('甲')
+    // 同「不可交互」那条：引用必须在 waitFor 内抓，出窗口再查会拿到 null
+    let row: HTMLElement | null = null
     await waitFor(() => {
-      expect(rowOf('甲')!.className).toContain('anim-row-out')
+      row = rowOf('甲')
+      expect(row?.className).toContain('anim-row-out')
     })
 
-    const row = rowOf('甲')!
-    expect(row.getAttribute('draggable')).toBe('false')
-    expect(row.getAttribute('aria-hidden')).toBe('true')
+    expect(row!.getAttribute('draggable')).toBe('false')
+    expect(row!.getAttribute('aria-hidden')).toBe('true')
   })
 
   it('退场播完后行被移除；随后重新出现的行恢复可交互', async () => {

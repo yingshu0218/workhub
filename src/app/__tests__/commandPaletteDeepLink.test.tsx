@@ -7,7 +7,7 @@
  * 修复前只 navigate('/finance')，抽屉不出现 → 观感就是「点了没反应」。
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { render, screen, fireEvent, cleanup } from '@testing-library/react'
+import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react'
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
 import 'fake-indexeddb/auto'
 import { db } from '@/db/db'
@@ -41,9 +41,8 @@ async function searchAndClick(keyword: string, label: string) {
   await new Promise((r) => setTimeout(r, 60))
   const input = document.querySelector('input')!
   fireEvent.change(input, { target: { value: keyword } })
-  await new Promise((r) => setTimeout(r, 60))
+  // 结果由 findByText 轮询等待（内部 1s），不再固定 sleep —— 固定等待在并发负载下必然不足
   fireEvent.click(await screen.findByText(label))
-  await new Promise((r) => setTimeout(r, 200))
 }
 
 describe('⌘K 流水结果 → 财务凭证详情', () => {
@@ -76,9 +75,13 @@ describe('⌘K 流水结果 → 财务凭证详情', () => {
 
     await searchAndClick('买咖啡', '买咖啡')
 
-    // 落到财务中心，focus 参数消费后清掉
-    expect(document.querySelector('[data-testid=loc]')?.textContent).toBe('/finance')
+    // 落到财务中心，focus 参数消费后清掉。
+    // ⚠️ 清参在 FinancePage 的消费 effect 里，晚于「抽屉已开」这一帧 ——
+    // 同步断言读到的是 `?focus=t1` 中间态（全量并发下必现，单跑常绿）。
+    await waitFor(() =>
+      expect(document.querySelector('[data-testid=loc]')?.textContent).toBe('/finance'),
+    )
     // 关键：详情抽屉自动打开
-    expect(screen.getByText('财务流水凭证详情')).toBeTruthy()
+    expect(await screen.findByText('财务流水凭证详情')).toBeTruthy()
   })
 })

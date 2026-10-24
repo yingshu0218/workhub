@@ -149,7 +149,11 @@ describe('待办列表行点击 → 详情抽屉（Issue #162）', () => {
     fireEvent.click(screen.getByText('查看凭证'))
     // 落到财务中心并自动打开该笔凭证详情（深链消费后清参数）
     await screen.findByText('财务流水凭证详情')
-    expect(document.querySelector('[data-testid=loc]')?.textContent).toBe('/finance')
+    // 「抽屉已开」与「参数已清」是两个异步步（清参在 FinancePage 的消费 effect 里），
+    // 直接同步断言会读到 `?focus=t1` 的中间态 —— 全量并发负载下必现，单跑常绿。
+    await waitFor(() =>
+      expect(document.querySelector('[data-testid=loc]')?.textContent).toBe('/finance'),
+    )
   })
 
   it('⑤ 详情内标记完成 → 状态落库为 done 且补齐 completedAt（走领域函数）', async () => {
@@ -207,9 +211,15 @@ describe('待办列表行点击 → 详情抽屉（Issue #162）', () => {
   it('⑩ 深链指向不存在的 id → 不弹误导性空态抽屉，静默清参数', async () => {
     await db.todos.put(todo() as never)
     renderApp('/todo?focus=不存在')
-    await new Promise((r) => setTimeout(r, 50))
+    // 首帧（todos 尚未回填）不得因为「查无此记录」就弹出空态抽屉 —— 未回填 ≠ 不存在
     expect(screen.queryByText('待办详情')).toBeNull()
-    expect(document.querySelector('[data-testid=loc]')?.textContent).toBe('/todo')
+    // 数据就绪后判定为「目标不存在」→ 静默清参。
+    // ⚠️ 不能用固定 sleep：清参发生在「数据回填后 effect 重跑」的 setTimeout(0) 里，
+    // 首帧 resolveFocusAction 返回 wait（刻意保留参数），回填耗时取决于 liveQuery —— 并发下必超 50ms。
+    await waitFor(() =>
+      expect(document.querySelector('[data-testid=loc]')?.textContent).toBe('/todo'),
+    )
+    expect(screen.queryByText('待办详情')).toBeNull()
   })
 
   it('⑪ 财务凭证详情点「查看待办详情」→ 待办详情抽屉打开（反向穿透对称）', async () => {
