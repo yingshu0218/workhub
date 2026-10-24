@@ -243,28 +243,43 @@ async function pbUpsert(
   const filter = encodeURIComponent(`localId = '${escapePbFilterValue(localId)}'`)
   // fields 附带 updatedAt（推送侧 LWW 校验，P0-2）与 deleted（删除优先：识别服务端墓碑）。
   // 搭同一次查询取回，不额外增加请求。
-  const found = await pbAuthedFetch(
+  let found = await pbAuthedFetch(
     cfg,
-    `/api/collections/${pbCollection(table)}/records?filter=${filter}&fields=id,updatedAt,deleted`,
+    `/api/collections/${pbCollection(table)}/records?filter=${filter}&fields=id,updatedAt,deleted,restoredAt`,
     { method: 'GET' },
   )
+  // 滚动升级兼容：服务端尚未导入 restoredAt 时，PocketBase 对未知 fields 会返回 400。
+  // 回退到旧字段只影响「恢复标记」的读取，普通同步不应因 Schema 未升级而整体断掉。
+  if (!found.ok && found.status === 400) {
+    found = await pbAuthedFetch(
+      cfg,
+      `/api/collections/${pbCollection(table)}/records?filter=${filter}&fields=id,updatedAt,deleted`,
+      { method: 'GET' },
+    )
+  }
   if (!found.ok) throw new Error(`查询 ${table}/${localId} 失败（HTTP ${found.status}）`)
   const { items } = (await found.json()) as { items?: PbRecord[] }
   const exists = !!items && items.length > 0
   const remoteId = exists ? String(items![0].id) : ''
+  let remoteRestoredAt = 0
 
   if (exists) {
     const remoteUpdatedAt = typeof items![0].updatedAt === 'number' ? items![0].updatedAt : 0
     const localUpdatedAt = typeof rec.updatedAt === 'number' ? rec.updatedAt : 0
     const remoteDeleted = items![0].deleted === 1 || items![0].deleted === true
+    remoteRestoredAt =
+      typeof items![0].restoredAt === 'number' ? (items![0].restoredAt as number) : 0
+    const localRestoredAt =
+      typeof rec.restoredAt === 'number' ? (rec.restoredAt as number) : 0
 
     // 删除优先（2026-09-15 拍板）：服务端已是墓碑，本地这条**活记录**的编辑不得把它复活。
+    // 2026-10-23 回收站唯一例外：本地带 restoredAt 且**晚于**远端墓碑时间 → 这是显式恢复。
     //
     // 为什么必须在推送侧挡：同步引擎是**先推后拉**（engine.runSync 先 adapter.push 再 adapter.pull），
     // 而编辑走 2s 去抖、拉取走 30s 心跳 —— 对端「不知情期间」的编辑几乎总是先被推上来，
     // 这一推就会以更新的 updatedAt 把服务端墓碑覆盖成 deleted=0，之后再也无从收敛。
     // 只靠接收侧（mergeRemote 的删除优先）挡不住这条时序，故两个边界都要设防。
-    if (remoteDeleted && rec.deleted !== 1) {
+    if (remoteDeleted && rec.deleted !== 1 && !(localRestoredAt > remoteUpdatedAt)) {
       console.info(
         `[sync] 拒绝复活已删除记录 ${table}/${localId}（服务端为墓碑，删除优先）`,
       )
@@ -283,7 +298,15 @@ async function pbUpsert(
   }
 
   // 载荷 = 业务字段 + localId 映射字段（不带本地 id；仅 POST 时带派生的 pbRecordId）
-  const payload = { ...toPayload(rec), localId }
+  const payload: Record<string, unknown> = { ...toPayload(rec), localId }
+  // restoredAt 是粘性标记：活记录取本地/远端较大值，普通编辑不能把它抹掉；墓碑不携带。
+  if (rec.deleted !== 1) {
+    const stickyRestoredAt = Math.max(
+      typeof rec.restoredAt === 'number' ? rec.restoredAt : 0,
+      remoteRestoredAt,
+    )
+    if (stickyRestoredAt > 0) payload.restoredAt = stickyRestoredAt
+  }
   stripLocalOnlyFields(table, payload)
 
   if (table === 'attachments' && rec.blob instanceof Blob) {
@@ -491,6 +514,10 @@ async function pushImpl(
           await bizTable(item.table).put({
             ...rec,
             deleted: 1,
+            // 对端墓碑时间即这条删除的真实发生时间（本端只是镜像，不重新计时）
+            deletedAt: upsert.remoteUpdatedAt || Date.now(),
+            restoredAt: undefined,
+            trashSnapshot: undefined,
             updatedAt: Math.max(
               typeof rec.updatedAt === 'number' ? rec.updatedAt : 0,
               upsert.remoteUpdatedAt,
@@ -719,8 +746,22 @@ export async function cleanupTombstones(): Promise<number> {
   const syncEnabled = isSyncConfigured(cfg)
   for (const table of SYNC_TABLES) {
     const t = bizTable(table)
+    /**
+     * 保留期按**真实删除时间**算，不按 updatedAt。
+     *
+     * 为什么（2026-10-24）：墓碑的 updatedAt 会被合并反复抬高（取 `max(远端, 本地)`），
+     * 用它当 cutoff 等于「每次对端合并都给墓碑续命」—— 一条 2026 年的墓碑可能永远清不掉。
+     * 老墓碑没有 deletedAt → 回退 updatedAt（NaN 时 `NaN < cutoff` 为 false，即「不清理」，
+     * 与旧行为一致，不会把缺字段的老数据当过期数据删掉）。
+     */
+    const tombstoneAt = (r: Record<string, unknown>): number =>
+      typeof r.deletedAt === 'number'
+        ? (r.deletedAt as number)
+        : typeof r.updatedAt === 'number'
+          ? (r.updatedAt as number)
+          : Number.NaN
     const stale = (await t.toArray()).filter(
-      (r) => r.deleted === 1 && typeof r.updatedAt === 'number' && (r.updatedAt as number) < cutoff,
+      (r) => r.deleted === 1 && tombstoneAt(r) < cutoff,
     )
     for (const rec of stale) {
       const localId = String(rec.id)
@@ -737,4 +778,66 @@ export async function cleanupTombstones(): Promise<number> {
     }
   }
   return removed
+}
+
+// ─────────────────────────── 回收站永久删除的同步前置 ───────────────────────────
+
+/**
+ * 把一批**尚未确认送达**的墓碑立即推到服务端（回收站「永久删除」的前置条件）。
+ *
+ * ## 为什么永久删除必须先走这一步
+ *
+ * 永久删除是**物理删除本地行**。本地行没了以后，`pushImpl` 再也读不到它
+ * （`if (!rec) → 直接出队`），这条删除就永远送不到服务端 —— 而服务端若仍是
+ * `deleted=0` 的活记录，其他设备 pull 到的还是活数据；它们任何一次编辑都会
+ * 以更新的 `updatedAt` 反过来把记录写回，本端则因为记录已不存在而**拉不到这个复活**。
+ * 结果就是「我明明永久删了，一周后它又出现在另一台设备上，而且这台设备看不到」。
+ *
+ * 所以顺序不可颠倒：**先把墓碑落到服务端并确认成功，再删本地**。
+ * 服务端墓碑本身不在这里清理 —— 它由 `pb_hooks` 的每日 cron 按保留期（30 天）回收，
+ * 这 30 天正是其他设备（可能长期离线）拉取到该墓碑的窗口。永久删除改变的是
+ * **本机立即不可见、不可恢复**，不是「服务端立即消失」。
+ *
+ * ## 本地模式
+ * 未配置同步中心（`serverUrl` 为空）时没有任何远端副本，直接返回 `{ skipped }`，
+ * 调用方可以放心物理删除。
+ */
+export async function pushTombstonesNow(
+  entries: { table: string; recordId: string }[],
+): Promise<{ pushed: number; skipped: number }> {
+  const cfg = await readSyncSettings()
+  if (!isSyncConfigured(cfg)) return { pushed: 0, skipped: entries.length }
+  if (hasCreds(cfg) && !(await isTokenFresh(cfg))) await login(cfg)
+
+  let pushed = 0
+  let skipped = 0
+  for (const { table, recordId } of entries) {
+    const rec = await bizTable(table).get(recordId)
+    // 记录已不在本地/已不是墓碑：无可推送（调用方随后会物理删，语义一致）
+    if (!rec || rec.deleted !== 1) {
+      skipped++
+      continue
+    }
+    try {
+      await pbUpsert(cfg, table, rec)
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err)
+      throw new Error(
+        `永久删除需要先把删除同步到服务器，但推送失败：${detail}。` +
+          `请连接同步中心后重试；若同步地址已失效，可先在「设置 → 同步」中改为仅本机再删除。`,
+      )
+    }
+    await db.meta.put({ key: tombstonePushedKey(table, recordId), value: 1 })
+    pushed++
+  }
+  return { pushed, skipped }
+}
+
+/** 永久删除成功后清掉「delete 已推送」标记（记录已不存在，标记留在 meta 只是垃圾） */
+export async function forgetTombstoneMarks(
+  entries: { table: string; recordId: string }[],
+): Promise<void> {
+  for (const { table, recordId } of entries) {
+    await db.meta.delete(tombstonePushedKey(table, recordId))
+  }
 }

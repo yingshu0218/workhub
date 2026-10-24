@@ -222,7 +222,15 @@ export async function deleteMilestone(id: string): Promise<void> {
   await storage.transaction(['projectMilestones', 'syncQueue'], async (tx) => {
     const prev = await tx.get<ProjectMilestone>('projectMilestones', id)
     if (!prev || prev.deleted) return
-    await tx.put('projectMilestones', { ...prev, deleted: 1, updatedAt: now, rev: prev.rev + 1 })
+    await tx.put('projectMilestones', {
+      ...prev,
+      deleted: 1,
+      updatedAt: now,
+      rev: prev.rev + 1,
+      deletedAt: now,
+      restoredAt: undefined,
+      trashSnapshot: undefined,
+    })
     await tx.enqueue('projectMilestones', id, 'delete', now)
   })
   storage.requestSync()

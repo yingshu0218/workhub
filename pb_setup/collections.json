@@ -194,6 +194,21 @@
         "name": "groupId",
         "type": "text",
         "required": false
+      },
+      {
+        "name": "restoredAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "deletedAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "trashSnapshot",
+        "type": "json",
+        "required": false
       }
     ],
     "indexes": [
@@ -281,6 +296,16 @@
         "type": "number",
         "required": false,
         "presentable": false
+      },
+      {
+        "name": "restoredAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "deletedAt",
+        "type": "number",
+        "required": false
       }
     ],
     "indexes": [
@@ -371,6 +396,16 @@
         "type": "number",
         "required": false,
         "presentable": false
+      },
+      {
+        "name": "restoredAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "deletedAt",
+        "type": "number",
+        "required": false
       }
     ],
     "indexes": [
@@ -508,6 +543,21 @@
         "type": "number",
         "required": false,
         "presentable": false
+      },
+      {
+        "name": "restoredAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "deletedAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "trashSnapshot",
+        "type": "json",
+        "required": false
       }
     ],
     "indexes": [
@@ -640,6 +690,21 @@
         "name": "voidedAt",
         "type": "number",
         "required": false
+      },
+      {
+        "name": "restoredAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "deletedAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "trashSnapshot",
+        "type": "json",
+        "required": false
       }
     ],
     "indexes": [
@@ -715,6 +780,21 @@
         "type": "number",
         "required": false,
         "presentable": false
+      },
+      {
+        "name": "restoredAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "deletedAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "trashSnapshot",
+        "type": "json",
+        "required": false
       }
     ],
     "indexes": [
@@ -814,6 +894,16 @@
         "type": "number",
         "required": false,
         "presentable": false
+      },
+      {
+        "name": "restoredAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "deletedAt",
+        "type": "number",
+        "required": false
       }
     ],
     "indexes": [
@@ -1002,6 +1092,21 @@
         "type": "number",
         "required": false,
         "presentable": false
+      },
+      {
+        "name": "restoredAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "deletedAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "trashSnapshot",
+        "type": "json",
+        "required": false
       }
     ],
     "indexes": [
@@ -1084,6 +1189,16 @@
         "type": "number",
         "required": false,
         "presentable": false
+      },
+      {
+        "name": "restoredAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "deletedAt",
+        "type": "number",
+        "required": false
       }
     ],
     "indexes": [
@@ -1281,6 +1396,16 @@
         "type": "number",
         "required": false,
         "presentable": false
+      },
+      {
+        "name": "restoredAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "deletedAt",
+        "type": "number",
+        "required": false
       }
     ],
     "indexes": [
@@ -1416,6 +1541,21 @@
         "type": "number",
         "required": false,
         "presentable": false
+      },
+      {
+        "name": "restoredAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "deletedAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "trashSnapshot",
+        "type": "json",
+        "required": false
       }
     ],
     "indexes": [
@@ -1516,6 +1656,21 @@
         "type": "number",
         "required": false,
         "presentable": false
+      },
+      {
+        "name": "restoredAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "deletedAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "trashSnapshot",
+        "type": "json",
+        "required": false
       }
     ],
     "indexes": [
@@ -1616,6 +1771,16 @@
         "type": "number",
         "required": false,
         "presentable": false
+      },
+      {
+        "name": "restoredAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "deletedAt",
+        "type": "number",
+        "required": false
       }
     ],
     "indexes": [
@@ -1772,6 +1937,16 @@
       {
         "name": "kind",
         "type": "text",
+        "required": false
+      },
+      {
+        "name": "restoredAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "deletedAt",
+        "type": "number",
         "required": false
       }
     ],

@@ -4,7 +4,32 @@
 >
 > ⚠️ **环境口径（读下面历史轮次前必看）**：测试环境唯一地址 = **`http://8.153.19.221:9001`**（devtest 直连，**明文 HTTP、无域名**）；正式环境 = **`https://team.fpigeon.fun`**（CNB 镜像部署）。域名 **`dev.fpigeon.fun` 已作废**（2026-10-09 全仓清理）——**本文正文中凡出现该域名，一律是历史轮次记述，不代表当前环境**。权威口径见 `docs/开发测试环境说明.md`。
 
-**最后更新**：2026-10-21（**Agent 动作面补全：27 → 34 个工具 + 两个运维脚本**）。**触发**：核查正式站时发现镜像停在 10-10（落后 47 提交、缺 `agent_events` 整表），顺着查「AI 接入是否完整」时暴露工具面的洞 —— **AI 建得出、改不了、删不掉**：习惯域只能打卡与删除（用户说「加个跑步习惯」AI 只能拒绝）、流水只能记不能改删、客户/笔记/项目只能建不能删，而 UI 这些入口**全都有**。
+**最后更新**：2026-10-24（**回收站支持永久删除**）。**目标**：误删可以恢复，确认不要的也能真正清掉 —— 此前回收站只有「恢复」一个出口，墓碑只能等 30 天自动清理。
+① ✅ **数据层**：`repositories/trash.ts` 新增 `purgeTrashRecord` / `purgeAllTrash`，物理删除墓碑（含 `trashSnapshot.children` 里的子墓碑），单事务完成；`StorageAdapter` 配套新增 `delete` 原语（Dexie / PocketBase 两端），注释写明它**不盖章、不入队**，只服务「墓碑已收敛之后」的清理。
+② ⚠️⚠️ **顺序是硬约束：先确认删除已送达服务端，再删本地**。本地行一消失，`pushImpl` 就读不到它（既有 `if (!rec)` 分支直接出队），这条删除**永远送不到服务端**；服务端若仍是 `deleted=0` 的活记录，其他设备会继续拉到活数据并凭更新的 `updatedAt` 写回来 —— 表现为「我删了，一周后它在另一台设备上复活，而这台设备看不到」。故前置新增的 `pushTombstonesNow`，推送失败即抛**可操作错误**（联网重试 / 先改回仅本机），此时本地一条都没删。
+③ ⚠️ **服务端墓碑不跟着立即物理删**：它由 `pb_hooks` 每日 cron 按 30 天保留期回收 —— 这 30 天正是其他设备（可能长期离线）拉到该墓碑的唯一窗口。永久删除改变的是「**本机**立即不可见、不可恢复」，不是「服务端立即消失」。此裁决与 `pushImpl` 里「推完就删 = 删除不跨设备传播」的既有结论同源，不要为了「删得干净」去改它。
+④ ✅ **只接受墓碑**：对活记录调用直接抛错（把「回收站点错一行」变成删活数据是最危险的假阳性），事务内再复核一次 —— 收集之后被恢复的记录会被放过。子墓碑连带删除，但**已被单独恢复的子记录（活数据）绝不带走**。
+⑤ ✅ **页面**：每行加「永久删除」（**不看 `canRestore`** —— 父项已被永久删掉的子记录永远无法恢复，必须留一条能清出去的出口），页头加「清空回收站」；两个独立的 danger 确认弹窗（恢复与永久删除的不可逆性完全不同，不共用）。同时把「父项已被永久删除」的提示从「请先恢复所属客户」改成「已被永久删除，此记录无法恢复」—— 原来那句会让用户一直点一个没有出路的按钮。
+⑥ ⚠️ **测试污染修复**：`TrashPage.test.tsx` 补 `afterEach(cleanup)` —— 本仓 vitest 未开 `globals`，testing-library 的自动清理不生效，上一条用例挂载的页面会留在 document 里并跟着新数据重渲染，报「Found multiple elements」，看着像组件 bug。
+⑦ ✅ **顺带修掉四条既有 flaky（不是本轮引入的）**：全量首跑 3 条失败全部落在未触碰的文件 —— `todoRowDetail`（深链 `?focus=` 未清参）、`commandPaletteDeepLink`（同）、`settingsSmoke`（8 tab 交互超 5s）。根因是**固定 sleep / 同步断言**：`await new Promise(r => setTimeout(r, 50))` 等固定时长，而清参发生在「数据回填后 effect 重跑」里 —— 单跑必绿、并发必红。改用 `waitFor` 轮询真实条件（断言内容不变，只是不再猜时长）；`settingsSmoke` 给 8 次交互留 20s 预算并补 `afterEach(cleanup)`。
+另修 `todoRowExit` 两条同类竞态：退场窗口只有 `ROW_EXIT_DURATION_MS=200ms`，而断言先 `waitFor` 抓一次 `rowOf(...)`、出窗口后再抓第二次 → 第二次拿到 `null`，报 `Cannot read properties of null`（看着像组件崩了，实际是抢窗口）。改为**在同一 `waitFor` 内抓引用**，后续断言复用引用。
+⑧ ⚠️ **测试预算全局化**（`vitest.config.ts` + 新增 `src/test/setup.ts`）：本仓 jsdom 用例要等 **IndexedDB 事务 → liveQuery → React 重渲染**三跳，而 testing-library 默认只给 1000ms（`findBy*`）/ vitest 默认 5000ms（单条）。实测同一份代码：worker 启动 1.22s 时全量 3 条失败，5.69s 时 11 条失败 —— **失败数随机器负载漂移**，报错却是 `Unable to find an element` 这种最像「功能坏了」的形状。故 `asyncUtilTimeout` 1000 → 3000ms、`testTimeout`/`hookTimeout` 5000 → 15000ms。**只买等待预算，不改任何断言**；真挂住的用例仍在 15s 内红。⚠️ 刻意不设 30s：过头会让整套测试退化成「等十分钟然后失败」。
+⑨ ✅ **`deletedAt` 独立字段（2026-10-24 补）**：墓碑的 `updatedAt` 会被同步合并**反复抬高**（`mergeRemote` 取 `max`），而回收站此前拿它当删除时间 —— 「删除于 / 剩余 N 天」随每次对端合并漂移，`cleanupTombstones` 的 30 天 cutoff 还会被续命（一条旧墓碑可能永远清不掉）。现在：删除时写一次、恢复时清空、合并取较晚者，`cleanupTombstones` 改用它判断；**老墓碑没有该字段 → 读取侧回退 `updatedAt`**（不做数据迁移，`NaN < cutoff` 为 false 也不会被误清）。14 个服务端集合同步加字段。
+⑩ ✅ **`notes.mentions` 删除即剪、恢复即回填**：此前只有恢复路径（`trash.pruneDeadRefs`）剪 mentions，**删除侧完全没动** —— 活笔记长期挂一个指向墓碑的 mention。渲染层有 `EntityMissing` 兜底不会崩，但「删除即解绑」是写入端纪律，不能指望每处读取都记得过滤。`TrashSnapshotLink` 新增 `mode: 'mention'`，客户 / 项目 / 待办三处 cascade 剪枝 + 留档，恢复按快照补回（`revision` 用重读后的当前值，避免覆盖同一事务里刚做的解绑）。⚠️ **账本的 mention 仍未覆盖**：账本删除走 `FinancePage` 内联的 `ledgerRepo.softDelete`，本身没有 cascade 函数 —— 属另一个议题，不在这里假装解决。
+⑪ ✅ **Schema 已部署（测试站 + 正式站）**：`check:schema` 报 14 个集合字段差异（**纯新增** `restoredAt` / `trashSnapshot` / `deletedAt`，无修改无删除），`PUT /api/collections/import?deleteMissing=false` 两端导入后复检**均「完全一致」**。⚠️ 这条此前被「未部署」挡了两轮 —— 恢复功能在真实环境本来会因 PATCH 未知字段 400；永久删除不受影响（墓碑载荷里这两个字段都是 `undefined`，JSON 会丢弃）。
+⑫ ✅ 永久删除确认弹窗补「其他设备 30 天窗口」说明：长期离线（>30 天）的设备可能仍留旧副本，同步后才会消失。
+
+> **验证**：tsc ✅ 0 错 / eslint ✅ 0 告警 / 分组跑全绿：回收站相关 **21 条**（`trash` 9 · `trash.purge` 8 · `TrashPage` 4）· `repositories` + `modules/trash` **6 文件** · `sync` **10 passed / 1 skipped** · `modules/crm` + `modules/notes` **18 文件** · `modules/todo` **163 条** · `src/agent` **27 文件 / 3 skipped**（online 用例跳过）· 首跑失败的 3 个文件修复后 **14 条** · 第二轮全量暴露的 6 个文件修复后 **67 条**。**两端 `check:schema` 均「完全一致」**（导入前 14 个集合差异，纯新增字段）。
+> ⚠️⚠️ **全量单跑未在本机拿到最终汇总，不能声称「全绿」**：这台机器同时跑着 3 个占 70–112% CPU 的浏览器进程，worker 启动 1.22s → 5.69s、单文件最长 21.9s，并出现 `Timeout terminating forks worker`；**同一份代码两次全量分别 3 failed / 11 failed，失败集合还不一样** —— 是负载抖动，不是功能回归（其中 4 条已定位并修复根因，见 ⑦⑧）。判断依据是「失败随负载漂移 + 全部落在报错形状为等待超时」，**不是**「重跑一次变绿」。本轮改动的全部受影响目录已分组跑过（见上），但**合并前仍要在一台安静机器上跑一次 `npm test` 收尾**。
+
+**上一轮**：2026-10-23（**全站回收站：删除快照 + 显式恢复协议**）。**目标**：误删的客户/流水/待办/笔记/项目/习惯可在 `/trash` 恢复，并重建删除时被清空的跨模块关联。
+① ✅ **同步层新增唯一受控例外**：`SyncMeta.restoredAt` + `trashSnapshot`；没有 `restoredAt` 的记录仍走原「墓碑不可逆」，有且晚于墓碑才允许复活。推送侧 `pbUpsert`、拉取侧 `mergeRemote` 都按同一矩阵判定；`repository.put` 对墓碑自动盖恢复标记，`softDelete`/cascade 删除清空标记。
+② ✅ **删除快照**：客户/项目/待办/文件夹/清单在清除链接前，把当时仍存活的子项与被解绑链接写进根墓碑；流水/习惯记录附件/打卡。恢复时先恢复根、再按快照恢复子项、回填数组/单值/客户关系，目标已删的链接跳过并计数；恢复后清空快照。
+③ ✅ **回收站页面**：`/trash` 懒加载页 + 侧栏/移动端入口；按类型/关键词筛选，父子分组，子项父项未恢复时禁用；恢复确认显示将恢复的子记录与关联数。
+④ ✅ **文案**：笔记/待办/清单/习惯/流水/客户/项目/文件夹删除确认统一指向回收站（30 天）；不再出现「暂无回收站入口」「此操作不可撤销」等错误表述（保留「清空本地缓存」）。
+⑤ ⚠️ **未部署 Schema**：`pb_setup/collections.json` 已给 14 个集合加 `restoredAt`、7 个父级集合加 `trashSnapshot`，但测试站/正式站尚未导入。**恢复写入必须先升级服务端 Schema**（否则 PATCH 因未知字段失败）；`npm run check:schema` 当前会正确报出 14 个集合差异。普通同步已加回退：查不到 `restoredAt` 字段时退回旧字段查询，不会因未升级而整体断掉。
+⑥ 验证：`tsc -b` ✅ / `npm run lint` ✅ / `npm run build` ✅；新增同步协议 7 条（文件总计 22 条）+ 回收站数据层 4 条 + 页面 2 条全绿；`mergeJsonFieldRevive` 12 条全绿。⚠️ 全量 vitest 未在单命令内跑完（后台进程被环境回收），合并前需补跑。
+**上一轮**：2026-10-21（**Agent 动作面补全：27 → 34 个工具 + 两个运维脚本**）。**触发**：核查正式站时发现镜像停在 10-10（落后 47 提交、缺 `agent_events` 整表），顺着查「AI 接入是否完整」时暴露工具面的洞 —— **AI 建得出、改不了、删不掉**：习惯域只能打卡与删除（用户说「加个跑步习惯」AI 只能拒绝）、流水只能记不能改删、客户/笔记/项目只能建不能删，而 UI 这些入口**全都有**。
 ① ✅ **先下沉再补工具**：`deleteTransactionCascade`（原 `modules/finance/hooks.ts`）与 `deleteProjectCascade`（原 `modules/projects/hooks.ts`）**上移到 `repositories/index.ts`**，与 `deleteCustomerCascade`/`deleteHabitCascade` 同处 —— 级联是**落库口径**，不该散在带 React 钩子的模块文件里；modules 侧改 re-export，UI/测试导入路径零变化。**不新写删除逻辑**（否则同一语义两份实现，AI 删过的流水会留附件幽灵记录）。
 ② ✅ **新增 7 个工具**（`habit_createHabit` / `habit_updateHabit` / `fin_updateTransaction` / `fin_deleteTransaction` / `note_deleteNote` / `crm_deleteCustomer` / `project_deleteProject`），三处登记齐备（schema + TOOL_RISK + TOOL_DOMAIN + `AGENT_TOOLS`）。风险分级：创建习惯 low、改流水 medium（金额/日期是脏统计源头）、四个删除 high。
 ③ ⚠️ **刻意不做 `note_deleteFolder`**：UI **没有删除文件夹入口**（只有新建）。为 AI 发明一个界面都没有的破坏性动作，是**扩大面**而非补齐面 —— 与「只加 UI 已有入口、语义明确的动作」纪律冲突。
@@ -94,6 +119,7 @@
 | 项 | 状态 |
 |---|---|
 | 版本 | **v1 开发完成，已部署线上** |
+| 全站回收站 | ✅ 代码与 `/trash` 页面已落盘；⚠️ **服务端 Schema 未升级**（14 个集合 `restoredAt` + 7 个父级 `trashSnapshot`），恢复写入上线前必须先导入 `pb_setup/collections.json` |
 | 测试环境 | `http://8.153.19.221:9001`（devtest 直连，**明文 HTTP、无域名**；PocketBase 与本站在同机，PB 实为 `127.0.0.1:9002`，9001 是宿主 nginx） |
 | 里程碑 | M1-M6 全部验收 ✅ |
 | 服务端 Schema | 以 `pb_setup/collections.json` 为准：**20 个集合条目**（业务实体 18 + 同步基础设施 2：`sync_state`/`agent_events`）。⚠️ 正文历史轮次里的「17 collections / 13 张业务表」等数字是**当时快照**，不代表现状 |

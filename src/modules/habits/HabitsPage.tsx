@@ -336,8 +336,8 @@ export default function HabitsPage() {
         confirmText="删除"
         message={
           confirmHabit && confirmHabit.totalChecks > 0
-            ? `该习惯已有 ${confirmHabit.totalChecks} 次历史打卡记录，将一并删除，此操作不可撤销。`
-            : '此操作不可撤销。'
+            ? `该习惯已有 ${confirmHabit.totalChecks} 次历史打卡记录，将一并删除；可在回收站恢复（30 天内），打卡记录会一并回位。`
+            : '删除后可在回收站恢复（30 天内）。'
         }
         onCancel={() => setConfirmHabit(null)}
         onConfirm={() => {

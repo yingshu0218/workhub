@@ -476,7 +476,8 @@ export default function CustomerDetailPage() {
         message={
           <>
             将同时删除其名下 {counts.interaction} 条沟通日志，并解绑 {transactions.length}{' '}
-            笔交易流水与 {todos.length} 项待办。
+            笔交易流水与 {todos.length} 项待办。删除的客户与沟通日志可在回收站恢复（30 天内），
+            被解绑的关联会按删除时的快照重建。
           </>
         }
         onCancel={() => setConfirmDelete(null)}

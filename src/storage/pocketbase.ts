@@ -149,6 +149,32 @@ export function createPocketBaseAdapter(opts: PocketBaseAdapterOptions): Storage
     return first ? normalize(table, first) ?? undefined : undefined
   }
 
+  /**
+   * 物理删除远端记录（按 localId 定位 PB 记录 id 后 DELETE）。
+   *
+   * 幂等：查不到即视为已删除，直接返回（与 `pbDeleteRemote` 同口径）。
+   * 注意这是**真删**，不是写墓碑 —— 服务端脚本/执行器侧只应在回收站永久删除的
+   * 收尾处调用（墓碑已由客户端先行写入并同步收敛），否则会把删除传播断掉。
+   */
+  async function apiDelete(table: TableName, id: string): Promise<void> {
+    const collection = pbCollection(table)
+    const params = new URLSearchParams({
+      filter: `localId='${escapePbFilterValue(id)}'`,
+      perPage: '1',
+    })
+    const found = await api(`/api/collections/${collection}/records?${params}`)
+    if (!found.ok) throw new Error(`[pb-adapter] 删除前查询 ${table}/${id} 失败（HTTP ${found.status}）`)
+    const data = (await found.json()) as PbListResult
+    const first = (data.items ?? [])[0]
+    if (!first) return
+    const res = await api(`/api/collections/${collection}/records/${encodeURIComponent(String(first.id))}`, {
+      method: 'DELETE',
+    })
+    if (!res.ok && res.status !== 404) {
+      throw new Error(`[pb-adapter] 删除 ${table}/${id} 失败（HTTP ${res.status}）`)
+    }
+  }
+
   // ───────────────────────── 写路径（P3：服务端执行器直写 PB 中心） ─────────────────────────
 
   /**
@@ -222,6 +248,9 @@ export function createPocketBaseAdapter(opts: PocketBaseAdapterOptions): Storage
           const cur = await apiGet(table, id)
           const merged = { ...(cur ?? { id }), ...patch, id }
           await upsert(table, merged)
+        },
+        async delete(table, id) {
+          await apiDelete(table, id)
         },
         async enqueue() {
           // no-op：服务端写的 PB 就是同步中心本身，无本地队列

@@ -406,7 +406,8 @@ export default function ProjectDetailPage() {
           <>
             将同时删除 {milestones.length} 个里程碑，并解绑 {transactions.length} 笔流水、
             {todos.length} 项待办、{notes.length} 篇笔记与 {interactions.length}{' '}
-            条跟进记录（记录本身保留）。
+            条跟进记录（记录本身保留）。删除的项目与里程碑可在回收站恢复（30 天内），
+            被解绑的关联会按删除时的快照重建。
           </>
         }
         onCancel={() => setConfirmDelete(false)}

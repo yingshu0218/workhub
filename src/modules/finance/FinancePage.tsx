@@ -459,7 +459,7 @@ export default function FinancePage() {
         title={`确认删除账本「${confirmLedger?.name ?? ''}」？`}
         danger
         confirmText="删除"
-        message="删除后可在同步层恢复前撤销。"
+        message="删除后可在回收站恢复（30 天内）。"
         onCancel={() => setConfirmLedger(null)}
         onConfirm={() => {
           const target = confirmLedger
@@ -1024,7 +1024,7 @@ function TransactionDetailDrawer({
         title={`确认删除流水「${txn?.summary ?? ''}」？`}
         danger
         confirmText="删除"
-        message="其全部附件将一并删除。"
+        message="其全部附件将一并删除；可在回收站恢复（30 天内），附件会一并回位。"
         onCancel={() => setConfirmDelete(false)}
         onConfirm={() => {
           setConfirmDelete(false)

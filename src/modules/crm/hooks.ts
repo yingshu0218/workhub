@@ -535,7 +535,15 @@ export async function deleteCustomerGroup(id: string): Promise<void> {
   await storage.transaction(['customerGroups', 'syncQueue'], async (tx) => {
     const prev = await tx.get<CustomerGroup>('customerGroups', id)
     if (!prev || prev.deleted) return
-    await tx.put('customerGroups', { ...prev, deleted: 1, updatedAt: now, rev: prev.rev + 1 })
+    await tx.put('customerGroups', {
+      ...prev,
+      deleted: 1,
+      updatedAt: now,
+      rev: prev.rev + 1,
+      deletedAt: now,
+      restoredAt: undefined,
+      trashSnapshot: undefined,
+    })
     await tx.enqueue('customerGroups', id, 'delete', now)
   })
   storage.requestSync()

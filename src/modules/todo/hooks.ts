@@ -2,7 +2,7 @@ import { db } from '@/db/db'
 import { storage } from '@/storage'
 import { newId } from '@/repositories'
 import { nextSortOrder, reorderBySortOrder } from '@/repositories/sortOrder'
-import type { TodoList, Todo } from '@/db/types'
+import type { TodoList, Todo, TrashSnapshot } from '@/db/types'
 import { useQuery } from '@/queries/hooks'
 import { isTodoOpen } from './domain'
 import dayjs from 'dayjs'
@@ -72,10 +72,30 @@ export async function deleteTodoListCascade(id: string): Promise<void> {
   await storage.transaction(['todoLists', 'todos', 'syncQueue'], async (tx) => {
     const prev = await tx.get<TodoList>('todoLists', id)
     if (!prev || prev.deleted) return
-    await tx.put('todoLists', { ...prev, deleted: 1, updatedAt: now, rev: prev.rev + 1 })
-    await tx.enqueue('todoLists', id, 'delete', now)
     // 含已软删待办一并解绑：否则其 listId 指向已删清单，UI 上既不在任何清单、也不进「收集箱」
     const todos = (await tx.list<Todo>('todos')).filter((t) => t.listId === id)
+    // 快照只收「删除时仍存活」的待办：已删待办本来就不在清单里，恢复时不该被一起复活
+    const trashSnapshot: TrashSnapshot = {
+      children: [],
+      links: todos
+        .filter((t) => !t.deleted)
+        .map((t) => ({
+          table: 'todos' as const,
+          id: t.id,
+          field: 'listId',
+          mode: 'set' as const,
+          value: id,
+        })),
+    }
+    await tx.update('todoLists', id, {
+      deleted: 1,
+      updatedAt: now,
+      rev: prev.rev + 1,
+      deletedAt: now,
+      restoredAt: undefined,
+      trashSnapshot,
+    })
+    await tx.enqueue('todoLists', id, 'delete', now)
     for (const t of todos) {
       await tx.put('todos', { ...t, listId: undefined, updatedAt: now, rev: t.rev + 1 })
       await tx.enqueue('todos', t.id, 'upsert', now)

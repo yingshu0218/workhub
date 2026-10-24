@@ -45,11 +45,22 @@ export function createRepository<T extends { id: string } & Partial<SyncMeta>>(
       // 盖章、落库、入队必须在同一事务：落库成功而入队失败 = 变更永远不再推送
       await storage.transaction([tableName, 'syncQueue'], async (tx) => {
         const prev = await tx.get<T>(tableName, record.id)
+        /**
+         * 回收站恢复标记（粘性）：
+         * - 对墓碑 put = 显式复活，盖 restoredAt（这是同步层允许复活的唯一凭证）；
+         * - 对活记录 put = 普通编辑，沿用 prev 的标记（表单常只提交部分字段，不能把标记弄丢）。
+         */
+        const reviving = prev?.deleted === 1
+        const restoredAt = reviving ? now : (record.restoredAt ?? prev?.restoredAt)
         await tx.put(tableName, {
           ...record,
           updatedAt: now,
           rev: (prev?.rev ?? 0) + 1,
           deleted: 0 as const,
+          // 活记录不得带删除时间：调用方常把墓碑对象展开后改几个字段再 put，
+          // 残留的 deletedAt 会让回收站口径与 30 天清理 cutoff 读到脏值
+          deletedAt: undefined,
+          ...(restoredAt ? { restoredAt } : {}),
         } as T)
         await tx.enqueue(tableName, record.id, 'upsert', now)
       })
@@ -83,6 +94,11 @@ export function createRepository<T extends { id: string } & Partial<SyncMeta>>(
           deleted: 1,
           updatedAt: now,
           rev: (prev?.rev ?? 0) + 1,
+          // 删除时刻写一次（updatedAt 会被后续同步合并抬高，不能拿来当删除时间）
+          deletedAt: now,
+          // 删除即清空恢复标记与旧快照；再次删除时由 cascade 重新采集
+          restoredAt: undefined,
+          trashSnapshot: undefined,
         })
         await tx.enqueue(tableName, id, 'delete', now)
       })

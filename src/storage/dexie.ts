@@ -23,6 +23,7 @@ interface DexieTableLike {
   get(id: string): Promise<unknown>
   put(value: unknown): Promise<unknown>
   update(id: string, changes: Record<string, unknown>): Promise<number>
+  delete(id: string): Promise<void>
   toArray(): Promise<unknown[]>
 }
 
@@ -47,6 +48,9 @@ function makeTx(deps: DexieAdapterDeps): StorageTx {
     },
     async update(table, id, patch) {
       await tableOf(deps, table).update(id, patch)
+    },
+    async delete(table, id) {
+      await tableOf(deps, table).delete(id)
     },
     async enqueue(table, recordId, op: SyncOp, createdAt) {
       await deps.db.syncQueue.add({ table, recordId, op, createdAt })

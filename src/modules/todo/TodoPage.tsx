@@ -1060,7 +1060,7 @@ export default function TodoPage() {
       <ConfirmDialog
         open={confirmTodo !== null}
         title={`删除待办「${confirmTodo?.title ?? ''}」`}
-        message="删除后该待办将不再显示，且暂无回收站入口，此操作不可撤销。"
+        message="删除后该待办将不再显示，可在回收站恢复（30 天内）。"
         confirmText="删除"
         danger
         onConfirm={() => {
@@ -1117,7 +1117,7 @@ export default function TodoPage() {
         title={`删除清单「${confirmList?.name ?? ''}」？`}
         danger
         confirmText="删除"
-        message={`名下 ${confirmList?.count ?? 0} 条待办将解除归属并移入「收集箱」。此操作不可撤销。`}
+        message={`名下 ${confirmList?.count ?? 0} 条待办将解除归属并移入「收集箱」。删除的清单可在回收站恢复（30 天内），原在其中的待办会一并回位。`}
         onCancel={() => setConfirmList(null)}
         onConfirm={() => {
           const target = confirmList

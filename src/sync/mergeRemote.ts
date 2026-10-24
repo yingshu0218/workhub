@@ -155,17 +155,27 @@ export async function mergeRemoteRecord(
   reviveRemoteJsonFields(table, revived)
   const remoteUpdatedAt = typeof revived.updatedAt === 'number' ? revived.updatedAt : 0
   const localUpdatedAt = typeof local?.updatedAt === 'number' ? local.updatedAt : 0
+  const localRestoredAt =
+    typeof local?.restoredAt === 'number' ? (local.restoredAt as number) : 0
+  const remoteRestoredAt =
+    typeof revived.restoredAt === 'number' ? (revived.restoredAt as number) : 0
 
-  // ── 删除优先（产品口径，2026-09-15 拍板）：软删是**不可逆终态** ──
-  // 依据：本应用不存在「撤销删除 / 恢复」入口（全仓 `deleted: 0` 只出现在新建 meta()，
-  // 待办的「恢复」是 status='voided' → 未完成，属另一套语义，与软删无关）。
-  // 因此一条记录一旦在任一端成为墓碑，就永久保持墓碑 —— 任何更晚的编辑都不允许让它复活。
+  // ── 删除优先（产品口径，2026-09-15 拍板）：软删默认是**不可逆终态** ──
+  // 2026-10-23 回收站新增**唯一受控例外**：记录带 restoredAt，且恢复时间晚于本地墓碑的记录
+  // 才允许复活。没有 restoredAt 的记录仍走原语义（对端不知情期间的编辑不得复活）。
   //
   // 判定必须**先于**下方 LWW 短路：否则「本地编辑更晚」会把远端墓碑挡回去，
   // 而 pullImpl 的游标随即推过该位置 —— 这条删除再也拉不到，本端滞留对端已删的幽灵记录，
   // 并在下次编辑时以更新的 updatedAt 反向复活（即 §4 的 P0 演化路径）。
-  if (isTombstone(local)) return 'skip' // 本端已是墓碑：只进不出，远端更晚的编辑一并丢弃
+  const revivingLocalTombstone =
+    isTombstone(local) && !isTombstone(revived) && remoteRestoredAt > localUpdatedAt
+  if (isTombstone(local) && !revivingLocalTombstone) {
+    // 本端已是墓碑：只进不出，远端更晚的编辑一并丢弃（除非它是显式恢复）
+    return 'skip'
+  }
   if (isTombstone(revived)) {
+    // 本地活着、远端是墓碑：恢复标记比远端删除更晚 → 本地是「恢复后未被对端知晓」的活记录
+    if (!isTombstone(local) && localRestoredAt > remoteUpdatedAt) return 'skip'
     // 方案 B（2026-09-15）：本端**从未持有**该记录时不写墓碑 —— 这类墓碑纯属幽灵。
     //   · 删除只经服务端传播、设备之间不直连，本地墓碑并不承担「再传给第三台设备」的职责
     //     （其他设备各自的删除由它们自己从服务端墓碑拉到）；
@@ -186,13 +196,33 @@ export async function mergeRemoteRecord(
         typeof remote.rev === 'number' ? remote.rev : 0,
       ),
     }
+    // 删除是终态：清掉恢复标记；快照取「更晚那次删除」的版本（远端更新则用远端快照）
+    delete tombstone.restoredAt
+    const snapshot =
+      remoteUpdatedAt > localUpdatedAt
+        ? (revived as Record<string, unknown>).trashSnapshot
+        : (local as Record<string, unknown>).trashSnapshot
+    if (snapshot === undefined) delete tombstone.trashSnapshot
+    else tombstone.trashSnapshot = snapshot
+    // 删除时间取「较晚那次删除」：本地可能有精确的 deletedAt（本端删除），
+    // 远端墓碑可能来自老客户端（没有该字段）→ 用它的 updatedAt 近似，绝不拿本地活记录的
+    // updatedAt 冒充删除时间（那会把「上次编辑时间」写进回收站）。
+    const localDeletedAt =
+      typeof local?.deletedAt === 'number' ? (local.deletedAt as number) : 0
+    const remoteDeletedAt =
+      typeof (revived as Record<string, unknown>).deletedAt === 'number'
+        ? ((revived as Record<string, unknown>).deletedAt as number)
+        : remoteUpdatedAt
+    const mergedDeletedAt = Math.max(localDeletedAt, remoteDeletedAt)
+    if (mergedDeletedAt > 0) tombstone.deletedAt = mergedDeletedAt
+    else delete tombstone.deletedAt
     await table0.put(tombstone)
     return 'write'
   }
 
   // LWW：只认 updatedAt，新者胜；相等视为本端已推送的回环副本，跳过
-  // （仅适用于「双方都非墓碑」——墓碑已在上面先行收口）
-  if (remoteUpdatedAt <= localUpdatedAt) return 'skip'
+  // （仅适用于「双方都非墓碑」——墓碑已在上面先行收口；显式恢复分支不受此短路）
+  if (!revivingLocalTombstone && remoteUpdatedAt <= localUpdatedAt) return 'skip'
 
   // 本地编辑优先保护（Issue #130）：本地存在尚未推送成功（或推送被跳过的）的 upsert 队列条目时，
   // 远端记录先到一步也不能整体覆盖本地 —— 否则「刚编辑的字段被云端旧值抹掉」
@@ -201,7 +231,8 @@ export async function mergeRemoteRecord(
   //
   // 注：走到这里远端必然**不是**墓碑 —— 墓碑已在上方「删除优先」分支收口（2026-09-15 拍板），
   // 因此本分支只需处理「双方都是活记录」的字段级合并，不再需要操心 deleted 被回写的问题。
-  const hasPendingLocalEdit = await hasPendingUpsert(table, localId, pendingIndex)
+  const hasPendingLocalEdit =
+    !revivingLocalTombstone && (await hasPendingUpsert(table, localId, pendingIndex))
   if (hasPendingLocalEdit && local) {
     const mirroredPending = stripPbMeta(revived)
     const merged: Record<string, unknown> = {
@@ -280,6 +311,7 @@ export async function mergeRemoteRecord(
   const remoteVoided = revived.status === 'voided'
   const localVoided = local?.status === 'voided'
   const keepLocalDone =
+    !revivingLocalTombstone &&
     table === 'todos' &&
     ((localDone && !remoteDone) || (localVoided && !remoteVoided && !remoteDone))
 
@@ -292,18 +324,24 @@ export async function mergeRemoteRecord(
   // （Issue #169 P3：本条注释此前写「服务端集合未收录 convertedAt / convertedVia」，与
   // collections.json 现状不符 —— 属注释漂移，已更正。）
   const keepLocalConverted =
-    table === 'quickNotes' && !!local?.convertedTo && !remote.convertedTo
+    !revivingLocalTombstone && table === 'quickNotes' && !!local?.convertedTo && !remote.convertedTo
 
   // 剥离 pb 系统字段与映射字段（与上方保护分支同一套，收口到 stripPbMeta）
   const record: Record<string, unknown> = { ...stripPbMeta(revived) }
   record.id = localId
-  record.updatedAt = remoteUpdatedAt
+  record.updatedAt = revivingLocalTombstone
+    ? Math.max(remoteUpdatedAt, localUpdatedAt)
+    : remoteUpdatedAt
   // 到此双方都非墓碑（墓碑已在上方「删除优先」分支收口）→ 落库必然是活记录
   record.deleted = 0
   record.rev = Math.max(
     typeof local?.rev === 'number' ? local.rev : 0,
     typeof remote.rev === 'number' ? remote.rev : 0,
   )
+  // restoredAt 是粘性标记：普通编辑（远端未带）不能把它抹掉
+  const stickyRestoredAt = Math.max(localRestoredAt, remoteRestoredAt)
+  if (stickyRestoredAt > 0) record.restoredAt = stickyRestoredAt
+  else delete record.restoredAt
   if (keepLocalDone) {
     // 终态本地优先：status 与**对应**时间戳成对保留（Issue #74 完成态 / Issue #128 作废态），
     // 单保 status 不保时间戳会让「今日已完成」统计/时间轴锚点丢依据

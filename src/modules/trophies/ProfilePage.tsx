@@ -189,6 +189,7 @@ export default function ProfilePage() {
       <Card className="mt-4 overflow-hidden md:hidden">
         {[
           { to: '/trophies', icon: 'emoji_events', label: '成就奖杯', hint: '全部奖杯与解锁进度' },
+          { to: '/trash', icon: 'settings_backup_restore', label: '回收站', hint: '恢复最近删除的记录' },
           { to: '/settings', icon: 'settings', label: '系统设置', hint: '外观、通知、同步与导出' },
           { to: '/module-config', icon: 'tune', label: '功能配置', hint: '各业务模块的规则' },
         ].map((item, i) => (

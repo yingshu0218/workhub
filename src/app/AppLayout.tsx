@@ -74,6 +74,7 @@ const TITLES: Record<string, string> = {
   '/profile': '个人主页',
   '/inspiration': '灵感闪现',
   '/settings': '系统设置',
+  '/trash': '回收站',
   '/module-config': '功能配置',
 }
 
@@ -307,6 +308,23 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className={`border-t border-outline-variant/40 ${railOpen ? 'p-3' : 'px-2 py-3'}`}>
+            <NavLink
+              to="/trash"
+              title={collapsed && !railOpen ? '回收站' : '恢复最近删除的客户、流水、待办、笔记等'}
+              className={() =>
+                `app-nav-link mb-1 flex items-center gap-3 rounded-lg px-3 py-2 text-[0.9643rem] ${
+                  collapsed && !railOpen ? 'justify-center px-0' : ''
+                } ${
+                  isNavItemActive(pathname, '/trash')
+                    ? 'is-active bg-primary-fixed font-semibold text-primary'
+                    : 'text-on-surface-variant hover:bg-surface-hover'
+                }`
+              }
+            >
+              <Icon name="settings_backup_restore" />
+              {!(collapsed && !railOpen) && '回收站'}
+            </NavLink>
+
             <NavLink
               to="/module-config"
               title={collapsed && !railOpen ? '功能配置' : '各业务模块的规则配置（与系统设置的界面偏好分开）'}

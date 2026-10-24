@@ -305,6 +305,101 @@ describe('删除优先 · 接收侧（墓碑只进不出）', () => {
   })
 })
 
+// ─────────────────── 回收站恢复例外（2026-10-23） ───────────────────
+
+describe('回收站 · 显式恢复（仅 restoredAt 可打破删除优先）', () => {
+  it('本地墓碑 + 远端活记录带更新的 restoredAt → 本地恢复', async () => {
+    await db.customers.put(customer({ deleted: 1, updatedAt: 100, rev: 2 }) as never)
+
+    const res = await mergeRemote(
+      'customers',
+      { ...remoteLive(200), restoredAt: 200 } as never,
+    )
+
+    expect(res).toBe('write')
+    const after = (await db.customers.get('c1')) as unknown as Record<string, unknown>
+    expect(after.deleted).toBe(0)
+    expect(after.restoredAt).toBe(200)
+  })
+
+  it('本地墓碑 + 远端活记录但 restoredAt 不晚于墓碑 → 仍然删除优先', async () => {
+    await db.customers.put(customer({ deleted: 1, updatedAt: 300, rev: 2 }) as never)
+
+    const res = await mergeRemote(
+      'customers',
+      { ...remoteLive(200), restoredAt: 200 } as never,
+    )
+
+    expect(res).toBe('skip')
+    expect(((await db.customers.get('c1')) as never as Record<string, unknown>).deleted).toBe(1)
+  })
+
+  it('本地活记录带更新的 restoredAt + 远端墓碑 → 本地保持活（恢复优先）', async () => {
+    await db.customers.put(customer({ updatedAt: 200, restoredAt: 200 }) as never)
+
+    const res = await mergeRemote('customers', remoteTombstone(100) as never)
+
+    expect(res).toBe('skip')
+    const after = (await db.customers.get('c1')) as unknown as Record<string, unknown>
+    expect(after.deleted).toBe(0)
+  })
+
+  it('普通编辑不丢 restoredAt（粘性）', async () => {
+    await db.customers.put(customer({ updatedAt: 100, restoredAt: 200 }) as never)
+
+    const res = await mergeRemote('customers', remoteLive(300) as never)
+
+    expect(res).toBe('write')
+    expect(((await db.customers.get('c1')) as never as Record<string, unknown>).restoredAt).toBe(200)
+  })
+
+  it('删除晚于恢复 → 落墓碑并清空 restoredAt', async () => {
+    await db.customers.put(customer({ updatedAt: 200, restoredAt: 200 }) as never)
+
+    const res = await mergeRemote('customers', remoteTombstone(300) as never)
+
+    expect(res).toBe('write')
+    const after = (await db.customers.get('c1')) as unknown as Record<string, unknown>
+    expect(after.deleted).toBe(1)
+    expect(after.restoredAt).toBeUndefined()
+  })
+
+  it('推送侧：本地活记录带晚于墓碑的 restoredAt → 允许 PATCH 复活', async () => {
+    await configureSync()
+    await db.customers.put(
+      customer({ updatedAt: 200, restoredAt: 200, name: '恢复后的名字' }) as never,
+    )
+    installFetch({ remoteExists: true, remoteUpdatedAt: 100, remoteDeleted: true })
+
+    const res = await pocketBaseAdapter.push([
+      { table: 'customers', recordId: 'c1', op: 'upsert' },
+    ])
+
+    expect(res).toEqual([{ recordId: 'c1', ok: true }])
+    const patch = calls.find((c) => c.method === 'PATCH')
+    expect(patch, '应允许一次 PATCH 复活').toBeTruthy()
+    const body = JSON.parse(patch!.body)
+    expect(body.deleted).toBe(0)
+    expect(body.restoredAt).toBe(200)
+  })
+
+  it('推送侧：restoredAt 早于远端墓碑 → 仍拒绝并镜像删除', async () => {
+    await configureSync()
+    await db.customers.put(customer({ updatedAt: 200, restoredAt: 200 }) as never)
+    installFetch({ remoteExists: true, remoteUpdatedAt: 300, remoteDeleted: true })
+
+    const res = await pocketBaseAdapter.push([
+      { table: 'customers', recordId: 'c1', op: 'upsert' },
+    ])
+
+    expect(res).toEqual([{ recordId: 'c1', ok: true }])
+    expect(calls.filter((c) => c.method === 'PATCH' || c.method === 'POST')).toEqual([])
+    const after = (await db.customers.get('c1')) as unknown as Record<string, unknown>
+    expect(after.deleted).toBe(1)
+    expect(after.restoredAt).toBeUndefined()
+  })
+})
+
 // ─────────────────── 墓碑清理（方案 A）与幽灵抑制（方案 B）· 2026-09-15 ───────────────────
 
 /** 31 天前的 updatedAt：越过 cleanupTombstones 的 30 天保留期 */

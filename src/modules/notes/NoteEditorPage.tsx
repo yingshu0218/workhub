@@ -1192,7 +1192,7 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
       <ConfirmDialog
         open={!!confirmDelete?.open}
         title={`删除笔记「${confirmDelete?.title ?? ''}」`}
-        message="删除后可在回收站恢复。"
+        message="删除后可在回收站恢复（30 天内）。"
         confirmText="删除"
         danger
         onConfirm={() => void doDelete()}

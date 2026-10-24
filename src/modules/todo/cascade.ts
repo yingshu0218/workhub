@@ -1,7 +1,7 @@
 import { storage } from '@/storage'
 import { toLinkFieldPatch } from '@/repositories'
 import { txnTodoIds } from '@/modules/finance/links'
-import type { Todo, Transaction } from '@/db/types'
+import type { Todo, Transaction, TrashSnapshot, Note } from '@/db/types'
 
 /**
  * 待办级联删除（Issue #148 后续 · #140 审计留档项的收口）：
@@ -22,18 +22,54 @@ import type { Todo, Transaction } from '@/db/types'
 export async function deleteTodoCascade(todoId: string): Promise<number> {
   const now = Date.now()
   let unlinked = 0
-  await storage.transaction(['todos', 'transactions', 'syncQueue'], async (tx) => {
+  await storage.transaction(['todos', 'transactions', 'notes', 'syncQueue'], async (tx) => {
     const prev = await tx.get<Todo>('todos', todoId)
     if (!prev || prev.deleted) return
-
-    await tx.put('todos', { ...prev, deleted: 1, updatedAt: now, rev: prev.rev + 1 })
-    await tx.enqueue('todos', todoId, 'delete', now)
 
     // transactions.todoIds 已数组化（Issue #140 v11）：按数组解绑，空数组不落键（toLinkFieldPatch）。
     // 不能写 `todoId: undefined` —— 既解不掉数组里的 id，还会按「双写不双读」留下永不读取的旧键。
     const txns = (await tx.list<Transaction>('transactions'))
       .filter((t) => !t.deleted)
       .filter((t) => txnTodoIds(t).includes(todoId))
+    // 笔记里指向该待办的 mention 一并剪掉（2026-10-24 补漏，与客户/项目 cascade 同款）。
+    // 渲染层有 EntityMissing 兜底不会崩，但「删除即解绑」是写入端纪律。
+    const mentionedNotes = (await tx.list<Note>('notes')).filter(
+      (n) => !n.deleted && (n.mentions ?? []).some((m) => m.type === 'todo' && m.id === todoId),
+    )
+    const trashSnapshot: TrashSnapshot = {
+      children: [],
+      links: [
+        ...txns.map((t) => ({
+          table: 'transactions' as const,
+          id: t.id,
+          field: 'todoIds',
+          mode: 'append' as const,
+          value: todoId,
+        })),
+        ...mentionedNotes.flatMap((n) =>
+          (n.mentions ?? [])
+            .filter((m) => m.type === 'todo' && m.id === todoId)
+            .map((m) => ({
+              table: 'notes' as const,
+              id: n.id,
+              field: 'mentions',
+              mode: 'mention' as const,
+              value: m,
+            })),
+        ),
+      ],
+    }
+
+    await tx.update('todos', todoId, {
+      deleted: 1,
+      updatedAt: now,
+      rev: prev.rev + 1,
+      deletedAt: now,
+      restoredAt: undefined,
+      trashSnapshot,
+    })
+    await tx.enqueue('todos', todoId, 'delete', now)
+
     for (const txn of txns) {
       await tx.update('transactions', txn.id, {
         ...toLinkFieldPatch('todoIds', txnTodoIds(txn).filter((id) => id !== todoId)),
@@ -42,6 +78,15 @@ export async function deleteTodoCascade(todoId: string): Promise<number> {
       })
       await tx.enqueue('transactions', txn.id, 'upsert', now)
       unlinked++
+    }
+
+    for (const note of mentionedNotes) {
+      await tx.update('notes', note.id, {
+        mentions: (note.mentions ?? []).filter((m) => !(m.type === 'todo' && m.id === todoId)),
+        updatedAt: now,
+        rev: note.rev + 1,
+      })
+      await tx.enqueue('notes', note.id, 'upsert', now)
     }
   })
   storage.requestSync()

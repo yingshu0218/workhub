@@ -28,6 +28,7 @@ const HabitsPage = lazy(() => import('@/modules/habits/HabitsPage'))
 const TrophiesPage = lazy(() => import('@/modules/trophies/TrophiesPage'))
 const ProfilePage = lazy(() => import('@/modules/trophies/ProfilePage'))
 const SettingsPage = lazy(() => import('@/modules/settings/SettingsPage'))
+const TrashPage = lazy(() => import('@/modules/trash/TrashPage'))
 const ModuleConfigPage = lazy(() => import('@/modules/moduleConfig/ModuleConfigPage'))
 const ProjectsPage = lazy(() => import('@/modules/projects/ProjectsPage'))
 const ProjectDetailPage = lazy(() => import('@/modules/projects/ProjectDetailPage'))
@@ -109,6 +110,7 @@ const router = createBrowserRouter([
       { path: '/profile', element: <ProfilePage /> },
       { path: '/inspiration', element: <InspirationPage /> },
       { path: '/settings', element: <SettingsPage /> },
+      { path: '/trash', element: <TrashPage /> },
       { path: '/module-config', element: <ModuleConfigPage /> },
       { path: '/module-config/:moduleId', element: <ModuleConfigPage /> },
       { path: '/module-config/:moduleId/:itemId', element: <ModuleConfigPage /> },

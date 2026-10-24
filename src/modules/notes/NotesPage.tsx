@@ -362,8 +362,8 @@ export default function NotesPage() {
         title={`删除文件夹「${confirmFolder?.name ?? ''}」`}
         message={
           confirmFolder && (folderCounts.get(confirmFolder.id) ?? 0) > 0
-            ? `名下 ${folderCounts.get(confirmFolder.id)} 篇笔记将移回「未归档」。`
-            : undefined
+            ? `名下 ${folderCounts.get(confirmFolder.id)} 篇笔记将移回「未归档」。文件夹可在回收站恢复（30 天内），原在其中的笔记会一并回位。`
+            : '文件夹可在回收站恢复（30 天内），原在其中的笔记会一并回位。'
         }
         confirmText="删除"
         danger
@@ -558,7 +558,7 @@ function NoteViewModal({
       <ConfirmDialog
         open={confirmDelete}
         title={`删除笔记「${cur.title}」`}
-        message="删除后可在回收站恢复。"
+        message="删除后可在回收站恢复（30 天内）。"
         confirmText="删除"
         danger
         onConfirm={() => void doDelete()}

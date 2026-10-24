@@ -33,6 +33,15 @@ export interface StorageTx {
   put<T extends { id: string }>(table: TableName, record: T): Promise<void>
   /** 部分字段更新（Dexie update 语义：patch 里显式 undefined 会删键） */
   update(table: TableName, id: string, patch: Record<string, unknown>): Promise<void>
+  /**
+   * 物理删除一行（**不是软删**：不盖 deleted、不入队、不发事件）。
+   *
+   * 只服务于「墓碑已经收敛（delete 已送达服务端）之后」的清理场景 —— 回收站永久删除
+   * 与 30 天墓碑清理。**跨设备收敛由调用方负责**：对端若还持有活副本，把这条删掉
+   * 而服务端没有对应墓碑，它下次推送会以「查不到 → POST 新建」把记录复活并覆盖本端。
+   * 因此调用方必须先确认服务端已有该墓碑（`sync/pocketbaseAdapter.pushTombstonesNow`）。
+   */
+  delete(table: TableName, id: string): Promise<void>
   /** 同步队列入队（浏览器端写 syncQueue 表；服务端直写中心，实现为 no-op） */
   enqueue(table: TableName, recordId: string, op: SyncOp, createdAt: number): Promise<void>
   /** 事务内全表读取（含软删）。替代 Dexie `where().equals()` 索引查询：全量过滤结果等价 */

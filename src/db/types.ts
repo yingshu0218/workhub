@@ -12,6 +12,67 @@ export interface SyncMeta {
   rev: number
   /** 种子数据/已同步标记，避免种子被重复推送 */
   synced?: 0 | 1
+  /**
+   * 最近一次「显式恢复」的时间（回收站）。
+   *
+   * 为什么单独记而不复用 updatedAt：同步层原有口径是「墓碑不可逆」，恢复必须是一个
+   * **可识别的例外**，否则无法区分「用户点恢复」与「对端不知情期间的普通编辑」。
+   * 语义：粘性（普通编辑保留）、删除时清空；同步判定只在 `restoredAt > 对方删除时间` 时放行。
+   */
+  restoredAt?: number
+  /**
+   * 进入删除态的时间 —— **不是 updatedAt 的别名**（2026-10-24 补）。
+   *
+   * 为什么必须单列：墓碑上的 updatedAt 会被同步层当作 LWW 依据**反复抬高**
+   * （`mergeRemote` 落墓碑时取 `max(远端, 本地)`），删除之后任何一次对端合并都会让它漂移。
+   * 于是回收站的「删除于 2026-10-24 14:30」和「剩余 N 天」全部失真，保留期清理也会提前/延后。
+   * deletedAt 只在**进入删除态那一刻**写一次，恢复时清空，合并时取较晚者；不做数据迁移 ——
+   * 老墓碑没有该字段，读取侧一律回退 `updatedAt`（`repositories/trash.ts#listTrash`）。
+   */
+  deletedAt?: number
+  /**
+   * 删除时的关联快照（只写在被删的根记录上，随墓碑同步）。
+   * 恢复时按它回填删除时被清空的跨模块关联；历史墓碑没有该字段，无法反推。
+   */
+  trashSnapshot?: TrashSnapshot
+}
+
+/** 可进回收站的业务表（与 SYNC_TABLES 的子集对齐；快速便签/奖杯/配置/工作区无删除入口） */
+export type TrashTable =
+  | 'customers'
+  | 'interactions'
+  | 'ledgers'
+  | 'transactions'
+  | 'todos'
+  | 'todoLists'
+  | 'notes'
+  | 'noteFolders'
+  | 'projects'
+  | 'projectMilestones'
+  | 'habits'
+  | 'habitLogs'
+  | 'attachments'
+  | 'customerGroups'
+
+export interface TrashSnapshotLink {
+  table: TrashTable
+  id: string
+  field: string
+  /**
+   * append：数组字段补回一个 id；
+   * set：单值字段回填；
+   * relation：补回客户关系对象；
+   * mention：补回笔记里指向该实体的 mention（`notes.mentions` 是对象数组，不能走 append）
+   */
+  mode: 'append' | 'set' | 'relation' | 'mention'
+  value: string | CustomerRelation | NoteMention
+}
+
+export interface TrashSnapshot {
+  /** 被级联软删的子记录（只记删除时仍存活的） */
+  children: { table: TrashTable; id: string }[]
+  /** 被解除的弱关联（只记删除时目标仍存活的） */
+  links: TrashSnapshotLink[]
 }
 
 export interface Workspace extends SyncMeta {

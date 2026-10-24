@@ -18,7 +18,7 @@ import type {
   Project,
   ProjectMilestone,
 } from '@/db/types'
-import type { SyncMeta } from '@/db/types'
+import type { SyncMeta, TrashSnapshot } from '@/db/types'
 import type { Attachment } from '@/db/db'
 import { eventBus } from '@/shared/eventBus'
 import { txnCustomerIds, txnProjectIds, toLinkField } from '@/modules/finance/links'
@@ -144,21 +144,32 @@ export async function deleteHabitCascade(habitId: string): Promise<void> {
     const prevHabit = await tx.get<Habit>('habits', habitId)
     if (!prevHabit || prevHabit.deleted) return
 
+    const logs = (await tx.list<HabitLog>('habitLogs')).filter(
+      (l) => l.habitId === habitId && !l.deleted,
+    )
+    const trashSnapshot: TrashSnapshot = {
+      children: logs.map((l) => ({ table: 'habitLogs' as const, id: l.id })),
+      links: [],
+    }
+
     await tx.update('habits', habitId, {
       deleted: 1,
       updatedAt: now,
       rev: prevHabit.rev + 1,
+      deletedAt: now,
+      restoredAt: undefined,
+      trashSnapshot,
     })
     await tx.enqueue('habits', habitId, 'delete', now)
 
-    const logs = (await tx.list<HabitLog>('habitLogs')).filter(
-      (l) => l.habitId === habitId && !l.deleted,
-    )
     for (const log of logs) {
       await tx.update('habitLogs', log.id, {
         deleted: 1,
         updatedAt: now,
         rev: log.rev + 1,
+        deletedAt: now,
+        restoredAt: undefined,
+        trashSnapshot: undefined,
       })
       await tx.enqueue('habitLogs', log.id, 'delete', now)
     }
@@ -348,35 +359,121 @@ export async function addCustomerRelation(
 export async function deleteCustomerCascade(customerId: string): Promise<void> {
   const now = Date.now()
   await storage.transaction(
-    ['customers', 'interactions', 'transactions', 'todos', 'projects', 'syncQueue'],
+    ['customers', 'interactions', 'transactions', 'todos', 'projects', 'notes', 'syncQueue'],
     async (tx) => {
       const prevCustomer = await tx.get<Customer>('customers', customerId)
       if (!prevCustomer || prevCustomer.deleted) return
 
-      await tx.update('customers', customerId, {
-        deleted: 1,
-        updatedAt: now,
-        rev: prevCustomer.rev + 1,
-      })
-      await tx.enqueue('customers', customerId, 'delete', now)
-
       const interactions = (await tx.list<Interaction>('interactions')).filter(
         (it) => it.customerId === customerId && !it.deleted,
       )
-      for (const it of interactions) {
-        await tx.update('interactions', it.id, {
-          deleted: 1,
-          updatedAt: now,
-          rev: it.rev + 1,
-        })
-        await tx.enqueue('interactions', it.id, 'delete', now)
-      }
-
       // transactions 关联已数组化（Issue #140 v11）：去掉 customerId 索引，改内存过滤。
       // 理由见 db.ts v11 注释（避开 multiEntry 与同步队列整体覆盖语义的兼容坑，本表数据量级小）。
       const txns = (await tx.list<Transaction>('transactions'))
         .filter((t) => !t.deleted)
         .filter((t) => txnCustomerIds(t).includes(customerId))
+      const todos = (await tx.list<Todo>('todos')).filter(
+        (t) => t.customerId === customerId && !t.deleted,
+      )
+      // 解绑其它客户 relations 中指向被删者的条目（双向弱引用，Issue #22）
+      const allCustomers = await tx.list<Customer>('customers')
+      const relationOwners = allCustomers
+        .filter((other) => !other.deleted && other.id !== customerId)
+        .map((other) => ({
+          other,
+          rels: (other.relations ?? []).filter((r) => r.targetId === customerId),
+        }))
+        .filter((x) => x.rels.length > 0)
+      // 解绑名下项目：项目不随客户消失，只清挂靠关系（弱引用语义，画布/CRM 下钻不悬挂）
+      const projects = (await tx.list<import('@/db/types').Project>('projects')).filter(
+        (p) => p.customerId === customerId && !p.deleted,
+      )
+      /**
+       * 笔记里指向该客户的 mention 一并剪掉（2026-10-24 补的欠账）。
+       *
+       * 此前只有恢复路径（`trash.pruneDeadRefs`）会剪 mentions，删除侧完全没动 ——
+       * 结果是活笔记长期挂着一个指向墓碑的 mention。渲染层有 `EntityMissing` 兜底
+       * 不会崩，但「删除即解绑」是本仓写入端纪律，不能指望每一处读取都记得过滤。
+       *
+       * ⚠️ 账本的 mention 仍未覆盖：账本删除走的是 `ledgerRepo.softDelete`
+       * （`FinancePage` 内联），本身没有 cascade 函数 —— 那是另一个议题，不在这里假装解决。
+       */
+      const mentionedNotes = (await tx.list<Note>('notes')).filter(
+        (n) =>
+          !n.deleted &&
+          (n.mentions ?? []).some((m) => m.type === 'customer' && m.id === customerId),
+      )
+
+      const trashSnapshot: TrashSnapshot = {
+        children: interactions.map((it) => ({ table: 'interactions' as const, id: it.id })),
+        links: [
+          ...txns.map((t) => ({
+            table: 'transactions' as const,
+            id: t.id,
+            field: 'customerIds',
+            mode: 'append' as const,
+            value: customerId,
+          })),
+          ...todos.map((t) => ({
+            table: 'todos' as const,
+            id: t.id,
+            field: 'customerId',
+            mode: 'set' as const,
+            value: customerId,
+          })),
+          ...projects.map((p) => ({
+            table: 'projects' as const,
+            id: p.id,
+            field: 'customerId',
+            mode: 'set' as const,
+            value: customerId,
+          })),
+          ...relationOwners.flatMap(({ other, rels }) =>
+            rels.map((rel) => ({
+              table: 'customers' as const,
+              id: other.id,
+              field: 'relations',
+              mode: 'relation' as const,
+              value: rel,
+            })),
+          ),
+          // 被剪掉的 mention 逐条留档：恢复时按 mode='mention' 原样补回
+          ...mentionedNotes.flatMap((n) =>
+            (n.mentions ?? [])
+              .filter((m) => m.type === 'customer' && m.id === customerId)
+              .map((m) => ({
+                table: 'notes' as const,
+                id: n.id,
+                field: 'mentions',
+                mode: 'mention' as const,
+                value: m,
+              })),
+          ),
+        ],
+      }
+
+      await tx.update('customers', customerId, {
+        deleted: 1,
+        updatedAt: now,
+        rev: prevCustomer.rev + 1,
+        deletedAt: now,
+        restoredAt: undefined,
+        trashSnapshot,
+      })
+      await tx.enqueue('customers', customerId, 'delete', now)
+
+      for (const it of interactions) {
+        await tx.update('interactions', it.id, {
+          deleted: 1,
+          updatedAt: now,
+          rev: it.rev + 1,
+          deletedAt: now,
+          restoredAt: undefined,
+          trashSnapshot: undefined,
+        })
+        await tx.enqueue('interactions', it.id, 'delete', now)
+      }
+
       for (const txn of txns) {
         await tx.update('transactions', txn.id, {
           ...toLinkFieldPatch('customerIds', txnCustomerIds(txn).filter((id) => id !== customerId)),
@@ -386,9 +483,7 @@ export async function deleteCustomerCascade(customerId: string): Promise<void> {
         await tx.enqueue('transactions', txn.id, 'upsert', now)
       }
 
-      const todos = (await tx.list<Todo>('todos')).filter((t) => t.customerId === customerId)
       for (const todo of todos) {
-        if (todo.deleted) continue
         await tx.update('todos', todo.id, {
           customerId: undefined,
           updatedAt: now,
@@ -397,33 +492,33 @@ export async function deleteCustomerCascade(customerId: string): Promise<void> {
         await tx.enqueue('todos', todo.id, 'upsert', now)
       }
 
-      // 解绑其它客户 relations 中指向被删者的条目（双向弱引用，Issue #22）
-      // 悬挂的 relations 会让全景图/聚焦图画出「边指向已删除客户」，与 projects.customerId 同源崩溃根因
-      const allCustomers = await tx.list<Customer>('customers')
-      for (const other of allCustomers) {
-        if (other.deleted || other.id === customerId) continue
-        const rels = other.relations ?? []
-        if (rels.length === 0 || !rels.some((r) => r.targetId === customerId)) continue
+      for (const { other } of relationOwners) {
         await tx.update('customers', other.id, {
-          relations: rels.filter((r) => r.targetId !== customerId),
+          relations: (other.relations ?? []).filter((r) => r.targetId !== customerId),
           updatedAt: now,
           rev: other.rev + 1,
         })
         await tx.enqueue('customers', other.id, 'upsert', now)
       }
 
-      // 解绑名下项目：项目不随客户消失，只清挂靠关系（弱引用语义，画布/CRM 下钻不悬挂）
-      const projects = (await tx.list<import('@/db/types').Project>('projects')).filter(
-        (p) => p.customerId === customerId,
-      )
       for (const proj of projects) {
-        if (proj.deleted) continue
         await tx.update('projects', proj.id, {
           customerId: undefined,
           updatedAt: now,
           rev: proj.rev + 1,
         })
         await tx.enqueue('projects', proj.id, 'upsert', now)
+      }
+
+      for (const note of mentionedNotes) {
+        await tx.update('notes', note.id, {
+          mentions: (note.mentions ?? []).filter(
+            (m) => !(m.type === 'customer' && m.id === customerId),
+          ),
+          updatedAt: now,
+          rev: note.rev + 1,
+        })
+        await tx.enqueue('notes', note.id, 'upsert', now)
       }
     },
   )
@@ -515,19 +610,32 @@ export async function deleteTransactionCascade(txnId: string): Promise<void> {
     const prev = await tx.get<Transaction>('transactions', txnId)
     if (!prev || prev.deleted) return
 
+    const atts = (await tx.list<Attachment>('attachments')).filter(
+      (a) => a.refId === txnId && !a.deleted,
+    )
+    const trashSnapshot: TrashSnapshot = {
+      children: atts.map((a) => ({ table: 'attachments' as const, id: a.id })),
+      links: [],
+    }
+
     await tx.update('transactions', txnId, {
       deleted: 1,
       updatedAt: now,
       rev: prev.rev + 1,
+      deletedAt: now,
+      restoredAt: undefined,
+      trashSnapshot,
     })
     await tx.enqueue('transactions', txnId, 'delete', now)
 
-    const atts = (await tx.list<Attachment>('attachments')).filter((a) => a.refId === txnId)
     for (const att of atts) {
       await tx.update('attachments', att.id, {
         deleted: 1,
         updatedAt: now,
         rev: (att.rev ?? 0) + 1,
+        deletedAt: now,
+        restoredAt: undefined,
+        trashSnapshot: undefined,
       })
       await tx.enqueue('attachments', att.id, 'delete', now)
     }
@@ -554,34 +662,94 @@ export async function deleteProjectCascade(projectId: string): Promise<void> {
       const prev = await tx.get<Project>('projects', projectId)
       if (!prev || prev.deleted) return
 
-      await tx.put('projects', { ...prev, deleted: 1, updatedAt: now, rev: prev.rev + 1 })
-      await tx.enqueue('projects', projectId, 'delete', now)
-
       const milestones = (await tx.list<ProjectMilestone>('projectMilestones')).filter(
         (m) => m.projectId === projectId && !m.deleted,
       )
-      for (const m of milestones) {
-        await tx.put('projectMilestones', { ...m, deleted: 1, updatedAt: now, rev: m.rev + 1 })
-        await tx.enqueue('projectMilestones', m.id, 'delete', now)
-      }
-
-      // 单值弱引用表（todos/notes/interactions）：projectId 置 undefined 即解绑
-      const unbindSingle = async (
-        table: 'todos' | 'notes' | 'interactions',
-        records: { id: string; rev: number; deleted?: number }[],
-      ) => {
-        for (const r of records) {
-          if (r.deleted) continue
-          await tx.update(table, r.id, { projectId: undefined, updatedAt: now, rev: r.rev + 1 })
-          await tx.enqueue(table, r.id, 'upsert', now)
-        }
-      }
-      // transactions 关联已数组化（Issue #140 v11）：projectId 旧键已删，走 projectIds 数组解绑。
-      // 不能写 `projectId: undefined` —— 既解不掉 projectIds 里的项目，还按「双写不双读」留下一个
-      // 永不读取的旧键；必须走 toLinkFieldPatch('projectIds', …)（空数组不落键）。
       const txns = (await tx.list<Transaction>('transactions'))
         .filter((t) => !t.deleted)
         .filter((t) => txnProjectIds(t).includes(projectId))
+      // 单值弱引用表（todos/notes/interactions）：projectId 置 undefined 即解绑
+      const [todos, notes, interactions] = await Promise.all([
+        tx.list<Todo>('todos'),
+        tx.list<Note>('notes'),
+        tx.list<Interaction>('interactions'),
+      ])
+      const linkedSingle = [
+        ...todos.filter((r) => !r.deleted && r.projectId === projectId).map((r) => ({
+          table: 'todos' as const,
+          record: r,
+        })),
+        ...notes.filter((r) => !r.deleted && r.projectId === projectId).map((r) => ({
+          table: 'notes' as const,
+          record: r,
+        })),
+        ...interactions
+          .filter((r) => !r.deleted && r.projectId === projectId)
+          .map((r) => ({ table: 'interactions' as const, record: r })),
+      ]
+      // 笔记里指向该项目的 mention 一并剪掉（与 deleteCustomerCascade 同款欠账补漏）
+      const mentionedNotes = notes.filter(
+        (n) =>
+          !n.deleted &&
+          (n.mentions ?? []).some((m) => m.type === 'project' && m.id === projectId),
+      )
+
+      const trashSnapshot: TrashSnapshot = {
+        children: milestones.map((m) => ({ table: 'projectMilestones' as const, id: m.id })),
+        links: [
+          ...txns.map((t) => ({
+            table: 'transactions' as const,
+            id: t.id,
+            field: 'projectIds',
+            mode: 'append' as const,
+            value: projectId,
+          })),
+          ...linkedSingle.map(({ table, record }) => ({
+            table,
+            id: record.id,
+            field: 'projectId',
+            mode: 'set' as const,
+            value: projectId,
+          })),
+          ...mentionedNotes.flatMap((n) =>
+            (n.mentions ?? [])
+              .filter((m) => m.type === 'project' && m.id === projectId)
+              .map((m) => ({
+                table: 'notes' as const,
+                id: n.id,
+                field: 'mentions',
+                mode: 'mention' as const,
+                value: m,
+              })),
+          ),
+        ],
+      }
+
+      await tx.update('projects', projectId, {
+        deleted: 1,
+        updatedAt: now,
+        rev: prev.rev + 1,
+        deletedAt: now,
+        restoredAt: undefined,
+        trashSnapshot,
+      })
+      await tx.enqueue('projects', projectId, 'delete', now)
+
+      for (const m of milestones) {
+        await tx.update('projectMilestones', m.id, {
+          deleted: 1,
+          updatedAt: now,
+          rev: m.rev + 1,
+          deletedAt: now,
+          restoredAt: undefined,
+          trashSnapshot: undefined,
+        })
+        await tx.enqueue('projectMilestones', m.id, 'delete', now)
+      }
+
+      // transactions 关联已数组化（Issue #140 v11）：projectId 旧键已删，走 projectIds 数组解绑。
+      // 不能写 `projectId: undefined` —— 既解不掉 projectIds 里的项目，还按「双写不双读」留下一个
+      // 永不读取的旧键；必须走 toLinkFieldPatch('projectIds', …)（空数组不落键）。
       for (const txn of txns) {
         await tx.update('transactions', txn.id, {
           ...toLinkFieldPatch('projectIds', txnProjectIds(txn).filter((id) => id !== projectId)),
@@ -591,23 +759,31 @@ export async function deleteProjectCascade(projectId: string): Promise<void> {
         await tx.enqueue('transactions', txn.id, 'upsert', now)
       }
 
-      const [todos, notes, interactions] = await Promise.all([
-        tx.list<Todo>('todos'),
-        tx.list<Note>('notes'),
-        tx.list<Interaction>('interactions'),
-      ])
-      await unbindSingle(
-        'todos',
-        todos.filter((r) => r.projectId === projectId),
-      )
-      await unbindSingle(
-        'notes',
-        notes.filter((r) => r.projectId === projectId),
-      )
-      await unbindSingle(
-        'interactions',
-        interactions.filter((r) => r.projectId === projectId),
-      )
+      for (const { table, record } of linkedSingle) {
+        await tx.update(table, record.id, {
+          projectId: undefined,
+          updatedAt: now,
+          rev: record.rev + 1,
+        })
+        await tx.enqueue(table, record.id, 'upsert', now)
+      }
+
+      // 剪 mention 必须**重读当前值**：同一篇笔记可能刚在上面被解绑过 projectId（rev 已 +1），
+      // 用收集时的快照写回会把那次更新覆盖掉（rev 回退 → 同步层判成旧数据）。
+      for (const note of mentionedNotes) {
+        const cur = await tx.get<Note>('notes', note.id)
+        if (!cur || cur.deleted) continue
+        const kept = (cur.mentions ?? []).filter(
+          (m) => !(m.type === 'project' && m.id === projectId),
+        )
+        if (kept.length === (cur.mentions ?? []).length) continue
+        await tx.update('notes', note.id, {
+          mentions: kept,
+          updatedAt: now,
+          rev: cur.rev + 1,
+        })
+        await tx.enqueue('notes', note.id, 'upsert', now)
+      }
     },
   )
   storage.requestSync()

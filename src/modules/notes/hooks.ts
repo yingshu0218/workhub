@@ -1,4 +1,4 @@
-import type { Note, NoteFolder, NoteMention } from '@/db/types'
+import type { Note, NoteFolder, NoteMention, TrashSnapshot } from '@/db/types'
 import { db } from '@/db/db'
 import { storage } from '@/storage'
 import { newId } from '@/repositories'
@@ -133,9 +133,29 @@ export async function deleteNoteFolderCascade(id: string): Promise<void> {
   await storage.transaction(['noteFolders', 'notes', 'syncQueue'], async (tx) => {
     const prev = await tx.get<NoteFolder>('noteFolders', id)
     if (!prev || prev.deleted) return
-    await tx.put('noteFolders', { ...prev, deleted: 1, updatedAt: now, rev: prev.rev + 1 })
-    await tx.enqueue('noteFolders', id, 'delete', now)
     const notes = (await tx.list<Note>('notes')).filter((n) => n.folderId === id)
+    // 只把「删除时仍存活」的笔记记进快照：已删笔记本来就不在文件夹里，恢复时不该被一起复活
+    const trashSnapshot: TrashSnapshot = {
+      children: [],
+      links: notes
+        .filter((n) => !n.deleted)
+        .map((n) => ({
+          table: 'notes' as const,
+          id: n.id,
+          field: 'folderId',
+          mode: 'set' as const,
+          value: id,
+        })),
+    }
+    await tx.update('noteFolders', id, {
+      deleted: 1,
+      updatedAt: now,
+      rev: prev.rev + 1,
+      deletedAt: now,
+      restoredAt: undefined,
+      trashSnapshot,
+    })
+    await tx.enqueue('noteFolders', id, 'delete', now)
     for (const n of notes) {
       await tx.put('notes', { ...n, folderId: undefined, updatedAt: now, rev: n.rev + 1 })
       await tx.enqueue('notes', n.id, 'upsert', now)

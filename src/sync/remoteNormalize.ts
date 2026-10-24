@@ -103,10 +103,14 @@ const JSON_ARRAY_FIELDS_BY_TABLE: Record<string, readonly string[]> = {
  * 由 `mergeNotesJsonRevive.test.ts` 的字段表 ↔ collections.json 一致性断言兜住漂移。
  */
 const JSON_FIELDS_BY_TABLE: Record<string, readonly string[]> = {
-  customers: ['tags', 'relations', 'intimacy'],
-  transactions: ['tags', 'customerIds', 'todoIds', 'projectIds'],
-  todos: ['tags'],
+  customers: ['tags', 'relations', 'intimacy', 'trashSnapshot'],
+  transactions: ['tags', 'customerIds', 'todoIds', 'projectIds', 'trashSnapshot'],
+  todos: ['tags', 'trashSnapshot'],
+  habits: ['trashSnapshot'],
   notes: ['tags', 'backlinks', 'mentions'],
+  noteFolders: ['trashSnapshot'],
+  todoLists: ['trashSnapshot'],
+  projects: ['trashSnapshot'],
   customerGroups: ['includeTags', 'excludeTags', 'rules'],
   moduleConfigs: ['payload'],
 }
