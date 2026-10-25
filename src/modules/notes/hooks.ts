@@ -1,4 +1,4 @@
-import type { Note, NoteFolder, NoteMention, TrashSnapshot } from '@/db/types'
+import type { Note, NoteFolder, TrashSnapshot } from '@/db/types'
 import { db } from '@/db/db'
 import { storage } from '@/storage'
 import { newId } from '@/repositories'
@@ -15,21 +15,14 @@ export interface NoteListItem {
   id: string
   title: string
   tags: string[]
-  mentions: NoteMention[]
   folderId?: string
   updatedAt: number
 }
 
-/** 投影版笔记列表：只取 id/title/tags/mentions/folderId/updatedAt，摘要与搜索均不依赖 markdown */
+/** 投影版笔记列表：只取 id/title/tags/folderId/updatedAt，摘要与搜索均不依赖 markdown
+ *  （提及已迁 links：列表角标/搜索走 mentionLinks.ts 的 useMentionLinkIndex） */
 export function useNoteList(): NoteListItem[] {
-  return useCollection<NoteListItem>('notes', [
-    'id',
-    'title',
-    'tags',
-    'mentions',
-    'folderId',
-    'updatedAt',
-  ])
+  return useCollection<NoteListItem>('notes', ['id', 'title', 'tags', 'folderId', 'updatedAt'])
 }
 
 /**

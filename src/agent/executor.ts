@@ -681,16 +681,14 @@ export async function note_createNote(input: unknown): Promise<AgentOpResult> {
     { id: d.projectId, table: tableRef('projects'), what: '项目' },
   ])
   if (!links.ok) return err(links.error)
-  const { noteRepo, newId } = await import('@/repositories')
+  const { newId, saveNoteWithMentions } = await import('@/repositories')
   const id = newId('note')
-  await noteRepo.put({
+  // 走 saveNoteWithMentions：markdown 里的 @提及语法同样同步成 mention link（与编辑器同源）
+  await saveNoteWithMentions({
     id,
     title: d.title,
     markdown: d.markdown,
     tags: d.tags,
-    // @提及 / 反向链接由编辑器解析：工具层不臆造（外部 Agent 无解析上下文），保持空数组
-    backlinks: [],
-    mentions: [],
     folderId: d.folderId,
     projectId: d.projectId,
     createdAt: Date.now(),

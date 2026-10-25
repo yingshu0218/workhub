@@ -7,7 +7,7 @@ import { filterBlacklisted, useIntimacyConfig } from '@/modules/crm/intimacy'
 import { isImeComposing } from '@/shared/ime'
 import type { SearchItem } from '@/shared/search'
 import type { Customer, Project, Todo, Transaction, Note, Habit } from '@/db/types'
-import { noteRepo, newId } from '@/repositories'
+import { newId, saveNoteWithMentions } from '@/repositories'
 import { useToast } from '@/design-system/Toast'
 import { usePresence } from '@/shared/usePresence'
 
@@ -86,13 +86,11 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
     setCreatingNote(true)
     try {
       const id = newId('note')
-      await noteRepo.put({
+      await saveNoteWithMentions({
         id,
         title: '未命名笔记',
         markdown: '',
         tags: [],
-        backlinks: [],
-        mentions: [],
         createdAt: Date.now(),
       })
       onClose()

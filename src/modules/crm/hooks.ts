@@ -9,6 +9,7 @@ import { newId } from '@/repositories'
 import type {
   Customer,
   Interaction,
+  Note,
   Project,
   RelationCategory,
   Todo,
@@ -105,15 +106,18 @@ export function useCanvasGraph(): CanvasGraph {
         .filter((i) => !i.deleted)
         .toArray(),
     ])
-    // 笔记经 mentions 反查客户：notes 表无 customerId 索引，全表过滤（笔记量级小）
+    // 笔记经 mention link 反查客户（v15 起 mentions 迁 links：kind 索引收窄 + 内存过滤目标客户）
     const customerIds = new Set(customers.map((c) => c.id))
-    const notes = await db.notes
-      .filter(
-        (n) =>
-          !n.deleted &&
-          (n.mentions ?? []).some((m) => m.type === 'customer' && customerIds.has(m.id)),
-      )
-      .toArray()
+    const mentionLinks = (await db.links.where('kind').equals('mention').toArray()).filter(
+      (l) => !l.deleted && l.toType === 'customers' && customerIds.has(l.toId),
+    )
+    const noteRows = await db.notes.bulkGet([...new Set(mentionLinks.map((l) => l.fromId))])
+    const notes = noteRows.filter((n): n is Note => !!n && !n.deleted)
+    // noteId → 提及的客户 id（同笔记提及多客户时取首条 link 的目标，与原 find 口径一致）
+    const mentionByNote = new Map<string, string>()
+    for (const l of mentionLinks) {
+      if (!mentionByNote.has(l.fromId)) mentionByNote.set(l.fromId, l.toId)
+    }
     // 悬挂关系计数：独立于下面那份投影数一遍（不改投影本身，diff 最小且口径一目了然）。
     // 投影里的 filter 是「防御」，这里是「可见性」——两者必须同源，改一处必须改另一处。
     const danglingRelations = customers.reduce(
@@ -164,8 +168,7 @@ export function useCanvasGraph(): CanvasGraph {
         at: i.at,
       })),
       notes: notes.map((n) => {
-        const mention = n.mentions.find((m) => m.type === 'customer' && customerIds.has(m.id))
-        return { id: n.id, customerId: mention?.id ?? '', title: n.title }
+        return { id: n.id, customerId: mentionByNote.get(n.id) ?? '', title: n.title }
       }),
     }
   }, [])

@@ -65,7 +65,7 @@ export function buildLinkId(
  * pull 合并前剥）、旧关联只经 links 读写；清单外的表维持旧字段读写不动。
  * v15 upgrade 与 mergeRemote 的 strip/derive 都以它为闸门，逐族提交时只改这一处。
  */
-export const MIGRATED_LINK_TABLES: ReadonlySet<string> = new Set(['attachments'])
+export const MIGRATED_LINK_TABLES: ReadonlySet<string> = new Set(['attachments', 'notes'])
 
 /** 各表要剥掉的旧关联字段键（服务端列保留供老客户端降级，本地行不再落这些键） */
 export const LEGACY_LINK_FIELDS: Record<string, readonly string[]> = {

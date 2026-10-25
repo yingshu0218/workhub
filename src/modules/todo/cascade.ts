@@ -1,7 +1,7 @@
 import { storage } from '@/storage'
 import { toLinkFieldPatch, cascadeSoftDeleteLinks } from '@/repositories'
 import { txnTodoIds } from '@/modules/finance/links'
-import type { Todo, Transaction, TrashSnapshot, Note } from '@/db/types'
+import type { Todo, Transaction, TrashSnapshot } from '@/db/types'
 
 /**
  * 待办级联删除（Issue #148 后续 · #140 审计留档项的收口）：
@@ -22,11 +22,11 @@ import type { Todo, Transaction, TrashSnapshot, Note } from '@/db/types'
 export async function deleteTodoCascade(todoId: string): Promise<number> {
   const now = Date.now()
   let unlinked = 0
-  await storage.transaction(['todos', 'transactions', 'notes', 'links', 'syncQueue'], async (tx) => {
+  await storage.transaction(['todos', 'transactions', 'links', 'syncQueue'], async (tx) => {
     const prev = await tx.get<Todo>('todos', todoId)
     if (!prev || prev.deleted) return
 
-    // 关联层钩子：指向待办的 link 一并墓碑化（恢复时随待办复活）
+    // 关联层钩子：指向待办的 link（含 mention / related）一并墓碑化，恢复时随待办复活
     const cascadeLinkIds = await cascadeSoftDeleteLinks(
       tx,
       [{ type: 'todos', id: todoId }],
@@ -38,11 +38,9 @@ export async function deleteTodoCascade(todoId: string): Promise<number> {
     const txns = (await tx.list<Transaction>('transactions'))
       .filter((t) => !t.deleted)
       .filter((t) => txnTodoIds(t).includes(todoId))
-    // 笔记里指向该待办的 mention 一并剪掉（2026-10-24 补漏，与客户/项目 cascade 同款）。
-    // 渲染层有 EntityMissing 兜底不会崩，但「删除即解绑」是写入端纪律。
-    const mentionedNotes = (await tx.list<Note>('notes')).filter(
-      (n) => !n.deleted && (n.mentions ?? []).some((m) => m.type === 'todo' && m.id === todoId),
-    )
+    // 笔记 mention 已迁 links（v15）：指向该待办的 mention link 由上面
+    // cascadeSoftDeleteLinks 统一墓碑化（快照 cascadeLinkIds 留档、恢复时复活），
+    // 此前的「剪 mentions 字段 + mode:'mention' 快照」路径整体退役。
     const trashSnapshot: TrashSnapshot = {
       children: [],
       links: [
@@ -53,17 +51,6 @@ export async function deleteTodoCascade(todoId: string): Promise<number> {
           mode: 'append' as const,
           value: todoId,
         })),
-        ...mentionedNotes.flatMap((n) =>
-          (n.mentions ?? [])
-            .filter((m) => m.type === 'todo' && m.id === todoId)
-            .map((m) => ({
-              table: 'notes' as const,
-              id: n.id,
-              field: 'mentions',
-              mode: 'mention' as const,
-              value: m,
-            })),
-        ),
       ],
       ...(cascadeLinkIds.length ? { cascadeLinkIds } : {}),
     }
@@ -86,15 +73,6 @@ export async function deleteTodoCascade(todoId: string): Promise<number> {
       })
       await tx.enqueue('transactions', txn.id, 'upsert', now)
       unlinked++
-    }
-
-    for (const note of mentionedNotes) {
-      await tx.update('notes', note.id, {
-        mentions: (note.mentions ?? []).filter((m) => !(m.type === 'todo' && m.id === todoId)),
-        updatedAt: now,
-        rev: note.rev + 1,
-      })
-      await tx.enqueue('notes', note.id, 'upsert', now)
     }
   })
   storage.requestSync()

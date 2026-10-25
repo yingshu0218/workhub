@@ -27,7 +27,7 @@ function overdueTodo(priority: Todo['priority']): Todo {
 }
 
 function reasonOf(priority: Todo['priority']): string {
-  const list = buildCandidates({ todos: [overdueTodo(priority)], transactions: [], customers: [], notes: [], customerLevels: {} })
+  const list = buildCandidates({ todos: [overdueTodo(priority)], transactions: [], customers: [], notes: [], notesByCustomerMention: new Map(), customerLevels: {} })
   return list.find((c) => c.kind === 'overdue-todo')!.reason
 }
 
@@ -53,7 +53,7 @@ describe('逾期原因文案与档位自洽', () => {
 
   it('存量 P1 数据先归一化再取文案，不会因旧档位拿到空描述', () => {
     const legacy = { ...overdueTodo('P1' as Todo['priority']) }
-    const list = buildCandidates({ todos: [legacy], transactions: [], customers: [], notes: [], customerLevels: {} })
+    const list = buildCandidates({ todos: [legacy], transactions: [], customers: [], notes: [], notesByCustomerMention: new Map(), customerLevels: {} })
     const reason = list.find((c) => c.kind === 'overdue-todo')!.reason
     expect(reason).toContain('高 · 重要紧急')
     expect(reason).toContain('影响最直接')
@@ -97,6 +97,7 @@ function build(entries: Record<string, IntimacyLevel>, daysAgo = 10) {
     todos: [],
     transactions: [],
     notes: [],
+    notesByCustomerMention: new Map(),
     customers: Object.keys(entries).map((id) => staleCustomer(id, daysAgo)),
     customerLevels: levelMap(entries),
   })
@@ -130,6 +131,7 @@ describe('久未跟进客户：权重取自健康分档位（原手动分层已�
       todos: [],
       transactions: [],
       notes: [],
+    notesByCustomerMention: new Map(),
       customers: [staleCustomer('a', 10)],
       customerLevels: {},
     })

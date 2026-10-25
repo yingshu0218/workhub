@@ -114,3 +114,70 @@ describe('v15 · attachments 族：附件归属 → kind=attachment link', () =>
     expect(await db.links.count()).toBe(1)
   })
 })
+
+describe('v15 · notes 族：mentions → kind=mention link', () => {
+  async function seedCustomer(id: string, over: Record<string, unknown> = {}): Promise<void> {
+    await db.customers.put({
+      id,
+      name: `客户${id}`,
+      company: '',
+      tags: [],
+      createdAt: 5,
+      updatedAt: 5,
+      deleted: 0,
+      rev: 1,
+      ...over,
+    } as never)
+  }
+
+  it('mentions 翻成 mention link（label 入 meta），旧键与 backlinks 死键一并清掉', async () => {
+    await seedCustomer('c1')
+    await db.notes.put({
+      id: 'n1',
+      title: '纪要',
+      markdown: '',
+      tags: [],
+      mentions: [
+        { type: 'customer', id: 'c1', label: '严伟强' },
+        { type: 'customer', id: 'ghost', label: '已删目标' },
+      ],
+      backlinks: [],
+      createdAt: 7,
+      updatedAt: 7,
+      deleted: 0,
+      rev: 1,
+    } as never)
+
+    const derived = await migrateLegacyLinks(tableOf)
+    expect(derived).toBe(1) // ghost 客户不存在 → 跳过，不派生
+
+    const note = (await db.notes.get('n1')) as unknown as Record<string, unknown>
+    expect(note).not.toHaveProperty('mentions')
+    expect(note).not.toHaveProperty('backlinks')
+
+    const { buildLinkId } = await import('@/repositories/linkId')
+    const link = await db.links.get(
+      buildLinkId({ type: 'notes', id: 'n1' }, { type: 'customers', id: 'c1' }, 'mention'),
+    )
+    expect(link).toMatchObject({ kind: 'mention', fromId: 'n1', toId: 'c1', deleted: 0 })
+    expect(link!.meta?.label).toBe('严伟强')
+    expect(link!.updatedAt).toBe(0) // 派生行最低优先级戳
+  })
+
+  it('目标已软删的 mention 跳过（语义上已解绑）', async () => {
+    await seedCustomer('c2', { deleted: 1 })
+    await db.notes.put({
+      id: 'n2',
+      title: '旧纪要',
+      markdown: '',
+      tags: [],
+      mentions: [{ type: 'customer', id: 'c2', label: '墓碑目标' }],
+      createdAt: 1,
+      updatedAt: 1,
+      deleted: 0,
+      rev: 1,
+    } as never)
+    expect(await migrateLegacyLinks(tableOf)).toBe(0)
+    expect(await db.links.count()).toBe(0)
+  })
+})

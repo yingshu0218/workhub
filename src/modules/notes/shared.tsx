@@ -1,7 +1,7 @@
 import DOMPurify from 'dompurify'
 import { marked } from 'marked'
 import type { CSSProperties } from 'react'
-import type { NoteMention } from '@/db/types'
+import { MENTION_RE } from './mentionParse'
 
 /**
  * 笔记模块共享工具：智能彩色标签 / @提及语法解析 / marked 渲染（DOMPurify 净化）
@@ -30,32 +30,9 @@ export function tagStyle(tag: string): CSSProperties {
 }
 
 // ===== @提及语法 =====
-
-/** 提及语法：@[名称](type:id) */
-export const MENTION_RE = /@\[([^\]]+)\]\((customer|todo|ledger|project):([^)\s]+)\)/g
-
-/** 从 markdown 提取去重后的 mentions 数组（保存时随笔记落库） */
-export function extractMentions(markdown: string): NoteMention[] {
-  const seen = new Set<string>()
-  const list: NoteMention[] = []
-  for (const m of markdown.matchAll(MENTION_RE)) {
-    const [, label, type, id] = m
-    const key = `${type}:${id}`
-    if (seen.has(key)) continue
-    seen.add(key)
-    list.push({ type: type as NoteMention['type'], id, label })
-  }
-  return list
-}
-
-/**
- * 提及 label 净化（审计 P2-1）：剔除会截断 MENTION_RE 解析的字符。
- * label 段为 [^\]]+，含 `]` 会让语法在 label 中间提前闭合；
- * `)` 会与 type:id 段后的收尾括号混淆。实体名/待办标题来自用户输入，插入前必须过滤。
- */
-export function safeMentionLabel(label: string): string {
-  return label.replace(/[\])]/g, '')
-}
+// 实现已抽到 mentionParse.ts（纯函数层，零 React 依赖 —— repositories 的复合保存
+// 函数也用它；mentions 已迁 links，解析仍服务渲染高亮与保存时同步）
+export { MENTION_RE, extractMentions, safeMentionLabel } from './mentionParse'
 
 // ===== Markdown 渲染 =====
 

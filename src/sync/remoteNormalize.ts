@@ -117,6 +117,10 @@ const JSON_FIELDS_BY_TABLE: Record<string, readonly string[]> = {
   moduleConfigs: ['payload'],
   // 关联层：meta 是对象型 json（不进 JSON_ARRAY_FIELDS_BY_TABLE，只做一层反序列化）
   links: ['meta'],
+  // ⚠️ 旧关联键（transactions 数组 / notes mentions,backlinks / customers relations）的登记
+  // 刻意保留：服务端列永不删除（PATCH 不带键就不清列，老客户端还在写），pull 侧要先
+  // 反序列化才能派生成 link、再剥键（mergeRemote 的 MIGRATED_LINK_TABLES 流程）。
+  // 删登记 = 派生拿到 JSON 字符串解析不出 = 新设备拉到的旧关联凭空丢失。
 }
 
 /** 反序列化一层：字符串且本身是合法 JSON 时取解析结果，其余原样返回 */

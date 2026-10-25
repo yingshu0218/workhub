@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Icon } from '@/design-system/Icon'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useCollection } from '@/queries/hooks'
-import { noteRepo } from '@/repositories'
+import { noteRepo, saveNoteWithMentions } from '@/repositories'
 import type { Note } from '@/db/types'
 import type { Customer, Ledger, Todo, Project } from '@/db/types'
 import { Button, Card, ConfirmDialog, EmptyState } from '@/design-system/ui'
@@ -20,13 +20,13 @@ import { markdown } from '@codemirror/lang-markdown'
 import { defaultHighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import { registerShortcut } from '@/shared/shortcuts'
 import { useBacklinks, useNoteRecord } from './hooks'
+import { useNoteMentions, mentionViewOf } from './mentionLinks'
 import { filterBlacklisted, useIntimacyConfig } from '@/modules/crm/intimacy'
 import { useCustomerScoreRows } from '@/modules/crm/hooks'
 import { useProjects, moveNoteToProject } from '@/modules/projects/hooks'
 import { staggerStyle } from '@/shared/stagger'
 import {
   NOTE_PROSE_CSS,
-  extractMentions,
   renderMarkdown,
   safeMentionLabel,
   tagStyle,
@@ -295,6 +295,9 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
     [customers, intimacyCfg],
   )
   const backlinks = useBacklinks(note)
+  // @提及已迁 links：面板数据来自 mention link（保存/删除/恢复自动刷新）
+  const mentionLinks = useNoteMentions(note.id)
+  const mentionViews = useMemo(() => mentionLinks.map(mentionViewOf), [mentionLinks])
 
   // 本地编辑态（以旧记录为基底，保存时展开旧记录仅覆盖所属字段）
   const [title, setTitle] = useState(() => note.title)
@@ -388,12 +391,11 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
       setSaveState('saved')
       return
     }
-    await noteRepo.put({
+    await saveNoteWithMentions({
       ...latest,
       title: titleRef.current.trim() || '未命名笔记',
       markdown: mdRef.current,
       tags: tagsRef.current,
-      mentions: extractMentions(mdRef.current),
     })
     // 保存徽章防虚报（审计 P2-5）：await 期间可能有新输入，复查 dirty 再定态
     setSaveState(dirtyRef.current ? 'dirty' : 'saved')
@@ -994,15 +996,15 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
           </div>
 
           <div className="mb-2 text-[0.7857rem] font-medium uppercase tracking-wide text-on-surface-variant">
-            @提及实体（{note.mentions.length}）
+            @提及实体（{mentionViews.length}）
           </div>
-          {note.mentions.length === 0 ? (
+          {mentionViews.length === 0 ? (
             <div className="text-[0.8571rem] leading-relaxed text-outline">
               在正文中键入 @ 关联客户、待办或账本。
             </div>
           ) : (
             <div className="space-y-1.5">
-              {note.mentions.map((m) => (
+              {mentionViews.map((m) => (
                 <button
                   key={`${m.type}:${m.id}`}
                   onClick={() => {

@@ -1,6 +1,7 @@
 import dayjs from 'dayjs'
 import { db, DEFAULT_WORKSPACE_ID } from './db'
 import { addCustomerRelation, habitLogId } from '@/repositories'
+import { buildLinkId } from '@/repositories/linkId'
 import type {
   Workspace,
   Customer,
@@ -16,6 +17,7 @@ import type {
   Project,
   ProjectMilestone,
   RelationCategory,
+  Link,
 } from './types'
 
 /**
@@ -238,8 +240,22 @@ export async function seedIfEmpty(): Promise<boolean> {
       markdown:
         '# 交付边界备忘\n\n## 范围内\n- 平台二期 4 个核心模块\n- 数据迁移脚本\n\n## 范围外\n- 硬件对接（转三期）\n- 定制报表（另行报价）\n\n> 关联客户 @严伟强，款项目前已结清 ¥185,000。',
       tags: ['合同', '深蓝科技'],
-      backlinks: [],
-      mentions: [{ type: 'customer', id: 'c1', label: '严伟强' }],
+      // @提及已迁 links（v15）：归属在下方 links 数组（kind='mention'）
+      createdAt: now - 2 * 86400_000,
+      ...meta(),
+    },
+  ]
+
+  /** 关联层种子：笔记 n1 提及客户 c1（确定性 id 与运行期 linkAtoms 同源） */
+  const links: Link[] = [
+    {
+      id: buildLinkId({ type: 'notes', id: 'n1' }, { type: 'customers', id: 'c1' }, 'mention'),
+      fromType: 'notes',
+      fromId: 'n1',
+      toType: 'customers',
+      toId: 'c1',
+      kind: 'mention',
+      meta: { label: '严伟强' },
       createdAt: now - 2 * 86400_000,
       ...meta(),
     },
@@ -398,6 +414,7 @@ export async function seedIfEmpty(): Promise<boolean> {
       db.transactions,
       db.todos,
       db.notes,
+      db.links,
       db.quickNotes,
       db.habits,
       db.habitLogs,
@@ -414,6 +431,7 @@ export async function seedIfEmpty(): Promise<boolean> {
       await db.transactions.bulkPut(transactions)
       await db.todos.bulkPut(todos)
       await db.notes.bulkPut(notes)
+      await db.links.bulkPut(links)
       await db.quickNotes.bulkPut(quickNotes)
       await db.habits.bulkPut(habits)
       await db.habitLogs.bulkPut(

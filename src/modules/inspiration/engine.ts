@@ -75,6 +75,11 @@ export interface EngineInput {
   customers: Customer[]
   notes: Note[]
   /**
+   * 客户 → 首篇提及该客户的笔记（mentions 迁 links 后由调用方从 mention link 索引构建，
+   * 引擎保持纯函数、不做 I/O）。值为 undefined 表示该客户没有被任何笔记提及。
+   */
+  notesByCustomerMention: Map<string, Note>
+  /**
    * 各客户的健康分档位（**必填**，由调用方解析后传入 —— 引擎保持纯函数，不做 I/O 与配置读取）。
    * 调用方用 `resolveIntimacyLevel` + `intimacyLevelName` 解析：手动档位优先、未设置走算法兜底。
    * 缺失条目的客户按「无档位」处理（兜底权重 2），不会静默丢候选。
@@ -101,11 +106,7 @@ function buildCandidates(input: EngineInput): InspirationCandidate[] {
         label: '关联客户',
         value: `${customer.name} · ${customer.company}`,
       })
-    const relatedNote = customer
-      ? input.notes.find((n) =>
-          n.mentions.some((m) => m.type === 'customer' && m.id === customer.id),
-        )
-      : undefined
+    const relatedNote = customer ? input.notesByCustomerMention.get(customer.id) : undefined
     if (relatedNote)
       context.push({ icon: 'description', label: '前置笔记', value: relatedNote.title })
     if (t.ledgerId)
@@ -199,9 +200,7 @@ function buildCandidates(input: EngineInput): InspirationCandidate[] {
         value: levelName,
       },
     ]
-    const note = input.notes.find((n) =>
-      n.mentions.some((m) => m.type === 'customer' && m.id === c.id),
-    )
+    const note = input.notesByCustomerMention.get(c.id)
     if (note) context.push({ icon: 'description', label: '相关笔记', value: note.title })
     candidates.push({
       id: `cand-customer-${c.id}`,

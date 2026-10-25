@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Icon } from '@/design-system/Icon'
 import { useNavigate, useParams } from 'react-router-dom'
-import { useCollection, useRecord } from '@/queries/hooks'
+import { useCollection, useQuery, useRecord } from '@/queries/hooks'
+import { linksTo } from '@/repositories/links'
 import { isImeComposing } from '@/shared/ime'
 import type { Customer, Note, Project } from '@/db/types'
 import { deleteCustomerCascade, newId, saveInteractionAndTouchCustomer } from '@/repositories'
@@ -61,12 +62,16 @@ export default function CustomerDetailPage() {
   const todos = useCustomerTodos(id)
   const manualGroups = useCustomerGroups().filter((g) => !g.deleted && g.kind === 'manual')
   const timeline = useCustomerTimeline(id)
-  // 客户关联笔记（经 notes.mentions 反查，与图谱投影同一口径）
+  // 客户关联笔记（经 mention link 反查，与图谱投影同一口径；v15 起 mentions 迁 links）
   // 审计纪律 P2-9：只投影所需字段，笔记整篇 markdown 不进入 React 状态
-  const allNotes = useCollection<Note>('notes', ['id', 'title', 'mentions'])
-  const customerNotes = allNotes.filter((n) =>
-    (n.mentions ?? []).some((m) => m.type === 'customer' && m.id === id),
-  )
+  const allNotes = useCollection<Note>('notes', ['id', 'title'])
+  const mentionLinks =
+    useQuery(
+      () => (id ? linksTo('customers', id, 'mention') : Promise.resolve([])),
+      [id],
+    ) ?? []
+  const mentionedNoteIds = new Set(mentionLinks.map((l) => l.fromId))
+  const customerNotes = allNotes.filter((n) => mentionedNoteIds.has(n.id))
   // 明细区 Tab：默认停在「时间轴」
   const [tab, setTab] = useState<DetailTab>('timeline')
   // 时间轴默认只显示沟通日志（Issue #108）：交易/待办切「全部」chip 再看，消除与明细区双份

@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Icon } from '@/design-system/Icon'
 import { useNavigate } from 'react-router-dom'
-import { useCollection } from '@/queries/hooks'
-import type { Customer, IntimacyLevel, Todo, Transaction, Note } from '@/db/types'
+import { useCollection, useQuery } from '@/queries/hooks'
+import { db } from '@/db/db'
+import type { Customer, IntimacyLevel, Todo, Transaction, Note, Link } from '@/db/types'
 import { intimacyLevelName, resolveIntimacyLevel, useIntimacyConfig } from '@/modules/crm/intimacy'
 import { useCustomerScoreRows } from '@/modules/crm/hooks'
 import { toggleTodoDone } from '@/modules/todo/toggle'
@@ -105,6 +106,28 @@ export default function InspirationPage() {
   const transactions = useCollection<Transaction>('transactions')
   const customers = useCollection<Customer>('customers')
   const notes = useCollection<Note>('notes')
+  // 提及已迁 links：客户 → 首篇提及该客户的笔记（mentions 索引 + 首条 link，与引擎原 find 口径一致）
+  const mentionLinksRaw = useQuery<Link[]>(
+    () =>
+      db.links
+        .where('kind')
+        .equals('mention')
+        .filter((l) => !l.deleted && l.toType === 'customers')
+        .toArray(),
+    [],
+  )
+  // 稳定空数组引用：`?? []` 直接放 hook 依赖里会每帧新建（react-hooks/exhaustive-deps）
+  const mentionLinks = useMemo(() => mentionLinksRaw ?? [], [mentionLinksRaw])
+  const notesByCustomerMention = useMemo(() => {
+    const byId = new Map(notes.map((n) => [n.id, n]))
+    const m = new Map<string, Note>()
+    for (const l of mentionLinks) {
+      if (m.has(l.toId)) continue
+      const n = byId.get(l.fromId)
+      if (n) m.set(l.toId, n)
+    }
+    return m
+  }, [notes, mentionLinks])
 
   // 候选池开关（组件态即可，不落库）
   const [pools, setPools] = useState<Record<PoolKey, boolean>>({
@@ -131,10 +154,15 @@ export default function InspirationPage() {
 
   const candidates = useMemo(
     () =>
-      buildCandidates({ todos, transactions, customers, notes, customerLevels }).filter(
-        (c) => pools[poolOfKind(c.kind)],
-      ),
-    [todos, transactions, customers, notes, customerLevels, pools],
+      buildCandidates({
+        todos,
+        transactions,
+        customers,
+        notes,
+        notesByCustomerMention,
+        customerLevels,
+      }).filter((c) => pools[poolOfKind(c.kind)]),
+    [todos, transactions, customers, notes, notesByCustomerMention, customerLevels, pools],
   )
   const [idx, setIdx] = useState(0)
   const [reminderMsg, setReminderMsg] = useState<string | null>(null)

@@ -139,6 +139,66 @@ export async function linksTo(
   return rows.filter((l) => !l.deleted && (kind === undefined || l.kind === kind))
 }
 
+// ─────────────────────────── mention 同步（Phase 2 · 笔记保存时与笔记行同事务） ───────────────────────────
+
+/** 提及目标类型 → 表名（与 mentionParse 的 NoteMention.type 一一对应） */
+const MENTION_TARGET_TABLE = {
+  customer: 'customers',
+  todo: 'todos',
+  ledger: 'ledgers',
+  project: 'projects',
+} as const
+
+/**
+ * 笔记保存时的 mention link 同步（diff 式）：
+ * - 正文里仍存在的提及 → putLinkTx（确定性 id：同笔记同目标恒同一条；label 变了只更新 meta）；
+ * - 已从正文移除的提及 → 软删对应 link（墓碑可随「重新提及」复活，putLinkTx 同 id 覆盖即复活）；
+ * - 提及指向已删/不存在实体 → 跳过不建（幽灵纪律③；渲染层 EntityMissing 兜底）。
+ * 必须与笔记行同一事务调用（saveNoteWithMentions / updateNoteWithMentions 收口）。
+ */
+export async function syncMentionLinks(
+  tx: StorageTx,
+  noteId: string,
+  mentions: ReadonlyArray<{ type: string; id: string; label: string }>,
+  now: number,
+): Promise<void> {
+  const existing = (await tx.list<Link>('links')).filter(
+    (l) => l.kind === 'mention' && l.fromType === 'notes' && l.fromId === noteId,
+  )
+  const wantedKeys = new Set<string>()
+  for (const m of mentions) {
+    const toType = MENTION_TARGET_TABLE[m.type as keyof typeof MENTION_TARGET_TABLE]
+    if (!toType) continue
+    const key = `${toType}:${m.id}`
+    wantedKeys.add(key)
+    const rec = await tx.get<{ id: string }>(toType, m.id)
+    if (!rec || rec.deleted) continue
+    await putLinkTx(
+      tx,
+      {
+        from: { type: 'notes', id: noteId },
+        to: { type: toType, id: m.id },
+        kind: 'mention',
+        meta: { label: m.label },
+      },
+      now,
+    )
+  }
+  for (const l of existing) {
+    if (wantedKeys.has(`${l.toType}:${l.toId}`)) continue
+    if (l.deleted === 1) continue
+    await tx.update('links', l.id, {
+      deleted: 1,
+      updatedAt: now,
+      rev: (l.rev ?? 0) + 1,
+      deletedAt: now,
+      restoredAt: undefined,
+      trashSnapshot: undefined,
+    })
+    await tx.enqueue('links', l.id, 'delete', now)
+  }
+}
+
 // ─────────────────────────── 级联 / 恢复钩子（R2 · 与实体软删恢复同事务） ───────────────────────────
 
 /**

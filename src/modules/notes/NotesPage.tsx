@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Icon } from '@/design-system/Icon'
 import { useNavigate } from 'react-router-dom'
-import { noteRepo, newId } from '@/repositories'
+import { noteRepo, newId, saveNoteWithMentions } from '@/repositories'
 import {
   Button,
   Card,
@@ -24,6 +24,7 @@ import {
   deleteNoteFolderCascade,
   moveNoteToFolder,
 } from './hooks'
+import { useMentionLinkIndex, useNoteMentions } from './mentionLinks'
 import type { NoteFolder } from '@/db/types'
 import { staggerStyle } from '@/shared/stagger'
 
@@ -40,8 +41,10 @@ type Scope = { kind: 'all' } | { kind: 'folder'; folder: NoteFolder } | { kind: 
 /** 笔记列表页（文库体系：文件夹文件树 + 标签云），路由 /notes */
 export default function NotesPage() {
   const navigate = useNavigate()
-  // 投影查询（审计 P2-6）：只取 id/title/tags/mentions/updatedAt/folderId，markdown 不进列表内存
+  // 投影查询（审计 P2-6）：只取 id/title/tags/updatedAt/folderId，markdown 不进列表内存
   const notes = useNoteList()
+  // 提及已迁 links：角标/搜索统一走 mention link 索引（liveQuery 自动刷新）
+  const mentionIndex = useMentionLinkIndex()
   const folders = useNoteFolders()
   const [keyword, setKeyword] = useState('')
   const [activeTag, setActiveTag] = useState<string | null>(null)
@@ -80,14 +83,14 @@ export default function NotesPage() {
         if (scope.kind === 'root' && n.folderId) return false
         if (activeTag && !n.tags.includes(activeTag)) return false
         if (!kw) return true
-        // 搜索范围：标题 + 标签 + 提及实体名（投影行不含 markdown 正文）
-        return [n.title, n.tags.join(' '), n.mentions.map((m) => m.label).join(' ')]
+        // 搜索范围：标题 + 标签 + 提及实体名（提及名来自 mention link 的 meta.label）
+        const mentionLabels = (mentionIndex.get(n.id) ?? [])
+          .map((l) => (typeof l.meta?.label === 'string' ? l.meta.label : ''))
           .join(' ')
-          .toLowerCase()
-          .includes(kw)
+        return [n.title, n.tags.join(' '), mentionLabels].join(' ').toLowerCase().includes(kw)
       })
       .sort((a, b) => b.updatedAt - a.updatedAt)
-  }, [notes, keyword, activeTag, scope])
+  }, [notes, keyword, activeTag, scope, mentionIndex])
 
   /** 新建空笔记并直接进入编辑页 */
   async function createNote() {
@@ -95,13 +98,11 @@ export default function NotesPage() {
     setCreating(true)
     try {
       const id = newId('note')
-      await noteRepo.put({
+      await saveNoteWithMentions({
         id,
         title: '未命名笔记',
         markdown: '',
         tags: [],
-        backlinks: [],
-        mentions: [],
         folderId: scope.kind === 'folder' ? scope.folder.id : undefined,
         createdAt: Date.now(),
       })
@@ -327,13 +328,15 @@ export default function NotesPage() {
                       +{n.tags.length - 3}
                     </span>
                   )}
-                  {n.mentions.length > 0 && (
+                  {(mentionIndex.get(n.id) ?? []).length > 0 && (
                     <span
                       className="flex shrink-0 items-center gap-0.5 text-[0.7857rem] text-outline"
-                      title={n.mentions.map((m) => m.label).join('、')}
+                      title={(mentionIndex.get(n.id) ?? [])
+                        .map((l) => (typeof l.meta?.label === 'string' ? l.meta.label : ''))
+                        .join('、')}
                     >
                       <Icon name="hub" size={13} />
-                      {n.mentions.length}
+                      {(mentionIndex.get(n.id) ?? []).length}
                     </span>
                   )}
                   {(() => {
@@ -417,6 +420,11 @@ function NoteViewModal({
 }) {
   const note = useNoteRecord(noteId)
   const folders = useNoteFolders()
+  // 提及已迁 links：弹窗属性行的「关联」计数走 mention link（liveQuery 自动刷新）
+  const mentionCount = useNoteMentions(noteId).length
+  const mentionTitle = useNoteMentions(noteId)
+    .map((l) => (typeof l.meta?.label === 'string' ? l.meta.label : ''))
+    .join('、')
   const html = useMemo(() => renderMarkdown(note?.markdown ?? ''), [note?.markdown])
   // 删除确认弹窗（应用风格，替代 window.confirm）
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -514,13 +522,10 @@ function NoteViewModal({
                 {folder.name}
               </span>
             )}
-            {note.mentions.length > 0 && (
-              <span
-                className="flex items-center gap-0.5"
-                title={note.mentions.map((m) => m.label).join('、')}
-              >
+            {mentionCount > 0 && (
+              <span className="flex items-center gap-0.5" title={mentionTitle}>
                 <Icon name="hub" size={12} />
-                {note.mentions.length} 个关联
+                {mentionCount} 个关联
               </span>
             )}
             <span>{dayjs(note.updatedAt).format('YYYY-MM-DD HH:mm')}</span>

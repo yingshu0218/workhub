@@ -39,7 +39,18 @@ beforeEach(async () => {
 })
 
 describe('notes 表远端 json 字段反序列化（P1-A）', () => {
-  it('tags / mentions / backlinks 是 JSON 字符串时落库为数组，前端 .join/.map 不抛错', async () => {
+  it('tags 是 JSON 字符串时落库为数组；mentions/backlinks 旧键剥除并派生成 mention link', async () => {
+    // 提及目标客户须存活，派生才会发生（端点已删的旧关联不迁移成 link）
+    await db.customers.put({
+      id: 'c1',
+      name: '严伟强',
+      company: '',
+      tags: [],
+      createdAt: 1,
+      updatedAt: 1,
+      deleted: 0,
+      rev: 1,
+    } as never)
     await db.notes.put({ id: 'n1', ...noteBase } as never)
     await mergeRemote('notes', {
       id: 'pb1',
@@ -55,22 +66,34 @@ describe('notes 表远端 json 字段反序列化（P1-A）', () => {
       rev: 2,
     } as never)
 
-    const after = (await db.notes.get('n1')) as unknown as {
-      tags: string[]
-      backlinks: string[]
-      mentions: { type: string; id: string; label: string }[]
-    }
-    // 这三条正是 NotesPage 直接调用的形态（:61/:83/:315/:329）
+    const after = (await db.notes.get('n1')) as unknown as Record<string, unknown>
+    // tags 仍是 notes 行上的 json 数组字段（NotesPage 列表投影直接消费）
     expect(Array.isArray(after.tags)).toBe(true)
-    expect(after.tags.join(' ')).toBe('客户 周会')
-    expect(after.tags.slice(0, 3).map((t) => t)).toEqual(['客户', '周会'])
-    expect(Array.isArray(after.mentions)).toBe(true)
-    expect(after.mentions.map((m) => m.label)).toEqual(['严伟强'])
-    expect(Array.isArray(after.backlinks)).toBe(true)
-    expect(after.backlinks).toEqual(['复盘文档'])
+    expect((after.tags as string[]).join(' ')).toBe('客户 周会')
+    // mentions / backlinks 已迁 links（v15）：本地行不再持有旧键
+    expect(after).not.toHaveProperty('mentions')
+    expect(after).not.toHaveProperty('backlinks')
+    // 旧 mentions 派生成 mention link（meta.label 承载提及时的显示名）
+    const { buildLinkId } = await import('@/repositories/linkId')
+    const link = await db.links.get(
+      buildLinkId({ type: 'notes', id: 'n1' }, { type: 'customers', id: 'c1' }, 'mention'),
+    )
+    expect(link).toMatchObject({ kind: 'mention', deleted: 0 })
+    expect(link!.meta?.label).toBe('严伟强')
   })
 
-  it('双层编码（本地 stringify + PB 再包一层引号）仍还原成数组', async () => {
+  it('双层编码（本地 stringify + PB 再包一层引号）仍还原成数组（tags）并派生 mention link（mentions）', async () => {
+    await db.todos.put({
+      id: 't1',
+      title: '回访',
+      desc: '',
+      priority: 'mid',
+      status: 'todo',
+      createdAt: 1,
+      updatedAt: 1,
+      deleted: 0,
+      rev: 1,
+    } as never)
     await db.notes.put({ id: 'n1', ...noteBase } as never)
     await mergeRemote('notes', {
       id: 'pb1',
@@ -82,12 +105,15 @@ describe('notes 表远端 json 字段反序列化（P1-A）', () => {
       deleted: false,
       rev: 2,
     } as never)
-    const after = (await db.notes.get('n1')) as unknown as {
-      tags: string[]
-      mentions: { label: string }[]
-    }
+    const after = (await db.notes.get('n1')) as unknown as Record<string, unknown>
     expect(after.tags).toEqual(['客户'])
-    expect(after.mentions.map((m) => m.label)).toEqual(['回访'])
+    expect(after).not.toHaveProperty('mentions')
+    const { buildLinkId } = await import('@/repositories/linkId')
+    const link = await db.links.get(
+      buildLinkId({ type: 'notes', id: 'n1' }, { type: 'todos', id: 't1' }, 'mention'),
+    )
+    expect(link).toMatchObject({ kind: 'mention', deleted: 0 })
+    expect(link!.meta?.label).toBe('回访')
   })
 
   it('字段被误写成普通字符串时降级为单元素数组（不把字符串原样留下 → 不白屏）', async () => {

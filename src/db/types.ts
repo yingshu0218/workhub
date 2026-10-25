@@ -310,8 +310,12 @@ export interface Note extends SyncMeta {
   title: string
   markdown: string
   tags: string[]
-  backlinks: string[]
-  mentions: NoteMention[]
+  /**
+   * @提及（mentions）与反向链接（backlinks）已随关联层 Phase 2（v15）迁往 links 表
+   * （kind='mention'，from=笔记，meta.label 存提及时的显示名；backlinks 本就是恒空数组的
+   * 死字段，反向链接一直由编辑器运行时扫 markdown 计算）。服务端列保留供老客户端降级，
+   * pull 侧剥旧键 + 派生 link（见 repositories/linkId.ts）。
+   */
   /** 所属文件夹（缺省为未归档根层） */
   folderId?: string
   /** 所属项目（资料聚合的落点：项目详情页聚合展示；缺省为未归属） */

@@ -30,8 +30,6 @@ function note(id: string, markdown = '正文 **加粗** 收尾'): Note {
     title: '预览开关用例',
     markdown,
     tags: [],
-    mentions: [],
-    backlinks: [],
     createdAt: 0,
     updatedAt: 0,
     deleted: 0 as const,

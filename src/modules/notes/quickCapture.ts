@@ -1,9 +1,8 @@
-import { noteRepo, quickNoteRepo, todoRepo, newId } from '@/repositories'
+import { quickNoteRepo, todoRepo, newId, saveNoteWithMentions } from '@/repositories'
 import type { PutInput } from '@/repositories/repository'
 import type { Note, QuickNote, Todo } from '@/db/types'
 import { eventBus } from '@/shared/eventBus'
 import { syncEngine } from '@/sync/engine'
-import { extractMentions } from './shared'
 import { DEFAULT_TODO_PRIORITY } from '@/modules/todo/priority'
 
 /**
@@ -102,12 +101,11 @@ export async function saveQuickCapture({
     title: quickCaptureTitle(markdown),
     markdown,
     tags: [QUICK_CAPTURE_TAG],
-    backlinks: [],
-    mentions: extractMentions(markdown),
     folderId: folderId || undefined,
     createdAt: Date.now(),
   }
-  await noteRepo.put(note)
+  // 提及随正文同步成 mention link（与笔记行同事务，见 saveNoteWithMentions）
+  await saveNoteWithMentions(note)
   return note.id
 }
 
@@ -152,13 +150,11 @@ export async function captureToNote(content: string, channel?: ConvertChannel): 
   const { noteOrigin } = viaText(channel)
   const markdown = body.endsWith(noteOrigin) ? body : `${body}\n\n${noteOrigin}`
   const id = newId('n')
-  await noteRepo.put({
+  await saveNoteWithMentions({
     id,
     title: quickCaptureTitle(body),
     markdown,
     tags: [QUICK_CAPTURE_ARCHIVE_TAG],
-    backlinks: [],
-    mentions: extractMentions(markdown),
     createdAt: Date.now(),
   })
   return id

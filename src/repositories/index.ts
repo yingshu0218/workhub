@@ -23,7 +23,8 @@ import type { Attachment } from '@/db/db'
 import type { Link } from '@/db/types'
 import { eventBus } from '@/shared/eventBus'
 import { txnCustomerIds, txnProjectIds, toLinkField } from '@/modules/finance/links'
-import { cascadeSoftDeleteLinks, putLinkTx } from './links'
+import { cascadeSoftDeleteLinks, putLinkTx, syncMentionLinks } from './links'
+import { extractMentions } from '@/modules/notes/mentionParse'
 
 /**
  * 关联字段「置空即删键」的更新补丁（Dexie update 语义：显式 undefined 才删键）。
@@ -69,11 +70,70 @@ export {
   linkAtoms,
   unlinkAtoms,
   putLinkTx,
+  syncMentionLinks,
   linksOf,
   linksTo,
   cascadeSoftDeleteLinks,
   reviveCascadeLinks,
 } from './links'
+
+/**
+ * 笔记 + @提及原子落库（关联层 Phase 2）：笔记行与 mention links 单事务，
+ * 盖章/入队与 repository.put 同款口径（含 restoredAt 粘性、deletedAt 清理）。
+ * 提及从 markdown 运行时解析（mentionParse.extractMentions）—— mentions 字段已随
+ * v15 迁 links，笔记行不再持有。UI（编辑器自动保存 / 速记 / 新建）与 agentOps
+ * （note_createNote）都经此，禁止各写一份。
+ */
+export async function saveNoteWithMentions(note: PutInput<Note>): Promise<string> {
+  const now = Date.now()
+  await storage.transaction(
+    ['notes', 'links', 'customers', 'todos', 'ledgers', 'projects', 'syncQueue'],
+    async (tx) => {
+      const prev = await tx.get<Note>('notes', note.id)
+      const reviving = prev?.deleted === 1
+      const restoredAt = reviving ? now : (note.restoredAt ?? prev?.restoredAt)
+      await tx.put('notes', {
+        ...note,
+        updatedAt: now,
+        rev: (prev?.rev ?? 0) + 1,
+        deleted: 0 as const,
+        deletedAt: undefined,
+        ...(restoredAt ? { restoredAt } : {}),
+      } as Note)
+      await tx.enqueue('notes', note.id, 'upsert', now)
+      await syncMentionLinks(
+        tx,
+        note.id,
+        typeof note.markdown === 'string' ? extractMentions(note.markdown) : [],
+        now,
+      )
+    },
+  )
+  storage.requestSync()
+  return note.id
+}
+
+/**
+ * 笔记部分更新 +（markdown 变更时）mention 重同步：与 saveNoteWithMentions 同款事务纪律，
+ * patch 语义沿用 repository.update（幽灵防护：不存在的 id 不动库不入队）。
+ * 消费方：agentOps note_updateNote（markdown 变了提及就要跟着变，不能只改行）。
+ */
+export async function updateNoteWithMentions(id: string, patch: Partial<Note>): Promise<void> {
+  await storage.transaction(
+    ['notes', 'links', 'customers', 'todos', 'ledgers', 'projects', 'syncQueue'],
+    async (tx) => {
+      const prev = await tx.get<Note>('notes', id)
+      if (!prev || prev.deleted) return
+      const now = Date.now()
+      await tx.update('notes', id, { ...patch, updatedAt: now, rev: (prev.rev ?? 0) + 1 })
+      await tx.enqueue('notes', id, 'upsert', now)
+      if (typeof patch.markdown === 'string') {
+        await syncMentionLinks(tx, id, extractMentions(patch.markdown), now)
+      }
+    },
+  )
+  storage.requestSync()
+}
 
 /**
  * 默认账本唯一性收口（P1 补强 · 第 4/7 步跨轮一致性）：
@@ -393,7 +453,7 @@ export async function addCustomerRelation(
 export async function deleteCustomerCascade(customerId: string): Promise<void> {
   const now = Date.now()
   await storage.transaction(
-    ['customers', 'interactions', 'transactions', 'todos', 'projects', 'notes', 'links', 'syncQueue'],
+    ['customers', 'interactions', 'transactions', 'todos', 'projects', 'links', 'syncQueue'],
     async (tx) => {
       const prevCustomer = await tx.get<Customer>('customers', customerId)
       if (!prevCustomer || prevCustomer.deleted) return
@@ -423,23 +483,15 @@ export async function deleteCustomerCascade(customerId: string): Promise<void> {
         (p) => p.customerId === customerId && !p.deleted,
       )
       /**
-       * 笔记里指向该客户的 mention 一并剪掉（2026-10-24 补的欠账）。
-       *
-       * 此前只有恢复路径（`trash.pruneDeadRefs`）会剪 mentions，删除侧完全没动 ——
-       * 结果是活笔记长期挂着一个指向墓碑的 mention。渲染层有 `EntityMissing` 兜底
-       * 不会崩，但「删除即解绑」是本仓写入端纪律，不能指望每一处读取都记得过滤。
-       *
-       * ⚠️ 账本的 mention 仍未覆盖：账本删除走的是 `ledgerRepo.softDelete`
-       * （`FinancePage` 内联），本身没有 cascade 函数 —— 那是另一个议题，不在这里假装解决。
+       * 笔记 mention 已迁 links（v15）：指向该客户的 mention link 由下方
+       * cascadeSoftDeleteLinks 统一墓碑化（快照 cascadeLinkIds 留档、恢复时复活），
+       * 此前「剪 mentions 字段 + mode:'mention' 快照」路径整体退役。
+       * ⚠️ 账本的 mention 仍无级联：账本删除走 `ledgerRepo.softDelete`（FinancePage 内联），
+       * 没有 cascade 函数 —— 另一个议题，不在这里假装解决。
        */
-      const mentionedNotes = (await tx.list<Note>('notes')).filter(
-        (n) =>
-          !n.deleted &&
-          (n.mentions ?? []).some((m) => m.type === 'customer' && m.id === customerId),
-      )
 
       // 关联层钩子：指向客户及其沟通日志（子记录端点）的 link 一并墓碑化。
-      // 被解绑的 txns/todos/projects/notes 仍是活记录 —— 它们身上不触及客户的 link 不动。
+      // 被解绑的 txns/todos/projects 仍是活记录 —— 它们身上不触及客户的 link 不动。
       const cascadeLinkIds = await cascadeSoftDeleteLinks(
         tx,
         [
@@ -481,18 +533,6 @@ export async function deleteCustomerCascade(customerId: string): Promise<void> {
               mode: 'relation' as const,
               value: rel,
             })),
-          ),
-          // 被剪掉的 mention 逐条留档：恢复时按 mode='mention' 原样补回
-          ...mentionedNotes.flatMap((n) =>
-            (n.mentions ?? [])
-              .filter((m) => m.type === 'customer' && m.id === customerId)
-              .map((m) => ({
-                table: 'notes' as const,
-                id: n.id,
-                field: 'mentions',
-                mode: 'mention' as const,
-                value: m,
-              })),
           ),
         ],
         ...(cascadeLinkIds.length ? { cascadeLinkIds } : {}),
@@ -554,17 +594,6 @@ export async function deleteCustomerCascade(customerId: string): Promise<void> {
           rev: proj.rev + 1,
         })
         await tx.enqueue('projects', proj.id, 'upsert', now)
-      }
-
-      for (const note of mentionedNotes) {
-        await tx.update('notes', note.id, {
-          mentions: (note.mentions ?? []).filter(
-            (m) => !(m.type === 'customer' && m.id === customerId),
-          ),
-          updatedAt: now,
-          rev: note.rev + 1,
-        })
-        await tx.enqueue('notes', note.id, 'upsert', now)
       }
     },
   )
@@ -751,12 +780,8 @@ export async function deleteProjectCascade(projectId: string): Promise<void> {
           .filter((r) => !r.deleted && r.projectId === projectId)
           .map((r) => ({ table: 'interactions' as const, record: r })),
       ]
-      // 笔记里指向该项目的 mention 一并剪掉（与 deleteCustomerCascade 同款欠账补漏）
-      const mentionedNotes = notes.filter(
-        (n) =>
-          !n.deleted &&
-          (n.mentions ?? []).some((m) => m.type === 'project' && m.id === projectId),
-      )
+      // 笔记 mention 已迁 links（v15）：指向该项目的 mention link 由下方
+      // cascadeSoftDeleteLinks 统一墓碑化，「剪 mentions 字段 + mode:'mention' 快照」退役
 
       // 关联层钩子：指向项目及其里程碑（子记录端点）的 link 一并墓碑化；
       // 被解绑的 txns/todos/notes/interactions 仍是活记录，不触及项目的 link 不动
@@ -786,17 +811,6 @@ export async function deleteProjectCascade(projectId: string): Promise<void> {
             mode: 'set' as const,
             value: projectId,
           })),
-          ...mentionedNotes.flatMap((n) =>
-            (n.mentions ?? [])
-              .filter((m) => m.type === 'project' && m.id === projectId)
-              .map((m) => ({
-                table: 'notes' as const,
-                id: n.id,
-                field: 'mentions',
-                mode: 'mention' as const,
-                value: m,
-              })),
-          ),
         ],
         ...(cascadeLinkIds.length ? { cascadeLinkIds } : {}),
       }
@@ -842,23 +856,6 @@ export async function deleteProjectCascade(projectId: string): Promise<void> {
           rev: record.rev + 1,
         })
         await tx.enqueue(table, record.id, 'upsert', now)
-      }
-
-      // 剪 mention 必须**重读当前值**：同一篇笔记可能刚在上面被解绑过 projectId（rev 已 +1），
-      // 用收集时的快照写回会把那次更新覆盖掉（rev 回退 → 同步层判成旧数据）。
-      for (const note of mentionedNotes) {
-        const cur = await tx.get<Note>('notes', note.id)
-        if (!cur || cur.deleted) continue
-        const kept = (cur.mentions ?? []).filter(
-          (m) => !(m.type === 'project' && m.id === projectId),
-        )
-        if (kept.length === (cur.mentions ?? []).length) continue
-        await tx.update('notes', note.id, {
-          mentions: kept,
-          updatedAt: now,
-          rev: cur.rev + 1,
-        })
-        await tx.enqueue('notes', note.id, 'upsert', now)
       }
     },
   )

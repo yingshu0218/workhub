@@ -275,29 +275,43 @@ describe('删除时间：deletedAt 不被 updatedAt 漂移带跑', () => {
 })
 
 /**
- * 笔记 mention：删除即剪、恢复即回填。
+ * 笔记 mention：删除即解绑、恢复即回填（关联层 Phase 2 版）。
  *
- * 此前只有恢复路径（`pruneDeadRefs`）会剪 mentions，删除侧完全没动 ——
- * 活笔记会长期挂一个指向墓碑的 mention。渲染层有 `EntityMissing` 兜底不崩，
- * 但「删除即解绑」是写入端纪律，不能指望每处读取都记得过滤。
+ * mentions 已迁 links（v15）：「剪」不再是改笔记行，而是把指向被删实体的
+ * mention link 墓碑化（cascade 钩子，快照 cascadeLinkIds 留档）；「回填」是恢复时
+ * 复活对应 link（两端实体都存活才复活）。笔记行本身从头到尾不动。
  */
-describe('笔记 mention：删除即剪、恢复即回填', () => {
-  const seedNote = async () =>
-    db.notes.put({
+describe('笔记 mention：删除即解绑 link、恢复即复活', () => {
+  const seedNote = async () => {
+    await db.notes.put({
       id: 'n1',
       title: '会谈纪要',
       markdown: '',
       tags: [],
-      backlinks: [],
-      mentions: [
-        { type: 'customer', id: 'c1', label: '甲客户' },
-        { type: 'todo', id: 'td1', label: '跟进' },
-      ],
       createdAt: 1,
       ...meta(),
     } as never)
+    // 两条 mention link（note→客户 c1 / note→待办 td1），派生行口径
+    const { buildLinkId } = await import('@/repositories/linkId')
+    const put = (toType: 'customers' | 'todos', toId: string, label: string) =>
+      db.links.put({
+        id: buildLinkId({ type: 'notes', id: 'n1' }, { type: toType, id: toId }, 'mention'),
+        fromType: 'notes',
+        fromId: 'n1',
+        toType,
+        toId,
+        kind: 'mention',
+        meta: { label },
+        createdAt: 1,
+        updatedAt: 0,
+        rev: 0,
+        deleted: 0,
+      } as never)
+    await put('customers', 'c1', '甲客户')
+    await put('todos', 'td1', '跟进')
+  }
 
-  it('删除客户时剪掉客户提及、保留其他提及；恢复后原样补回', async () => {
+  it('删除客户 → 指向它的 mention link 墓碑化、其它提及不动；笔记行不变；恢复后 link 复活', async () => {
     await db.customers.put(
       {
         id: 'c1',
@@ -310,21 +324,31 @@ describe('笔记 mention：删除即剪、恢复即回填', () => {
       } as never,
     )
     await seedNote()
+    const { buildLinkId } = await import('@/repositories/linkId')
+    const c1LinkId = buildLinkId(
+      { type: 'notes', id: 'n1' },
+      { type: 'customers', id: 'c1' },
+      'mention',
+    )
+    const td1LinkId = buildLinkId(
+      { type: 'notes', id: 'n1' },
+      { type: 'todos', id: 'td1' },
+      'mention',
+    )
 
     await deleteCustomerCascade('c1')
-    const afterDelete = (await db.notes.get('n1')) as never as { mentions: unknown[] }
-    expect(afterDelete.mentions).toEqual([{ type: 'todo', id: 'td1', label: '跟进' }])
+    expect((await db.links.get(c1LinkId))!.deleted).toBe(1) // 指向被删客户：墓碑化
+    expect((await db.links.get(td1LinkId))!.deleted).toBe(0) // 其它提及：不动
+    // 笔记行全程不动（旧行为会改写 mentions 数组）
+    expect(await db.notes.get('n1')).toBeTruthy()
 
     const result = await restoreTrashRecord('customers', 'c1')
-    expect(result.rebuiltLinks).toBe(1)
-    const afterRestore = (await db.notes.get('n1')) as never as { mentions: unknown[] }
-    expect(afterRestore.mentions).toEqual([
-      { type: 'todo', id: 'td1', label: '跟进' },
-      { type: 'customer', id: 'c1', label: '甲客户' },
-    ])
+    expect(result.revivedCascadeLinks).toBe(1)
+    expect((await db.links.get(c1LinkId))!.deleted).toBe(0)
+    expect((await db.links.get(c1LinkId))!.restoredAt).toBeGreaterThan(0)
   })
 
-  it('删除待办时同样剪掉提及', async () => {
+  it('删除待办 → 指向它的 mention link 墓碑化', async () => {
     await db.todos.put(
       {
         id: 'td1',
@@ -338,9 +362,15 @@ describe('笔记 mention：删除即剪、恢复即回填', () => {
       } as never,
     )
     await seedNote()
+    const { buildLinkId } = await import('@/repositories/linkId')
+    const td1LinkId = buildLinkId(
+      { type: 'notes', id: 'n1' },
+      { type: 'todos', id: 'td1' },
+      'mention',
+    )
 
     await deleteTodoCascade('td1')
-    const note = (await db.notes.get('n1')) as never as { mentions: unknown[] }
-    expect(note.mentions).toEqual([{ type: 'customer', id: 'c1', label: '甲客户' }])
+    expect((await db.links.get(td1LinkId))!.deleted).toBe(1)
+    expect(await db.notes.get('n1')).toBeTruthy()
   })
 })
