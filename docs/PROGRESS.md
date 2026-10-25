@@ -10,6 +10,7 @@
 ③ ✅ **mergeRemote 两块历史补丁退役**：relations 并集合并（unionRelations）与 transactions 数组保护（normalizeTxnLinks）删除 —— 关联是独立 link 记录（各自 LWW + 确定性 id 合流），行级整体覆盖动不到 link 表；相关测试（并集保护/画布悬挂/回环编码）全部改写为 per-link 语义锁。JSON 字段表登记**保留**（服务端旧列还要反序列化才能派生，删登记 = 新设备拉到旧关联凭空丢失）。
 ④ ✅ **P4 工具面（37 工具）**：`link_link`/`link_unlink`（medium 走票据；**刻意只开放 related/relation** —— mention 由笔记保存 diff 托管、attachment 由凭证流程托管，开放只会打架）、`listLinks`（read 域双向合并 + 上限 50）。AiDomain 扩 `link`；gen:skills 重生成，parity/白名单/alignment 锁自动纳管；功能遍历补 3 正向 + 3 边界用例。
 ⑤ ⚠️ **遗留边界（如实记录）**：客户间关系恢复顺序 —— 先删的一方要**最后**恢复（它的快照复活 link 时对端须已回来，反过来该 link 保持墓碑可手动重建，不为猜意图而复活）；pull 派生只补缺失 link，**不复活墓碑**（用户手动解绑不被远端旧键复活）。账本 mention 仍无级联（账本删除本就没有 cascade 函数，P2 前即如此，未扩大）。
+⑥ ✅ **剩余任务交接**：推送/部署/真机验收（T1）、Phase 3 集合层裁决与设计（T2）、事件总线泛化（T3）、小欠账（T4：账本级联等）已规划进 **`docs/关联层剩余任务-交接-20261026.md`**（自包含：架构现状速览 + 任务步骤/坑 + 纪律 + 「不要做」清单），供后续会话/其它模型接手。
 > **验证**：tsc ✅ 0 错 / eslint ✅ 0 告警 / **全量 vitest 996 passed / 0 failed**（`--maxWorkers=4`，119 文件 1003 用例，7 skipped 为既有 online 项）/ build ✅ 1.51s / `gen:skills` 37 工具幂等。服务端 schema **零变更**（links 集合一期已双站导入；旧列保留是设计而非欠账）。
 
 **上一轮**：2026-10-25（**原子化一期 R1+R2：links 关联层地基 + 级联/恢复联动**；R3 双站部署同日完成）。
