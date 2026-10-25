@@ -21,6 +21,7 @@ const DOMAIN_LABELS: Record<AiDomain, { label: string; desc: string }> = {
   project: { label: '项目', desc: '建项目、改项目（含归档 / 搁置）' },
   habit: { label: '习惯', desc: '打卡 / 取消打卡' },
   note: { label: '笔记', desc: '建 / 改笔记、建文件夹' },
+  link: { label: '关联', desc: '原子间建联 / 解联（客户关系、流水关联等）' },
   read: { label: '读取', desc: '实体消解、搜索、列表查询' },
 }
 

@@ -31,6 +31,8 @@ export const READ_LIMITS = {
   listProjects: 50,
   listNotes: 50,
   listNoteFolders: 50,
+  // 关联层（P4）：关联查询，上限 50
+  listLinks: 50,
 } as const
 
 /** 统一读结果信封：`truncated` 让 Agent 知道「还有更多」，可缩小条件重查 */
@@ -111,6 +113,15 @@ export const listNotesSchema = z.object({
 
 /** listNoteFolders()：文件夹最小投影 */
 export const listNoteFoldersSchema = z.object({}).strict()
+
+/** listLinks()：某实体的关联查询（关联层 P4）。kind 缺省 = 全部；方向双向合并去重 */
+export const listLinksSchema = z
+  .object({
+    type: z.enum(['customer', 'todo', 'ledger', 'project', 'note', 'transaction', 'habit']),
+    id: z.string().min(1, '必须为真实 id（先经 resolveEntity 消解）'),
+    kind: z.enum(['related', 'mention', 'relation', 'attachment']).optional(),
+  })
+  .strict()
 
 /** searchEntities(q, types?)：复用 `searchAll` 6 实体投影，notes 已有字段裁剪先例（§2.2） */
 export const searchEntitiesSchema = z.object({
@@ -368,6 +379,46 @@ export async function listNoteFolders(input: unknown): Promise<ReadResult> {
   )
 }
 
+/** listLinks：某实体的关联查询（双向：作为发起方与作为目标方的 link 合并去重） */
+const LIST_LINKS_TABLE = {
+  customer: 'customers',
+  todo: 'todos',
+  ledger: 'ledgers',
+  project: 'projects',
+  note: 'notes',
+  transaction: 'transactions',
+  habit: 'habits',
+} as const
+
+export async function listLinks(input: unknown): Promise<ReadResult> {
+  const d = listLinksSchema.parse(input ?? {})
+  const table = LIST_LINKS_TABLE[d.type]
+  const rows = await storage.list<Link>('links')
+  const seen = new Set<string>()
+  const hit = rows.filter((l) => {
+    if (l.deleted) return false
+    const from = l.fromType === table && l.fromId === d.id
+    const to = l.toType === table && l.toId === d.id
+    if (!from && !to) return false
+    if (d.kind && l.kind !== d.kind) return false
+    if (seen.has(l.id)) return false
+    seen.add(l.id)
+    return true
+  })
+  return envelope(
+    hit.map((l) => ({
+      kind: l.kind,
+      fromType: l.fromType,
+      fromId: l.fromId,
+      toType: l.toType,
+      toId: l.toId,
+      ...(typeof l.meta?.label === 'string' ? { label: l.meta.label } : {}),
+      ...(l.meta?.category ? { category: l.meta.category } : {}),
+    })),
+    READ_LIMITS.listLinks,
+  )
+}
+
 /** 供测试与白名单复用的读工具清单 */
 export const READ_TOOLS = {
   resolveEntity: 'resolveEntity',
@@ -380,6 +431,7 @@ export const READ_TOOLS = {
   listProjects: 'listProjects',
   listNotes: 'listNotes',
   listNoteFolders: 'listNoteFolders',
+  listLinks: 'listLinks',
 } as const
 
 export type { Project }

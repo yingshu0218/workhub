@@ -266,6 +266,27 @@ export async function runToolSweep(mcp: McpClient, deps: SweepDeps = {}): Promis
 
   await kase('crm_addRelation', () => ({ customerId: g('customerId'), targetId: g('customer2Id'), label: '同一公司' }))
 
+  // 关联层（P4）：建联 → 查询 → 解联，全链路走一遍
+  await kase('link_link', () => ({
+    fromType: 'todo', fromId: g('todoId'), toType: 'customer', toId: g('customerId'), kind: 'related',
+  }))
+  await kase('link_link', () => ({
+    fromType: 'customer', fromId: g('customerId'), toType: 'customer', toId: g('customer2Id'),
+    kind: 'relation', label: '上下游',
+  }))
+  await kase('listLinks', () => ({ type: 'customer', id: g('customerId') }), (r) => {
+    const d = r.data as ReadEnvelope<{ kind: string; toId?: string }>
+    need(d.items?.some((i) => i.kind === 'relation'), 'listLinks 未查到刚建的关系')
+    need(d.count === d.items?.length, 'listLinks 计数与条目数不一致')
+  })
+  await kase('link_unlink', () => ({
+    fromType: 'todo', fromId: g('todoId'), toType: 'customer', toId: g('customerId'), kind: 'related',
+  }), async () => {
+    const t = await invoke('listLinks', { type: 'customer', id: g('customerId'), kind: 'related' })
+    const d = t.data as ReadEnvelope<{ fromId?: string; toId?: string }>
+    need(!d.items?.some((i) => i.fromId === g('todoId') || i.toId === g('todoId')), '解联后 listLinks 仍能查到该 related')
+  })
+
   await kase('crm_updateCustomer', () => ({ customerId: g('customerId'), intimacyLevel: 'T2' }), async () => {
     const c = await invoke('getCustomer', { id: g('customerId') })
     const d = c.data as ReadEnvelope<Record<string, unknown>>
@@ -462,6 +483,8 @@ export async function runToolSweep(mcp: McpClient, deps: SweepDeps = {}): Promis
   await probe('note_createNote', 'B2 建笔记→放不存在文件夹', { title: 'x', folderId: 'nf-not-exist' }, 'error')
   await probe('project_createProject', 'B3 建项目→挂不存在客户', { name: 'x', customerId: 'cus-not-exist' }, 'error')
   await probe('crm_addRelation', 'B4 建关系→目标不存在', { customerId: C, targetId: 'cus-not-exist', label: '同事' }, 'error')
+  await probe('link_link', 'B4b 建联→端点不存在', { fromType: 'todo', fromId: 'td-not-exist', toType: 'customer', toId: C, kind: 'related' }, 'error')
+  await probe('link_link', 'B4c relation 缺 label', { fromType: 'customer', fromId: C, toType: 'customer', toId: 'c-any', kind: 'relation' }, 'error')
   await probe('todo_createTodo', 'B5 建待办→挂不存在项目', { title: 'x', projectId: 'prj-not-exist' }, 'error')
   await probe('todo_updateTodo', 'B6 改待办→换成不存在客户', { todoId: ctx.todoId ?? 'td-missing', customerId: 'cus-not-exist' }, 'error')
   await probe('note_createNote', 'B7 建笔记→挂不存在项目', { title: 'x', projectId: 'prj-not-exist' }, 'error')

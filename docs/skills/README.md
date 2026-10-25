@@ -16,7 +16,7 @@
 - **relay 不是安全边界**：真正的防线是 agentOps 的 zod 校验 + 风险分级 + confirmToken + 白名单；
 - relay 是**通道、不持有数据**：权威数据在浏览器 IndexedDB，agentOps 在页面进程内执行。
 
-## 工具总览（34 个）
+## 工具总览（37 个）
 
 | 工具 | 域 | 风险 | 能力 |
 |---|---|---|---|
@@ -24,7 +24,9 @@
 | [`fin_createLedger`](./fin_createLedger.md) | fin | low | 新建账本 |
 | [`crm_createCustomer`](./crm_createCustomer.md) | crm | medium | 新建 CRM 客户（可含首联初始化） |
 | [`crm_addInteraction`](./crm_addInteraction.md) | crm | medium | 记一条客户沟通日志（原子刷新最近联系时间） |
-| [`crm_addRelation`](./crm_addRelation.md) | crm | medium | 维护客户关系（双向落两侧） |
+| [`crm_addRelation`](./crm_addRelation.md) | crm | medium | 维护客户关系（canonical relation link） |
+| [`link_link`](./link_link.md) | link | medium | 建立原子间关联（links 表，related / relation） |
+| [`link_unlink`](./link_unlink.md) | link | medium | 解除原子间关联（幂等） |
 | [`todo_createTodo`](./todo_createTodo.md) | todo | low | 新建待办（正文首行即标题） |
 | [`todo_completeTodo`](./todo_completeTodo.md) | todo | low | 把待办标记为完成（或取消完成） |
 | [`habit_checkin`](./habit_checkin.md) | habit | low | 习惯打卡 / 取消打卡 |
@@ -54,6 +56,7 @@
 | [`listProjects`](./listProjects.md) | read | low | 列项目（可按状态/挂靠客户过滤） |
 | [`listNotes`](./listNotes.md) | read | low | 列笔记（标题/标签/归属，**不含正文**） |
 | [`listNoteFolders`](./listNoteFolders.md) | read | low | 列笔记文件夹 |
+| [`listLinks`](./listLinks.md) | read | low | 查某实体的关联（双向合并） |
 
 ## 通用纪律
 

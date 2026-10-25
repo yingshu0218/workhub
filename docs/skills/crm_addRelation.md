@@ -4,7 +4,7 @@
 
 ## 能力
 
-维护客户关系（双向落两侧）
+维护客户关系（canonical relation link）
 
 ## 参数
 
@@ -17,7 +17,7 @@
 
 ## 副作用
 
-在 A、B 两侧客户的 relations[] 各写一条（同目标+语义判重）。无领域事件。
+写一条 kind=relation 的 link（canonical：两端任一侧都可见）。无领域事件。
 
 ## 事件
 
@@ -25,7 +25,7 @@
 
 ## 幂等语义
 
-幂等：同 (targetId,label) 重复调用不新增。
+幂等：同 (targetId,label) 已有活 link 时 deduped=true 不重复写。
 
 ## 实体引用规则
 

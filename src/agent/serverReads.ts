@@ -13,6 +13,7 @@ import {
   listTodos,
   listLedgers,
   listHabits,
+  listLinks,
   listProjects,
   listNotes,
   listNoteFolders,
@@ -25,6 +26,7 @@ import {
   listProjectsSchema,
   listNotesSchema,
   listNoteFoldersSchema,
+  listLinksSchema,
   searchEntitiesSchema,
 } from './reads'
 
@@ -93,6 +95,7 @@ export const SERVER_READ_TOOLS = {
   'listProjects': { schema: listProjectsSchema, run: (i: unknown) => wrapRead(listProjectsSchema, listProjects, i) },
   'listNotes': { schema: listNotesSchema, run: (i: unknown) => wrapRead(listNotesSchema, listNotes, i) },
   'listNoteFolders': { schema: listNoteFoldersSchema, run: (i: unknown) => wrapRead(listNoteFoldersSchema, listNoteFolders, i) },
+  'listLinks': { schema: listLinksSchema, run: (i: unknown) => wrapRead(listLinksSchema, listLinks, i) },
 } as const
 
 export type ServerReadToolName = keyof typeof SERVER_READ_TOOLS

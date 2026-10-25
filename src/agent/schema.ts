@@ -247,6 +247,30 @@ export const addRelationSchema = z.object({
   category: z.enum(['project', 'event', 'finance', 'person', 'other']).optional(),
 })
 
+/**
+ * 关联层工具（原子化 P4）：跨模块原子间的 related / relation link。
+ * ⚠️ 刻意不含 mention / attachment：mention 由笔记保存的 syncMentionLinks 按正文 diff
+ * 托管（外部建了也会在下次保存时被剪掉），attachment 由凭证流程托管 —— 开放只会打架。
+ * 实体类型用与 resolveEntity 同族的短名（customer → customers 表），executor 负责映射。
+ */
+const LINK_ENTITY_TYPES = ['customer', 'todo', 'ledger', 'project', 'note', 'transaction', 'habit'] as const
+
+const linkEndpointDesc = (side: string) =>
+  z.enum(LINK_ENTITY_TYPES, { message: `${side} 实体类型须为 ${LINK_ENTITY_TYPES.join(' / ')}` })
+
+export const linkLinkSchema = z.object({
+  fromType: linkEndpointDesc('发起方'),
+  fromId: z.string().min(1, '必须为真实 id（先经 resolveEntity 消解）'),
+  toType: linkEndpointDesc('目标方'),
+  toId: z.string().min(1, '必须为真实 id（先经 resolveEntity 消解）'),
+  /** related=一般关联；relation=客户间语义关系（必须带 label） */
+  kind: z.enum(['related', 'relation']),
+  label: z.string().trim().min(1, 'kind=relation 必须填写关系语义').optional(),
+  category: z.enum(['project', 'event', 'finance', 'person', 'other']).optional(),
+})
+
+export const linkUnlinkSchema = linkLinkSchema
+
 /** habit_checkin —— 落库 checkinHabit（§9.6.1 收口，幂等：仅实际新建才 emit） */
 export const checkinHabitSchema = z.object({
   habitId: z.string().min(1, 'habitId 必须由 resolveEntity 消解产出'),
@@ -509,6 +533,9 @@ export const deleteProjectSchema = z.object({
 /** 各写工具的风险分级（§四.4：低=执行+undo；中=先 preview 拿 confirmToken 再 execute） */
 export const TOOL_RISK: Record<string, RiskLevel> = {
   'fin_recordTransaction': 'medium',
+  // 关联层（P4）：改的是关联关系而非实体数据，medium（与 crm_addRelation 同级）
+  'link_link': 'medium',
+  'link_unlink': 'medium',
   'fin_createLedger': 'low',
   'crm_createCustomer': 'medium',
   'crm_addInteraction': 'medium',
@@ -547,6 +574,7 @@ export const TOOL_RISK: Record<string, RiskLevel> = {
   'listProjects': 'low',
   'listNotes': 'low',
   'listNoteFolders': 'low',
+  'listLinks': 'low',
 }
 
 /**
@@ -592,6 +620,8 @@ export const resolveEntitySchema = z.object({
  */
 export const TOOL_DOMAIN: Record<string, AiDomain> = {
   fin_recordTransaction: 'fin',
+  link_link: 'link',
+  link_unlink: 'link',
   fin_createLedger: 'fin',
   crm_createCustomer: 'crm',
   crm_addInteraction: 'crm',
@@ -627,6 +657,7 @@ export const TOOL_DOMAIN: Record<string, AiDomain> = {
   listProjects: 'read',
   listNotes: 'read',
   listNoteFolders: 'read',
+  listLinks: 'read',
 }
 
 /** 域默认开关（settings.ai.domains 缺省时的兜底；写域默认全开、读域默认开） */
@@ -635,6 +666,7 @@ export const DEFAULT_AI_DOMAINS: Record<AiDomain, boolean> = {
   crm: true,
   todo: true,
   project: true,
+  link: true,
   habit: true,
   note: true,
   read: true,

@@ -2,7 +2,7 @@
   "generatedBy": "scripts/gen-skills.mjs",
   "source": "src/agent/skillSource.ts",
   "protocolVersion": "2024-11-05",
-  "toolCount": 34,
+  "toolCount": 37,
   "tools": [
     {
       "name": "fin_recordTransaction",
@@ -297,7 +297,7 @@
     },
     {
       "name": "crm_addRelation",
-      "description": "维护客户关系（双向落两侧）",
+      "description": "维护客户关系（canonical relation link）",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -330,6 +330,150 @@
       "annotations": {
         "risk": "medium",
         "domain": "crm",
+        "readOnly": false
+      },
+      "events": []
+    },
+    {
+      "name": "link_link",
+      "description": "建立原子间关联（links 表，related / relation）",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "fromType": {
+            "type": "string",
+            "enum": [
+              "customer",
+              "todo",
+              "ledger",
+              "project",
+              "note",
+              "transaction",
+              "habit"
+            ]
+          },
+          "fromId": {
+            "type": "string"
+          },
+          "toType": {
+            "type": "string",
+            "enum": [
+              "customer",
+              "todo",
+              "ledger",
+              "project",
+              "note",
+              "transaction",
+              "habit"
+            ]
+          },
+          "toId": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "related",
+              "relation"
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "project",
+              "event",
+              "finance",
+              "person",
+              "other"
+            ]
+          }
+        },
+        "required": [
+          "fromType",
+          "fromId",
+          "toType",
+          "toId",
+          "kind"
+        ]
+      },
+      "annotations": {
+        "risk": "medium",
+        "domain": "link",
+        "readOnly": false
+      },
+      "events": []
+    },
+    {
+      "name": "link_unlink",
+      "description": "解除原子间关联（幂等）",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "fromType": {
+            "type": "string",
+            "enum": [
+              "customer",
+              "todo",
+              "ledger",
+              "project",
+              "note",
+              "transaction",
+              "habit"
+            ]
+          },
+          "fromId": {
+            "type": "string"
+          },
+          "toType": {
+            "type": "string",
+            "enum": [
+              "customer",
+              "todo",
+              "ledger",
+              "project",
+              "note",
+              "transaction",
+              "habit"
+            ]
+          },
+          "toId": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "related",
+              "relation"
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "project",
+              "event",
+              "finance",
+              "person",
+              "other"
+            ]
+          }
+        },
+        "required": [
+          "fromType",
+          "fromId",
+          "toType",
+          "toId",
+          "kind"
+        ]
+      },
+      "annotations": {
+        "risk": "medium",
+        "domain": "link",
         "readOnly": false
       },
       "events": []
@@ -1372,6 +1516,49 @@
       "inputSchema": {
         "type": "object",
         "properties": {}
+      },
+      "annotations": {
+        "risk": "low",
+        "domain": "read",
+        "readOnly": true
+      },
+      "events": []
+    },
+    {
+      "name": "listLinks",
+      "description": "查某实体的关联（双向合并）",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "customer",
+              "todo",
+              "ledger",
+              "project",
+              "note",
+              "transaction",
+              "habit"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "related",
+              "mention",
+              "relation",
+              "attachment"
+            ]
+          }
+        },
+        "required": [
+          "type",
+          "id"
+        ]
       },
       "annotations": {
         "risk": "low",

@@ -14,6 +14,8 @@ import {
   deleteProjectCascade,
   addCustomerRelation,
   saveTransactionWithAttachments,
+  linkAtoms,
+  unlinkAtoms,
   habitRepo,
   noteRepo,
   todoRepo,
@@ -61,6 +63,8 @@ import { resolveEntity, type ResolveResult } from './resolver'
 import { createLedger, recordTransaction } from '@/domain'
 import {
   checkinHabitSchema,
+  linkLinkSchema,
+  linkUnlinkSchema,
   recordTransactionSchema,
   resolveEntitySchema,
   TOOL_DOMAIN,
@@ -102,6 +106,7 @@ import {
   listProjects,
   listNotes,
   listNoteFolders,
+  listLinks,
   searchEntities,
   listTransactionsSchema,
   getCustomerSchema,
@@ -111,6 +116,7 @@ import {
   listProjectsSchema,
   listNotesSchema,
   listNoteFoldersSchema,
+  listLinksSchema,
   searchEntitiesSchema,
   type ReadResult,
 } from './reads'
@@ -1061,6 +1067,11 @@ export function agent_listNoteFolders(input: unknown): Promise<AgentOpResult> {
   return wrapRead(listNoteFoldersSchema, listNoteFolders, input)
 }
 
+/** listLinks：关联查询读工具入口（关联层 P4） */
+export function agent_listLinks(input: unknown): Promise<AgentOpResult> {
+  return wrapRead(listLinksSchema, listLinks, input)
+}
+
 /** resolveEntity：读工具入口（薄包装，实现在 resolver.ts 保持可独立测试） */
 export async function agent_resolveEntity(input: unknown): Promise<AgentOpResult> {
   const parsed = parseOrError(resolveEntitySchema, input)
@@ -1094,8 +1105,86 @@ export async function dispatchAgentTool(
 }
 
 /** 工具注册表：桥与测试统一从这里取（域前缀命名，§2.3） */
+/** 端点短名 → 表名（与 resolveEntity 的 type 同族） */
+const LINK_ENDPOINT_TABLE = {
+  customer: 'customers',
+  todo: 'todos',
+  ledger: 'ledgers',
+  project: 'projects',
+  note: 'notes',
+  transaction: 'transactions',
+  habit: 'habits',
+} as const
+
+/**
+ * link_link：建立原子间关联（关联层 P4）。只开放 related / relation ——
+ * mention 由笔记保存按正文 diff 托管、attachment 由凭证流程托管，外部建了会被
+ * 下一次保存剪掉（开放只会打架）。落库走 linkAtoms：端点存活前置校验（幽灵纪律③）、
+ * 幂等（确定性 id 覆盖盖章）、canonical 排序（relation 任一端发起同一条）。
+ */
+export async function link_link(input: unknown): Promise<AgentOpResult> {
+  const parsed = parseOrError(linkLinkSchema, input)
+  if (!parsed.ok) return parsed
+  const d = parsed.data
+  const from = { type: LINK_ENDPOINT_TABLE[d.fromType], id: d.fromId }
+  const to = { type: LINK_ENDPOINT_TABLE[d.toType], id: d.toId }
+  const meta =
+    d.label || d.category
+      ? {
+          ...(d.label ? { label: d.label } : {}),
+          ...(d.category ? { category: d.category } : {}),
+        }
+      : undefined
+  let linkId: string
+  try {
+    linkId = await linkAtoms({ from, to, kind: d.kind, meta })
+  } catch (e) {
+    // linkAtoms 的可操作错误（端点不存在/已删、relation 缺 label、自关联）原样透出
+    return err(e instanceof Error ? e.message : String(e))
+  }
+  return ok({
+    linkId,
+    from: { type: d.fromType, id: d.fromId },
+    to: { type: d.toType, id: d.toId },
+    kind: d.kind,
+  })
+}
+
+/**
+ * link_unlink：解除原子间关联。幂等（从未存在/已是墓碑 → 静默成功），
+ * 同语义重联（link_link 同参数）会复活原 link。
+ */
+export async function link_unlink(input: unknown): Promise<AgentOpResult> {
+  const parsed = parseOrError(linkUnlinkSchema, input)
+  if (!parsed.ok) return parsed
+  const d = parsed.data
+  const meta =
+    d.label || d.category
+      ? {
+          ...(d.label ? { label: d.label } : {}),
+          ...(d.category ? { category: d.category } : {}),
+        }
+      : undefined
+  const { buildLinkId } = await import('@/repositories/linkId')
+  const linkId = buildLinkId(
+    { type: LINK_ENDPOINT_TABLE[d.fromType], id: d.fromId },
+    { type: LINK_ENDPOINT_TABLE[d.toType], id: d.toId },
+    d.kind,
+    meta,
+  )
+  await unlinkAtoms({
+    from: { type: LINK_ENDPOINT_TABLE[d.fromType], id: d.fromId },
+    to: { type: LINK_ENDPOINT_TABLE[d.toType], id: d.toId },
+    kind: d.kind,
+    meta,
+  })
+  return ok({ linkId, unlinked: true })
+}
+
 export const AGENT_TOOLS = {
   'fin_recordTransaction': { risk: TOOL_RISK['fin_recordTransaction'], schema: recordTransactionSchema, run: fin_recordTransaction },
+  'link_link': { risk: TOOL_RISK['link_link'], schema: linkLinkSchema, run: link_link },
+  'link_unlink': { risk: TOOL_RISK['link_unlink'], schema: linkUnlinkSchema, run: link_unlink },
   'crm_createCustomer': { risk: TOOL_RISK['crm_createCustomer'], schema: createCustomerSchema, run: crm_createCustomer },
   'crm_addInteraction': { risk: TOOL_RISK['crm_addInteraction'], schema: addInteractionSchema, run: crm_addInteraction },
   'crm_addRelation': { risk: TOOL_RISK['crm_addRelation'], schema: addRelationSchema, run: crm_addRelation },
@@ -1131,6 +1220,7 @@ export const AGENT_TOOLS = {
   'listProjects': { risk: TOOL_RISK['listProjects'], schema: listProjectsSchema, run: agent_listProjects },
   'listNotes': { risk: TOOL_RISK['listNotes'], schema: listNotesSchema, run: agent_listNotes },
   'listNoteFolders': { risk: TOOL_RISK['listNoteFolders'], schema: listNoteFoldersSchema, run: agent_listNoteFolders },
+  'listLinks': { risk: TOOL_RISK['listLinks'], schema: listLinksSchema, run: agent_listLinks },
 } as const
 
 /**
