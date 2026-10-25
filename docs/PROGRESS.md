@@ -20,7 +20,9 @@
 ⑫ ✅ 永久删除确认弹窗补「其他设备 30 天窗口」说明：长期离线（>30 天）的设备可能仍留旧副本，同步后才会消失。
 
 > **验证**：tsc ✅ 0 错 / eslint ✅ 0 告警 / 分组跑全绿：回收站相关 **21 条**（`trash` 9 · `trash.purge` 8 · `TrashPage` 4）· `repositories` + `modules/trash` **6 文件** · `sync` **10 passed / 1 skipped** · `modules/crm` + `modules/notes` **18 文件** · `modules/todo` **163 条** · `src/agent` **27 文件 / 3 skipped**（online 用例跳过）· 首跑失败的 3 个文件修复后 **14 条** · 第二轮全量暴露的 6 个文件修复后 **67 条**。**两端 `check:schema` 均「完全一致」**（导入前 14 个集合差异，纯新增字段）。
-> ⚠️⚠️ **全量单跑未在本机拿到最终汇总，不能声称「全绿」**：这台机器同时跑着 3 个占 70–112% CPU 的浏览器进程，worker 启动 1.22s → 5.69s、单文件最长 21.9s，并出现 `Timeout terminating forks worker`；**同一份代码两次全量分别 3 failed / 11 failed，失败集合还不一样** —— 是负载抖动，不是功能回归（其中 4 条已定位并修复根因，见 ⑦⑧）。判断依据是「失败随负载漂移 + 全部落在报错形状为等待超时」，**不是**「重跑一次变绿」。本轮改动的全部受影响目录已分组跑过（见上），但**合并前仍要在一台安静机器上跑一次 `npm test` 收尾**。
+> ✅ **全量 vitest：983 passed · 0 failed**（116 文件 / 990 用例 · 7 skipped）—— 用 `npx vitest run --maxWorkers=4`。
+> ⚠️⚠️ **一条必须记住的判据：默认高并发下这套 jsdom 用例会「假红」**。同一份代码在默认并发（116 worker）下两次全量分别 **3 failed / 11 failed，失败集合还不一样**，报错形状全是 `Test timed out in 5000ms` / `Unable to find an element`（看着最像「功能坏了」）；降到 **4 个 worker 后一次全绿**。根因是每个用例要等 IndexedDB 事务 → liveQuery → React 三跳，worker 启动从 1.22s 涨到 5.69s 时等待预算就不够了。
+> **→ 处置口径：失败数随并发/负载漂移 = 环境问题，不是回归；复验一律 `--maxWorkers=4` 或单文件跑，不要用「重跑一次变绿」当结论，也不要因为它变红就去改业务代码。**
 
 **上一轮**：2026-10-23（**全站回收站：删除快照 + 显式恢复协议**）。**目标**：误删的客户/流水/待办/笔记/项目/习惯可在 `/trash` 恢复，并重建删除时被清空的跨模块关联。
 ① ✅ **同步层新增唯一受控例外**：`SyncMeta.restoredAt` + `trashSnapshot`；没有 `restoredAt` 的记录仍走原「墓碑不可逆」，有且晚于墓碑才允许复活。推送侧 `pbUpsert`、拉取侧 `mergeRemote` 都按同一矩阵判定；`repository.put` 对墓碑自动盖恢复标记，`softDelete`/cascade 删除清空标记。
