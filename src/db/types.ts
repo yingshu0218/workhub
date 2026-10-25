@@ -234,8 +234,8 @@ export interface Todo extends SyncMeta {
   customerId?: string
   ledgerId?: string
   habitId?: string
-  /** 所属自定义清单（智能清单不落此字段） */
-  listId?: string
+  // 所属清单已迁 links（v16，kind='member' → todoLists）：读侧 todo/hooks#useTodoListIdOf、
+  // 写侧 saveTodoWithList/setTodoList —— 收集箱 = 无 member link（不为收集箱建记录）
   /** 所属项目（可选弱引用：一次性的待办可不填；项目删除仅解绑） */
   projectId?: string
   /**
@@ -778,8 +778,8 @@ export function customerInGroup(
 
 /**
  * 可作为 link 端点的表。词表由 kind 方向约定约束（方案 §2.3），Phase 2 各迁移项实际使用；
- * 刻意不含 workspaces/quickNotes/trophies/moduleConfigs/customerGroups —— 它们不承载
- * 跨实体关联语义（三期集合成员若落地，届时再扩 customerGroups 进来）。
+ * 刻意不含 workspaces/quickNotes/trophies/moduleConfigs —— 它们不承载跨实体关联语义。
+ * customerGroups 是 Phase 3 手动分组族的预留位（member link 端点）。
  */
 export type LinkEndpointTable =
   | 'customers'
@@ -790,14 +790,20 @@ export type LinkEndpointTable =
   | 'todoLists'
   | 'notes'
   | 'noteFolders'
+  | 'customerGroups'
   | 'projects'
   | 'projectMilestones'
   | 'habits'
   | 'habitLogs'
   | 'attachments'
 
-/** 关联种类（闭集；扩词表改这里 + links.ts 的 disc/meta 约定） */
-export const LINK_KINDS = ['related', 'mention', 'relation', 'attachment'] as const
+/**
+ * 关联种类（闭集；扩词表改这里 + links.ts 的 disc/meta 约定）。
+ * member = 集合层成员归属（Phase 3，from=成员实体 todo/note/customer，to=容器 todoLists/
+ * noteFolders/customerGroups）：单选语义靠写路径 syncMemberLinks 选择集 diff 表达，
+ * 不做 DB 唯一约束（docs/集合层设计方案-20261026.md 裁决 B）。
+ */
+export const LINK_KINDS = ['related', 'mention', 'relation', 'attachment', 'member'] as const
 export type LinkKind = (typeof LINK_KINDS)[number]
 
 /** kind 专属载荷：mention 存提及时的显示名；relation 存关系语义（label 参与 id 判重，Issue #39 口径） */

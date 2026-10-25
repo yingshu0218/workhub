@@ -14,6 +14,8 @@ import {
   deleteProjectCascade,
   addCustomerRelation,
   saveTransactionWithAttachments,
+  saveTodoWithList,
+  setTodoList,
   linkAtoms,
   unlinkAtoms,
   habitRepo,
@@ -369,7 +371,6 @@ export async function todo_createTodo(input: unknown): Promise<AgentOpResult> {
     status: 'todo',
     dueAt: d.dueAt,
     customerId: d.customerId,
-    listId: d.listId,
     projectId: d.projectId,
     tags: d.tags?.length ? normalizeTodoTags(d.tags) : undefined,
     createdAt: Date.now(),
@@ -377,7 +378,8 @@ export async function todo_createTodo(input: unknown): Promise<AgentOpResult> {
     deleted: 0,
     rev: 0,
   }
-  await todoRepo.put(record)
+    // 清单归属已迁 links（v16 member）：与待办行同事务落库（saveTodoWithList 收口）
+  await saveTodoWithList(record, d.listId)
   return ok({ todoId: id })
 }
 
@@ -562,17 +564,25 @@ export async function todo_updateTodo(input: unknown): Promise<AgentOpResult> {
   const projectId = triState(d.projectId)
   if (projectId.touched) patch.projectId = projectId.value
   const listId = triState(d.listId)
-  if (listId.touched) patch.listId = listId.value
 
   // 弱引用校验：关联对象必须存在（拒绝挂到已删客户/项目/清单上，避免图里出现悬挂边）
   const links = await assertLinks([
     { id: patch.customerId, table: tableRef('customers'), what: '客户' },
     { id: patch.projectId, table: tableRef('projects'), what: '项目' },
-    { id: patch.listId, table: tableRef('todoLists'), what: '待办清单' },
+    { id: listId.touched ? (listId.value ?? undefined) : undefined, table: tableRef('todoLists'), what: '待办清单' },
   ])
   if (!links.ok) return err(links.error)
 
   await todoRepo.put({ ...prev, ...patch })
+  // 清单归属已迁 links（v16 member）：touched 才动（null = 移回收集箱）；
+  // 放在行更新之后 —— 幽灵清单会抛错返回，但行内其余字段已按用户要求更新（各自独立成立）
+  if (listId.touched) {
+    try {
+      await setTodoList(d.todoId, listId.value ?? undefined)
+    } catch (e) {
+      return err(e instanceof Error ? e.message : '清单归属失败')
+    }
+  }
   return ok({ todoId: d.todoId, updated: Object.keys(patch) })
 }
 

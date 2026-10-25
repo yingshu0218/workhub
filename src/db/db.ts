@@ -259,6 +259,20 @@ export class NexusDB extends Dexie {
       .upgrade(async (tx) => {
         await migrateLegacyLinks((name) => tx.table(name) as never)
       })
+    /**
+     * v16（集合层 Phase 3 · 成员归属 → links）：todos.listId 翻 kind='member' link
+     * （from=待办 → to=清单），迁移体与 v15 同一实现（MIGRATED_LINK_TABLES 已扩 todos），
+     * 派生纪律不变（updatedAt:0/rev:0 不入队）。索引侧去掉 todos.listId（级联与过滤
+     * 改走 member 索引，弱引用不再落行字段）。后续族（notes.folderId / customers.groupId）
+     * 并入同一 version 的迁移清单，逐族提交。
+     */
+    this.version(16)
+      .stores({
+        todos: 'id, status, dueAt, priority, customerId, projectId, updatedAt',
+      })
+      .upgrade(async (tx) => {
+        await migrateLegacyLinks((name) => tx.table(name) as never)
+      })
   }
 }
 

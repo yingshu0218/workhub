@@ -26,6 +26,7 @@ import { eventBus } from '@/shared/eventBus'
 import {
   cascadeSoftDeleteLinks,
   putLinkTx,
+  syncMemberLinks,
   syncMentionLinks,
   syncRelatedLinks,
   syncRelationLinks,
@@ -306,6 +307,61 @@ export async function deleteLedgerCascade(ledgerId: string): Promise<void> {
       trashSnapshot,
     })
     await tx.enqueue('ledgers', ledgerId, 'delete', now)
+  })
+  storage.requestSync()
+}
+
+/**
+ * 待办 + 清单归属原子落库（Phase 3 集合层 · v16 起归属在 member link）。
+ *
+ * listId 三态与 saveTransactionWithAttachments(…, related?) 同款约定：
+ * - `undefined` = 不动既有归属（agent 编辑未提清单时）；
+ * - `null` = 移回收集箱（既有 member link 墓碑化）；
+ * - `string` = 移入该清单（幽灵容器抛可操作错误、事务整体回滚）。
+ * 行字段不再持有 listId（类型已删），收集箱 = 无 member link（不为收集箱建记录）。
+ */
+export async function saveTodoWithList(
+  todo: PutInput<Todo>,
+  listId?: string | null,
+): Promise<string> {
+  const now = Date.now()
+  await storage.transaction(['todos', 'todoLists', 'links', 'syncQueue'], async (tx) => {
+    const prev = await tx.get<Todo>('todos', todo.id)
+    const reviving = prev?.deleted === 1
+    const restoredAt = reviving ? now : (todo.restoredAt ?? prev?.restoredAt)
+    await tx.put('todos', {
+      ...todo,
+      updatedAt: now,
+      rev: (prev?.rev ?? 0) + 1,
+      deleted: 0 as const,
+      deletedAt: undefined,
+      ...(restoredAt ? { restoredAt } : {}),
+    } as Todo)
+    await tx.enqueue('todos', todo.id, 'upsert', now)
+    if (listId !== undefined) {
+      await syncMemberLinks(
+        tx,
+        { type: 'todos', id: todo.id },
+        'todoLists',
+        listId ?? undefined,
+        now,
+      )
+    }
+  })
+  storage.requestSync()
+  return todo.id
+}
+
+/**
+ * 仅改清单归属（不动待办行）：拖拽入清单 / 移回收集箱的快捷路径。
+ * 幽灵待办静默返回（repository.update 同款幂等口径）；幽灵清单抛错回滚。
+ */
+export async function setTodoList(todoId: string, listId: string | undefined): Promise<void> {
+  const now = Date.now()
+  await storage.transaction(['todos', 'todoLists', 'links', 'syncQueue'], async (tx) => {
+    const todo = await tx.get<Todo>('todos', todoId)
+    if (!todo || todo.deleted) return
+    await syncMemberLinks(tx, { type: 'todos', id: todoId }, 'todoLists', listId, now)
   })
   storage.requestSync()
 }

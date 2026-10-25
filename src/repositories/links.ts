@@ -260,6 +260,78 @@ export async function syncRelatedLinks(
   }
 }
 
+// ─────────────────────────── member 同步（Phase 3 · 集合层成员归属，单选 diff） ───────────────────────────
+
+/**
+ * 集合层成员归属同步（单选语义的 diff 式表达，docs/集合层设计方案-20261026.md 裁决 B）。
+ *
+ * 三类成员（todo→todoLists / note→noteFolders / customer→customerGroups·manual）都是
+ * 「至多一个容器」：wanted 传容器 id 即移入（同容器幂等重盖章）、传 undefined 即离开
+ * （既有 member link 墓碑化 → 待办回收集箱 / 笔记回根层 / 客户离开手动组）。
+ * 换容器 = 新 link 建立 + 旧容器 link 墓碑化，同一事务。
+ *
+ * - 幽灵纪律③：wanted 指向已删/不存在容器 → 抛可操作错误（事务整体回滚）；
+ * - 幂等：同容器重复同步只重盖章（确定性 id，putLinkTx 同款）；
+ * - 恢复联动：容器删除时 cascadeSoftDeleteLinks 统一墓碑化、快照留档（无需本函数参与）。
+ */
+export async function syncMemberLinks(
+  tx: StorageTx,
+  from: LinkEndpoint,
+  containerTable: 'todoLists' | 'noteFolders' | 'customerGroups',
+  wanted: string | undefined,
+  now: number,
+): Promise<void> {
+  if (wanted !== undefined) {
+    const target = await tx.get<{ id: string; deleted?: 0 | 1 }>(containerTable, wanted)
+    if (!target || target.deleted) {
+      throw new Error(`目标容器已不存在（${containerTable}/${wanted}），无法归属`)
+    }
+    await putLinkTx(tx, { from, to: { type: containerTable, id: wanted }, kind: 'member' }, now)
+  }
+  // 旧容器（若有）墓碑化：wanted 同容器时 id 相同、跳过
+  const keepId =
+    wanted !== undefined ? buildLinkId(from, { type: containerTable, id: wanted }, 'member') : null
+  const existing = (await tx.list<Link>('links')).filter(
+    (l) =>
+      l.kind === 'member' &&
+      !l.deleted &&
+      l.fromType === from.type &&
+      l.fromId === from.id &&
+      l.toType === containerTable,
+  )
+  for (const l of existing) {
+    if (l.id === keepId) continue
+    await tx.update('links', l.id, {
+      deleted: 1,
+      updatedAt: now,
+      rev: (l.rev ?? 0) + 1,
+      deletedAt: now,
+      restoredAt: undefined,
+      trashSnapshot: undefined,
+    })
+    await tx.enqueue('links', l.id, 'delete', now)
+  }
+}
+
+/**
+ * member 读索引（纯函数）：Map<成员 id, 容器 id>。
+ *
+ * 双挂兜底（裁决 B）：同步竞态可能短暂留下同一成员的多条活 member link（不同容器），
+ * 读侧取 updatedAt 最新的一条 —— 单选是写路径纪律，不是存储约束，读取必须自洽。
+ * 消费方先按族过滤 rows（kind='member' + fromType/toType），本函数不做族过滤以保持通用。
+ */
+export function memberIndexOf(rows: readonly Link[]): Map<string, string> {
+  const latest = new Map<string, Link>()
+  for (const l of rows) {
+    if (l.kind !== 'member' || l.deleted) continue
+    const prev = latest.get(l.fromId)
+    if (!prev || l.updatedAt >= prev.updatedAt) latest.set(l.fromId, l)
+  }
+  const m = new Map<string, string>()
+  for (const [memberId, l] of latest) m.set(memberId, l.toId)
+  return m
+}
+
 // ─────────────────────────── relation 同步（Phase 2 · 客户保存时与客户行同事务） ───────────────────────────
 
 /** 对称关系的选择集条目（与 CustomerRelation 同构；targetId 为另一端客户） */

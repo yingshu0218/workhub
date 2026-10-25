@@ -388,9 +388,9 @@ async function pruneDeadRefs(
       break
     }
     case 'todos':
+      // listId 剪枝已随 v16 退役：归属在 member link（恢复由 reviveCascadeLinks 按两端存活处理）
       await dropDeadOne('customerId', 'customers')
       await dropDeadOne('projectId', 'projects')
-      await dropDeadOne('listId', 'todoLists')
       break
     case 'notes': {
       await dropDeadOne('folderId', 'noteFolders')

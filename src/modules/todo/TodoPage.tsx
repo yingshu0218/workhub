@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Icon } from '@/design-system/Icon'
 import { useSearchParams } from 'react-router-dom'
 import { useCollection, useSettings } from '@/queries/hooks'
-import { todoRepo, newId } from '@/repositories'
+import { newId, saveTodoWithList } from '@/repositories'
 import type { Todo, Customer, Project } from '@/db/types'
 import {
   Button,
@@ -66,6 +66,8 @@ import {
 import {
   useTodoLists,
   useTodoListCounts,
+  useTodoListIdOf,
+  setTodoList,
   useTodoListOptions,
   createTodoList,
   renameTodoList,
@@ -85,6 +87,8 @@ export default function TodoPage() {
   const todos = useCollection<Todo>('todos')
   const lists = useTodoLists()
   const listCounts = useTodoListCounts()
+  // 归属已迁 links（v16 member）：Map<todoId, listId> 索引代替行字段
+  const listIdOf = useTodoListIdOf()
   // 归属展示用映射：列表行直接呈现客户/项目/清单，关联被级联解绑后可即时感知
   const customers = useCollection<Customer>('customers')
   const projects = useCollection<Project>('projects')
@@ -225,7 +229,7 @@ export default function TodoPage() {
     // 未完成视图：已完成/已作废一律排除
     if (!isTodoOpen(t)) return false
     if (selKind === 'all') return true
-    if (selKind === 'inbox') return !t.listId
+    if (selKind === 'inbox') return !listIdOf.get(t.id)
     if (!t.dueAt) return false
     const d = dayjs(t.dueAt).format('YYYY-MM-DD')
     if (selKind === 'today') return isDueToday(t, todayStr)
@@ -247,7 +251,7 @@ export default function TodoPage() {
   }
   // 当前视图范围 = 智能视图/清单过滤 ∪ 深链定位条目（保证跳转目标在当前口径内可见）
   const baseScope = selListId
-    ? sortedTodos.filter((t) => t.listId === selListId || inFocusScope(t))
+    ? sortedTodos.filter((t) => listIdOf.get(t.id) === selListId || inFocusScope(t))
     : sortedTodos.filter((t) => matchesSmart(t) || inFocusScope(t))
   // 优先级筛选 Chip（原 P1 紧急开关四档化），作用于当前左栏视图/清单之内；全部未命中时兜底展示空态
   const filtered = baseScope.filter((t) => {
@@ -303,7 +307,7 @@ export default function TodoPage() {
 
   // 固定视图顺序（Issue #128）：未完成区（全部待办 → 收集箱 → 今天 → 最近七天）
   // 之后接终态区（已完成 / 已作废），最后分割线接「我的清单」
-  const inboxCount = openTodos.filter((t) => !t.listId).length
+  const inboxCount = openTodos.filter((t) => !listIdOf.get(t.id)).length
   const smartLists: {
     key: Filter
     icon: string
@@ -382,7 +386,7 @@ export default function TodoPage() {
     const list = lists.find((l) => l.id === id)
     if (!list) return
     // 计数与级联行为对齐：解绑全部未删除待办（含已完成），故统计口头口径为「N 条待办」
-    const n = todos.filter((t) => t.listId === id).length
+    const n = todos.filter((t) => listIdOf.get(t.id) === id).length
     setConfirmList({ id, name: list.name, count: n })
   }
 
@@ -404,7 +408,8 @@ export default function TodoPage() {
    */
   async function moveTodoToList(todoId: string, listId: string) {
     try {
-      await todoRepo.update(todoId, { listId: listId || undefined })
+      // 归属已迁 links（v16 member）：只动 member link，不动待办行
+      await setTodoList(todoId, listId || undefined)
     } catch (err) {
       console.error('[todo] 移动待办到清单失败', err)
     }
@@ -876,7 +881,9 @@ export default function TodoPage() {
                               ? `客户 ${customerName.get(t.customerId) ?? '已删除'}`
                               : null,
                             t.projectId ? `项目 ${projectName.get(t.projectId) ?? '已删除'}` : null,
-                            t.listId ? `清单 ${listName.get(t.listId) ?? '已删除'}` : null,
+                            listIdOf.get(t.id)
+                              ? `清单 ${listName.get(listIdOf.get(t.id)!) ?? '已删除'}`
+                              : null,
                           ].filter(Boolean)
                           if (!quickTags.length && !owner.length) return null
                           return (
@@ -1079,14 +1086,15 @@ export default function TodoPage() {
           setCreating(false)
           setEditing(null)
         }}
-        onSaved={(saved) => {
+        onSaved={(saved, savedListIdArg) => {
           if (editing) return
           // 新建兜底：当前视图装不下新条目时自动切到能装下它的视图，避免保存成功却"看不到任何反应"。
           // 视图枚举（Issue #128 三态）：清单匹配 / 全部待办(未完成恒可见) / 今天·最近七天(含逾期口径) /
           // 收集箱(listId 空) / 已完成 / 已作废。终态条目自动落到对应终态视图。
           const savedDay = saved.dueAt ? dayjs(saved.dueAt).format('YYYY-MM-DD') : undefined
+          const savedListId = savedListIdArg
           const visible = selListId
-            ? saved.listId === selListId
+            ? savedListId === selListId
             : selKind === 'done'
               ? isTodoDone(saved)
               : selKind === 'voided'
@@ -1094,7 +1102,7 @@ export default function TodoPage() {
                 : selKind === 'all'
                   ? isTodoOpen(saved)
                   : selKind === 'inbox'
-                    ? isTodoOpen(saved) && !saved.listId
+                    ? isTodoOpen(saved) && !savedListId
                     : selKind === 'today'
                       ? isTodoOpen(saved) && !!savedDay && savedDay <= todayStr
                       : selKind === 'overdue'
@@ -1150,7 +1158,7 @@ export function TodoFormDrawer({
   todo: Todo | null
   onClose: () => void
   /** 保存成功后回调（新建场景用于视图兜底切换，保证新条目立即可见） */
-  onSaved?: (todo: Todo) => void
+  onSaved?: (todo: Todo, listId?: string) => void
 }) {
   const toast = useToast()
   const customers = useCollection<Customer>('customers')
@@ -1182,6 +1190,7 @@ export function TodoFormDrawer({
   const [tagDraft, setTagDraft] = useState('')
   const [tagNotice, setTagNotice] = useState('')
   const listOptions = useTodoListOptions()
+  const formListIdOf = useTodoListIdOf()
   const [error, setError] = useState('')
   const [seedKey, setSeedKey] = useState(0)
   const tagInputRef = useRef<HTMLInputElement>(null)
@@ -1201,7 +1210,8 @@ export function TodoFormDrawer({
     setPriority(todo ? normalizeTodoPriority(todo.priority) : DEFAULT_TODO_PRIORITY)
     setDueAt(todo?.dueAt ? dayjs(todo.dueAt).format('YYYY-MM-DDTHH:mm') : '')
     setCustomerId(todo?.customerId ?? '')
-    setListId(todo?.listId ?? '')
+    // 归属已迁 links（v16 member）：编辑回填走索引
+    setListId(todo ? (formListIdOf.get(todo.id) ?? '') : '')
     setProjectId(todo?.projectId ?? '')
     setTags(normalizeTodoTags(todo?.tags ?? []))
     setRestoreOnSave(false)
@@ -1270,7 +1280,6 @@ export function TodoFormDrawer({
       dueAt: dueAt ? dayjs(dueAt).valueOf() : undefined,
       tags: finalTags.length ? finalTags : undefined,
       customerId: customerId || undefined,
-      listId: listId || undefined,
       projectId: projectId || undefined,
       createdAt: todo?.createdAt ?? Date.now(),
       updatedAt: 0,
@@ -1279,9 +1288,10 @@ export function TodoFormDrawer({
     }
     // 错误处理（审计 P1 同类项）：此前无 try/catch，落库失败的 Promise 无人处理 → 静默失败零提示。
     try {
-      await todoRepo.put(base)
+      // 清单归属已迁 links（v16 member）：与待办行同事务（null = 移回收集箱）
+      await saveTodoWithList(base, listId || null)
       if (reactivated) toast.success(`已恢复为未完成：${title}`)
-      onSaved?.(base)
+      onSaved?.(base, listId || undefined)
       onClose()
     } catch (e) {
       setError(e instanceof Error ? `保存失败：${e.message}` : '保存失败，请重试')

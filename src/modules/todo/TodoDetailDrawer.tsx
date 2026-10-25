@@ -19,7 +19,7 @@ import {
   todoStatusLabel,
 } from './domain'
 import { todoPriorityLabel, todoPriorityTone } from './priority'
-import { useTodoLists } from './hooks'
+import { useTodoLists, useTodoListIdOf } from './hooks'
 
 /**
  * 待办详情抽屉（**自 TodoPage.tsx 拆出** · 审计 C-7 · 2026-10-21）
@@ -47,6 +47,8 @@ export function TodoDetailDrawer({
   const { record: todo, checked } = useRecordState<Todo>('todos', todoId ?? undefined)
   const display = resolveRecordDisplay(todoId ?? undefined, checked)
   const lists = useTodoLists()
+  // 归属已迁 links（v16 member）：Map<todoId, listId> 索引代替行字段
+  const listIdOf = useTodoListIdOf()
   const customers = useCollection<Customer>('customers')
   const projects = useCollection<Project>('projects')
   const transactions = useCollection<Transaction>('transactions')
@@ -204,7 +206,9 @@ export function TodoDetailDrawer({
               </TodoDetailField>
             )}
             <TodoDetailField label="所属清单">
-              {todo.listId ? (listNameOf(lists, todo.listId) ?? '已删除') : '未归入清单'}
+              {listIdOf.get(todo.id)
+                ? (listNameOf(lists, listIdOf.get(todo.id)!) ?? '已删除')
+                : '未归入清单'}
             </TodoDetailField>
             <TodoDetailField label="关联客户">
               {todo.customerId

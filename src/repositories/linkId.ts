@@ -70,10 +70,13 @@ export const MIGRATED_LINK_TABLES: ReadonlySet<string> = new Set([
   'notes',
   'transactions',
   'customers',
+  // Phase 3 集合层（member 族逐族并入）：todos.listId → todoLists
+  'todos',
 ])
 
 /** 各表要剥掉的旧关联字段键（服务端列保留供老客户端降级，本地行不再落这些键） */
 export const LEGACY_LINK_FIELDS: Record<string, readonly string[]> = {
+  todos: ['listId'],
   transactions: ['customerId', 'todoId', 'projectId', 'customerIds', 'todoIds', 'projectIds'],
   notes: ['mentions', 'backlinks'],
   customers: ['relations'],
@@ -118,6 +121,15 @@ export function legacyLinkSpecs(table: string, rec: Record<string, unknown>): Le
   const rid = typeof rec.id === 'string' ? rec.id : ''
   if (!rid) return []
   const createdAt = typeof rec.createdAt === 'number' ? rec.createdAt : undefined
+
+  if (table === 'todos') {
+    // Phase 3 首族：所属清单 listId → kind='member'（from=待办，to=清单）
+    const lid = typeof rec.listId === 'string' && rec.listId ? rec.listId : ''
+    if (!lid) return []
+    return [
+      { from: { type: 'todos', id: rid }, to: { type: 'todoLists', id: lid }, kind: 'member', createdAt },
+    ]
+  }
 
   if (table === 'transactions') {
     // 旧单值键（v11 前）与数组键并存归一（与 v11 upgrade 同口径：数组优先、单值兜底）

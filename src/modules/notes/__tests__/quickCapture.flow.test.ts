@@ -35,11 +35,14 @@ beforeEach(async () => {
 })
 
 describe('① 速记 → 待办：归属收集箱', () => {
-  it('转入待办后 listId 缺省（即收集箱成员）', async () => {
+  it('转入待办后无 member link（即收集箱成员，v16 起归属在 links）', async () => {
     const id = await captureToTodo('给客户回个电话')
     const todo = await db.todos.get(id)
     expect(todo).toBeDefined()
-    expect(todo!.listId).toBeUndefined()
+    const member = await db.links
+      .filter((l) => l.kind === 'member' && l.fromType === 'todos' && l.fromId === id)
+      .toArray()
+    expect(member).toHaveLength(0)
   })
 
   it('初始态干净：未完成、无完成时间、无截止时间（不进今日日程、不计完成率）', async () => {

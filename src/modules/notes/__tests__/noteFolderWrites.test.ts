@@ -140,13 +140,18 @@ describe('级联删除的子表读取在事务内（P2-A）', () => {
     expect(readIdx).toBeGreaterThan(txIdx)
   })
 
-  it('deleteTodoListCascade 不在事务外读子表', () => {
+  it('deleteTodoListCascade 不在事务外读子表（v16 起成员走 links：级联清扫必须在事务体内）', () => {
     const src = readFileSync(path.resolve(process.cwd(), 'src/modules/todo/hooks.ts'), 'utf8')
     const body = functionBody(src, 'deleteTodoListCascade')
     const txIdx = body.indexOf('storage.transaction')
-    const readIdx = body.indexOf("tx.list<Todo>('todos')")
+    // 判据随 Phase 3 演进：名下成员不再靠扫 todos 行解绑（tx.list<Todo> 已消失），
+    // 改为 member link 统一墓碑化 —— 「子表读写不出事务」的原意由
+    // 「cascadeSoftDeleteLinks（读 links 全表）在事务体内」表达。
+    const readIdx = body.indexOf('cascadeSoftDeleteLinks')
     expect(txIdx).toBeGreaterThan(-1)
     expect(readIdx).toBeGreaterThan(txIdx)
+    // 行级解绑确实退役：函数体里不得再出现待办行字段写入
+    expect(body.includes('listId')).toBe(false)
   })
 
   it('已软删的子记录同样被解绑（否则恢复后会挂在已删节点上）', async () => {

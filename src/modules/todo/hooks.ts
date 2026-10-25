@@ -1,6 +1,8 @@
 import { db } from '@/db/db'
 import { storage } from '@/storage'
-import { newId } from '@/repositories'
+import { newId, setTodoList } from '@/repositories'
+import { cascadeSoftDeleteLinks, memberIndexOf } from '@/repositories/links'
+import type { Link } from '@/db/types'
 import { nextSortOrder, reorderBySortOrder } from '@/repositories/sortOrder'
 import type { TodoList, Todo, TrashSnapshot } from '@/db/types'
 import { useQuery } from '@/queries/hooks'
@@ -60,32 +62,24 @@ export async function renameTodoList(id: string, name: string): Promise<void> {
 }
 
 /**
- * 删除清单（级联：名下待办解绑 listId 归入「全部待办」）
+ * 删除清单（Phase 3 集合层版：成员 = member link，删除即统一墓碑化）
  *
- * Issue #169 P2-A：子表读取**在事务内**。此前 `db.todos.where('listId').equals(id).toArray()`
- * 在事务外先读、再进事务改，构成 TOCTOU 窗口 —— 窗口内新建的待办不会被解绑，
- * 留下「listId 指向已删清单」的悬挂外键（该待办既不在任何清单、也不进「收集箱」）。
- * `deleteCustomerCascade` / `deleteProjectCascade` / `deleteTodoCascade` 都在事务内读，本处此前是例外。
+ * 旧路径（解绑 listId 字段 + mode:'set' 快照）随 v16 整体退役：名下待办的 member link
+ * 由 cascadeSoftDeleteLinks 与清单软删同事务墓碑化（含已软删待办的 link —— 与旧口径
+ * 一致，不留悬挂归属），快照 `cascadeLinkIds` 留档；恢复时按「两端存活」逐条复活
+ * （待办活着才回来，见 links.ts#reviveCascadeLinks）。待办行全程不动 —— 待办不属于
+ * 任何清单后自然落入收集箱（无 member link = 收集箱口径）。
  */
 export async function deleteTodoListCascade(id: string): Promise<void> {
   const now = Date.now()
-  await storage.transaction(['todoLists', 'todos', 'syncQueue'], async (tx) => {
+  await storage.transaction(['todoLists', 'todos', 'links', 'syncQueue'], async (tx) => {
     const prev = await tx.get<TodoList>('todoLists', id)
     if (!prev || prev.deleted) return
-    // 含已软删待办一并解绑：否则其 listId 指向已删清单，UI 上既不在任何清单、也不进「收集箱」
-    const todos = (await tx.list<Todo>('todos')).filter((t) => t.listId === id)
-    // 快照只收「删除时仍存活」的待办：已删待办本来就不在清单里，恢复时不该被一起复活
+    const cascadeLinkIds = await cascadeSoftDeleteLinks(tx, [{ type: 'todoLists', id }], now)
     const trashSnapshot: TrashSnapshot = {
       children: [],
-      links: todos
-        .filter((t) => !t.deleted)
-        .map((t) => ({
-          table: 'todos' as const,
-          id: t.id,
-          field: 'listId',
-          mode: 'set' as const,
-          value: id,
-        })),
+      links: [],
+      ...(cascadeLinkIds.length ? { cascadeLinkIds } : {}),
     }
     await tx.update('todoLists', id, {
       deleted: 1,
@@ -96,14 +90,9 @@ export async function deleteTodoListCascade(id: string): Promise<void> {
       trashSnapshot,
     })
     await tx.enqueue('todoLists', id, 'delete', now)
-    for (const t of todos) {
-      await tx.put('todos', { ...t, listId: undefined, updatedAt: now, rev: t.rev + 1 })
-      await tx.enqueue('todos', t.id, 'upsert', now)
-    }
   })
   storage.requestSync()
 }
-
 
 /** 拖拽排序：按传入的 id 顺序重写 sortOrder（收口实现，见 repositories/sortOrder.ts） */
 export async function reorderTodoLists(orderedIds: string[]): Promise<void> {
@@ -118,11 +107,19 @@ export function useTodoListCounts(): Record<string, number> {
   )
   const counts = useQuery<Record<string, number>>(async () => {
     const todos = await db.todos.toArray()
+    // 归属已迁 links（v16）：kind='member' 索引代替行字段（useTodoListIdOf 同款口径）
+    const links = await db.links
+      .where('kind')
+      .equals('member')
+      .filter((l) => !l.deleted && l.fromType === 'todos' && l.toType === 'todoLists')
+      .toArray()
+    const listOf = memberIndexOf(links)
     const map: Record<string, number> = {}
     for (const t of todos) {
       // 清单计数 = 未完成数（Issue #128）：已完成与已作废都不计入（与左栏智能清单口径一致）
-      if (t.deleted || !isTodoOpen(t) || !t.listId) continue
-      map[t.listId] = (map[t.listId] ?? 0) + 1
+      const lid = listOf.get(t.id)
+      if (t.deleted || !isTodoOpen(t) || !lid) continue
+      map[lid] = (map[lid] ?? 0) + 1
     }
     return map
   }, [lists?.length])
@@ -143,3 +140,26 @@ export type { Todo }
 
 // deleteTodoCascade 已拆至 './cascade'（P3：executor 执行链需要零 db/react 的纯实现）
 export { deleteTodoCascade } from './cascade'
+
+/**
+ * 待办 → 清单归属索引（Phase 3 读侧收口）：Map<todoId, listId>。
+ * liveQuery 订阅 links 表 —— 拖拽/保存/级联/恢复/同步对 member link 的任何变更
+ * 都自动重渲染消费组件。全页面共用一份（TodoPage 过滤与计数、详情抽屉、表单回填）。
+ */
+export function useTodoListIdOf(): Map<string, string> {
+  const rows =
+    useQuery<Link[]>(
+      () =>
+        db.links
+          .where('kind')
+          .equals('member')
+          .filter((l) => !l.deleted && l.fromType === 'todos' && l.toType === 'todoLists')
+          .toArray(),
+      [],
+    ) ?? EMPTY_MEMBER_ROWS
+  return memberIndexOf(rows)
+}
+
+const EMPTY_MEMBER_ROWS: Link[] = []
+
+export { setTodoList }
