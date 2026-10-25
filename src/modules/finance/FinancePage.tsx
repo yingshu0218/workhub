@@ -21,7 +21,8 @@ import { todoStatusLabel, todoFocusPath } from '@/modules/todo/domain'
 import { todoPriorityLabel } from '@/modules/todo/priority'
 import LedgerFormDrawer from './LedgerFormDrawer'
 import TransactionFormDrawer from './TransactionFormDrawer'
-import { txnCustomerIds, txnTodoIds } from './links'
+import { txnLinksOf } from './links'
+import { useTxnLinkIndex } from './hooks'
 import {
   useAttachmentCount,
   useTransactionAttachments,
@@ -53,6 +54,8 @@ export default function FinancePage() {
   const isMobile = useIsMobile()
   const ledgers = useCollection<Ledger>('ledgers')
   const transactions = useCollection<Transaction>('transactions')
+  // 流水关联索引（v15 起关联迁 links）：列表行的关联客户名走 link 索引
+  const txnLinkIndex = useTxnLinkIndex()
   const customers = useCollection<Customer>('customers')
   const [scope, setScope] = useState<string>('all')
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all')
@@ -401,7 +404,7 @@ export default function FinancePage() {
                     key={t.id}
                     txn={t}
                     ledger={ledgerMap.get(t.ledgerId)}
-                    customers={customers.filter((c) => txnCustomerIds(t).includes(c.id))}
+                    customers={customers.filter((c) => txnLinksOf(txnLinkIndex, t.id).customerIds.includes(c.id))}
                     showLedger={scope === 'all'}
                     index={i}
                     onOpen={() => setDetailId(t.id)}
@@ -790,8 +793,10 @@ function TransactionDetailDrawer({
 
   const ledger = ledgers.find((l) => l.id === txn?.ledgerId)
   // 多关联（Issue #140）：溯源区按数组逐个列出（失效 id 自然被 find 过滤掉）
-  const linkedCustomers = txn ? customers.filter((c) => txnCustomerIds(txn).includes(c.id)) : []
-  const linkedTodos = txn ? todos.filter((t) => txnTodoIds(txn).includes(t.id)) : []
+  const txnLinkIndex = useTxnLinkIndex()
+  const txnLinks = txn ? txnLinksOf(txnLinkIndex, txn.id) : { customerIds: [], todoIds: [], projectIds: [] }
+  const linkedCustomers = customers.filter((c) => txnLinks.customerIds.includes(c.id))
+  const linkedTodos = todos.filter((t) => txnLinks.todoIds.includes(t.id))
   const hasLinks = linkedCustomers.length > 0 || linkedTodos.length > 0
   const symbol = symbolOf(ledger?.currency)
 

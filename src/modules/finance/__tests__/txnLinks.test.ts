@@ -1,27 +1,22 @@
 /**
- * Issue #140 交易多关联：链接读写口径 + 远端归一化 + 级联解绑
+ * 交易多关联 · 关联层 Phase 2（v15）行为锁
  *
- * 覆盖三类真实故障：
- * 1. 旧数据（单值 customerId）/ 老客户端推来的旧字段：必须归一化进数组，不能"双读 fallback 写漏一处就丢"；
- * 2. 服务端集合未升级（无 customerIds 键）：pull 时不能把本地刚选的关联清空；
- * 3. 客户级联删除：数组里只移除该客户，其他关联保留（弱引用纪律，不删流水）。
+ * Issue #140 的「数组口径」已随 v15 迁往 links（kind='related'，from=流水）。
+ * 本文件锁四组新语义（原「数组读写器 + normalizeTxnLinks」路径已整体退役）：
+ *
+ * 1. **读侧索引**：groupTxnLinks 按 toType 分桶、过滤墓碑；txnLinksOf 缺省空集；
+ * 2. **写入纪律**：pruneTxnLinkIds 去重 + 丢弃已删实体（弱引用语义不变）；
+ * 3. **pull 侧归一化**：远端残留的旧数组/旧单值键 → 剥键 + 派生 related link
+ *    （服务端旧列永不清除 —— PATCH 不带键就不删列；端点存活才派生）；
+ * 4. **级联解绑**：删客户/项目 → 指向它的 related link 墓碑化、其它目标保留。
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import 'fake-indexeddb/auto'
 import { db } from '@/db/db'
-import {
-  normalizeTxnLinks,
-  pruneTxnLinkIds,
-  toIdArray,
-  toLinkField,
-  txnCustomerIds,
-  txnProjectIds,
-  txnTodoIds,
-} from '../links'
-import { deleteCustomerCascade } from '@/repositories'
-import { deleteProjectCascade } from '@/modules/projects/hooks'
-import { newId } from '@/repositories'
-import { syncEngine } from '@/sync/engine'
+import type { Link } from '@/db/types'
+import { groupTxnLinks, pruneTxnLinkIds, txnLinksOf } from '../links'
+import { deleteCustomerCascade, saveTransactionWithAttachments } from '@/repositories'
+import { buildLinkId } from '@/repositories/linkId'
 import { mergeRemoteRecord } from '@/sync/mergeRemote'
 
 function txn(over: Record<string, unknown> = {}) {
@@ -45,12 +40,15 @@ function txn(over: Record<string, unknown> = {}) {
 function customer(id: string) {
   return {
     id,
-    name: '张三',
+    name: `客户${id}`,
     company: '',
     title: '',
     decisionLevel: '决策人' as const,
-    
     tags: [],
+    phone: '',
+    wechat: '',
+    email: '',
+    address: '',
     lastContactAt: 0,
     createdAt: 0,
     updatedAt: 0,
@@ -59,184 +57,188 @@ function customer(id: string) {
   }
 }
 
+/** 播种一条 related link（派生行口径：updatedAt:0/rev:0） */
+async function seedRelated(txnId: string, toType: 'customers' | 'todos' | 'projects', toId: string) {
+  await db.links.put({
+    id: buildLinkId({ type: 'transactions', id: txnId }, { type: toType, id: toId }, 'related'),
+    fromType: 'transactions',
+    fromId: txnId,
+    toType,
+    toId,
+    kind: 'related',
+    createdAt: 1,
+    updatedAt: 0,
+    rev: 0,
+    deleted: 0,
+  } as never)
+}
+
+async function relatedIndex(): Promise<Map<string, ReturnType<typeof txnLinksOf>>> {
+  return groupTxnLinks(await db.links.where('kind').equals('related').toArray())
+}
+
 beforeEach(async () => {
   await Promise.all(db.tables.map((t) => t.clear()))
 })
 
-describe('links 读取器与写入纪律', () => {
-  it('旧单值记录读取时按数组返回（兼容迁移前数据）', () => {
-    const legacy = { customerId: 'c1', todoId: 'td1', projectId: 'p1' }
-    expect(txnCustomerIds(legacy)).toEqual(['c1'])
-    expect(txnTodoIds(legacy)).toEqual(['td1'])
-    expect(txnProjectIds(legacy)).toEqual(['p1'])
-  })
+describe('1. 读侧索引：groupTxnLinks / txnLinksOf', () => {
+  it('按 toType 分桶；墓碑 link 不进索引；缺省空集', async () => {
+    await db.transactions.put(txn() as never)
+    await seedRelated('t1', 'customers', 'c1')
+    await seedRelated('t1', 'customers', 'c2')
+    await seedRelated('t1', 'todos', 'td1')
+    // 墓碑：软删一条 customer 关联
+    const c2Id = buildLinkId(
+      { type: 'transactions', id: 't1' },
+      { type: 'customers', id: 'c2' },
+      'related',
+    )
+    await db.links.update(c2Id, { deleted: 1, deletedAt: 1 })
 
-  it('新数组记录读取正常，且与旧字段并存时合并去重', () => {
-    expect(txnCustomerIds({ customerIds: ['c1', 'c2'] })).toEqual(['c1', 'c2'])
-    expect(txnCustomerIds({ customerIds: ['c1'], customerId: 'c1' })).toEqual(['c1'])
-    expect(txnCustomerIds({ customerIds: ['c1'], customerId: 'c3' })).toEqual(['c1', 'c3'])
+    const index = await relatedIndex()
+    expect(txnLinksOf(index, 't1')).toEqual({
+      customerIds: ['c1'],
+      todoIds: ['td1'],
+      projectIds: [],
+    })
+    expect(txnLinksOf(index, 'nope')).toEqual({ customerIds: [], todoIds: [], projectIds: [] })
   })
+})
 
-  it('toIdArray 吃字符串 / 数组 / JSON 字符串 / 脏值', () => {
-    expect(toIdArray('c1')).toEqual(['c1'])
-    expect(toIdArray('["c1","c2"]')).toEqual(['c1', 'c2'])
-    expect(toIdArray(['c1', 'c1', '', null, 3])).toEqual(['c1'])
-    expect(toIdArray(undefined)).toEqual([])
-    expect(toIdArray({})).toEqual([])
-  })
-
-  it('normalizeTxnLinks 归一化后删除旧键（双写不双读）', () => {
-    const rec: Record<string, unknown> = { id: 't1', customerId: 'c1', customerIds: ['c2'] }
-    normalizeTxnLinks(rec)
-    expect(rec.customerIds).toEqual(['c2', 'c1'])
-    expect(rec).not.toHaveProperty('customerId')
-    expect(rec).not.toHaveProperty('todoId')
-  })
-
-  it('toLinkField：空数组不落键；pruneTxnLinkIds：去重 + 丢弃已删实体', () => {
-    expect(toLinkField([])).toBeUndefined()
-    expect(toLinkField(['c1', 'c1', 'c2'])).toEqual(['c1', 'c2'])
+describe('2. 写入纪律：pruneTxnLinkIds', () => {
+  it('去重 + 丢弃已删实体 id（弱引用：解绑不报错）', () => {
     expect(pruneTxnLinkIds(['c1', 'c2', 'c2'], new Set(['c1']))).toEqual(['c1'])
   })
 })
 
-describe('远端合并：多关联不被静默清空（Issue #140）', () => {
-  it('服务端集合未升级（远端无 customerIds 键）时保留本地关联', async () => {
-    await db.transactions.put(txn({ customerIds: ['c1', 'c2'] }) as never)
-    // 远端记录 updatedAt 更新，但集合里根本没有数组字段（collections.json 未导入）
-    const res = await mergeRemoteRecord(
-      'transactions',
-      { id: 'pb1', localId: 't1', summary: '改过的摘要', updatedAt: 200, deleted: 0, rev: 5 },
-      async () => undefined,
-    )
+describe('3. pull 侧归一化：旧键剥除 + 派生 link', () => {
+  it('远端残留旧数组键 → 本地行不带旧键，关联派生成 related link', async () => {
+    await db.customers.put(customer('c1') as never)
+    await db.transactions.put(txn() as never)
+
+    const res = await mergeRemoteRecord('transactions', {
+      id: 'pb1',
+      localId: 't1',
+      summary: '远端编辑',
+      customerIds: JSON.stringify(['c1']),
+      updatedAt: 200,
+      deleted: 0,
+      rev: 5,
+    } as never)
     expect(res).toBe('write')
-    const row = await db.transactions.get('t1')
-    expect(row!.summary).toBe('改过的摘要')
-    expect(txnCustomerIds(row!)).toEqual(['c1', 'c2'])
-  })
 
-  it('老客户端推来旧单值字段时折进数组，不另存一份', async () => {
-    await db.transactions.put(txn({ customerIds: ['c1'] }) as never)
-    await mergeRemoteRecord(
-      'transactions',
-      {
-        id: 'pb1',
-        localId: 't1',
-        customerId: 'c9',
-        customerIds: JSON.stringify(['c1']),
-        updatedAt: 200,
-        deleted: 0,
-        rev: 5,
-      },
-      async () => undefined,
-    )
-    const row = await db.transactions.get('t1')
-    expect(txnCustomerIds(row!).sort()).toEqual(['c1', 'c9'])
-    expect(row).not.toHaveProperty('customerId')
-  })
-})
-
-describe('客户级联删除：数组关联只解绑该客户', () => {
-  it('多关联流水移除被删客户，其余关联保留，流水不删', async () => {
-    await db.customers.put(customer('c1') as never)
-    await db.transactions.put(txn({ id: 't1', customerIds: ['c1', 'c2'] }) as never)
-    await deleteCustomerCascade('c1')
-    const row = await db.transactions.get('t1')
-    expect(row!.deleted).toBe(0)
-    expect(txnCustomerIds(row!)).toEqual(['c2'])
-  })
-
-  it('唯一关联客户被删后关联字段清空（不留下空数组键）', async () => {
-    await db.customers.put(customer('c1') as never)
-    await db.transactions.put(txn({ id: 't1', customerIds: ['c1'] }) as never)
-    await deleteCustomerCascade('c1')
-    const row = await db.transactions.get('t1')
-    expect(txnCustomerIds(row!)).toEqual([])
+    const row = (await db.transactions.get('t1')) as unknown as Record<string, unknown>
     expect(row).not.toHaveProperty('customerIds')
+    expect(row.summary).toBe('远端编辑')
+
+    const link = await db.links.get(
+      buildLinkId({ type: 'transactions', id: 't1' }, { type: 'customers', id: 'c1' }, 'related'),
+    )
+    expect(link).toMatchObject({ kind: 'related', deleted: 0, updatedAt: 0, rev: 0 })
+  })
+
+  it('目标实体不存在 → 不派生（悬挂关联不迁移成 link）', async () => {
+    await db.transactions.put(txn() as never)
+    await mergeRemoteRecord('transactions', {
+      id: 'pb2',
+      localId: 't1',
+      summary: '幽灵关联',
+      customerIds: JSON.stringify(['ghost']),
+      updatedAt: 300,
+      deleted: 0,
+      rev: 6,
+    } as never)
+    expect(await db.links.count()).toBe(0)
+  })
+
+  it('本地已有同语义 link（含墓碑）→ 派生不动它', async () => {
+    await db.customers.put(customer('c1') as never)
+    await db.transactions.put(txn() as never)
+    const linkId = buildLinkId(
+      { type: 'transactions', id: 't1' },
+      { type: 'customers', id: 'c1' },
+      'related',
+    )
+    // 本地已是墓碑（用户曾显式解绑）：远端旧键不得复活它
+    await db.links.put({
+      id: linkId,
+      fromType: 'transactions',
+      fromId: 't1',
+      toType: 'customers',
+      toId: 'c1',
+      kind: 'related',
+      createdAt: 1,
+      updatedAt: 500,
+      rev: 2,
+      deleted: 1,
+      deletedAt: 500,
+    } as never)
+
+    await mergeRemoteRecord('transactions', {
+      id: 'pb3',
+      localId: 't1',
+      summary: 'x',
+      customerIds: JSON.stringify(['c1']),
+      updatedAt: 600,
+      deleted: 0,
+      rev: 7,
+    } as never)
+    const link = (await db.links.get(linkId)) as Link
+    expect(link.deleted).toBe(1) // 墓碑不被远端旧键复活
+    expect(link.rev).toBe(2) // 也不被重复盖章
   })
 })
 
-/* ---------------------- 项目级联删除：P0 回归（审计整改） ---------------------- */
+describe('4. 保存选择集与级联解绑', () => {
+  it('saveTransactionWithAttachments 的 related 选择集：同事务建联/清空', async () => {
+    await db.customers.put(customer('c1') as never)
+    await db.customers.put(customer('c2') as never)
+    await saveTransactionWithAttachments(txn() as never, [], {
+      customerIds: ['c1', 'c2'],
+      todoIds: [],
+      projectIds: [],
+    })
+    const index = await relatedIndex()
+    expect(txnLinksOf(index, 't1').customerIds).toEqual(['c1', 'c2'])
 
-// 变异验证辅助：把修复还原成「where('projectId') 索引查询」的旧写法时，
-// 上面的冒烟用例会抛 SchemaError（KeyPath projectId … is not indexed）。
-
-function project(id: string) {
-  return {
-    id,
-    name: '项目A',
-    color: '#3b82f6',
-    status: 'active' as const,
-    createdAt: 0,
-    updatedAt: 0,
-    deleted: 0 as const,
-    rev: 0,
-  }
-}
-
-function todo(id: string, over: Record<string, unknown> = {}) {
-  return {
-    id,
-    title: '待办',
-    desc: '',
-    priority: 'mid' as const,
-    status: 'todo' as const,
-    createdAt: 0,
-    updatedAt: 0,
-    deleted: 0 as const,
-    rev: 0,
-    ...over,
-  }
-}
-
-describe('项目级联删除：transactions 数组关联同步解绑（v11 P0 回归）', () => {
-  it('useProjectTransactions / deleteProjectCascade 不再查询已删除的 projectId 索引（SchemaError 冒烟）', async () => {
-    // v11 删掉了 transactions 的 projectId/customerId 索引。若代码仍写
-    // `where('projectId')`，这里会抛 "KeyPath projectId on object store transactions
-    // is not indexed" —— 一条冒烟拦住两处（hook 查询 + 级联解绑）。
-    const pid = newId('prj')
-    await db.projects.put(project(pid) as never)
-    await db.transactions.put(txn({ id: 't1', projectIds: [pid] }) as never)
-    await deleteProjectCascade(pid)
-    const row = await db.transactions.get('t1')
-    expect(row!.deleted).toBe(0)
-    expect(txnProjectIds(row!)).toEqual([])
-    expect(row).not.toHaveProperty('projectId')
+    // 第二次保存：c1 移除、保留 c2 → c1 的 link 墓碑化
+    await saveTransactionWithAttachments(txn() as never, [], {
+      customerIds: ['c2'],
+      todoIds: [],
+      projectIds: [],
+    })
+    const c1Id = buildLinkId(
+      { type: 'transactions', id: 't1' },
+      { type: 'customers', id: 'c1' },
+      'related',
+    )
+    expect((await db.links.get(c1Id))!.deleted).toBe(1)
+    const index2 = await relatedIndex()
+    expect(txnLinksOf(index2, 't1').customerIds).toEqual(['c2'])
   })
 
-  it('级联只移除被删项目，其余关联保留；其余项目关联的流水不受影响', async () => {
-    const pid = newId('prj')
-    await db.projects.put(project(pid) as never)
-    await db.transactions.put(txn({ id: 't1', projectIds: [pid, 'p2'] }) as never)
-    await db.transactions.put(txn({ id: 't2', projectIds: ['p2'] }) as never)
-    await deleteProjectCascade(pid)
-    const r1 = await db.transactions.get('t1')
-    const r2 = await db.transactions.get('t2')
-    expect(txnProjectIds(r1!)).toEqual(['p2'])
-    expect(txnProjectIds(r2!)).toEqual(['p2'])
-  })
+  it('删客户 → 指向它的 related link 墓碑化、其它目标保留（弱引用：不删流水）', async () => {
+    await db.customers.put(customer('c1') as never)
+    await db.customers.put(customer('keep') as never)
+    await saveTransactionWithAttachments(txn() as never, [], {
+      customerIds: ['c1', 'keep'],
+      todoIds: [],
+      projectIds: [],
+    })
+    await deleteCustomerCascade('c1')
 
-  it('单值弱引用表（todos/notes/interactions）仍按 projectId 置 undefined 解绑', async () => {
-    const pid = newId('prj')
-    await db.projects.put(project(pid) as never)
-    await db.todos.put(todo('td1', { projectId: pid }) as never)
-    await deleteProjectCascade(pid)
-    const row = await db.todos.get('td1')
-    expect(row!.projectId).toBeUndefined()
-    expect(row!.deleted).toBe(0)
-  })
-
-  it('解绑过的流水入同步队列（推送其他端）', async () => {
-    const pid = newId('prj')
-    const requestSync = vi.spyOn(syncEngine, 'requestSync').mockImplementation(() => {})
-    try {
-      await db.projects.put(project(pid) as never)
-      await db.transactions.put(txn({ id: 't1', projectIds: [pid] }) as never)
-      await deleteProjectCascade(pid)
-      const queued = await db.syncQueue.toArray()
-      expect(queued.some((q) => q.table === 'transactions' && q.recordId === 't1')).toBe(true)
-    } finally {
-      requestSync.mockRestore()
-    }
+    const c1Id = buildLinkId(
+      { type: 'transactions', id: 't1' },
+      { type: 'customers', id: 'c1' },
+      'related',
+    )
+    const keepId = buildLinkId(
+      { type: 'transactions', id: 't1' },
+      { type: 'customers', id: 'keep' },
+      'related',
+    )
+    expect((await db.links.get(c1Id))!.deleted).toBe(1)
+    expect((await db.links.get(keepId))!.deleted).toBe(0)
+    expect(await db.transactions.get('t1')).toBeTruthy() // 流水不删
   })
 })

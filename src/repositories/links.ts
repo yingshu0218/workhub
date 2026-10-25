@@ -199,6 +199,67 @@ export async function syncMentionLinks(
   }
 }
 
+// ─────────────────────────── related 同步（Phase 2 · 流水保存时与流水行同事务） ───────────────────────────
+
+/** 流水「多关联」目标组（kind='related'；与表单/Agent 契约的三组 id 同构） */
+export interface TxnRelatedInput {
+  customerIds?: string[]
+  todoIds?: string[]
+  projectIds?: string[]
+}
+
+const RELATED_TARGET_TABLE = {
+  customers: 'customerIds',
+  todos: 'todoIds',
+  projects: 'projectIds',
+} as const
+
+/**
+ * 流水保存时的 related link 同步（diff 式，与 syncMentionLinks 同款纪律）：
+ * - 选择集里仍存在的关联 → putLinkTx（确定性 id 幂等；related 无 disc，同对恒一条）；
+ * - 已被移除的关联 → 软删对应 link（重新选回时同 id 复活）；
+ * - 指向已删/不存在实体的 id → 跳过（弱引用纪律：解绑不报错）。
+ * 必须与流水行同一事务调用（saveTransactionWithAttachments 收口）。
+ */
+export async function syncRelatedLinks(
+  tx: StorageTx,
+  txnId: string,
+  wanted: TxnRelatedInput,
+  now: number,
+): Promise<void> {
+  const existing = (await tx.list<Link>('links')).filter(
+    (l) => l.kind === 'related' && l.fromType === 'transactions' && l.fromId === txnId,
+  )
+  const wantedKeys = new Set<string>()
+  for (const [toType, field] of Object.entries(RELATED_TARGET_TABLE)) {
+    const ids = wanted[field as keyof TxnRelatedInput] ?? []
+    for (const id of [...new Set(ids)]) {
+      const key = `${toType}:${id}`
+      wantedKeys.add(key)
+      const rec = await tx.get<{ id: string }>(toType as LinkEndpointTable, id)
+      if (!rec || rec.deleted) continue
+      await putLinkTx(
+        tx,
+        { from: { type: 'transactions', id: txnId }, to: { type: toType as LinkEndpointTable, id }, kind: 'related' },
+        now,
+      )
+    }
+  }
+  for (const l of existing) {
+    if (wantedKeys.has(`${l.toType}:${l.toId}`)) continue
+    if (l.deleted === 1) continue
+    await tx.update('links', l.id, {
+      deleted: 1,
+      updatedAt: now,
+      rev: (l.rev ?? 0) + 1,
+      deletedAt: now,
+      restoredAt: undefined,
+      trashSnapshot: undefined,
+    })
+    await tx.enqueue('links', l.id, 'delete', now)
+  }
+}
+
 // ─────────────────────────── 级联 / 恢复钩子（R2 · 与实体软删恢复同事务） ───────────────────────────
 
 /**

@@ -118,6 +118,26 @@ export default function InspirationPage() {
   )
   // 稳定空数组引用：`?? []` 直接放 hook 依赖里会每帧新建（react-hooks/exhaustive-deps）
   const mentionLinks = useMemo(() => mentionLinksRaw ?? [], [mentionLinksRaw])
+  // 流水 → 关联客户（related 迁 links 后由 link 索引构建，对账候选的「往来客户」上下文用）
+  const relatedLinksRaw = useQuery(
+    () =>
+      db.links
+        .where('kind')
+        .equals('related')
+        .filter((l) => !l.deleted && l.fromType === 'transactions' && l.toType === 'customers')
+        .toArray(),
+    [],
+  )
+  const relatedLinks = useMemo(() => relatedLinksRaw ?? [], [relatedLinksRaw])
+  const txnCustomerIdsById = useMemo(() => {
+    const m = new Map<string, string[]>()
+    for (const l of relatedLinks) {
+      const list = m.get(l.fromId) ?? []
+      list.push(l.toId)
+      m.set(l.fromId, list)
+    }
+    return m
+  }, [relatedLinks])
   const notesByCustomerMention = useMemo(() => {
     const byId = new Map(notes.map((n) => [n.id, n]))
     const m = new Map<string, Note>()
@@ -160,9 +180,10 @@ export default function InspirationPage() {
         customers,
         notes,
         notesByCustomerMention,
+        txnCustomerIdsById,
         customerLevels,
       }).filter((c) => pools[poolOfKind(c.kind)]),
-    [todos, transactions, customers, notes, notesByCustomerMention, customerLevels, pools],
+    [todos, transactions, customers, notes, notesByCustomerMention, txnCustomerIdsById, customerLevels, pools],
   )
   const [idx, setIdx] = useState(0)
   const [reminderMsg, setReminderMsg] = useState<string | null>(null)

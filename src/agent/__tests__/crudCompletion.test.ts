@@ -149,6 +149,23 @@ function newAttachment(id: string) {
   }
 }
 
+/** 播种「流水 → 客户/项目/待办」related link（关联统计与解绑断言 v15 起都走 links） */
+async function seedRelatedLink(txnId: string, toType: 'customers' | 'projects' | 'todos', toId: string): Promise<void> {
+  const { buildLinkId } = await import('@/repositories/linkId')
+  await db.links.put({
+    id: buildLinkId({ type: 'transactions', id: txnId }, { type: toType, id: toId }, 'related'),
+    fromType: 'transactions',
+    fromId: txnId,
+    toType,
+    toId,
+    kind: 'related',
+    createdAt: 1,
+    updatedAt: 0,
+    rev: 0,
+    deleted: 0,
+  } as never)
+}
+
 /** 播种「流水 → 附件」归属 link（读路径与级联统计 v15 起都走 links） */
 async function seedAttLink(txnId: string, attId: string): Promise<void> {
   const { buildLinkId } = await import('@/repositories/linkId')
@@ -265,13 +282,19 @@ describe('fin_updateTransaction', () => {
     expect(r.error).toContain('客户不存在')
   })
 
-  it('显式传空数组 = 清空该关联（不落空数组噪声）', async () => {
-    await transactionRepo.put(newTxn('t1', { customerIds: ['c1'] }))
+  it('显式传空数组 = 清空该关联（related link 墓碑化，流水行不动）', async () => {
+    await transactionRepo.put(newTxn('t1'))
+    await seedRelatedLink('t1', 'customers', 'c1')
     const r = await fin_updateTransaction({ transactionId: 't1', customerIds: [] })
     expect(r.ok).toBe(true)
-    const txn = await transactionRepo.get('t1')
-    // toLinkFieldPatch 的空数组语义 = 删键，故读出来是 undefined 而不是 []
-    expect(txn?.customerIds).toBeUndefined()
+    // v15 起关联在 links：清空 = 对应 link 墓碑化（软删可追溯），流水行本身不再携带关联键
+    const { buildLinkId } = await import('@/repositories/linkId')
+    const linkId = buildLinkId(
+      { type: 'transactions', id: 't1' },
+      { type: 'customers', id: 'c1' },
+      'related',
+    )
+    expect((await db.links.get(linkId))?.deleted).toBe(1)
   })
 })
 
@@ -307,7 +330,8 @@ describe('crm_deleteCustomer', () => {
       { id: 'i1', customerId: 'c1', content: '电话', at: 1, updatedAt: 0, deleted: 0, rev: 0 },
       { id: 'i2', customerId: 'c1', content: '拜访', at: 2, updatedAt: 0, deleted: 0, rev: 0 },
     ])
-    await transactionRepo.put(newTxn('t1', { customerIds: ['c1'] }))
+    await transactionRepo.put(newTxn('t1'))
+    await seedRelatedLink('t1', 'customers', 'c1')
     await todoRepo.put({
       id: 'td1',
       title: '回访',
@@ -334,7 +358,15 @@ describe('crm_deleteCustomer', () => {
 
     // 级联：日志软删；流水/待办/项目只解绑不删除
     expect((await db.interactions.get('i1'))?.deleted).toBe(1)
-    expect((await transactionRepo.get('t1'))?.customerIds).toBeUndefined()
+    expect((await transactionRepo.get('t1'))).toBeTruthy() // 流水不删，只解绑
+    const { buildLinkId: bl } = await import('@/repositories/linkId')
+    expect(
+      (
+        await db.links.get(
+          bl({ type: 'transactions', id: 't1' }, { type: 'customers', id: 'c1' }, 'related'),
+        )
+      )?.deleted,
+    ).toBe(1)
     expect((await todoRepo.get('td1'))?.customerId).toBeUndefined()
     expect((await projectRepo.get('p1'))?.customerId).toBeUndefined()
     expect((await customerRepo.get('c2'))?.relations).toEqual([])
@@ -345,7 +377,8 @@ describe('project_deleteProject', () => {
   it('级联软删里程碑、解绑四表，sideEffects 如实', async () => {
     await projectRepo.put(newProject('p1'))
     await db.projectMilestones.bulkPut([newMilestone('m1', 'p1'), newMilestone('m2', 'p1')])
-    await transactionRepo.put(newTxn('t1', { projectIds: ['p1'] }))
+    await transactionRepo.put(newTxn('t1'))
+    await seedRelatedLink('t1', 'projects', 'p1')
     await todoRepo.put({
       id: 'td1',
       title: '推进',
@@ -384,7 +417,14 @@ describe('project_deleteProject', () => {
 
     expect((await db.projectMilestones.get('m1'))?.deleted).toBe(1)
     expect((await db.projectMilestones.get('m2'))?.deleted).toBe(1)
-    expect((await transactionRepo.get('t1'))?.projectIds).toBeUndefined()
+    const { buildLinkId: bl2 } = await import('@/repositories/linkId')
+    expect(
+      (
+        await db.links.get(
+          bl2({ type: 'transactions', id: 't1' }, { type: 'projects', id: 'p1' }, 'related'),
+        )
+      )?.deleted,
+    ).toBe(1)
   })
 })
 

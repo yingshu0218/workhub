@@ -77,6 +77,24 @@ async function waitDrawerBody() {
   return within(drawerOf()).findByText(/本周五前给出报价/)
 }
 
+
+/** 播种「流水 → 目标」related link（v15 起关联在 links 表；派生行口径） */
+async function seedRelated(txnId: string, toType: 'customers' | 'todos' | 'projects', toId: string) {
+  const { buildLinkId } = await import('@/repositories/linkId')
+  await db.links.put({
+    id: buildLinkId({ type: 'transactions', id: txnId }, { type: toType, id: toId }, 'related'),
+    fromType: 'transactions',
+    fromId: txnId,
+    toType,
+    toId,
+    kind: 'related',
+    createdAt: 1,
+    updatedAt: 0,
+    rev: 0,
+    deleted: 0,
+  } as never)
+}
+
 describe('待办列表行点击 → 详情抽屉（Issue #162）', () => {
   it('① 点列表行打开详情，正文备注全文可见（列表行只给一行预览）', async () => {
     await db.todos.put(todo() as never)
@@ -136,11 +154,11 @@ describe('待办列表行点击 → 详情抽屉（Issue #162）', () => {
       occurredAt: 1_700_000_000_000,
       tags: [],
       status: '已结算',
-      todoIds: ['td1'],
       updatedAt: 1,
       deleted: 0,
       rev: 1,
     } as never)
+    await seedRelated('t1', 'todos', 'td1')
 
     renderApp()
     fireEvent.click(await screen.findByText('跟进深蓝续约'))
@@ -245,11 +263,11 @@ describe('待办列表行点击 → 详情抽屉（Issue #162）', () => {
       occurredAt: 1_700_000_000_000,
       tags: [],
       status: '已结算',
-      todoIds: ['td1'],
       updatedAt: 1,
       deleted: 0,
       rev: 1,
     } as never)
+    await seedRelated('t1', 'todos', 'td1')
 
     renderApp('/finance?focus=t1')
     // 凭证详情里「查看待办详情」承诺了详情，就应落到详情（此前只 navigate('/todo') 落到列表）

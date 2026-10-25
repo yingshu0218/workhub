@@ -2,7 +2,6 @@ import dayjs from 'dayjs'
 import type { Customer, IntimacyLevel, Todo, Transaction, Note } from '@/db/types'
 import { normalizeTodoPriority, todoPriorityFullLabel } from '@/modules/todo/priority'
 import { isTodoOpen } from '@/modules/todo/domain'
-import { txnCustomerIds } from '@/modules/finance/links'
 
 /**
  * 灵感闪现规则引擎（Phase 6 · 戒点①：权重一律从源记录推导，不存快照）
@@ -79,6 +78,11 @@ export interface EngineInput {
    * 引擎保持纯函数、不做 I/O）。值为 undefined 表示该客户没有被任何笔记提及。
    */
   notesByCustomerMention: Map<string, Note>
+  /**
+   * 流水 → 关联客户 id（related 迁 links 后由调用方从 link 索引构建；对账候选的
+   * 「往来客户」上下文用）。缺省条目 = 该流水未关联任何客户。
+   */
+  txnCustomerIdsById: Map<string, string[]>
   /**
    * 各客户的健康分档位（**必填**，由调用方解析后传入 —— 引擎保持纯函数，不做 I/O 与配置读取）。
    * 调用方用 `resolveIntimacyLevel` + `intimacyLevelName` 解析：手动档位优先、未设置走算法兜底。
@@ -162,7 +166,7 @@ function buildCandidates(input: EngineInput): InspirationCandidate[] {
       },
     ]
     // 多关联（Issue #140）：一笔款可能同时挂多个客户，往来客户一行汇总展示（弱引用失效的直接跳过）
-    const linkedCustomers = txnCustomerIds(txn)
+    const linkedCustomers = (input.txnCustomerIdsById.get(txn.id) ?? [])
       .map((id) => customersById.get(id))
       .filter((c): c is Customer => !!c)
     if (linkedCustomers.length > 0)

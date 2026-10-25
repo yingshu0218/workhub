@@ -8,7 +8,8 @@ import dayjs from 'dayjs'
 import { isTodoOpen } from '@/modules/todo/domain'
 import ProjectFormDrawer from './ProjectFormDrawer'
 import { projectStatusMeta, useProjects } from './hooks'
-import { txnProjectIds } from '@/modules/finance/links'
+import { txnLinksOf } from '@/modules/finance/links'
+import { useTxnLinkIndex } from '@/modules/finance/hooks'
 import { staggerStyle } from '@/shared/stagger'
 
 type ScopeFilter = 'active' | 'all' | 'archived'
@@ -19,6 +20,8 @@ export default function ProjectsPage() {
   const projects = useProjects()
   const todos = useCollection<Todo>('todos')
   const transactions = useCollection<Transaction>('transactions')
+  // 流水关联索引（v15 起关联迁 links）：项目收支统计按 link 索引归集
+  const txnLinkIndex = useTxnLinkIndex()
   const [scope, setScope] = useState<ScopeFilter>('active')
   const [creating, setCreating] = useState(false)
 
@@ -43,7 +46,7 @@ export default function ProjectsPage() {
   const stats = useMemo(() => {
     const map = new Map<string, { income: number; expense: number; openTodos: number }>()
     for (const p of projects) {
-      const txns = transactions.filter((t) => txnProjectIds(t).includes(p.id))
+      const txns = transactions.filter((t) => txnLinksOf(txnLinkIndex, t.id).projectIds.includes(p.id))
       map.set(p.id, {
         income: txns.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0),
         expense: txns.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amount, 0),
@@ -51,7 +54,7 @@ export default function ProjectsPage() {
       })
     }
     return map
-  }, [projects, todos, transactions])
+  }, [projects, todos, transactions, txnLinkIndex])
 
   const scopes: { key: ScopeFilter; label: string }[] = [
     { key: 'active', label: '进行中' },

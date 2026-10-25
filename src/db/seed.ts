@@ -154,8 +154,6 @@ export async function seedIfEmpty(): Promise<boolean> {
       occurredAt: now - 1 * 86400_000,
       tags: ['项目收款', '深蓝科技'],
       invoiceNo: 'INV-2026-0892',
-      customerIds: ['c1'],
-      projectIds: ['p1'],
       status: '已结算',
       ...meta(),
     },
@@ -180,7 +178,6 @@ export async function seedIfEmpty(): Promise<boolean> {
       channel: '微信支付',
       occurredAt: now - 2 * 86400_000,
       tags: ['差旅', 'CRM 关联'],
-      customerIds: ['c2'],
       status: '已结算',
       ...meta(),
     },
@@ -246,7 +243,8 @@ export async function seedIfEmpty(): Promise<boolean> {
     },
   ]
 
-  /** 关联层种子：笔记 n1 提及客户 c1（确定性 id 与运行期 linkAtoms 同源） */
+  /** 关联层种子：笔记 n1 提及客户 c1（mention）+ 流水的客户/项目关联（related）。
+   *  确定性 id 与运行期 linkAtoms / syncRelatedLinks 同源。 */
   const links: Link[] = [
     {
       id: buildLinkId({ type: 'notes', id: 'n1' }, { type: 'customers', id: 'c1' }, 'mention'),
@@ -256,6 +254,36 @@ export async function seedIfEmpty(): Promise<boolean> {
       toId: 'c1',
       kind: 'mention',
       meta: { label: '严伟强' },
+      createdAt: now - 2 * 86400_000,
+      ...meta(),
+    },
+    {
+      id: buildLinkId({ type: 'transactions', id: 't1' }, { type: 'customers', id: 'c1' }, 'related'),
+      fromType: 'transactions',
+      fromId: 't1',
+      toType: 'customers',
+      toId: 'c1',
+      kind: 'related',
+      createdAt: now - 1 * 86400_000,
+      ...meta(),
+    },
+    {
+      id: buildLinkId({ type: 'transactions', id: 't1' }, { type: 'projects', id: 'p1' }, 'related'),
+      fromType: 'transactions',
+      fromId: 't1',
+      toType: 'projects',
+      toId: 'p1',
+      kind: 'related',
+      createdAt: now - 1 * 86400_000,
+      ...meta(),
+    },
+    {
+      id: buildLinkId({ type: 'transactions', id: 't3' }, { type: 'customers', id: 'c2' }, 'related'),
+      fromType: 'transactions',
+      fromId: 't3',
+      toType: 'customers',
+      toId: 'c2',
+      kind: 'related',
       createdAt: now - 2 * 86400_000,
       ...meta(),
     },

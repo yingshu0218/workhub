@@ -1,57 +1,50 @@
 import { storage } from '@/storage'
-import { toLinkFieldPatch, cascadeSoftDeleteLinks } from '@/repositories'
-import { txnTodoIds } from '@/modules/finance/links'
-import type { Todo, Transaction, TrashSnapshot } from '@/db/types'
+import { cascadeSoftDeleteLinks } from '@/repositories'
+import type { Link, Todo, TrashSnapshot } from '@/db/types'
 
 /**
  * 待办级联删除（Issue #148 后续 · #140 审计留档项的收口）：
- * 软删待办的同时，把 `transactions.todoIds` 里指向它的关联**解绑**。
+ * 软删待办的同时，把指向它的关联（related / mention link）一并墓碑化。
  *
- * 为什么必须级联（此前靠读取端兜底，属隐性欠账）：
- * `transactions.todoIds` 是弱引用数组，待办被删后读取端 `links.ts` 的
- * `pruneTxnLinkIds` / 存活实体过滤会把它滤掉，所以界面不炸 —— 但库里留下悬挂 id，
- * 后续任何**按 todoIds 直查**的路径（导出、统计、Agent 读投影）都会命中幽灵引用。
+ * 为什么必须级联（此前靠读取端兜底，属隐性欠账）：关联是弱引用，待办被删后
+ * 读取端的存活过滤会把它滤掉，界面不炸 —— 但库里留下悬挂引用，后续任何
+ * 按关联直查的路径（导出、统计、Agent 读投影）都会命中幽灵。
  * 与 `deleteCustomerCascade` / `deleteProjectCascade` 同款纪律：删除即解绑，
  * 悬挂由写入端消除，而不是全仓指望每一处读取都记得过滤。
  *
- * 单 Dexie 事务覆盖 todos / transactions / syncQueue，任一步失败整体回滚；
+ * 关联层 Phase 2（v15）后「解绑」= 墓碑化指向待办的 link
+ * （cascadeSoftDeleteLinks，快照 cascadeLinkIds 留档、恢复时随待办复活）；
+ * 此前「transactions.todoIds 数组解绑 + mode:'append' 快照」路径整体退役。
+ *
+ * 单 Dexie 事务覆盖 todos / links / syncQueue，任一步失败整体回滚；
  * 待办不存在或已删除时静默返回（幂等）。
  *
- * @returns 解绑的流水条数（供 Agent 工具回传副作用清单 `sideEffects.unlinked`）
+ * @returns 被解绑的流水关联数（供 Agent 工具回传副作用清单 `sideEffects.unlinked`；
+ *   统计在墓碑化**之前**做 —— 删完就查不到了，恒为 0 是假报「无副作用」）
  */
 export async function deleteTodoCascade(todoId: string): Promise<number> {
   const now = Date.now()
   let unlinked = 0
-  await storage.transaction(['todos', 'transactions', 'links', 'syncQueue'], async (tx) => {
+  await storage.transaction(['todos', 'links', 'syncQueue'], async (tx) => {
     const prev = await tx.get<Todo>('todos', todoId)
     if (!prev || prev.deleted) return
 
-    // 关联层钩子：指向待办的 link（含 mention / related）一并墓碑化，恢复时随待办复活
-    const cascadeLinkIds = await cascadeSoftDeleteLinks(
-      tx,
-      [{ type: 'todos', id: todoId }],
-      now,
-    )
+    // 统计先于删除：有多少笔流水的 related link 指向该待办（todo_deleteTodo 的 sideEffects）
+    unlinked = (await tx.list<Link>('links')).filter(
+      (l) =>
+        !l.deleted &&
+        l.kind === 'related' &&
+        l.fromType === 'transactions' &&
+        l.toType === 'todos' &&
+        l.toId === todoId,
+    ).length
 
-    // transactions.todoIds 已数组化（Issue #140 v11）：按数组解绑，空数组不落键（toLinkFieldPatch）。
-    // 不能写 `todoId: undefined` —— 既解不掉数组里的 id，还会按「双写不双读」留下永不读取的旧键。
-    const txns = (await tx.list<Transaction>('transactions'))
-      .filter((t) => !t.deleted)
-      .filter((t) => txnTodoIds(t).includes(todoId))
-    // 笔记 mention 已迁 links（v15）：指向该待办的 mention link 由上面
-    // cascadeSoftDeleteLinks 统一墓碑化（快照 cascadeLinkIds 留档、恢复时复活），
-    // 此前的「剪 mentions 字段 + mode:'mention' 快照」路径整体退役。
+    // 关联层钩子：指向待办的 link（related / mention）一并墓碑化，恢复时随待办复活
+    const cascadeLinkIds = await cascadeSoftDeleteLinks(tx, [{ type: 'todos', id: todoId }], now)
+
     const trashSnapshot: TrashSnapshot = {
       children: [],
-      links: [
-        ...txns.map((t) => ({
-          table: 'transactions' as const,
-          id: t.id,
-          field: 'todoIds',
-          mode: 'append' as const,
-          value: todoId,
-        })),
-      ],
+      links: [],
       ...(cascadeLinkIds.length ? { cascadeLinkIds } : {}),
     }
 
@@ -64,16 +57,6 @@ export async function deleteTodoCascade(todoId: string): Promise<number> {
       trashSnapshot,
     })
     await tx.enqueue('todos', todoId, 'delete', now)
-
-    for (const txn of txns) {
-      await tx.update('transactions', txn.id, {
-        ...toLinkFieldPatch('todoIds', txnTodoIds(txn).filter((id) => id !== todoId)),
-        updatedAt: now,
-        rev: txn.rev + 1,
-      })
-      await tx.enqueue('transactions', txn.id, 'upsert', now)
-      unlinked++
-    }
   })
   storage.requestSync()
   return unlinked

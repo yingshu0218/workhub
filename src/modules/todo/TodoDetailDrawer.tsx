@@ -7,7 +7,8 @@ import { Icon } from '@/design-system/Icon'
 import dayjs from 'dayjs'
 import { useFocusStore } from '@/stores/focus'
 import { toggleTodoDone, voidTodo, restoreTodo } from './toggle'
-import { txnTodoIds, financeFocusPath } from '@/modules/finance/links'
+import { financeFocusPath, txnLinksOf } from '@/modules/finance/links'
+import { useTxnLinkIndex } from '@/modules/finance/hooks'
 import {
   isTodoOpen,
   isTodoDone,
@@ -55,9 +56,10 @@ export function TodoDetailDrawer({
   // 状态流转失败提示（与列表行同款：不静默失败）
   const [busy, setBusy] = useState(false)
 
-  // 关联账目：`transactions.todoIds` 数组弱引用反查（links.ts 收口，兼容旧单值字段）
+  // 关联账目：related link 索引反查（v15 起关联迁 links；liveQuery 随保存/级联/恢复刷新）
+  const txnLinkIndex = useTxnLinkIndex()
   const linkedTxns = todo
-    ? transactions.filter((t) => txnTodoIds(t).includes(todo.id))
+    ? transactions.filter((t) => txnLinksOf(txnLinkIndex, t.id).todoIds.includes(todo.id))
     : []
 
   /** 详情内动作统一包一层：执行期禁用按钮 + 失败可见提示（不静默吞错） */

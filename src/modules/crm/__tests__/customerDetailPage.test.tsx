@@ -48,6 +48,24 @@ function ledger(id: string) {
     rev: 0,
   }
 }
+
+/** 播种「流水 → 目标」related link（v15 起关联在 links 表；派生行口径） */
+async function seedRelated(txnId: string, toType: 'customers' | 'todos' | 'projects', toId: string) {
+  const { buildLinkId } = await import('@/repositories/linkId')
+  await db.links.put({
+    id: buildLinkId({ type: 'transactions', id: txnId }, { type: toType, id: toId }, 'related'),
+    fromType: 'transactions',
+    fromId: txnId,
+    toType,
+    toId,
+    kind: 'related',
+    createdAt: 1,
+    updatedAt: 0,
+    rev: 0,
+    deleted: 0,
+  } as never)
+}
+
 function txn(over: Record<string, unknown> = {}) {
   return {
     id: 't1',
@@ -84,7 +102,8 @@ describe('CustomerDetailPage：有关联流水时不再崩溃', () => {
   it('页面正常渲染且关联流水可见（不再 SchemaError）', async () => {
     await db.customers.put(customer('c1') as never)
     await db.ledgers.put(ledger('l1') as never)
-    await db.transactions.put(txn({ customerIds: ['c1'] }) as never)
+    await db.transactions.put(txn() as never)
+    await seedRelated('t1', 'customers', 'c1')
 
     render(
       <MemoryRouter initialEntries={['/crm/c1']}>
@@ -113,7 +132,9 @@ describe('CustomerDetailPage：有关联流水时不再崩溃', () => {
     await db.customers.put(customer('c1') as never)
     await db.customers.put({ ...customer('c2'), id: 'c2', name: '李四' } as never)
     await db.ledgers.put(ledger('l1') as never)
-    await db.transactions.put(txn({ customerIds: ['c2', 'c1'] }) as never)
+    await db.transactions.put(txn({ id: 't1' }) as never)
+    await seedRelated('t1', 'customers', 'c2')
+    await seedRelated('t1', 'customers', 'c1')
 
     render(
       <MemoryRouter initialEntries={['/crm/c1']}>

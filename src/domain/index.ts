@@ -19,7 +19,6 @@
  */
 import dayjs from 'dayjs'
 import { storage } from '@/storage'
-import { toLinkField } from '@/modules/finance/links'
 import { ledgerRepo, newId, saveTransactionWithAttachments } from '@/repositories'
 import type { PutInput } from '@/repositories/repository'
 import type { Ledger, Transaction } from '@/db/types'
@@ -110,12 +109,14 @@ export async function recordTransaction(
     occurredAt,
     tags: input.tags ?? [],
     note: input.note,
-    customerIds: toLinkField(input.customerIds ?? []),
-    todoIds: toLinkField(input.todoIds ?? []),
-    projectIds: toLinkField(input.projectIds ?? []),
     status: input.status ?? '待对账',
   }
-  const { created } = await saveTransactionWithAttachments(record, [])
+  // 多关联（Phase 2 迁 links）：三组 id 作为选择集传给复合保存，与流水行同事务 diff 同步
+  const { created } = await saveTransactionWithAttachments(record, [], {
+    customerIds: input.customerIds ?? [],
+    todoIds: input.todoIds ?? [],
+    projectIds: input.projectIds ?? [],
+  })
   return { ok: true, transactionId: id, created, ledgerId, occurredAt }
 }
 

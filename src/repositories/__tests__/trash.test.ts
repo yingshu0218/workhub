@@ -13,6 +13,24 @@ const meta = (over: Record<string, unknown> = {}) => ({
   ...over,
 })
 
+
+/** 播种「流水 → 目标」related link（v15 起关联在 links 表；派生行口径） */
+async function seedRelated(txnId: string, toType: 'customers' | 'todos' | 'projects', toId: string) {
+  const { buildLinkId } = await import('@/repositories/linkId')
+  await db.links.put({
+    id: buildLinkId({ type: 'transactions', id: txnId }, { type: toType, id: toId }, 'related'),
+    fromType: 'transactions',
+    fromId: txnId,
+    toType,
+    toId,
+    kind: 'related',
+    createdAt: 1,
+    updatedAt: 0,
+    rev: 0,
+    deleted: 0,
+  } as never)
+}
+
 beforeEach(async () => {
   await Promise.all(db.tables.map((t) => t.clear()))
 })
@@ -55,7 +73,6 @@ describe('回收站：客户级联删除 → 恢复重建关联', () => {
         channel: '',
         occurredAt: 1,
         tags: [],
-        customerIds: ['c1'],
         status: '已结算',
         createdAt: 1,
         ...meta(),
@@ -85,6 +102,7 @@ describe('回收站：客户级联删除 → 恢复重建关联', () => {
       } as never,
     )
 
+    await seedRelated('t1', 'customers', 'c1')
     await deleteCustomerCascade('c1')
 
     const deleted = (await db.customers.get('c1')) as unknown as Record<string, unknown>
@@ -92,17 +110,24 @@ describe('回收站：客户级联删除 → 恢复重建关联', () => {
     expect((deleted.trashSnapshot as { children: unknown[] }).children).toHaveLength(1)
     expect(((await db.customers.get('c2')) as never as { relations: unknown[] }).relations).toEqual([])
     expect(
-      ((await db.transactions.get('t1')) as never as { customerIds?: string[] }).customerIds ?? [],
+      ((await db.links.toArray()).filter((l) => l.kind === 'related' && l.fromId === 't1' && !l.deleted).map((l) => l.toId)),
     ).toEqual([])
 
     const result = await restoreTrashRecord('customers', 'c1')
 
     expect(result.restored).toBe(2) // 客户 + 1 条沟通日志
-    expect(result.rebuiltLinks).toBe(4) // 流水 + 待办 + 项目 + c2 关系
+    // 旧字段级回填：待办 + 项目 + c2 关系（流水 customerIds 的 append 项已随 v15 迁 links 退役）
+    expect(result.rebuiltLinks).toBe(3)
+    // 关联层：被级联墓碑化的 related link 随客户复活（两端实体都存活）
+    expect(result.revivedCascadeLinks).toBe(1)
     expect(((await db.customers.get('c1')) as never as { deleted: number }).deleted).toBe(0)
     expect(((await db.customers.get('c2')) as never as { relations: unknown[] }).relations).toHaveLength(1)
     expect(((await db.interactions.get('i1')) as never as { deleted: number }).deleted).toBe(0)
-    expect(((await db.transactions.get('t1')) as never as { customerIds: string[] }).customerIds).toEqual(['c1'])
+    expect(
+      (
+        await db.links.toArray()
+      ).filter((l) => l.kind === 'related' && l.fromId === 't1' && !l.deleted).map((l) => l.toId),
+    ).toEqual(['c1'])
     expect(((await db.todos.get('td1')) as never as { customerId: string }).customerId).toBe('c1')
     expect(((await db.projects.get('p1')) as never as { customerId: string }).customerId).toBe('c1')
   })
@@ -160,7 +185,6 @@ describe('回收站：习惯/待办快照', () => {
         channel: '',
         occurredAt: 1,
         tags: [],
-        todoIds: ['td1'],
         status: '已结算',
         createdAt: 1,
         ...meta(),
@@ -168,14 +192,21 @@ describe('回收站：习惯/待办快照', () => {
     )
     await db.ledgers.put({ id: 'l1', name: '默认账本', currency: 'CNY', createdAt: 1, ...meta() } as never)
 
+    await seedRelated('t1', 'todos', 'td1')
     await deleteTodoCascade('td1')
     expect(
-      ((await db.transactions.get('t1')) as never as { todoIds?: string[] }).todoIds ?? [],
+      ((await db.links.toArray()).filter((l) => l.kind === 'related' && l.fromId === 't1' && !l.deleted).map((l) => l.toId)),
     ).toEqual([])
 
     const result = await restoreTrashRecord('todos', 'td1')
-    expect(result.rebuiltLinks).toBe(1)
-    expect(((await db.transactions.get('t1')) as never as { todoIds: string[] }).todoIds).toEqual(['td1'])
+    // 旧字段级回填为零（todoIds 已迁 links）；related link 随待办复活
+    expect(result.rebuiltLinks).toBe(0)
+    expect(result.revivedCascadeLinks).toBe(1)
+    expect(
+      (
+        await db.links.toArray()
+      ).filter((l) => l.kind === 'related' && l.fromId === 't1' && !l.deleted).map((l) => l.toId),
+    ).toEqual(['td1'])
   })
 })
 

@@ -11,14 +11,8 @@ import { toArchivedFlag } from '@/shared/search'
 import { hiddenCustomerIds, useIntimacyConfig } from '@/modules/crm/intimacy'
 import EntityLinkField from '@/design-system/EntityLinkField'
 import ChannelSelect from '@/design-system/ChannelSelect'
-import {
-  aliveIdSet,
-  pruneTxnLinkIds,
-  toLinkField,
-  txnCustomerIds,
-  txnProjectIds,
-  txnTodoIds,
-} from './links'
+import { aliveIdSet, pruneTxnLinkIds, txnLinksOf } from './links'
+import { useTxnLinkIndex } from './hooks'
 import dayjs from 'dayjs'
 import { isTodoOpen } from '@/modules/todo/domain'
 import { todoPriorityFullLabel } from '@/modules/todo/priority'
@@ -70,6 +64,8 @@ export default function TransactionFormDrawer({
   onClose: () => void
 }) {
   const ledgers = useCollection<Ledger>('ledgers')
+  // 流水关联索引（v15 起关联迁 links）：编辑态回填选择集用
+  const txnLinkIndex = useTxnLinkIndex()
   const customers = useCollection<Customer>('customers')
   // 黑名单「单据选择器排除」（缺陷 D15）：被屏蔽客户不进候选，但**已关联的仍正常回显**
   // （只滤候选不滤 options —— 见 EntityLinkField.hiddenIds 的说明）
@@ -107,10 +103,11 @@ export default function TransactionFormDrawer({
     setOccurredAt(dayjs(editTxn.occurredAt).format('YYYY-MM-DD'))
     setTags(editTxn.tags)
     setTagInput('')
-    // 多关联回填（Issue #140）：兼容旧单值记录（迁移前/远端未升级）由 links 读取器统一兜底
-    setCustomerIds(txnCustomerIds(editTxn))
-    setTodoIds(txnTodoIds(editTxn))
-    setProjectIds(txnProjectIds(editTxn))
+    // 多关联回填（v15 起关联迁 links）：编辑态初始选择集来自 related link 索引
+    const links = txnLinksOf(txnLinkIndex, editTxn.id)
+    setCustomerIds(links.customerIds)
+    setTodoIds(links.todoIds)
+    setProjectIds(links.projectIds)
     setNote(editTxn.note ?? '')
   } else {
     // 归属账本默认值：左侧选中具体账本直接用；「全部账本」优先默认账本，再回落第一个
@@ -203,12 +200,13 @@ export default function TransactionFormDrawer({
     // 记账时间口径走领域层 `normalizeOccurredAt`（仅日期录入 → 落当天 00:00）。
     // 该口径与 agentOps 的 fin_recordTransaction 同源一份实现（P1 补强：消除 UI/AI 两份内联拼接）。
     const occurredAtMs = normalizeOccurredAt(occurredAt)
-    // 关联写入纪律（Issue #140）：去重 + 过滤已删实体（弱引用：实体不存在仅解绑，不报错），
-    // 空数组不落键（与服务端 json 字段「无关联即无字段」口径一致）。
-    const linkPatch = {
-      customerIds: toLinkField(pruneTxnLinkIds(customerIds, aliveIdSet(customers))),
-      todoIds: toLinkField(pruneTxnLinkIds(todoIds, aliveIdSet(todos))),
-      projectIds: toLinkField(pruneTxnLinkIds(projectIds, aliveIdSet(projects))),
+    // 关联写入纪律（Issue #140）：去重 + 过滤已删实体（弱引用：实体不存在仅解绑，不报错）。
+    // v15 起关联迁 links：选择集作为 related 传给 saveTransactionWithAttachments，
+    // 与流水行同事务 diff 同步（syncRelatedLinks 二次校验端点存活）。
+    const related = {
+      customerIds: pruneTxnLinkIds(customerIds, aliveIdSet(customers)),
+      todoIds: pruneTxnLinkIds(todoIds, aliveIdSet(todos)),
+      projectIds: pruneTxnLinkIds(projectIds, aliveIdSet(projects)),
     }
     // 编辑模式以旧记录展开为基底，保留 status 等表单外字段
     const record: PutInput<Transaction> = editTxn
@@ -222,7 +220,6 @@ export default function TransactionFormDrawer({
           occurredAt: occurredAtMs,
           tags,
           note: note.trim() || undefined,
-          ...linkPatch,
         }
       : {
           id: txnId,
@@ -234,7 +231,6 @@ export default function TransactionFormDrawer({
           occurredAt: occurredAtMs,
           tags,
           note: note.trim() || undefined,
-          ...linkPatch,
           status: '待对账',
         }
     // 附件存根：Blob 入 attachments 表，归属（流水→附件）由 saveTransactionWithAttachments
@@ -252,7 +248,7 @@ export default function TransactionFormDrawer({
     try {
       // 事件（transaction:created）已下沉 saveTransactionWithAttachments：事务 commit 后、
       // 仅新建时发出（编辑不再误发，修 §9.5 bug1）。UI 侧不再内联 emit，避免双发。
-      await saveTransactionWithAttachments(record, attachments)
+      await saveTransactionWithAttachments(record, attachments, related)
       onClose()
     } catch (e) {
       setError(e instanceof Error ? `保存失败：${e.message}` : '保存失败，请重试')

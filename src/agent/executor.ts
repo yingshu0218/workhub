@@ -14,9 +14,6 @@ import {
   deleteProjectCascade,
   addCustomerRelation,
   saveTransactionWithAttachments,
-  toLinkFieldPatch,
-  txnCustomerIds,
-  txnProjectIds,
   habitRepo,
   noteRepo,
   todoRepo,
@@ -50,6 +47,7 @@ type LinkRow = {
   kind: string
   fromType: string
   fromId: string
+  toType: string
   toId: string
   deleted?: 0 | 1
   rev?: number
@@ -195,6 +193,10 @@ function linkIds(arr: unknown, legacy: unknown): string[] {
   }
   return [...new Set([...norm(arr), ...norm(legacy)])]
 }
+
+/** 流水关联选择集（与 repositories/links#TxnRelatedInput 同构；本地声明避免 agent 层
+ *  经类型 import 拽进带 db 依赖的模块 —— boundary 锁只认运行时，但保持零间接依赖更稳） */
+type TxnRelatedInput = { customerIds?: string[]; todoIds?: string[]; projectIds?: string[] }
 
 export async function fin_recordTransaction(input: unknown): Promise<AgentOpResult> {
   const parsed = parseOrError(recordTransactionSchema, input)
@@ -846,32 +848,38 @@ export async function fin_updateTransaction(input: unknown): Promise<AgentOpResu
   if (d.note !== undefined) patch.note = d.note
   if (d.ledgerId !== undefined) patch.ledgerId = d.ledgerId
 
-  // 关联字段：单值 / 数组都收（兼容已分发契约），归一为去重数组；显式传空 = 清空该关联。
-  // 走 toLinkFieldPatch 而非直接写 [] —— 空数组会被序列化进库，形成「有键但空」的噪声态。
+  // 关联字段：单值 / 数组都收（兼容已分发契约），归一为去重数组；显式传空 = 清空该组关联。
+  // v15 起关联迁 links：不再改流水行，而是作为**选择集**传给 saveTransactionWithAttachments
+  // 与流水行同事务 diff 同步 —— 未触碰的组传 undefined（不动既有 link），不写「有键但空」。
+  const related: TxnRelatedInput = {}
+  let relatedTouched = false
   if (d.customerIds !== undefined || d.customerId !== undefined) {
-    Object.assign(patch, toLinkFieldPatch('customerIds', linkIds(d.customerIds, d.customerId)))
+    related.customerIds = linkIds(d.customerIds, d.customerId)
+    relatedTouched = true
   }
   if (d.todoIds !== undefined || d.todoId !== undefined) {
-    Object.assign(patch, toLinkFieldPatch('todoIds', linkIds(d.todoIds, d.todoId)))
+    related.todoIds = linkIds(d.todoIds, d.todoId)
+    relatedTouched = true
   }
   if (d.projectIds !== undefined || d.projectId !== undefined) {
-    Object.assign(patch, toLinkFieldPatch('projectIds', linkIds(d.projectIds, d.projectId)))
+    related.projectIds = linkIds(d.projectIds, d.projectId)
+    relatedTouched = true
   }
 
   // 关联校验前置：账本 / 客户 / 待办 / 项目都必须存在（不产生悬挂引用）
   const links = await assertLinks([
     { id: patch.ledgerId, table: tableRef('ledgers'), what: '账本' },
-    ...(patch.customerIds ?? []).map((id) => ({
+    ...(related.customerIds ?? []).map((id) => ({
       id,
       table: tableRef('customers'),
       what: '客户',
     })),
-    ...(patch.todoIds ?? []).map((id) => ({ id, table: tableRef('todos'), what: '待办' })),
-    ...(patch.projectIds ?? []).map((id) => ({ id, table: tableRef('projects'), what: '项目' })),
+    ...(related.todoIds ?? []).map((id) => ({ id, table: tableRef('todos'), what: '待办' })),
+    ...(related.projectIds ?? []).map((id) => ({ id, table: tableRef('projects'), what: '项目' })),
   ])
   if (!links.ok) return err(links.error)
 
-  await saveTransactionWithAttachments({ ...prev, ...patch })
+  await saveTransactionWithAttachments({ ...prev, ...patch }, [], relatedTouched ? related : undefined)
   return ok({ transactionId: d.transactionId, updated: Object.keys(patch) })
 }
 
@@ -923,16 +931,24 @@ export async function crm_deleteCustomer(input: unknown): Promise<AgentOpResult>
   const found = await mustExist<Customer>(tableRef('customers'), id, '客户')
   if (!found.ok) return err(found.error)
 
-  const [logs, txns, todos, projects, allCustomers] = await Promise.all([
+  const [logs, relatedLinks, todos, projects, allCustomers] = await Promise.all([
     storage.list<Interaction>('interactions'),
-    storage.list<Transaction>('transactions'),
+    storage.list<LinkRow>('links'),
     storage.list<Todo>('todos'),
     storage.list<Project>('projects'),
     storage.list<Customer>('customers'),
   ])
   const sideEffects = {
     cascadedInteractions: logs.filter((l) => l.customerId === id && !l.deleted).length,
-    unlinkedTransactions: txns.filter((t) => !t.deleted && txnCustomerIds(t).includes(id)).length,
+    // 关联已迁 links（v15）：统计指向该客户的流水 related link（级联会一并墓碑化）
+    unlinkedTransactions: relatedLinks.filter(
+      (l) =>
+        !l.deleted &&
+        l.kind === 'related' &&
+        l.fromType === 'transactions' &&
+        l.toType === 'customers' &&
+        l.toId === id,
+    ).length,
     unlinkedTodos: todos.filter((t) => t.customerId === id && !t.deleted).length,
     unlinkedProjects: projects.filter((p) => p.customerId === id && !p.deleted).length,
     clearedRelations: allCustomers.filter(
@@ -956,16 +972,24 @@ export async function project_deleteProject(input: unknown): Promise<AgentOpResu
   const found = await mustExist<Project>(tableRef('projects'), id, '项目')
   if (!found.ok) return err(found.error)
 
-  const [milestones, txns, todos, notes, interactions] = await Promise.all([
+  const [milestones, relatedLinks, todos, notes, interactions] = await Promise.all([
     storage.list<ProjectMilestone>('projectMilestones'),
-    storage.list<Transaction>('transactions'),
+    storage.list<LinkRow>('links'),
     storage.list<Todo>('todos'),
     storage.list<Note>('notes'),
     storage.list<Interaction>('interactions'),
   ])
   const sideEffects = {
     cascadedMilestones: milestones.filter((m) => m.projectId === id && !m.deleted).length,
-    unlinkedTransactions: txns.filter((t) => !t.deleted && txnProjectIds(t).includes(id)).length,
+    // 关联已迁 links（v15）：统计指向该项目的流水 related link（级联会一并墓碑化）
+    unlinkedTransactions: relatedLinks.filter(
+      (l) =>
+        !l.deleted &&
+        l.kind === 'related' &&
+        l.fromType === 'transactions' &&
+        l.toType === 'projects' &&
+        l.toId === id,
+    ).length,
     unlinkedTodos: todos.filter((t) => t.projectId === id && !t.deleted).length,
     unlinkedNotes: notes.filter((n) => n.projectId === id && !n.deleted).length,
     unlinkedInteractions: interactions.filter((i) => i.projectId === id && !i.deleted).length,

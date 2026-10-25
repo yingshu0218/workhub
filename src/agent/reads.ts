@@ -1,12 +1,12 @@
 import dayjs from 'dayjs'
 import { z } from 'zod'
 import { storage } from '@/storage'
-import { txnCustomerIds, txnProjectIds, txnTodoIds } from '@/modules/finance/links'
+import { groupTxnLinks, txnLinksOf, type TxnLinks } from '@/modules/finance/links'
 import { buildSearchIndex, searchAll, type SearchEntityType } from '@/shared/search'
 // 直读层从 intimacy/direct 引（纯：零 react/Dexie）——barrel 会拖 config.ts 的响应式链，服务端 bundle 禁入
 import { filterBlacklisted, getIntimacyConfig } from '@/modules/crm/intimacy/direct'
 import { normalizeTodoPriority, todoPriorityFullLabel } from '@/modules/todo/priority'
-import type { Customer, Habit, Ledger, Note, Project, Todo, Transaction } from '@/db/types'
+import type { Customer, Habit, Ledger, Link, Note, Project, Todo, Transaction } from '@/db/types'
 
 /**
  * agentOps 读工具集 —— 方案 §2.2（P1 第 5 步）
@@ -122,8 +122,11 @@ export const searchEntitiesSchema = z.object({
 
 /* ------------------------------- 投影白名单 ------------------------------- */
 
-/** 交易投影：不含 note 之外的杂项，绝不含附件（附件不入本表，见 §2.2） */
-function projectTransaction(t: Transaction) {
+/** 交易投影：不含 note 之外的杂项，绝不含附件（附件不入本表，见 §2.2）。
+ *  关联来源是 related link 索引（v15 起关联不再随流水落字段）——
+ *  索引由调用方经 storage.list('links') 构建（读链路必须走 StorageAdapter，不引 db）。 */
+function projectTransaction(t: Transaction, txnIndex: ReadonlyMap<string, TxnLinks>) {
+  const links = txnLinksOf(txnIndex, t.id)
   return {
     id: t.id,
     ledgerId: t.ledgerId,
@@ -135,11 +138,10 @@ function projectTransaction(t: Transaction) {
     // 多关联（Issue #140）：投影按数组下发；空数组不落键，保持"无关联即无字段"的既有形状。
     // 审计整改（读取侧向后兼容）：已分发的外部 Agent 契约是单值键（旧读回结果里有
     // `.customerId` 等），只下数组是「输入侧宽松、输出侧收窄」的反向破口。这里补
-    // 过渡别名 = 数组首元素（只读投影，不落库、不违反「双写不双读」），待外部调用方
-    // 全部迁移到数组键后再移除（届时同步公告 breaking change）。
-    ...(txnCustomerIds(t).length > 0 ? { customerIds: txnCustomerIds(t), customerId: txnCustomerIds(t)[0] } : {}),
-    ...(txnProjectIds(t).length > 0 ? { projectIds: txnProjectIds(t), projectId: txnProjectIds(t)[0] } : {}),
-    ...(txnTodoIds(t).length > 0 ? { todoIds: txnTodoIds(t), todoId: txnTodoIds(t)[0] } : {}),
+    // 过渡别名 = 数组首元素（只读投影，不落库），待外部调用方全部迁移到数组键后再移除。
+    ...(links.customerIds.length > 0 ? { customerIds: links.customerIds, customerId: links.customerIds[0] } : {}),
+    ...(links.projectIds.length > 0 ? { projectIds: links.projectIds, projectId: links.projectIds[0] } : {}),
+    ...(links.todoIds.length > 0 ? { todoIds: links.todoIds, todoId: links.todoIds[0] } : {}),
   }
 }
 
@@ -218,15 +220,16 @@ export async function listTransactions(input: unknown): Promise<ReadResult> {
   const d = listTransactionsSchema.parse(input ?? {})
   const fromMs = d.from ? dayjs(d.from).startOf('day').valueOf() : undefined
   const toMs = d.to ? dayjs(d.to).endOf('day').valueOf() : undefined
+  const txnIndex = groupTxnLinks(await storage.list<Link>('links'))
   const rows = alive(await storage.list<Transaction>('transactions'))
-    .filter((t) => (d.customerId ? txnCustomerIds(t).includes(d.customerId) : true))
+    .filter((t) => (d.customerId ? txnLinksOf(txnIndex, t.id).customerIds.includes(d.customerId) : true))
     .filter((t) => (d.ledgerId ? t.ledgerId === d.ledgerId : true))
     .filter((t) => (d.status ? t.status === d.status : true))
     .filter((t) => (d.type ? t.type === d.type : true))
     .filter((t) => (fromMs === undefined ? true : t.occurredAt >= fromMs))
     .filter((t) => (toMs === undefined ? true : t.occurredAt <= toMs))
     .sort((a, b) => b.occurredAt - a.occurredAt)
-  return envelope(rows.map(projectTransaction), READ_LIMITS.listTransactions)
+  return envelope(rows.map((t) => projectTransaction(t, txnIndex)), READ_LIMITS.listTransactions)
 }
 
 /** getCustomer：单客户档案（上限 1，id 须来自 resolveEntity） */

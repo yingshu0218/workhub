@@ -4,7 +4,6 @@ import { newId } from '@/repositories'
 import { useCollection, useQuery } from '@/queries/hooks'
 import type { Project, ProjectMilestone, Todo, Transaction, Note, Interaction } from '@/db/types'
 import { isTodoOpen } from '@/modules/todo/domain'
-import { txnProjectIds } from '@/repositories'
 
 /**
  * 项目模块数据层（组件禁止直连 Dexie）
@@ -56,13 +55,17 @@ export function useProjectTransactions(projectId: string | undefined): Transacti
   const list = useQuery<Transaction[]>(
     () =>
       projectId
-        ? db.transactions
-            .filter((t) => !t.deleted)
+        ? // 关联已迁 links（v15）：按 [toType+toId] 索引反查流水 id 再取行（与 useCustomerTransactions 同口径）
+          db.links
+            .where('[toType+toId]')
+            .equals(['projects', projectId])
+            .filter((l) => !l.deleted && l.kind === 'related' && l.fromType === 'transactions')
             .toArray()
+            .then((ls) => db.transactions.bulkGet(ls.map((l) => l.fromId)))
             .then((rows) =>
-              rows
-                .filter((t) => txnProjectIds(t).includes(projectId))
-                .sort((a, b) => b.occurredAt - a.occurredAt),
+              rows.filter((t): t is Transaction => !!t && !t.deleted).sort(
+                (a, b) => b.occurredAt - a.occurredAt,
+              ),
             )
         : Promise.resolve([]),
     [projectId],

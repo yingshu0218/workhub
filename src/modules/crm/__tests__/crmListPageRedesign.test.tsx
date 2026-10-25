@@ -121,11 +121,29 @@ async function seed() {
     channel: '微信',
     occurredAt: 0,
     tags: [],
-    customerIds: ['c1'],
     status: '待对账' as const,
     updatedAt: 1,
     deleted: 0 as const,
     rev: 1,
+  } as never)
+  await seedRelated('t1', 'customers', 'c1')
+}
+
+
+/** 播种「流水 → 目标」related link（v15 起关联在 links 表；派生行口径） */
+async function seedRelated(txnId: string, toType: 'customers' | 'todos' | 'projects', toId: string) {
+  const { buildLinkId } = await import('@/repositories/linkId')
+  await db.links.put({
+    id: buildLinkId({ type: 'transactions', id: txnId }, { type: toType, id: toId }, 'related'),
+    fromType: 'transactions',
+    fromId: txnId,
+    toType,
+    toId,
+    kind: 'related',
+    createdAt: 1,
+    updatedAt: 0,
+    rev: 0,
+    deleted: 0,
   } as never)
 }
 

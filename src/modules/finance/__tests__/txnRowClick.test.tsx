@@ -35,7 +35,7 @@ const customer = {
 const txn = (over: Record<string, unknown> = {}) => ({
   id: 't1', ledgerId: 'l1', type: 'expense' as const, amount: 1234, summary: '二期平台开发款',
   channel: '微信', occurredAt: 1_700_000_000_000, tags: [], status: '待对账' as const,
-  updatedAt: 1, deleted: 0 as const, rev: 1, customerIds: ['c1'], projectIds: ['p1'],
+  updatedAt: 1, deleted: 0 as const, rev: 1,
   ...over,
 })
 
@@ -49,6 +49,24 @@ function renderApp(initial: string) {
       </Routes>
     </MemoryRouter>,
   )
+}
+
+
+/** 播种「流水 → 目标」related link（v15 起关联在 links 表；派生行口径） */
+async function seedRelated(txnId: string, toType: 'customers' | 'todos' | 'projects', toId: string) {
+  const { buildLinkId } = await import('@/repositories/linkId')
+  await db.links.put({
+    id: buildLinkId({ type: 'transactions', id: txnId }, { type: toType, id: toId }, 'related'),
+    fromType: 'transactions',
+    fromId: txnId,
+    toType,
+    toId,
+    kind: 'related',
+    createdAt: 1,
+    updatedAt: 0,
+    rev: 0,
+    deleted: 0,
+  } as never)
 }
 
 describe('财务流水列表行点击 → 凭证详情（Issue #147）', () => {
@@ -67,6 +85,7 @@ describe('财务流水列表行点击 → 凭证详情（Issue #147）', () => {
     } as never)
     await db.ledgers.put(ledger as never)
     await db.transactions.put(txn() as never)
+    await seedRelated('t1', 'projects', 'p1')
     renderApp('/projects/p1')
     fireEvent.click(await screen.findByText('二期平台开发款'))
     expect(await screen.findByText('财务流水凭证详情')).toBeTruthy()
@@ -76,6 +95,7 @@ describe('财务流水列表行点击 → 凭证详情（Issue #147）', () => {
     await db.customers.put(customer as never)
     await db.ledgers.put(ledger as never)
     await db.transactions.put(txn() as never)
+    await seedRelated('t1', 'customers', 'c1')
     renderApp('/crm/c1')
     // 待对账卡片里的摘要行（时间轴里也有一份，取第一个）
     const hit = (await screen.findAllByText('二期平台开发款'))[0]
@@ -87,6 +107,7 @@ describe('财务流水列表行点击 → 凭证详情（Issue #147）', () => {
     await db.customers.put(customer as never)
     await db.ledgers.put(ledger as never)
     await db.transactions.put(txn({ status: '已结算' }) as never)
+    await seedRelated('t1', 'customers', 'c1')
     renderApp('/crm/c1')
     await screen.findAllByText('张三')
     // 时间轴默认只显示沟通日志，切「全部」才纳入交易事件

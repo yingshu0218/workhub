@@ -178,8 +178,30 @@ describe('C. 读工具：投影白名单 + 条数上限（§2.2 / §10.4）', ()
     expect(r.data!.truncated).toBe(false)
   })
 
+
+/** 播种「流水 → 目标」related link（v15 起关联在 links 表） */
+async function seedRelated(txnId: string, toType: 'customers' | 'todos' | 'projects', toId: string) {
+  const { buildLinkId } = await import('@/repositories/linkId')
+  await db.links.put({
+    id: buildLinkId({ type: 'transactions', id: txnId }, { type: toType, id: toId }, 'related'),
+    fromType: 'transactions',
+    fromId: txnId,
+    toType,
+    toId,
+    kind: 'related',
+    createdAt: 1,
+    updatedAt: 0,
+    rev: 0,
+    deleted: 0,
+  } as never)
+}
+
   it('投影输出侧保留 customerId 等单值过渡别名（向后兼容已分发的 Agent 契约）', async () => {
-    await db.transactions.put(newTxn('t1', { customerIds: ['c1', 'c2'], todoIds: ['td1'], projectIds: ['p1'] }))
+    await db.transactions.put(newTxn('t1'))
+    await seedRelated('t1', 'customers', 'c1')
+    await seedRelated('t1', 'customers', 'c2')
+    await seedRelated('t1', 'todos', 'td1')
+    await seedRelated('t1', 'projects', 'p1')
     const r = await dispatchAgentTool('listTransactions', {})
     expect(r.ok).toBe(true)
     const items = r.data!.items as Record<string, unknown>[]
@@ -194,16 +216,14 @@ describe('C. 读工具：投影白名单 + 条数上限（§2.2 / §10.4）', ()
 
   it('listTransactions 支持 customerId/status/日期范围过滤', async () => {
     // Issue #140：关联字段数组化，且一笔流水可挂多个客户（按数组包含匹配）
-    await db.transactions.put(
-      newTxn('t1', { customerIds: ['c1'], occurredAt: Date.parse('2026-09-01') }),
-    )
-    await db.transactions.put(
-      newTxn('t2', { customerIds: ['c2'], occurredAt: Date.parse('2026-09-20') }),
-    )
+    await db.transactions.put(newTxn('t1', { occurredAt: Date.parse('2026-09-01') }))
+    await seedRelated('t1', 'customers', 'c1')
+    await db.transactions.put(newTxn('t2', { occurredAt: Date.parse('2026-09-20') }))
+    await seedRelated('t2', 'customers', 'c2')
     // t3 同时挂 c1 + c2：两个客户视角都应命中（分摊多客户的真实场景）
-    await db.transactions.put(
-      newTxn('t3', { customerIds: ['c1', 'c2'], occurredAt: Date.parse('2026-09-25') }),
-    )
+    await db.transactions.put(newTxn('t3', { occurredAt: Date.parse('2026-09-25') }))
+    await seedRelated('t3', 'customers', 'c1')
+    await seedRelated('t3', 'customers', 'c2')
     const byCustomer = await dispatchAgentTool('listTransactions', { customerId: 'c1' })
     expect((byCustomer.data!.items as { id: string }[]).map((i) => i.id).sort()).toEqual([
       't1',

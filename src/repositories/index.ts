@@ -22,21 +22,9 @@ import type { SyncMeta, TrashSnapshot } from '@/db/types'
 import type { Attachment } from '@/db/db'
 import type { Link } from '@/db/types'
 import { eventBus } from '@/shared/eventBus'
-import { txnCustomerIds, txnProjectIds, toLinkField } from '@/modules/finance/links'
-import { cascadeSoftDeleteLinks, putLinkTx, syncMentionLinks } from './links'
+import { cascadeSoftDeleteLinks, putLinkTx, syncMentionLinks, syncRelatedLinks } from './links'
+import type { TxnRelatedInput } from './links'
 import { extractMentions } from '@/modules/notes/mentionParse'
-
-/**
- * 关联字段「置空即删键」的更新补丁（Dexie update 语义：显式 undefined 才删键）。
- * 数组化后不能直接写 `customerIds: []` —— 空数组会被序列化进库、与服务端 json 字段
- * 形成"有键但空"的噪声态；统一走 `toLinkField`：有空键则写值，无关联则置 undefined 清键。
- */
-function toLinkFieldPatch(
-  key: 'customerIds' | 'todoIds' | 'projectIds',
-  ids: string[],
-): Record<string, string[] | undefined> {
-  return { [key]: toLinkField(ids) }
-}
 
 /** 模块统一从这里拿仓储实例，不直接触碰 Dexie */
 export const workspaceRepo = createRepository<Workspace>('workspaces')
@@ -61,8 +49,6 @@ export const customerGroupRepo =
   createRepository<import('@/db/types').CustomerGroup>('customerGroups')
 
 export { newId }
-export { txnCustomerIds, txnProjectIds } from '@/modules/finance/links'
-export { toLinkFieldPatch }
 // 关联层（原子化一期）：模块统一从这里拿 links 的读写入口，与其它仓储同口径
 export {
   linkRepo,
@@ -277,48 +263,60 @@ export async function deleteHabitCascade(habitId: string): Promise<void> {
 export async function saveTransactionWithAttachments(
   txn: PutInput<Transaction>,
   attachments: PutInput<Attachment>[] = [],
+  /**
+   * 关联选择集（Phase 2 迁 links）：三组 id 与表单/Agent 契约同构；缺省 undefined =
+   * **不动既有关联**（如仅改金额的编辑路径不带关联参数时不解绑）。空数组才是显式清空。
+   */
+  related?: TxnRelatedInput,
 ): Promise<{ id: string; created: boolean }> {
   const now = Date.now()
   let created = false
-  await storage.transaction(['transactions', 'attachments', 'links', 'syncQueue'], async (tx) => {
-    const putStamped = async <T extends { id: string }>(
-      tableName: 'transactions' | 'attachments',
-      record: T & Partial<SyncMeta>,
-    ) => {
-      const prev = await tx.get<T>(tableName, record.id)
-      await tx.put(tableName, {
-        ...record,
-        updatedAt: now,
-        rev: (prev?.rev ?? 0) + 1,
-        deleted: 0 as const,
-      } as T)
-      await tx.enqueue(tableName, record.id, 'upsert', now)
-    }
-    // create 门控判据：事务开始前交易记录是否已存在（edited 既有记录 → prev 有值 → 不发事件）
-    const prevTxn = await tx.get<Transaction>('transactions', txn.id)
-    created = !prevTxn || !!prevTxn.deleted
-    await putStamped('transactions', txn as Transaction & Partial<SyncMeta>)
-    for (const att of attachments) {
-      await putStamped('attachments', att)
-      // 附件归属（Phase 2 迁 links）：宿主与附件刚在上方落库，事务内可见，走 putLinkTx
-      await putLinkTx(
-        tx,
-        {
-          from: { type: 'transactions', id: txn.id },
-          to: { type: 'attachments', id: att.id },
-          kind: 'attachment',
-        },
-        now,
-      )
-    }
-  })
+  await storage.transaction(
+    ['transactions', 'attachments', 'links', 'customers', 'todos', 'projects', 'syncQueue'],
+    async (tx) => {
+      const putStamped = async <T extends { id: string }>(
+        tableName: 'transactions' | 'attachments',
+        record: T & Partial<SyncMeta>,
+      ) => {
+        const prev = await tx.get<T>(tableName, record.id)
+        await tx.put(tableName, {
+          ...record,
+          updatedAt: now,
+          rev: (prev?.rev ?? 0) + 1,
+          deleted: 0 as const,
+        } as T)
+        await tx.enqueue(tableName, record.id, 'upsert', now)
+      }
+      // create 门控判据：事务开始前交易记录是否已存在（edited 既有记录 → prev 有值 → 不发事件）
+      const prevTxn = await tx.get<Transaction>('transactions', txn.id)
+      created = !prevTxn || !!prevTxn.deleted
+      await putStamped('transactions', txn as Transaction & Partial<SyncMeta>)
+      for (const att of attachments) {
+        await putStamped('attachments', att)
+        // 附件归属（Phase 2 迁 links）：宿主与附件刚在上方落库，事务内可见，走 putLinkTx
+        await putLinkTx(
+          tx,
+          {
+            from: { type: 'transactions', id: txn.id },
+            to: { type: 'attachments', id: att.id },
+            kind: 'attachment',
+          },
+          now,
+        )
+      }
+      // 客户/待办/项目多关联（Phase 2 迁 links）：与流水行同事务 diff 同步
+      if (related) {
+        await syncRelatedLinks(tx, txn.id, related, now)
+      }
+    },
+  )
   // 事务 commit 之后：仅在新建时发送事件（载荷与旧 UI 内联 emit 逐字段一致，无多余字段）
   if (created) {
     eventBus.emit('transaction:created', {
       transactionId: txn.id,
       // 事件载荷保持单值口径（Issue #140）：下游订阅方（灵感引擎失效、AI 事件流）按单值消费，
       // 多关联时代取首个关联客户即可表达"这笔钱和谁有关"，不放大事件契约的破坏面。
-      customerId: txnCustomerIds(txn)[0],
+      customerId: (related?.customerIds ?? [])[0],
     })
   }
   storage.requestSync()
@@ -453,7 +451,7 @@ export async function addCustomerRelation(
 export async function deleteCustomerCascade(customerId: string): Promise<void> {
   const now = Date.now()
   await storage.transaction(
-    ['customers', 'interactions', 'transactions', 'todos', 'projects', 'links', 'syncQueue'],
+    ['customers', 'interactions', 'todos', 'projects', 'links', 'syncQueue'],
     async (tx) => {
       const prevCustomer = await tx.get<Customer>('customers', customerId)
       if (!prevCustomer || prevCustomer.deleted) return
@@ -461,11 +459,9 @@ export async function deleteCustomerCascade(customerId: string): Promise<void> {
       const interactions = (await tx.list<Interaction>('interactions')).filter(
         (it) => it.customerId === customerId && !it.deleted,
       )
-      // transactions 关联已数组化（Issue #140 v11）：去掉 customerId 索引，改内存过滤。
-      // 理由见 db.ts v11 注释（避开 multiEntry 与同步队列整体覆盖语义的兼容坑，本表数据量级小）。
-      const txns = (await tx.list<Transaction>('transactions'))
-        .filter((t) => !t.deleted)
-        .filter((t) => txnCustomerIds(t).includes(customerId))
+      // transactions.customerIds 已迁 links（v15）：指向该客户的 related link 由
+      // cascadeSoftDeleteLinks 统一墓碑化（快照留档、恢复复活），「数组解绑 + mode:'append'
+      // 快照」路径退役 —— 本函数不再触碰 transactions 表。
       const todos = (await tx.list<Todo>('todos')).filter(
         (t) => t.customerId === customerId && !t.deleted,
       )
@@ -504,13 +500,6 @@ export async function deleteCustomerCascade(customerId: string): Promise<void> {
       const trashSnapshot: TrashSnapshot = {
         children: interactions.map((it) => ({ table: 'interactions' as const, id: it.id })),
         links: [
-          ...txns.map((t) => ({
-            table: 'transactions' as const,
-            id: t.id,
-            field: 'customerIds',
-            mode: 'append' as const,
-            value: customerId,
-          })),
           ...todos.map((t) => ({
             table: 'todos' as const,
             id: t.id,
@@ -558,15 +547,6 @@ export async function deleteCustomerCascade(customerId: string): Promise<void> {
           trashSnapshot: undefined,
         })
         await tx.enqueue('interactions', it.id, 'delete', now)
-      }
-
-      for (const txn of txns) {
-        await tx.update('transactions', txn.id, {
-          ...toLinkFieldPatch('customerIds', txnCustomerIds(txn).filter((id) => id !== customerId)),
-          updatedAt: now,
-          rev: txn.rev + 1,
-        })
-        await tx.enqueue('transactions', txn.id, 'upsert', now)
       }
 
       for (const todo of todos) {
@@ -621,7 +601,7 @@ export async function createCustomerWithInit(
 ): Promise<void> {
   const now = Date.now()
   await storage.transaction(
-    ['customers', 'todos', 'interactions', 'transactions', 'syncQueue'],
+    ['customers', 'todos', 'interactions', 'transactions', 'links', 'syncQueue'],
     async (tx) => {
       const prev = await tx.get<Customer>('customers', customer.id)
       await tx.put('customers', {
@@ -651,15 +631,16 @@ export async function createCustomerWithInit(
       if (opts.linkTransactionId) {
         const txn = await tx.get<Transaction>('transactions', opts.linkTransactionId)
         if (txn && !txn.deleted) {
-          await tx.update('transactions', txn.id, {
-            ...toLinkFieldPatch(
-              'customerIds',
-              [...txnCustomerIds(txn), customer.id].filter((v, i, a) => a.indexOf(v) === i),
-            ),
-            updatedAt: now,
-            rev: txn.rev + 1,
-          })
-          await tx.enqueue('transactions', txn.id, 'upsert', now)
+          // 关联已迁 links（v15）：建 related link（确定性 id 幂等，重复建档不重复建联）
+          await putLinkTx(
+            tx,
+            {
+              from: { type: 'transactions', id: txn.id },
+              to: { type: 'customers', id: customer.id },
+              kind: 'related',
+            },
+            now,
+          )
         }
       }
     },
@@ -750,7 +731,7 @@ export async function deleteTransactionCascade(txnId: string): Promise<void> {
 export async function deleteProjectCascade(projectId: string): Promise<void> {
   const now = Date.now()
   await storage.transaction(
-    ['projects', 'projectMilestones', 'transactions', 'todos', 'notes', 'interactions', 'links', 'syncQueue'],
+    ['projects', 'projectMilestones', 'todos', 'notes', 'interactions', 'links', 'syncQueue'],
     async (tx) => {
       const prev = await tx.get<Project>('projects', projectId)
       if (!prev || prev.deleted) return
@@ -758,9 +739,6 @@ export async function deleteProjectCascade(projectId: string): Promise<void> {
       const milestones = (await tx.list<ProjectMilestone>('projectMilestones')).filter(
         (m) => m.projectId === projectId && !m.deleted,
       )
-      const txns = (await tx.list<Transaction>('transactions'))
-        .filter((t) => !t.deleted)
-        .filter((t) => txnProjectIds(t).includes(projectId))
       // 单值弱引用表（todos/notes/interactions）：projectId 置 undefined 即解绑
       const [todos, notes, interactions] = await Promise.all([
         tx.list<Todo>('todos'),
@@ -797,13 +775,6 @@ export async function deleteProjectCascade(projectId: string): Promise<void> {
       const trashSnapshot: TrashSnapshot = {
         children: milestones.map((m) => ({ table: 'projectMilestones' as const, id: m.id })),
         links: [
-          ...txns.map((t) => ({
-            table: 'transactions' as const,
-            id: t.id,
-            field: 'projectIds',
-            mode: 'append' as const,
-            value: projectId,
-          })),
           ...linkedSingle.map(({ table, record }) => ({
             table,
             id: record.id,
@@ -837,18 +808,8 @@ export async function deleteProjectCascade(projectId: string): Promise<void> {
         await tx.enqueue('projectMilestones', m.id, 'delete', now)
       }
 
-      // transactions 关联已数组化（Issue #140 v11）：projectId 旧键已删，走 projectIds 数组解绑。
-      // 不能写 `projectId: undefined` —— 既解不掉 projectIds 里的项目，还按「双写不双读」留下一个
-      // 永不读取的旧键；必须走 toLinkFieldPatch('projectIds', …)（空数组不落键）。
-      for (const txn of txns) {
-        await tx.update('transactions', txn.id, {
-          ...toLinkFieldPatch('projectIds', txnProjectIds(txn).filter((id) => id !== projectId)),
-          updatedAt: now,
-          rev: txn.rev + 1,
-        })
-        await tx.enqueue('transactions', txn.id, 'upsert', now)
-      }
-
+      // transactions.projectIds 已迁 links（v15）：指向该项目的 related link 由
+      // cascadeSoftDeleteLinks 统一墓碑化（快照留档、恢复复活），数组解绑路径退役。
       for (const { table, record } of linkedSingle) {
         await tx.update(table, record.id, {
           projectId: undefined,

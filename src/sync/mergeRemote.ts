@@ -1,5 +1,4 @@
 import { db } from '@/db/db'
-import { normalizeTxnLinks } from '@/modules/finance/links'
 import {
   buildLinkId,
   legacyLinkSpecs,
@@ -336,17 +335,9 @@ export async function mergeRemoteRecord(
     //    直接展开 = 本地刚选的关联被静默清空；
     // ② 老客户端仍推来旧键 customerId（多端混装期）→ 需折进数组，不能另存一份。
     // normalizeTxnLinks 同时做这两件事，并把旧键删掉（双写不双读）。
-    if (table === 'transactions') {
-      for (const key of ['customerIds', 'todoIds', 'projectIds'] as const) {
-        // 与下方 LWW 分支同款写法：先反序列化（revived 已由 rawJsonFromRemote 还原，
-        // 但展开 `...mirroredPending` 时 JSON 字符串形态仍可能透传到这里），可解析才覆盖。
-        const parsed = toArrayField(revived[key])
-        if (parsed) merged[key] = parsed
-        else if (!hasJsonValue(merged[key])) delete merged[key]
-        // else：保留本地值（本地编辑优先）
-      }
-      normalizeTxnLinks(merged)
-    }
+    // transactions 多关联（Issue #140）的数组字段保护已随关联层 Phase 2（v15）退役：
+    // 关联本体迁到 links 表后各自独立 LWW，远端 transactions 行不再携带数组键
+    // （旧键由 MIGRATED 流程统一剥除 + 派生），本地刚选的关联是 link 行的入队编辑，不会被覆盖。
     await attachBlobIfNeeded(table, remote, merged, loadAttachmentBlob)
     await table0.put(merged)
     // 远端形状的 id 是 PB 哈希主键，派生前必须归一成本地 id（端点寻址靠它）
@@ -426,19 +417,6 @@ export async function mergeRemoteRecord(
       // 服务端 Schema 缺 relations 字段（collections.json 未导入/未升级）或返回空值：保留本地
       record.relations = localRels
     }
-  }
-
-  // transactions 多关联（Issue #140）：同上，LWW 分支同样要收口 —— 远端没带的数组字段
-  // 不能因为「远端更新」就被清掉（远端 updatedAt 更新只代表记录被改过，不代表关联被清空）。
-  if (table === 'transactions') {
-    for (const key of ['customerIds', 'todoIds', 'projectIds'] as const) {
-      const localVal = local?.[key]
-      const parsed = toArrayField(record[key])
-      if (parsed) record[key] = parsed
-      else if (localVal === undefined) delete record[key]
-      else record[key] = localVal
-    }
-    normalizeTxnLinks(record)
   }
 
   await attachBlobIfNeeded(table, remote, record, loadAttachmentBlob)

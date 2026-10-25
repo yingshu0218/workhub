@@ -19,9 +19,25 @@ import { readFileSync, readdirSync, statSync } from 'node:fs'
 import path from 'node:path'
 import 'fake-indexeddb/auto'
 import { db } from '@/db/db'
-import { txnCustomerIds, txnTodoIds, txnProjectIds } from '@/modules/finance/links'
+import { groupTxnLinks, txnLinksOf } from '@/modules/finance/links'
 
 const ROOT = path.resolve(__dirname, '../../../..')
+
+async function seedRelated(txnId: string, toType: 'customers' | 'todos' | 'projects', toId: string) {
+  const { buildLinkId } = await import('@/repositories/linkId')
+  await db.links.put({
+    id: buildLinkId({ type: 'transactions', id: txnId }, { type: toType, id: toId }, 'related'),
+    fromType: 'transactions',
+    fromId: txnId,
+    toType,
+    toId,
+    kind: 'related',
+    createdAt: 1,
+    updatedAt: 0,
+    rev: 0,
+    deleted: 0,
+  } as never)
+}
 
 function walk(dir: string): string[] {
   const out: string[] = []
@@ -39,8 +55,9 @@ describe('A. 源码不变式：transactions 不得再用 v11 已删索引', () =
     for (const file of walk(path.join(ROOT, 'src'))) {
       if (file.includes('__tests__')) continue
       const src = readFileSync(file, 'utf8')
-      // 松散匹配：transactions 之后 60 字符内出现 where('customerId' 等
-      const re = /db\.transactions[\s\S]{0,80}?\.where\(\s*'(customerId|todoId|projectId)'/g
+      // 匹配窗口内不得再出现下一个 `db.` 引用（否则 db.todos.where('customerId') 会被
+      // 误算到上一个 db.transactions 头上 —— 关联层 Phase 2 改造时踩到的假阳性）
+      const re = /db\.transactions(?:(?!db\.)[\s\S]){0,120}?\.where\(\s*'(customerId|todoId|projectId)'/g
       re.lastIndex = 0
       if (re.test(src)) violations.push(path.relative(ROOT, file))
     }
@@ -69,42 +86,46 @@ function txn(over: Record<string, unknown> = {}) {
   }
 }
 
-describe('B. 行为冒烟：内存过滤口径能取到关联流水（不再抛 SchemaError）', () => {
+describe('B. 行为冒烟：link 索引口径能取到关联流水（不再抛 SchemaError）', () => {
   beforeEach(async () => {
     await Promise.all(db.tables.map((t) => t.clear()))
   })
 
-  it('useCustomerTimeline 同源口径：按数组包含取该客户流水', async () => {
-    await db.transactions.put(txn({ id: 't1', customerIds: ['c1'] }) as never)
-    await db.transactions.put(txn({ id: 't2', customerIds: ['c2'] }) as never)
-    const rows = await db.transactions
-      .filter((t) => !t.deleted && txnCustomerIds(t).includes('c1'))
+  /** 与 useCustomerTimeline / useCustomerTransactions 同源的 link 反查口径 */
+  async function txnIdsOfCustomer(customerId: string): Promise<string[]> {
+    const ls = await db.links
+      .where('[toType+toId]')
+      .equals(['customers', customerId])
+      .filter((l) => !l.deleted && l.kind === 'related' && l.fromType === 'transactions')
       .toArray()
-    expect(rows.map((r) => r.id)).toEqual(['t1'])
+    return ls.map((l) => l.fromId)
+  }
+
+  it('按 link 反查取该客户流水', async () => {
+    await db.transactions.put(txn({ id: 't1' }) as never)
+    await db.transactions.put(txn({ id: 't2' }) as never)
+    await seedRelated('t1', 'customers', 'c1')
+    await seedRelated('t2', 'customers', 'c2')
+    expect(await txnIdsOfCustomer('c1')).toEqual(['t1'])
   })
 
-  it('旧单值记录（未归一化）也能被内存过滤命中（读取侧兼容）', async () => {
-    await db.transactions.put(txn({ id: 'legacy', customerId: 'c1' }) as never)
-    const rows = await db.transactions
-      .filter((t) => !t.deleted && txnCustomerIds(t).includes('c1'))
-      .toArray()
-    expect(rows.map((r) => r.id)).toEqual(['legacy'])
-  })
-
-  it('多关联：一笔流水分摊多客户时各方都命中；todo/project 同款', async () => {
-    await db.transactions.put(
-      txn({ id: 't1', customerIds: ['c1', 'c2'], todoIds: ['td1'], projectIds: ['p1'] }) as never,
-    )
-    const forC2 = await db.transactions
-      .filter((t) => !t.deleted && txnCustomerIds(t).includes('c2'))
-      .toArray()
-    expect(forC2.map((r) => r.id)).toEqual(['t1'])
-    expect(txnTodoIds(forC2[0])).toEqual(['td1'])
-    expect(txnProjectIds(forC2[0])).toEqual(['p1'])
+  it('多关联：一笔流水分摊多客户时各方都命中；todo/project 同桶', async () => {
+    await db.transactions.put(txn({ id: 't1' }) as never)
+    await seedRelated('t1', 'customers', 'c1')
+    await seedRelated('t1', 'customers', 'c2')
+    await seedRelated('t1', 'todos', 'td1')
+    await seedRelated('t1', 'projects', 'p1')
+    expect(await txnIdsOfCustomer('c2')).toEqual(['t1'])
+    const index = groupTxnLinks(await db.links.where('kind').equals('related').toArray())
+    expect(txnLinksOf(index, 't1')).toEqual({
+      customerIds: ['c1', 'c2'],
+      todoIds: ['td1'],
+      projectIds: ['p1'],
+    })
   })
 
   it('反向验证：直接对已删索引 where(customerId) 会抛 SchemaError（证明不变式有意义）', async () => {
-    await db.transactions.put(txn({ id: 't1', customerIds: ['c1'] }) as never)
+    await db.transactions.put(txn({ id: 't1' }) as never)
     await expect(
       db.transactions
         .where('customerId' as never)

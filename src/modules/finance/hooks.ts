@@ -1,8 +1,11 @@
 import type { Attachment } from '@/db/db'
 import { db } from '@/db/db'
+import type { Link } from '@/db/types'
 import { linksOf } from '@/repositories/links'
 import { nextSortOrder, reorderBySortOrder } from '@/repositories/sortOrder'
+import { groupTxnLinks, type TxnLinks } from './links'
 
+import { useMemo } from 'react'
 import { useQuery } from '@/queries/hooks'
 
 /**
@@ -10,6 +13,20 @@ import { useQuery } from '@/queries/hooks'
  */
 
 const EMPTY_LIST: Attachment[] = []
+const EMPTY_LINK_ROWS: Link[] = []
+
+/**
+ * 全量流水关联索引（React 版 loader）：Map<txnId, TxnLinks>，liveQuery ——
+ * 保存/级联/恢复对 related link 的任何变更都自动重渲染消费组件。
+ */
+export function useTxnLinkIndex(): Map<string, TxnLinks> {
+  const rows =
+    useQuery<Link[]>(
+      () => db.links.where('kind').equals('related').filter((l) => !l.deleted).toArray(),
+      [],
+    ) ?? EMPTY_LINK_ROWS
+  return useMemo(() => groupTxnLinks(rows), [rows])
+}
 
 /**
  * 某笔交易的存活附件（软删已过滤）。

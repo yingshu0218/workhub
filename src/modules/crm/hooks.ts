@@ -3,7 +3,7 @@ import dayjs from 'dayjs'
 import { db } from '@/db/db'
 import { storage } from '@/storage'
 import { nextSortOrder, reorderBySortOrder } from '@/repositories/sortOrder'
-import { txnCustomerIds, txnProjectIds } from '@/modules/finance/links'
+import { groupTxnLinks, txnLinksOf } from '@/modules/finance/links'
 import { useQuery } from '@/queries/hooks'
 import { newId } from '@/repositories'
 import type {
@@ -87,13 +87,13 @@ const EMPTY_GRAPH: CanvasGraph = {
 
 export function useCanvasGraph(): CanvasGraph {
   const graph = useQuery<CanvasGraph>(async () => {
+    // 流水关联索引（v15 起 related link）：建边投影与亲密度展开共用一份
+    const txnIndex = groupTxnLinks(await db.links.where('kind').equals('related').toArray())
     const [customers, projects, txns, todos, itxs] = await Promise.all([
       db.customers.filter((c) => !c.deleted).toArray(),
       db.projects.filter((p) => !p.deleted).toArray(),
-      // transactions 关联已数组化（Issue #140 v11）：去掉 customerId 索引，改内存过滤（理由见 db.ts v11 注释）
-      db.transactions
-        .filter((t) => !t.deleted && txnCustomerIds(t).length > 0)
-        .toArray(),
+      // 流水关联已迁 links（v15）：取全量活流水，关联性由 link 索引判定
+      db.transactions.filter((t) => !t.deleted).toArray(),
       db.todos
         .where('customerId')
         .notEqual('')
@@ -141,17 +141,19 @@ export function useCanvasGraph(): CanvasGraph {
       projectStatuses: Object.fromEntries(projects.map((p) => [p.id, p.status])),
       // 建边投影保持单值口径（Issue #140）：多关联的一笔流水对每个关联客户各出一份投影，
       // 画布/亲密度/时间轴按客户维度展开才能正确计数（总数由节点去重，不重复计数）。
-      transactions: txns.flatMap((t) =>
-        txnCustomerIds(t).map((cid) => ({
+      // 关联来源改为 link 索引（v15）；只保留有关联客户的流水（建边才有意义）。
+      transactions: txns.flatMap((t) => {
+        const links = txnLinksOf(txnIndex, t.id)
+        return links.customerIds.map((cid) => ({
           id: t.id,
           customerId: cid,
           type: t.type,
           amount: t.amount,
           summary: t.summary,
-          projectId: txnProjectIds(t)[0],
+          projectId: links.projectIds[0],
           ledgerId: t.ledgerId ?? undefined,
-        })),
-      ),
+        }))
+      }),
       todos: todos.map((t) => ({
         id: t.id,
         customerId: t.customerId ?? '',
@@ -193,11 +195,11 @@ export function useCustomerScoreInput(
 ): Parameters<typeof computeIntimacyScore>[0] | null {
   const rows = useQuery<CustomerScoreRows>(async () => {
     if (!customerId) return { transactions: [], todos: [], projects: [], interactions: [] }
+    // 关联已迁 links（v15）：按 link 索引过滤该客户的流水（与 useCustomerTransactions 同口径）
+    const txnIndex = groupTxnLinks(await db.links.where('kind').equals('related').toArray())
     const [transactions, todos, projects, interactions] = await Promise.all([
-      // 多关联（Issue #140 v11）：transactions 关联已数组化、customerId 索引已删，改内存过滤
-      // （理由见 db.ts v11 注释）。旧写法 where('customerId') 抛 SchemaError → 详情页崩溃。
       db.transactions
-        .filter((t) => !t.deleted && txnCustomerIds(t).includes(customerId))
+        .filter((t) => !t.deleted && txnLinksOf(txnIndex, t.id).customerIds.includes(customerId))
         .toArray(),
       db.todos
         .where('customerId')
@@ -234,17 +236,18 @@ export function useCustomerScoreRows(
   const key = ids.join(',')
   const rows = useQuery<CustomerScoreRows>(async () => {
     if (ids.length === 0) return { transactions: [], todos: [], projects: [], interactions: [] }
-    // 内存过滤用的 id 集合（数组字段无索引，见 db.ts v11 索引策略说明）
+    // 内存过滤用的 id 集合；流水关联已迁 links（v15），先取 related link 索引再展开
     const idSet = new Set(ids)
+    const txnIndex = groupTxnLinks(await db.links.where('kind').equals('related').toArray())
     const [transactions, todos, projects, interactions] = await Promise.all([
       // 多关联（Issue #140）：一笔流水对每个关联客户各展开一份因子投影（与 CanvasGraph 同口径）
       db.transactions
-        .filter((t) => !t.deleted && txnCustomerIds(t).some((id) => idSet.has(id)))
+        .filter((t) => !t.deleted)
         .toArray()
         .then((rows) =>
           rows.flatMap((t) =>
-            txnCustomerIds(t)
-              .filter((id) => idSet.has(id))
+            txnLinksOf(txnIndex, t.id)
+              .customerIds.filter((id) => idSet.has(id))
               .map((id) => ({ customerId: id, amount: t.amount })),
           ),
         ),
@@ -338,19 +341,15 @@ export function useCustomerListStats(visible: Customer[]): CustomerListStats {
     async () => {
       if (ids.length === 0) return []
       const idSet = new Set(ids)
+      // 关联已迁 links（v15）：related link 索引展开（关联客户命中 idSet 才计入）
+      const txnIndex = groupTxnLinks(await db.links.where('kind').equals('related').toArray())
       const rows = await db.transactions
-        .filter(
-          (t) =>
-            !t.deleted &&
-            t.type === 'income' &&
-            t.status === '待对账' &&
-            txnCustomerIds(t).some((id) => idSet.has(id)),
-        )
+        .filter((t) => !t.deleted && t.type === 'income' && t.status === '待对账')
         .toArray()
       // 一笔款分摊多客户时各方各记一份（与健康分因子 / 图谱建边同一展开口径）
       return rows.flatMap((t) =>
-        txnCustomerIds(t)
-          .filter((id) => idSet.has(id))
+        txnLinksOf(txnIndex, t.id)
+          .customerIds.filter((id) => idSet.has(id))
           .map((id) => ({ customerId: id, amount: t.amount, summary: t.summary })),
       )
     },
@@ -398,11 +397,18 @@ export function useCustomerTransactions(customerId: string | undefined): Transac
   const list = useQuery<Transaction[]>(
     () =>
       customerId
-        ? // 多关联（Issue #140）：按「数组包含」匹配，一笔款分摊多客户时各方都能看到（无索引，内存过滤）
-          db.transactions
-            .filter((t) => !t.deleted && txnCustomerIds(t).includes(customerId))
-            .reverse()
-            .sortBy('occurredAt')
+        ? // 关联已迁 links（v15）：按 [toType+toId] 索引反查流水 id，一笔款分摊多客户时各方都能看到
+          db.links
+            .where('[toType+toId]')
+            .equals(['customers', customerId])
+            .filter((l) => !l.deleted && l.kind === 'related' && l.fromType === 'transactions')
+            .toArray()
+            .then((ls) => db.transactions.bulkGet(ls.map((l) => l.fromId)))
+            .then((rows) =>
+              rows.filter((t): t is Transaction => !!t && !t.deleted).sort(
+                (a, b) => b.occurredAt - a.occurredAt,
+              ),
+            )
         : Promise.resolve([]),
     [customerId],
   )

@@ -197,19 +197,13 @@ export interface Transaction extends SyncMeta {
   invoiceNo?: string
   note?: string
   /**
-   * 关联客户 / 待办 / 项目（Issue #140 数组化，方案 A）：弱引用数组，可多选。
-   *
-   * 历史沿革：v11 之前为单值 `customerId? / todoId? / projectId?` 弱引用，
-   * dexie `upgrade()` 负责把旧单值包成数组并清掉旧字段（真源唯一致数组）。
-   * 另一条必须处理的路径是**远端拉取**：服务端集合若尚未升级到数组字段（或老客户端推来旧字段），
-   * 合并层 `normalizeTxnLinks` 会把旧字段就地归一化进数组，避免「本地看着对、同步后丢关联」。
-   *
-   * 纪律：弱引用（实体删除仅解绑，不删流水）；写入前去重 + 过滤已删实体 id。
+   * 关联客户 / 待办 / 项目已随关联层 Phase 2（v15）迁往 links 表（kind='related'，
+   * from=流水）：弱引用数组时期（v11~v14）的字段升级链完整保留 —— v11 把更早的单值
+   * 折成数组，v15 把数组翻成 link（legacyLinkMigration）。服务端旧列保留供老客户端
+   * 降级，pull 侧剥旧键 + 派生 link（mergeRemote 的 MIGRATED 流程）。
+   * 纪律不变：弱引用（实体删除仅解绑不删流水）；写入前去重 + 过滤已删实体 id
+   * （表单层 pruneTxnLinkIds，落库层 syncRelatedLinks）。
    */
-  customerIds?: string[]
-  todoIds?: string[]
-  /** 所属项目（可选弱引用：项目删除仅解绑，不删流水） */
-  projectIds?: string[]
   status: '已结算' | '待对账'
 }
 
