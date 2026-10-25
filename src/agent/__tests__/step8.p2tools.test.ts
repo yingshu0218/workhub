@@ -340,10 +340,16 @@ describe('project / note 域：来源校验与读限幅', () => {
     const fid = (fr.data as { folderId: string }).folderId
     const nr = await dispatchAgentTool('note_createNote', { title: 'N', folderId: fid })
     const nid = (nr.data as { noteId: string }).noteId
-    expect((await db.notes.get(nid))!.folderId).toBe(fid)
+    const memberOf = async () =>
+      (
+        await db.links
+          .filter((l) => l.kind === 'member' && l.fromType === 'notes' && l.fromId === nid && !l.deleted)
+          .toArray()
+      ).map((l) => l.toId)
+    expect(await memberOf()).toEqual([fid])
 
     await dispatchAgentTool('note_updateNote', { noteId: nid, folderId: null })
-    expect((await db.notes.get(nid))!.folderId).toBeUndefined()
+    expect(await memberOf()).toEqual([])
   })
 
   it('listNotes 不下发 markdown 正文（只给长度），且上限受控', async () => {

@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { storage } from '@/storage'
 import { groupTxnLinks, txnLinksOf, type TxnLinks } from '@/modules/finance/links'
 import { buildSearchIndex, searchAll, type SearchEntityType } from '@/shared/search'
+import { memberIndexOf } from '@/repositories/links'
 // 直读层从 intimacy/direct 引（纯：零 react/Dexie）——barrel 会拖 config.ts 的响应式链，服务端 bundle 禁入
 import { filterBlacklisted, getIntimacyConfig } from '@/modules/crm/intimacy/direct'
 import { normalizeTodoPriority, todoPriorityFullLabel } from '@/modules/todo/priority'
@@ -184,13 +185,24 @@ function projectProject(p: Project) {
   }
 }
 
+/**
+ * 笔记 → 文件夹归属索引（v16 member）：读侧统一先建此 Map，行字段已不存在。
+ * 复用 repositories/links 的 memberIndexOf（双挂取最新），保持读口径单一。
+ */
+async function noteFolderIdOf(): Promise<Map<string, string>> {
+  const links = alive(await storage.list<import('@/db/types').Link>('links')).filter(
+    (l) => l.kind === 'member' && l.fromType === 'notes' && l.toType === 'noteFolders',
+  )
+  return memberIndexOf(links)
+}
+
 /** 笔记投影：**绝不含 markdown 正文**（外部 Agent 读全量正文会瞬间撑爆上下文） */
 function projectNote(n: Note, folderName?: string) {
   return {
     id: n.id,
     title: n.title,
     tags: n.tags,
-    ...(n.folderId ? { folderId: n.folderId, folderName } : {}),
+    ...(folderName ? { folderName } : {}),
     ...(n.projectId ? { projectId: n.projectId } : {}),
     /** 正文只给长度，需要正文请用 searchEntities 命中后由用户确认，或走 UI */
     markdownLength: (n.markdown ?? '').length,
@@ -357,14 +369,16 @@ export async function listNotes(input: unknown): Promise<ReadResult> {
   const folders = alive(await storage.list<import('@/db/types').NoteFolder>('noteFolders'))
   const folderName = new Map(folders.map((f) => [f.id, f.name]))
   const q = d.q?.toLowerCase()
+  // v16 member：归属过滤与投影都走索引
+  const folderIdOf = await noteFolderIdOf()
   const rows = alive(await storage.list<Note>('notes'))
-    .filter((n) => (d.folderId ? n.folderId === d.folderId : true))
+    .filter((n) => (d.folderId ? folderIdOf.get(n.id) === d.folderId : true))
     .filter((n) => (d.projectId ? n.projectId === d.projectId : true))
     .filter((n) => (d.tag ? n.tags.includes(d.tag) : true))
     .filter((n) => (q ? n.title.toLowerCase().includes(q) || n.tags.some((t) => t.toLowerCase().includes(q)) : true))
     .sort((a, b) => b.createdAt - a.createdAt)
   return envelope(
-    rows.map((n) => projectNote(n, n.folderId ? folderName.get(n.folderId) : undefined)),
+    rows.map((n) => projectNote(n, folderIdOf.get(n.id) ? folderName.get(folderIdOf.get(n.id)!) : undefined)),
     READ_LIMITS.listNotes,
   )
 }

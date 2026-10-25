@@ -314,8 +314,8 @@ export interface Note extends SyncMeta {
    * 死字段，反向链接一直由编辑器运行时扫 markdown 计算）。服务端列保留供老客户端降级，
    * pull 侧剥旧键 + 派生 link（见 repositories/linkId.ts）。
    */
-  /** 所属文件夹（缺省为未归档根层） */
-  folderId?: string
+  // 所属文件夹已迁 links（v16，kind='member' → noteFolders）：读侧 notes/hooks#useNoteFolderIdOf、
+  // 写侧 saveNoteWithMentions/setNoteFolder —— 根层 = 无 member link
   /** 所属项目（资料聚合的落点：项目详情页聚合展示；缺省为未归属） */
   projectId?: string
   createdAt: number

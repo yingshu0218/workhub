@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Icon } from '@/design-system/Icon'
 import { useNavigate } from 'react-router-dom'
-import { noteRepo, newId, saveNoteWithMentions } from '@/repositories'
+import { deleteNoteCascade, newId, saveNoteWithMentions } from '@/repositories'
 import {
   Button,
   Card,
@@ -18,6 +18,7 @@ import { NOTE_PROSE_CSS, renderMarkdown, tagStyle, wordCount } from './shared'
 import {
   useNoteList,
   useNoteFolders,
+  useNoteFolderIdOf,
   useNoteRecord,
   createNoteFolder,
   renameNoteFolder,
@@ -46,6 +47,8 @@ export default function NotesPage() {
   // 提及已迁 links：角标/搜索统一走 mention link 索引（liveQuery 自动刷新）
   const mentionIndex = useMentionLinkIndex()
   const folders = useNoteFolders()
+  // 归属已迁 links（v16 member）：Map<noteId, folderId> 索引代替行字段
+  const folderIdOf = useNoteFolderIdOf()
   const [keyword, setKeyword] = useState('')
   const [activeTag, setActiveTag] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
@@ -69,18 +72,19 @@ export default function NotesPage() {
   const folderCounts = useMemo(() => {
     const counts = new Map<string, number>()
     notes.forEach((n) => {
-      if (n.folderId) counts.set(n.folderId, (counts.get(n.folderId) ?? 0) + 1)
+      const fid = folderIdOf.get(n.id)
+      if (fid) counts.set(fid, (counts.get(fid) ?? 0) + 1)
     })
     return counts
-  }, [notes])
+  }, [notes, folderIdOf])
 
   const list = useMemo(() => {
     const kw = keyword.trim().toLowerCase()
     return notes
       .filter((n) => {
         // 文件树范围过滤：全部 / 指定文件夹 / 未归档根层
-        if (scope.kind === 'folder' && n.folderId !== scope.folder.id) return false
-        if (scope.kind === 'root' && n.folderId) return false
+        if (scope.kind === 'folder' && folderIdOf.get(n.id) !== scope.folder.id) return false
+        if (scope.kind === 'root' && folderIdOf.get(n.id)) return false
         if (activeTag && !n.tags.includes(activeTag)) return false
         if (!kw) return true
         // 搜索范围：标题 + 标签 + 提及实体名（提及名来自 mention link 的 meta.label）
@@ -90,7 +94,7 @@ export default function NotesPage() {
         return [n.title, n.tags.join(' '), mentionLabels].join(' ').toLowerCase().includes(kw)
       })
       .sort((a, b) => b.updatedAt - a.updatedAt)
-  }, [notes, keyword, activeTag, scope, mentionIndex])
+  }, [notes, keyword, activeTag, scope, mentionIndex, folderIdOf])
 
   /** 新建空笔记并直接进入编辑页 */
   async function createNote() {
@@ -98,14 +102,11 @@ export default function NotesPage() {
     setCreating(true)
     try {
       const id = newId('note')
-      await saveNoteWithMentions({
-        id,
-        title: '未命名笔记',
-        markdown: '',
-        tags: [],
-        folderId: scope.kind === 'folder' ? scope.folder.id : undefined,
-        createdAt: Date.now(),
-      })
+      // 归属已迁 links（v16 member）：新建即在当前文件夹（null = 根层）
+      await saveNoteWithMentions(
+        { id, title: '未命名笔记', markdown: '', tags: [], createdAt: Date.now() },
+        scope.kind === 'folder' ? scope.folder.id : null,
+      )
       navigate(`/notes/${id}?edit=1`)
     } finally {
       setCreating(false)
@@ -227,7 +228,7 @@ export default function NotesPage() {
               <TreeNode
                 icon="folder_open"
                 label="未归档"
-                count={notes.filter((n) => !n.folderId).length}
+                count={notes.filter((n) => !folderIdOf.get(n.id)).length}
                 active={scope.kind === 'root'}
                 onClick={() => setScope({ kind: 'root' })}
               />
@@ -340,7 +341,7 @@ export default function NotesPage() {
                     </span>
                   )}
                   {(() => {
-                    const f = folders.find((x) => x.id === n.folderId)
+                    const f = folders.find((x) => x.id === folderIdOf.get(n.id))
                     if (!f) return null
                     return (
                       <span className="hidden shrink-0 items-center gap-0.5 rounded-full bg-surface-container-low px-2 py-0.5 text-[0.7857rem] text-on-surface-variant md:flex">
@@ -419,6 +420,7 @@ function NoteViewModal({
   onEdit: (id: string) => void
 }) {
   const note = useNoteRecord(noteId)
+  const folderIdOf = useNoteFolderIdOf()
   const folders = useNoteFolders()
   // 提及已迁 links：弹窗属性行的「关联」计数走 mention link（liveQuery 自动刷新）
   const mentionCount = useNoteMentions(noteId).length
@@ -448,7 +450,7 @@ function NoteViewModal({
 
   if (!note) return null
   const cur = note // 局部常量：函数体内 TS 不保留 if 缩窄，改捕获非空引用
-  const folder = folders.find((f) => f.id === cur.folderId)
+  const folder = folders.find((f) => f.id === folderIdOf.get(cur.id))
 
   function exportMd() {
     downloadText(
@@ -463,13 +465,13 @@ function NoteViewModal({
   }
 
   async function doDelete() {
-    await noteRepo.softDelete(cur.id)
+    await deleteNoteCascade(cur.id)
     setConfirmDelete(false)
     onClose()
   }
 
   function handleMove() {
-    if (folders.length === 0 && !cur.folderId) {
+    if (folders.length === 0 && !folderIdOf.get(cur.id)) {
       toast.info('暂无文件夹，可先在左栏「新建文件夹」')
       return
     }
@@ -581,7 +583,7 @@ function NoteViewModal({
             </div>
             <div className="mt-4 max-h-[300px] space-y-1 overflow-y-auto">
               {folders
-                .filter((f) => f.id !== cur.folderId)
+                .filter((f) => f.id !== folderIdOf.get(cur.id))
                 .map((f) => (
                   <button
                     key={f.id}
@@ -592,7 +594,7 @@ function NoteViewModal({
                     <span className="flex-1 truncate">{f.name}</span>
                   </button>
                 ))}
-              {cur.folderId && (
+              {folderIdOf.get(cur.id) && (
                 <button
                   className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[0.9286rem] transition-colors hover:bg-surface-hover-high"
                   onClick={() => void doMove(undefined)}

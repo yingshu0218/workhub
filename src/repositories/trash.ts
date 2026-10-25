@@ -393,7 +393,7 @@ async function pruneDeadRefs(
       await dropDeadOne('projectId', 'projects')
       break
     case 'notes': {
-      await dropDeadOne('folderId', 'noteFolders')
+      // folderId 剪枝已随 v16 退役：归属在 member link（恢复由 reviveCascadeLinks 处理）
       await dropDeadOne('projectId', 'projects')
       const mentions = rec.mentions
       if (Array.isArray(mentions)) {

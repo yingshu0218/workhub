@@ -72,24 +72,35 @@ describe('笔记文件夹四个写入口都触发同步（P1-B）', () => {
     expect((await db.noteFolders.get(folder.id))!.name).toBe('工作台')
   })
 
-  it('deleteNoteFolderCascade：入队 + 唤醒引擎', async () => {
+  it('deleteNoteFolderCascade：入队 + 唤醒引擎（v16 起成员走 member link）', async () => {
     const folder = await createNoteFolder('工作')
-    await db.notes.put({ id: 'n1', folderId: folder.id, ...noteBase } as never)
+    await db.notes.put({ id: 'n1', ...noteBase } as never)
+    await moveNoteToFolder('n1', folder.id)
     const spy = vi.spyOn(syncEngine, 'requestSync').mockImplementation(() => {})
     await deleteNoteFolderCascade(folder.id)
     expect(spy).toHaveBeenCalledTimes(1)
     expect((await db.noteFolders.get(folder.id))!.deleted).toBe(1)
-    // 级联解绑：名下笔记 folderId 清空，不留悬挂外键
-    expect((await db.notes.get('n1'))!.folderId).toBeUndefined()
+    // 级联解绑：名下笔记的 member link 墓碑化（笔记行不动，无 member link = 根层）
+    const links = await db.links
+      .filter((l) => l.kind === 'member' && l.fromId === 'n1')
+      .toArray()
+    expect(links).toHaveLength(1)
+    expect(links[0].deleted).toBe(1)
   })
 
-  it('moveNoteToFolder：入队 + 唤醒引擎（原有行为不变）', async () => {
+  it('moveNoteToFolder：入队 + 唤醒引擎（v16 起落 member link，行不动）', async () => {
     const folder = await createNoteFolder('工作')
     await db.notes.put({ id: 'n1', ...noteBase } as never)
     const spy = vi.spyOn(syncEngine, 'requestSync').mockImplementation(() => {})
     await moveNoteToFolder('n1', folder.id)
     expect(spy).toHaveBeenCalledTimes(1)
-    expect((await db.notes.get('n1'))!.folderId).toBe(folder.id)
+    const links = await db.links
+      .filter((l) => l.kind === 'member' && l.fromType === 'notes' && l.fromId === 'n1')
+      .toArray()
+    expect(links).toHaveLength(1)
+    expect(links[0].toType).toBe('noteFolders')
+    expect(links[0].toId).toBe(folder.id)
+    expect(links[0].deleted).toBe(0)
   })
 })
 
@@ -130,14 +141,15 @@ describe('级联删除的子表读取在事务内（P2-A）', () => {
     return src.slice(braceStart)
   }
 
-  it('deleteNoteFolderCascade 不在事务外读子表（TOCTOU 窗口）', () => {
+  it('deleteNoteFolderCascade 不在事务外读子表（v16 起成员走 links：级联清扫须在事务体内）', () => {
     const src = readFileSync(path.resolve(process.cwd(), 'src/modules/notes/hooks.ts'), 'utf8')
     const body = functionBody(src, 'deleteNoteFolderCascade')
     const txIdx = body.indexOf('storage.transaction')
-    // 子表读取（tx.list('notes')）必须在事务体内
-    const readIdx = body.indexOf("tx.list<Note>('notes')")
+    const readIdx = body.indexOf('cascadeSoftDeleteLinks')
     expect(txIdx).toBeGreaterThan(-1)
     expect(readIdx).toBeGreaterThan(txIdx)
+    // 行级解绑确实退役：函数体里不得再出现笔记行字段写入
+    expect(body.includes('folderId')).toBe(false)
   })
 
   it('deleteTodoListCascade 不在事务外读子表（v16 起成员走 links：级联清扫必须在事务体内）', () => {
@@ -154,11 +166,31 @@ describe('级联删除的子表读取在事务内（P2-A）', () => {
     expect(body.includes('listId')).toBe(false)
   })
 
-  it('已软删的子记录同样被解绑（否则恢复后会挂在已删节点上）', async () => {
+  it('笔记删除（deleteNoteCascade）清扫其 member + mention link；后续删文件夹幂等不重复盖章', async () => {
+    // 真缺口修复锁：笔记删除此前是裸 softDelete（无级联函数），v15/v16 起 mention/member
+    // 都是独立 link 记录 —— 不清扫就留「指向已删笔记的活 link」（幽灵纪律③）。
     const folder = await createNoteFolder('工作')
-    await db.notes.put({ id: 'gone', folderId: folder.id, ...noteBase, deleted: 1 } as never)
+    await db.notes.put({ id: 'n1', ...noteBase } as never)
+    await moveNoteToFolder('n1', folder.id)
+    const { deleteNoteCascade } = await import('@/repositories')
+    await deleteNoteCascade('n1')
+
+    expect((await db.notes.get('n1'))!.deleted).toBe(1)
+    const links = await db.links.filter((l) => l.fromId === 'n1').toArray()
+    expect(links.length).toBeGreaterThanOrEqual(1)
+    expect(links.every((l) => l.deleted === 1)).toBe(true)
+    // 快照留档：恢复笔记时按两端存活复活
+    const tomb = (await db.notes.get('n1')) as unknown as {
+      trashSnapshot: { cascadeLinkIds: string[] }
+    }
+    expect(tomb.trashSnapshot.cascadeLinkIds).toHaveLength(links.length)
+
+    // 文件夹随后删除：该 link 已是墓碑 → 幂等跳过（deletedAt 不漂移）
+    const firstDeletedAt = links[0].deletedAt
     await deleteNoteFolderCascade(folder.id)
-    expect((await db.notes.get('gone'))!.folderId).toBeUndefined()
+    const after = (await db.links.get(links[0].id))!
+    expect(after.deleted).toBe(1)
+    expect(after.deletedAt).toBe(firstDeletedAt)
   })
 })
 

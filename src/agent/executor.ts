@@ -19,7 +19,7 @@ import {
   linkAtoms,
   unlinkAtoms,
   habitRepo,
-  noteRepo,
+  deleteNoteCascade,
   todoRepo,
 } from '@/repositories'
 import { toggleTodoDone } from '@/modules/todo/toggle'
@@ -701,16 +701,19 @@ export async function note_createNote(input: unknown): Promise<AgentOpResult> {
   if (!links.ok) return err(links.error)
   const { newId, saveNoteWithMentions } = await import('@/repositories')
   const id = newId('note')
-  // 走 saveNoteWithMentions：markdown 里的 @提及语法同样同步成 mention link（与编辑器同源）
-  await saveNoteWithMentions({
-    id,
-    title: d.title,
-    markdown: d.markdown,
-    tags: d.tags,
-    folderId: d.folderId,
-    projectId: d.projectId,
-    createdAt: Date.now(),
-  })
+  // 走 saveNoteWithMentions：markdown 里的 @提及语法同样同步成 mention link（与编辑器同源）；
+  // 归属已迁 links（v16 member）：folderId 走第三参（与笔记行同事务）
+  await saveNoteWithMentions(
+    {
+      id,
+      title: d.title,
+      markdown: d.markdown,
+      tags: d.tags,
+      projectId: d.projectId,
+      createdAt: Date.now(),
+    },
+    d.folderId ?? null,
+  )
   return ok({ noteId: id })
 }
 
@@ -731,7 +734,6 @@ export async function note_updateNote(input: unknown): Promise<AgentOpResult> {
   if (folderId.touched) {
     const links = await assertLinks([{ id: folderId.value, table: tableRef('noteFolders'), what: '笔记文件夹' }])
     if (!links.ok) return err(links.error)
-    patch.folderId = folderId.value
   }
   const projectId = triState(d.projectId)
   if (projectId.touched) {
@@ -740,8 +742,17 @@ export async function note_updateNote(input: unknown): Promise<AgentOpResult> {
     patch.projectId = projectId.value
   }
 
-  const { noteRepo } = await import('@/repositories')
+  // 归属已迁 links（v16 member）：touched 才动（null = 移回根层）；
+  // 行内字段（title/markdown/tags/projectId）走 noteRepo.put 照常生效
+  const { noteRepo, updateNoteWithMentions } = await import('@/repositories')
   await noteRepo.put({ ...prev, ...patch })
+  if (folderId.touched) {
+    try {
+      await updateNoteWithMentions(d.noteId, {}, folderId.value ?? null)
+    } catch (e) {
+      return err(e instanceof Error ? e.message : '文件夹归属失败')
+    }
+  }
   return ok({ noteId: d.noteId, updated: Object.keys(patch) })
 }
 
@@ -929,7 +940,7 @@ export async function note_deleteNote(input: unknown): Promise<AgentOpResult> {
   const id = parsed.data.noteId
   const found = await mustExist<NoteRow>(tableRef('notes'), id, '笔记')
   if (!found.ok) return err(found.error)
-  await noteRepo.softDelete(id)
+  await deleteNoteCascade(id)
   return ok({ noteId: id, deleted: true, sideEffects: { cascaded: 0 } })
 }
 

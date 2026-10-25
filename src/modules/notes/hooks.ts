@@ -1,7 +1,9 @@
 import type { Note, NoteFolder, TrashSnapshot } from '@/db/types'
 import { db } from '@/db/db'
 import { storage } from '@/storage'
-import { newId } from '@/repositories'
+import { newId, setNoteFolder } from '@/repositories'
+import { cascadeSoftDeleteLinks, memberIndexOf } from '@/repositories/links'
+import type { Link } from '@/db/types'
 import { useCollection, useQuery } from '@/queries/hooks'
 
 /**
@@ -10,20 +12,40 @@ import { useCollection, useQuery } from '@/queries/hooks'
 
 const EMPTY: Note[] = []
 
-/** 笔记列表投影行（审计 P2-6）：不携带 markdown 大字段，正文不进列表内存 */
+/** 笔记列表投影行（审计 P2-6）：不携带 markdown 大字段，正文不进列表内存。
+ *  v16 起不含归属（folderId 已迁 member link）——归属一律走 useNoteFolderIdOf 索引 */
 export interface NoteListItem {
   id: string
   title: string
   tags: string[]
-  folderId?: string
   updatedAt: number
 }
 
-/** 投影版笔记列表：只取 id/title/tags/folderId/updatedAt，摘要与搜索均不依赖 markdown
+/** 投影版笔记列表：只取 id/title/tags/updatedAt，摘要与搜索均不依赖 markdown
  *  （提及已迁 links：列表角标/搜索走 mentionLinks.ts 的 useMentionLinkIndex） */
 export function useNoteList(): NoteListItem[] {
-  return useCollection<NoteListItem>('notes', ['id', 'title', 'tags', 'folderId', 'updatedAt'])
+  return useCollection<NoteListItem>('notes', ['id', 'title', 'tags', 'updatedAt'])
 }
+
+/**
+ * 笔记 → 文件夹归属索引（Phase 3 读侧收口）：Map<noteId, folderId>，liveQuery 订阅 links。
+ * 新建/移动/级联/恢复/同步对 member link 的任何变更都自动重渲染消费组件。
+ */
+export function useNoteFolderIdOf(): Map<string, string> {
+  const rows =
+    useQuery<Link[]>(
+      () =>
+        db.links
+          .where('kind')
+          .equals('member')
+          .filter((l) => !l.deleted && l.fromType === 'notes' && l.toType === 'noteFolders')
+          .toArray(),
+      [],
+    ) ?? EMPTY_MEMBER_ROWS
+  return memberIndexOf(rows)
+}
+
+const EMPTY_MEMBER_ROWS: Link[] = []
 
 /**
  * 笔记详情（审计 P2-11 直链修复）—— 三态返回：
@@ -111,34 +133,23 @@ export async function renameNoteFolder(id: string, name: string): Promise<void> 
 }
 
 /**
- * 删除文件夹（级联：名下笔记解绑 folderId 回到「全部笔记」根层）
+ * 删除文件夹（Phase 3 集合层版：成员 = member link，删除即统一墓碑化）
  *
- * Issue #169 P2-A：子表读取**在事务内**。此前 `db.notes.where('folderId').equals(id).toArray()`
- * 在事务外先读、再进事务改，构成 TOCTOU 窗口 —— 窗口内新建的笔记不会被解绑，
- * 于是留下「folderId 指向已删文件夹」的悬挂外键（该笔记在界面上既不在任何文件夹、也不进根层）。
- * `deleteCustomerCascade` / `deleteProjectCascade` / `deleteTodoCascade` 都在事务内读，本处此前是例外。
- *
- * 注：含**已软删**笔记一并解绑（与 `deleteTodoListCascade` 同口径）—— 否则其 folderId
- * 仍指向已删文件夹，将来恢复时会挂在一个不存在的节点上。
+ * 旧路径（解绑 folderId 字段 + mode:'set' 快照）随 v16 整体退役：名下笔记的 member link
+ * 由 cascadeSoftDeleteLinks 与文件夹软删同事务墓碑化（含已软删笔记的 link —— 与旧口径
+ * 一致），快照 `cascadeLinkIds` 留档；恢复时按「两端存活」逐条复活。笔记行全程不动 ——
+ * 不属于任何文件夹的笔记自然落入根层（无 member link = 根层口径）。
  */
 export async function deleteNoteFolderCascade(id: string): Promise<void> {
   const now = Date.now()
-  await storage.transaction(['noteFolders', 'notes', 'syncQueue'], async (tx) => {
+  await storage.transaction(['noteFolders', 'notes', 'links', 'syncQueue'], async (tx) => {
     const prev = await tx.get<NoteFolder>('noteFolders', id)
     if (!prev || prev.deleted) return
-    const notes = (await tx.list<Note>('notes')).filter((n) => n.folderId === id)
-    // 只把「删除时仍存活」的笔记记进快照：已删笔记本来就不在文件夹里，恢复时不该被一起复活
+    const cascadeLinkIds = await cascadeSoftDeleteLinks(tx, [{ type: 'noteFolders', id }], now)
     const trashSnapshot: TrashSnapshot = {
       children: [],
-      links: notes
-        .filter((n) => !n.deleted)
-        .map((n) => ({
-          table: 'notes' as const,
-          id: n.id,
-          field: 'folderId',
-          mode: 'set' as const,
-          value: id,
-        })),
+      links: [],
+      ...(cascadeLinkIds.length ? { cascadeLinkIds } : {}),
     }
     await tx.update('noteFolders', id, {
       deleted: 1,
@@ -149,25 +160,14 @@ export async function deleteNoteFolderCascade(id: string): Promise<void> {
       trashSnapshot,
     })
     await tx.enqueue('noteFolders', id, 'delete', now)
-    for (const n of notes) {
-      await tx.put('notes', { ...n, folderId: undefined, updatedAt: now, rev: n.rev + 1 })
-      await tx.enqueue('notes', n.id, 'upsert', now)
-    }
   })
   storage.requestSync()
 }
 
-/** 移动笔记到文件夹（folderId=undefined 即移回根层） */
+/** 移动笔记到文件夹（folderId=undefined 即移回根层）—— v16 起只动 member link */
 export async function moveNoteToFolder(
   noteId: string,
   folderId: string | undefined,
 ): Promise<void> {
-  const now = Date.now()
-  await storage.transaction(['notes', 'syncQueue'], async (tx) => {
-    const prev = await tx.get<Note>('notes', noteId)
-    if (!prev || prev.deleted) return
-    await tx.put('notes', { ...prev, folderId, updatedAt: now, rev: prev.rev + 1 })
-    await tx.enqueue('notes', noteId, 'upsert', now)
-  })
-  storage.requestSync()
+  await setNoteFolder(noteId, folderId)
 }

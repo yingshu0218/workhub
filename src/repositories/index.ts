@@ -81,10 +81,13 @@ export {
  * v15 迁 links，笔记行不再持有。UI（编辑器自动保存 / 速记 / 新建）与 agentOps
  * （note_createNote）都经此，禁止各写一份。
  */
-export async function saveNoteWithMentions(note: PutInput<Note>): Promise<string> {
+export async function saveNoteWithMentions(
+  note: PutInput<Note>,
+  folderId?: string | null,
+): Promise<string> {
   const now = Date.now()
   await storage.transaction(
-    ['notes', 'links', 'customers', 'todos', 'ledgers', 'projects', 'syncQueue'],
+    ['notes', 'links', 'customers', 'todos', 'ledgers', 'projects', 'noteFolders', 'syncQueue'],
     async (tx) => {
       const prev = await tx.get<Note>('notes', note.id)
       const reviving = prev?.deleted === 1
@@ -104,6 +107,16 @@ export async function saveNoteWithMentions(note: PutInput<Note>): Promise<string
         typeof note.markdown === 'string' ? extractMentions(note.markdown) : [],
         now,
       )
+      // 归属已迁 links（v16 member）：folderId 三态（undefined=不动 / null=根层 / string=移入）
+      if (folderId !== undefined) {
+        await syncMemberLinks(
+          tx,
+          { type: 'notes', id: note.id },
+          'noteFolders',
+          folderId ?? undefined,
+          now,
+        )
+      }
     },
   )
   storage.requestSync()
@@ -115,9 +128,13 @@ export async function saveNoteWithMentions(note: PutInput<Note>): Promise<string
  * patch 语义沿用 repository.update（幽灵防护：不存在的 id 不动库不入队）。
  * 消费方：agentOps note_updateNote（markdown 变了提及就要跟着变，不能只改行）。
  */
-export async function updateNoteWithMentions(id: string, patch: Partial<Note>): Promise<void> {
+export async function updateNoteWithMentions(
+  id: string,
+  patch: Partial<Note>,
+  folderId?: string | null,
+): Promise<void> {
   await storage.transaction(
-    ['notes', 'links', 'customers', 'todos', 'ledgers', 'projects', 'syncQueue'],
+    ['notes', 'links', 'customers', 'todos', 'ledgers', 'projects', 'noteFolders', 'syncQueue'],
     async (tx) => {
       const prev = await tx.get<Note>('notes', id)
       if (!prev || prev.deleted) return
@@ -127,8 +144,63 @@ export async function updateNoteWithMentions(id: string, patch: Partial<Note>): 
       if (typeof patch.markdown === 'string') {
         await syncMentionLinks(tx, id, extractMentions(patch.markdown), now)
       }
+      if (folderId !== undefined) {
+        await syncMemberLinks(tx, { type: 'notes', id }, 'noteFolders', folderId ?? undefined, now)
+      }
     },
   )
+  storage.requestSync()
+}
+
+/**
+ * 笔记级联删除：软删笔记 + 清扫其名下全部 link（同一事务）。
+ *
+ * 为什么必须有它：v15 起 mention link（from=笔记）、v16 起 member link（文件夹归属）
+ * 都是**独立于笔记行**的记录 —— 裸 softDelete 会留下「指向已删笔记的活 link」
+ * （幽灵纪律③）。此前笔记删除一直无级联（mention 一族在 Phase 2 就欠着，只是
+ * 消费端有 EntityMissing 兜底、界面上看不出来），member 落地后归属关系也会幽灵。
+ *
+ * 快照 `cascadeLinkIds` 留档：恢复笔记时 mention/member 随两端存活逐条复活。
+ * 笔记不存在 / 已删时静默返回（幂等）。
+ */
+export async function deleteNoteCascade(noteId: string): Promise<void> {
+  const now = Date.now()
+  await storage.transaction(['notes', 'links', 'syncQueue'], async (tx) => {
+    const prev = await tx.get<Note>('notes', noteId)
+    if (!prev || prev.deleted) return
+    const cascadeLinkIds = await cascadeSoftDeleteLinks(tx, [{ type: 'notes', id: noteId }], now)
+    const trashSnapshot: TrashSnapshot = {
+      children: [],
+      links: [],
+      ...(cascadeLinkIds.length ? { cascadeLinkIds } : {}),
+    }
+    await tx.update('notes', noteId, {
+      deleted: 1,
+      updatedAt: now,
+      rev: prev.rev + 1,
+      deletedAt: now,
+      restoredAt: undefined,
+      trashSnapshot,
+    })
+    await tx.enqueue('notes', noteId, 'delete', now)
+  })
+  storage.requestSync()
+}
+
+/**
+ * 仅改文件夹归属（不动笔记行）：移动到文件夹 / 移回根层的快捷路径。
+ * 幽灵笔记静默返回（repository.update 同款幂等口径）；幽灵文件夹抛错回滚。
+ */
+export async function setNoteFolder(
+  noteId: string,
+  folderId: string | undefined,
+): Promise<void> {
+  const now = Date.now()
+  await storage.transaction(['notes', 'noteFolders', 'links', 'syncQueue'], async (tx) => {
+    const note = await tx.get<Note>('notes', noteId)
+    if (!note || note.deleted) return
+    await syncMemberLinks(tx, { type: 'notes', id: noteId }, 'noteFolders', folderId, now)
+  })
   storage.requestSync()
 }
 

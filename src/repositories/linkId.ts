@@ -77,8 +77,9 @@ export const MIGRATED_LINK_TABLES: ReadonlySet<string> = new Set([
 /** 各表要剥掉的旧关联字段键（服务端列保留供老客户端降级，本地行不再落这些键） */
 export const LEGACY_LINK_FIELDS: Record<string, readonly string[]> = {
   todos: ['listId'],
+  // notes 同表双族：mentions（v15，related 语义）+ folderId（v16，member 语义）
+  notes: ['mentions', 'backlinks', 'folderId'],
   transactions: ['customerId', 'todoId', 'projectId', 'customerIds', 'todoIds', 'projectIds'],
-  notes: ['mentions', 'backlinks'],
   customers: ['relations'],
   attachments: ['refType', 'refId'],
 }
@@ -151,6 +152,11 @@ export function legacyLinkSpecs(table: string, rec: Record<string, unknown>): Le
 
   if (table === 'notes') {
     const out: LegacyLinkSpec[] = []
+    // Phase 3 第二族：所属文件夹 folderId → kind='member'（from=笔记 → to=文件夹）
+    const fid = typeof rec.folderId === 'string' && rec.folderId ? rec.folderId : ''
+    if (fid) {
+      out.push({ from: { type: 'notes', id: rid }, to: { type: 'noteFolders', id: fid }, kind: 'member', createdAt })
+    }
     const mentions = Array.isArray(rec.mentions) ? rec.mentions : []
     for (const m of mentions) {
       if (!m || typeof m !== 'object') continue

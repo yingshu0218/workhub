@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Icon } from '@/design-system/Icon'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useCollection } from '@/queries/hooks'
-import { noteRepo, saveNoteWithMentions } from '@/repositories'
+import { deleteNoteCascade, noteRepo, saveNoteWithMentions } from '@/repositories'
 import type { Note } from '@/db/types'
 import type { Customer, Ledger, Todo, Project } from '@/db/types'
 import { Button, Card, ConfirmDialog, EmptyState } from '@/design-system/ui'
@@ -747,7 +747,7 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
   async function doDelete() {
     clearTimeout(timerRef.current)
     dirtyRef.current = false
-    await noteRepo.softDelete(noteRef.current.id)
+    await deleteNoteCascade(noteRef.current.id)
     setConfirmDelete(null)
     navigate('/notes')
   }

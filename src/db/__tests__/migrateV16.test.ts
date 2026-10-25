@@ -103,3 +103,61 @@ describe('v16 · todos 族：listId → kind=member link', () => {
     expect((await db.links.get(linkId))!.deleted).toBe(1)
   })
 })
+
+describe('v16 · notes 族：folderId → kind=member link（同表双族：mentions 见 v15）', () => {
+  async function seedNote(id: string, over: Record<string, unknown> = {}): Promise<void> {
+    await db.notes.put({
+      id,
+      title: `笔记 ${id}`,
+      markdown: '',
+      tags: [],
+      createdAt: 5,
+      updatedAt: 5,
+      deleted: 0,
+      rev: 1,
+      ...over,
+    } as never)
+  }
+
+  async function seedFolder(id: string, over: Record<string, unknown> = {}): Promise<void> {
+    await db.noteFolders.put({
+      id,
+      name: `文件夹 ${id}`,
+      createdAt: 5,
+      updatedAt: 5,
+      deleted: 0,
+      rev: 1,
+      ...over,
+    } as never)
+  }
+
+  it('folderId 翻成 member link，旧键清掉；mentions（v15 族）同轮共存不互扰', async () => {
+    await seedFolder('nf1')
+    await seedNote('n1', { folderId: 'nf1', mentions: [{ type: 'customer', id: 'c1', label: '甲' }] })
+    await db.customers.put({ id: 'c1', name: '甲', company: '', tags: [], relations: [], createdAt: 5, updatedAt: 5, deleted: 0, rev: 1 } as never)
+
+    await migrateLegacyLinks(tableOf)
+
+    const member = await db.links.get(
+      buildLinkId({ type: 'notes', id: 'n1' }, { type: 'noteFolders', id: 'nf1' }, 'member'),
+    )
+    expect(member).toMatchObject({ kind: 'member', fromType: 'notes', toType: 'noteFolders', toId: 'nf1', updatedAt: 0 })
+    const mention = await db.links.get(
+      buildLinkId({ type: 'notes', id: 'n1' }, { type: 'customers', id: 'c1' }, 'mention', { label: '甲' }),
+    )
+    expect(mention).toMatchObject({ kind: 'mention' })
+    const row = (await db.notes.get('n1'))! as unknown as Record<string, unknown>
+    expect(row).not.toHaveProperty('folderId')
+    expect(row).not.toHaveProperty('mentions')
+  })
+
+  it('文件夹已删/缺失：跳过派生，旧键仍清掉；幂等不重复', async () => {
+    await seedFolder('nf1', { deleted: 1 })
+    await seedNote('n1', { folderId: 'nf1' })
+    await seedNote('n2', { folderId: 'nope' })
+
+    await migrateLegacyLinks(tableOf)
+    expect(await db.links.toArray()).toHaveLength(0)
+    expect(await migrateLegacyLinks(tableOf)).toBe(0)
+  })
+})

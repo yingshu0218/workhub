@@ -101,11 +101,11 @@ export async function saveQuickCapture({
     title: quickCaptureTitle(markdown),
     markdown,
     tags: [QUICK_CAPTURE_TAG],
-    folderId: folderId || undefined,
     createdAt: Date.now(),
   }
-  // 提及随正文同步成 mention link（与笔记行同事务，见 saveNoteWithMentions）
-  await saveNoteWithMentions(note)
+  // 提及随正文同步成 mention link（与笔记行同事务）；归属已迁 links（v16 member）：
+  // folderId 同一事务落 member link（null/undefined = 根层）
+  await saveNoteWithMentions(note, folderId ?? null)
   return note.id
 }
 

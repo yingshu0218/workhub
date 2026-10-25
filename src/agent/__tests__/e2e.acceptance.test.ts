@@ -456,8 +456,12 @@ describe('P1 第 7 步 E2E 主干验收（§9.8）', () => {
     const noteUp = await mcp.callTool('note_updateNote', noteUpArgs, previewToken(noteUpPreview))
     expect(noteUp.ok, noteUp.text).toBe(true)
     const noteRow = await db.notes.get(noteId)
-    expect(noteRow!.folderId).toBeUndefined()
     expect(noteRow!.title).toBe('远山需求要点（终稿）')
+    // 归属已迁 links（v16 member）：folderId=null 后无活 member link
+    const member = await db.links
+      .filter((l) => l.kind === 'member' && l.fromType === 'notes' && l.fromId === noteId && !l.deleted)
+      .toArray()
+    expect(member).toHaveLength(0)
 
     /* 读工具：listNotes 不下发正文；listProjects 能查到归档项目 */
     const notes = await mcp.callTool('listNotes', {})
