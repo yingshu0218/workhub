@@ -1,4 +1,5 @@
 import Dexie, { type Table } from 'dexie'
+import { migrateLegacyLinks } from './legacyLinkMigration'
 import type {
   SyncMeta,
   Workspace,
@@ -40,11 +41,13 @@ export interface MetaEntry {
  * 类型不声明、索引不建，等于「跨设备 LWW 与软删」只在约定层面成立。
  *
  * `blob` 是**仅本地**字段：推送前由 `toPayload` 剥离，改走 multipart 上传到服务端 file 字段。
+ *
+ * 归属字段 `refType/refId` 已随关联层 Phase 2（v15）迁往 links 表（kind='attachment'，
+ * from=宿主流水）—— 本地不再持有这两个键；服务端列保留供老客户端降级，pull 侧由
+ * `stripLegacyLinkFields` 剥键 + `legacyLinkSpecs` 派生 link（见 linkId.ts）。
  */
 export interface Attachment extends SyncMeta {
   id: string
-  refType: string
-  refId: string
   name: string
   mime: string
   size: number
@@ -240,6 +243,22 @@ export class NexusDB extends Dexie {
     this.version(14).stores({
       links: 'id, kind, updatedAt, [fromType+fromId], [toType+toId]',
     })
+    /**
+     * v15（关联层 Phase 2 · 旧关联字段 → links 记录）：迁移族由
+     * `MIGRATED_LINK_TABLES` 圈定（首族 attachments：附件归属 refType/refId →
+     * kind='attachment' link，from=流水）；后续 notes.mentions / transactions 数组 /
+     * customers.relations 逐族并入。迁移体单一实现见 legacyLinkMigration.ts
+     * （与 migrateV15.test.ts 共用，不复制）；派生 link 盖 updatedAt:0/rev:0
+     * 最低优先级戳、不入队 —— 多端各自派生靠确定性 id 合流，理由见该文件头注释。
+     * 索引侧：attachments 去掉 refType/refId（读归属一律走 links 复合索引）。
+     */
+    this.version(15)
+      .stores({
+        attachments: 'id, createdAt, updatedAt',
+      })
+      .upgrade(async (tx) => {
+        await migrateLegacyLinks((name) => tx.table(name) as never)
+      })
   }
 }
 

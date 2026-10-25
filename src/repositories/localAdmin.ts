@@ -180,6 +180,8 @@ const RESTORE_TABLES = [
   'projects',
   'projectMilestones',
   'moduleConfigs',
+  // 关联层（Phase 2）：links 随存档往返（存档里没有也不影响 —— 空表跳过）
+  'links',
 ] as const
 
 /** base64 dataUrl → Blob（附件恢复用，不依赖网络） */
@@ -210,8 +212,6 @@ function attachmentRowToRecord(row: Record<string, unknown>): PutInput<Attachmen
   if (!blob || typeof rest.id !== 'string') return null
   return {
     id: rest.id,
-    refType: typeof rest.refType === 'string' ? rest.refType : '',
-    refId: typeof rest.refId === 'string' ? rest.refId : '',
     name: typeof rest.name === 'string' ? rest.name : 'attachment',
     mime: typeof rest.mime === 'string' ? rest.mime : blob.type,
     size: typeof rest.size === 'number' ? rest.size : blob.size,

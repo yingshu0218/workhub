@@ -20,9 +20,10 @@ import type {
 } from '@/db/types'
 import type { SyncMeta, TrashSnapshot } from '@/db/types'
 import type { Attachment } from '@/db/db'
+import type { Link } from '@/db/types'
 import { eventBus } from '@/shared/eventBus'
 import { txnCustomerIds, txnProjectIds, toLinkField } from '@/modules/finance/links'
-import { cascadeSoftDeleteLinks } from './links'
+import { cascadeSoftDeleteLinks, putLinkTx } from './links'
 
 /**
  * 关联字段「置空即删键」的更新补丁（Dexie update 语义：显式 undefined 才删键）。
@@ -67,6 +68,7 @@ export {
   buildLinkId,
   linkAtoms,
   unlinkAtoms,
+  putLinkTx,
   linksOf,
   linksTo,
   cascadeSoftDeleteLinks,
@@ -218,7 +220,7 @@ export async function saveTransactionWithAttachments(
 ): Promise<{ id: string; created: boolean }> {
   const now = Date.now()
   let created = false
-  await storage.transaction(['transactions', 'attachments', 'syncQueue'], async (tx) => {
+  await storage.transaction(['transactions', 'attachments', 'links', 'syncQueue'], async (tx) => {
     const putStamped = async <T extends { id: string }>(
       tableName: 'transactions' | 'attachments',
       record: T & Partial<SyncMeta>,
@@ -238,6 +240,16 @@ export async function saveTransactionWithAttachments(
     await putStamped('transactions', txn as Transaction & Partial<SyncMeta>)
     for (const att of attachments) {
       await putStamped('attachments', att)
+      // 附件归属（Phase 2 迁 links）：宿主与附件刚在上方落库，事务内可见，走 putLinkTx
+      await putLinkTx(
+        tx,
+        {
+          from: { type: 'transactions', id: txn.id },
+          to: { type: 'attachments', id: att.id },
+          kind: 'attachment',
+        },
+        now,
+      )
     }
   })
   // 事务 commit 之后：仅在新建时发送事件（载荷与旧 UI 内联 emit 逐字段一致，无多余字段）
@@ -644,9 +656,17 @@ export async function deleteTransactionCascade(txnId: string): Promise<void> {
     const prev = await tx.get<Transaction>('transactions', txnId)
     if (!prev || prev.deleted) return
 
-    const atts = (await tx.list<Attachment>('attachments')).filter(
-      (a) => a.refId === txnId && !a.deleted,
+    // 附件归属已迁 links（v15）：按 kind='attachment' 的 from 方向找子附件
+    // （含墓碑 link —— 归属关系一旦建立就随流水走，墓碑只代表「当下已删」而非「从未归属」）
+    const attLinks = (await tx.list<Link>('links')).filter(
+      (l) =>
+        l.kind === 'attachment' && l.fromType === 'transactions' && l.fromId === txnId,
     )
+    const atts: Attachment[] = []
+    for (const l of attLinks) {
+      const a = await tx.get<Attachment>('attachments', l.toId)
+      if (a && !a.deleted) atts.push(a)
+    }
     // 关联层钩子：指向流水及其附件（子记录端点）的 link 一并墓碑化
     const cascadeLinkIds = await cascadeSoftDeleteLinks(
       tx,

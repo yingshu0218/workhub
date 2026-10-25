@@ -21,6 +21,7 @@ import {
   noteFolderRepo,
   projectRepo,
   projectMilestoneRepo,
+  linkRepo,
 } from '@/repositories'
 import { downloadBlob, downloadText } from '@/shared/download'
 import { moduleConfigRepo } from '@/repositories'
@@ -92,6 +93,7 @@ export function SecurityTab({
         projects,
         projectMilestones,
         moduleConfigs,
+        links,
       ] = await Promise.all([
         workspaceRepo.list(),
         customerRepo.list(),
@@ -111,6 +113,7 @@ export function SecurityTab({
         projectRepo.list(),
         projectMilestoneRepo.list(),
         moduleConfigRepo.list(),
+        linkRepo.list(),
       ])
       const attachmentRows = await Promise.all(
         attachments.map(async ({ blob, ...meta }: Attachment) => ({
@@ -141,6 +144,7 @@ export function SecurityTab({
           projects,
           projectMilestones,
           moduleConfigs,
+          links,
         },
       }
       downloadBlob(

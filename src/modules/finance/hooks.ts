@@ -1,5 +1,6 @@
 import type { Attachment } from '@/db/db'
 import { db } from '@/db/db'
+import { linksOf } from '@/repositories/links'
 import { nextSortOrder, reorderBySortOrder } from '@/repositories/sortOrder'
 
 import { useQuery } from '@/queries/hooks'
@@ -13,21 +14,23 @@ const EMPTY_LIST: Attachment[] = []
 /**
  * 某笔交易的存活附件（软删已过滤）。
  *
- * `deleted` 过滤不能省：附件是**软删**表 —— `deleteTransactionCascade` 只置 `deleted=1`，
- * 记录仍留在库里；跨设备传播删除与 pull 回来的远端删除也走同一形状。
- * 直查 `refId` 会把已删存根一并返回，表现为「删了凭证，附件仍挂在别的入口上」。
- * 缺 `deleted` 字段的存量记录按「未删除」处理（`!undefined === true`），不会误判成已删。
+ * 附件归属已迁 links（v15，kind='attachment'，from=流水）：先按 links 复合索引拿
+ * 附件 id，再取行过滤软删。`deleted` 过滤仍不能省 —— 附件是**软删**表，已删存根
+ * 留在库里（跨设备传播删除），「删了凭证仍挂在别的入口上」的口径不变。
  *
  * 抽成模块级函数而不是内联进 hook：UI、单测与后续任何读入口共用同一实现
  * （与 `deleteTodoCascade` 同款纪律），「软删过滤」这条语义才有可断言的真源。
  */
-export function listTransactionAttachments(transactionId: string): Promise<Attachment[]> {
-  return db.attachments.where('refId').equals(transactionId).filter((a) => !a.deleted).toArray()
+export async function listTransactionAttachments(transactionId: string): Promise<Attachment[]> {
+  // 归属 link 的方向是 from=流水 → to=附件，查「某流水的附件」走 from 方向（linksOf）
+  const links = await linksOf('transactions', transactionId, 'attachment')
+  const rows = await db.attachments.bulkGet(links.map((l) => l.toId))
+  return rows.filter((a): a is Attachment => !!a && !a.deleted)
 }
 
-/** 某条记录的存活附件数（先走 refId 索引收窄，再过滤软删；不反序列化 Blob） */
-export function countAttachments(refId: string): Promise<number> {
-  return db.attachments.where('refId').equals(refId).filter((a) => !a.deleted).count()
+/** 某条记录的存活附件数（走 links 索引收窄，再过滤软删；不反序列化 Blob） */
+export async function countAttachments(refId: string): Promise<number> {
+  return (await listTransactionAttachments(refId)).length
 }
 
 /** 某笔交易的附件列表（凭证存根） */

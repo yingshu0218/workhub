@@ -1,9 +1,14 @@
 import { storage } from '@/storage'
 import type { StorageTx } from '@/storage/types'
 import { db } from '@/db/db'
-import { sha256ToBase36_15 } from '@/sync/remoteNormalize'
 import type { Link, LinkEndpointTable, LinkKind, LinkMeta } from '@/db/types'
 import { createRepository } from './repository'
+import { buildLinkId, canonicalEndpoints, type LinkEndpoint } from './linkId'
+
+// 纯函数层（id / canonical / 旧字段映射）在 linkId.ts —— db.ts 的 v15 upgrade 也要用，
+// 放这里会构成 db → storage 运行时循环；从这里 re-export 保持既有导入路径不变。
+export { buildLinkId } from './linkId'
+export type { LinkEndpoint } from './linkId'
 
 /**
  * 关联层 links —— 原子间关联的唯一真源（docs/关联层设计方案-20261025.md）。
@@ -20,49 +25,41 @@ import { createRepository } from './repository'
 
 export const linkRepo = createRepository<Link>('links')
 
-/** 端点输入形态（与 Link 的平铺字段同构） */
-export interface LinkEndpoint {
-  type: LinkEndpointTable
-  id: string
-}
-
 /**
- * 对称关系的 canonical 排序：kind='relation' 时按端点 id 字典序定 from/to ——
- * 任一端、任一设备发起都得到同一条记录（方向本无业务含义，今日 relations 是双侧镜像）。
- * 其余 kind 保持调用方给出的方向（from = 主动方/容器，to = 被指向方，方案 §2.3）。
+ * 事务内建联原语：盖章 + 落库 + 入队，**不做端点校验**（调用方保证两端记录已在
+ * 同一事务内落库或已存在 —— 复合函数如 saveTransactionWithAttachments 在同一事务里
+ * 先落实体再建联时，校验反而会误伤刚写入、事务内可见的行）。幂等：确定性 id 覆盖盖章。
  */
-function canonicalEndpoints(
-  from: LinkEndpoint,
-  to: LinkEndpoint,
-  kind: LinkKind,
-): [LinkEndpoint, LinkEndpoint] {
-  if (kind !== 'relation') return [from, to]
-  return from.id <= to.id ? [from, to] : [to, from]
-}
-
-/**
- * 同端点对同 kind 的多条语义区分（仅 relation 用）：label 参与 id 判重 ——
- * 同一对客户可保留多条不同语义关系（Issue #39 条目级去重口径），同语义则判重为一条。
- */
-function discriminator(kind: LinkKind, meta?: LinkMeta): string {
-  if (kind !== 'relation') return ''
-  return `${meta?.label ?? ''}#${meta?.category ?? ''}`
-}
-
-/**
- * 确定性 link id：`lk-` + sha256ToBase36_15(seed)。
- * 同输入恒同 id → 重复建联幂等；双端离线各建同一关联时 LWW 直接合流、不产生重复
- * （先例：habitLogId 确定性打卡 id、同步层 localId→pbId 映射，hash 助手同一份）。
- * seed 用 `|` 分隔：端点 id 本身可含 `:`（newId 产物），hash 输入不解析、无歧义。
- */
-export function buildLinkId(
-  from: LinkEndpoint,
-  to: LinkEndpoint,
-  kind: LinkKind,
-  meta?: LinkMeta,
-): string {
-  const [f, t] = canonicalEndpoints(from, to, kind)
-  return `lk-${sha256ToBase36_15(`${f.type}:${f.id}|${t.type}:${t.id}|${kind}|${discriminator(kind, meta)}`)}`
+export async function putLinkTx(
+  tx: StorageTx,
+  input: { from: LinkEndpoint; to: LinkEndpoint; kind: LinkKind; meta?: LinkMeta },
+  now: number,
+): Promise<string> {
+  const [from, to] = canonicalEndpoints(input.from, input.to, input.kind)
+  // buildLinkId 内部做同样的 canonical，保证 id 与落库方向恒一致
+  const id = buildLinkId(input.from, input.to, input.kind, input.meta)
+  const prev = await tx.get<Link>('links', id)
+  const reviving = prev?.deleted === 1
+  await tx.put('links', {
+    id,
+    fromType: from.type,
+    fromId: from.id,
+    toType: to.type,
+    toId: to.id,
+    kind: input.kind,
+    ...(input.meta ? { meta: input.meta } : {}),
+    // 幂等重建沿用首次创建时间（rev 递增但语义是同一条关联）
+    createdAt: prev?.createdAt ?? now,
+    updatedAt: now,
+    rev: (prev?.rev ?? 0) + 1,
+    deleted: 0 as const,
+    // 活记录不得带删除时间（与 repository.put 同口径：防展开墓碑对象残留脏值）
+    deletedAt: undefined,
+    // 复活凭证粘性语义与 repository.put 一致：软删后重建 = 显式复活
+    ...(reviving ? { restoredAt: now } : prev?.restoredAt ? { restoredAt: prev.restoredAt } : {}),
+  } as Link)
+  await tx.enqueue('links', id, 'upsert', now)
+  return id
 }
 
 /**
@@ -87,40 +84,17 @@ export async function linkAtoms(input: {
   if (kind === 'relation' && !input.meta?.label) {
     throw new Error('linkAtoms: kind=relation 需要 meta.label（关系语义参与判重）')
   }
-  const [from, to] = canonicalEndpoints(input.from, input.to, kind)
-  // buildLinkId 内部做同样的 canonical，保证 id 与落库方向恒一致
-  const id = buildLinkId(input.from, input.to, kind, input.meta)
-  const now = Date.now()
+  let id = ''
   await storage.transaction(
-    [...new Set([from.type, to.type, 'links', 'syncQueue'])],
+    [...new Set([input.from.type, input.to.type, 'links', 'syncQueue'])],
     async (tx) => {
-      for (const ep of [from, to]) {
+      for (const ep of [input.from, input.to]) {
         const rec = await tx.get<{ id: string }>(ep.type, ep.id)
         if (!rec || rec.deleted) {
           throw new Error(`linkAtoms: 端点不存在或已删除（${ep.type}:${ep.id}）`)
         }
       }
-      const prev = await tx.get<Link>('links', id)
-      const reviving = prev?.deleted === 1
-      await tx.put('links', {
-        id,
-        fromType: from.type,
-        fromId: from.id,
-        toType: to.type,
-        toId: to.id,
-        kind,
-        ...(input.meta ? { meta: input.meta } : {}),
-        // 幂等重建沿用首次创建时间（rev 递增但语义是同一条关联）
-        createdAt: prev?.createdAt ?? now,
-        updatedAt: now,
-        rev: (prev?.rev ?? 0) + 1,
-        deleted: 0 as const,
-        // 活记录不得带删除时间（与 repository.put 同口径：防展开墓碑对象残留脏值）
-        deletedAt: undefined,
-        // 复活凭证粘性语义与 repository.put 一致：软删后重建 = 显式复活
-        ...(reviving ? { restoredAt: now } : prev?.restoredAt ? { restoredAt: prev.restoredAt } : {}),
-      } as Link)
-      await tx.enqueue('links', id, 'upsert', now)
+      id = await putLinkTx(tx, input, Date.now())
     },
   )
   storage.requestSync()

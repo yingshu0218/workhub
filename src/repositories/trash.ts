@@ -138,15 +138,35 @@ function titleOf(table: TrashTable, r: Rec, maps: Map<TrashTable, Map<string, Re
   }
 }
 
+/**
+ * 附件 → 宿主流水的归属映射（归属已迁 links：kind='attachment'，from=流水）。
+ *
+ * 不过滤 deleted link：级联删除会把归属 link 一并墓碑化，而回收站恰恰要在这之后
+ * 回答「这个附件属于谁」（父子分组 + 恢复前置校验）—— 墓碑只代表「当下已删」，
+ * 不代表「从未归属」。附件理论上可挂多个宿主（当前写入方只会建一个），取第一条。
+ */
+async function attachmentParentMap(): Promise<Map<string, { table: TrashTable; id: string }>> {
+  const links = await storage.list<{
+    id: string
+    kind: string
+    fromType: string
+    fromId: string
+    toId: string
+  }>('links')
+  const m = new Map<string, { table: TrashTable; id: string }>()
+  for (const l of links) {
+    if (l.kind !== 'attachment' || l.fromType !== 'transactions') continue
+    if (!m.has(l.toId)) m.set(l.toId, { table: 'transactions', id: l.fromId })
+  }
+  return m
+}
+
 function parentOf(
   table: TrashTable,
   r: Rec,
+  attParent?: ReadonlyMap<string, { table: TrashTable; id: string }>,
 ): { table: TrashTable; id: string } | undefined {
-  if (table === 'attachments') {
-    if (str(r, 'refType') !== 'transaction') return undefined
-    const id = str(r, 'refId')
-    return id ? { table: 'transactions', id } : undefined
-  }
+  if (table === 'attachments') return attParent?.get(String(r.id))
   const spec = CHILD_PARENT[table]
   if (!spec) return undefined
   const id = str(r, spec.field)
@@ -173,12 +193,13 @@ export async function listTrash(): Promise<TrashItem[]> {
   )
   const maps = new Map<TrashTable, Map<string, Rec>>()
   for (const [table, list] of rows) maps.set(table, new Map(list.map((r) => [String(r.id), r])))
+  const attParent = await attachmentParentMap()
 
   const items: TrashItem[] = []
   for (const [table, list] of rows) {
     for (const r of list) {
       if (!isDeleted(r)) continue
-      const parent = parentOf(table, r)
+      const parent = parentOf(table, r, attParent)
       const parentRec = parent ? maps.get(parent.table)?.get(parent.id) : undefined
       const parentAlive = parent ? isAlive(parentRec) : undefined
       const snapshot = readSnapshot(r)
@@ -250,12 +271,13 @@ export async function restoreTrashRecord(
 }> {
   if (!TRASH_TABLES.includes(table)) throw new Error('该类型不支持恢复')
   const now = Date.now()
+  const attParent = await attachmentParentMap()
   return storage.transaction(['syncQueue', 'links', ...TRASH_TABLES], async (tx) => {
     const root = (await tx.get(table, id)) as Rec | undefined
     if (!root || !isDeleted(root)) throw new Error('记录不存在或已恢复')
 
     // 子记录单独恢复：父项必须已存活
-    const parent = parentOf(table, root)
+    const parent = parentOf(table, root, attParent)
     if (parent) {
       const p = (await tx.get(parent.table, parent.id)) as Rec | undefined
       if (!isAlive(p)) {
@@ -430,14 +452,6 @@ async function pruneDeadRefs(
       const projectId = str(rec, 'projectId')
       if (projectId && !(await alive(tx, 'projects', projectId))) {
         throw new Error('所属项目已删除，请先恢复项目')
-      }
-      break
-    }
-    case 'attachments': {
-      const refType = str(rec, 'refType')
-      const refId = str(rec, 'refId')
-      if (refType === 'transaction' && refId && !(await alive(tx, 'transactions', refId))) {
-        throw new Error('所属流水已删除，请先恢复流水')
       }
       break
     }

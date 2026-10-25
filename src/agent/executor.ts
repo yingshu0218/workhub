@@ -38,13 +38,22 @@ import type {
 } from '@/db/types'
 
 /**
- * 附件存根的**最小形状** —— 只为统计「删流水时会级联删掉几个凭证」。
+ * links 表行的**最小形状** —— 只为统计「删流水时会级联删掉几个凭证」
+ * （附件归属已迁 links：kind='attachment' 且 from 指向该流水）。
  *
- * ⚠️ 刻意不从 `@/db/db` 引 `Attachment`：`storage/__tests__/boundary.test.ts` 锁住
+ * ⚠️ 刻意不从 `@/db/db` 引类型：`storage/__tests__/boundary.test.ts` 锁住
  * 「agent 层不得 import db 单例」（执行链必须走 `@/storage` 适配器）。这里只需要
  * 读几个标量字段，结构化声明比引整个表类型更贴合边界。
  */
-type AttachmentRow = { id: string; refId: string; deleted?: 0 | 1; rev: number }
+type LinkRow = {
+  id: string
+  kind: string
+  fromType: string
+  fromId: string
+  toId: string
+  deleted?: 0 | 1
+  rev?: number
+}
 
 /** 行类型别名（mustExist 泛型绑定用；与 db/types 定义同源，不做二次建模） */
 type ProjectRow = Project
@@ -880,14 +889,14 @@ export async function fin_deleteTransaction(input: unknown): Promise<AgentOpResu
   const found = await mustExist<Transaction>(tableRef('transactions'), id, '流水')
   if (!found.ok) return err(found.error)
 
-  const attachments = (await storage.list<AttachmentRow>('attachments')).filter(
-    (a) => a.refId === id && !a.deleted,
+  const attLinks = (await storage.list<LinkRow>('links')).filter(
+    (l) => l.kind === 'attachment' && l.fromType === 'transactions' && l.fromId === id && !l.deleted,
   )
   await deleteTransactionCascade(id)
   return ok({
     transactionId: id,
     deleted: true,
-    sideEffects: { cascadedAttachments: attachments.length },
+    sideEffects: { cascadedAttachments: attLinks.length },
   })
 }
 

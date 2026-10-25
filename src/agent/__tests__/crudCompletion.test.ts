@@ -134,11 +134,10 @@ function newMilestone(id: string, projectId: string, over: Partial<ProjectMilest
   } as ProjectMilestone
 }
 
-function newAttachment(id: string, refId: string) {
+function newAttachment(id: string) {
+  // 归属已迁 links（v15）：附件行不再自带 refType/refId，归属 link 单独播种
   return {
     id,
-    refType: 'transaction',
-    refId,
     name: `${id}.png`,
     mime: 'image/png',
     size: 10,
@@ -148,6 +147,23 @@ function newAttachment(id: string, refId: string) {
     deleted: 0 as const,
     rev: 0,
   }
+}
+
+/** 播种「流水 → 附件」归属 link（读路径与级联统计 v15 起都走 links） */
+async function seedAttLink(txnId: string, attId: string): Promise<void> {
+  const { buildLinkId } = await import('@/repositories/linkId')
+  await db.links.put({
+    id: buildLinkId({ type: 'transactions', id: txnId }, { type: 'attachments', id: attId }, 'attachment'),
+    fromType: 'transactions',
+    fromId: txnId,
+    toType: 'attachments',
+    toId: attId,
+    kind: 'attachment',
+    createdAt: 1,
+    updatedAt: 0,
+    rev: 0,
+    deleted: 0,
+  } as never)
 }
 
 beforeEach(async () => {
@@ -262,7 +278,9 @@ describe('fin_updateTransaction', () => {
 describe('fin_deleteTransaction', () => {
   it('sideEffects 统计在删除前做：2 个附件 → cascadedAttachments=2，且附件真被软删', async () => {
     await transactionRepo.put(newTxn('t1'))
-    await db.attachments.bulkPut([newAttachment('a1', 't1'), newAttachment('a2', 't1')])
+    await db.attachments.bulkPut([newAttachment('a1'), newAttachment('a2')])
+    await seedAttLink('t1', 'a1')
+    await seedAttLink('t1', 'a2')
 
     const r = await fin_deleteTransaction({ transactionId: 't1' })
     expect(r.ok).toBe(true)

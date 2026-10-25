@@ -1,5 +1,12 @@
 import { db } from '@/db/db'
 import { normalizeTxnLinks } from '@/modules/finance/links'
+import {
+  buildLinkId,
+  legacyLinkSpecs,
+  stripLegacyLinkFields,
+  MIGRATED_LINK_TABLES,
+  type LegacyLinkSpec,
+} from '@/repositories/linkId'
 // 协议纯函数已收口到 remoteNormalize.ts（agentOps 服务端化 P2：服务端 adapter 需同一套
 // 归一化逻辑但不能拖 Dexie）——本文件消费，不再各自持有副本。
 import {
@@ -37,6 +44,44 @@ function bizTable(table: string) {
   return db[table as keyof typeof db] as unknown as {
     get(id: string): Promise<Record<string, unknown> | undefined>
     put(value: Record<string, unknown>): Promise<string>
+  }
+}
+
+// ─────────────────────── 旧关联字段归一化（关联层 Phase 2） ───────────────────────
+
+/**
+ * 远端记录携带的旧关联字段 → 派生 links 记录（迁移族内的表才处理）。
+ *
+ * 为什么 pull 侧必须派生而不只是剥键：服务端旧列**永远残留旧值** —— 推送是 PATCH，
+ * 本地记录不再带 customerIds / refType 等键，PATCH 就不会清服务端列；老客户端后来
+ * 还会继续写这些键。于是「新设备 / 重装设备」拉到的记录仍带着旧关联，若只剥不派生，
+ * 这些关联就凭空消失。派生规则与 v15 upgrade 同一实现（legacyLinkSpecs，确定性 id），
+ * 多端各自派生天然合流；派生行盖 updatedAt:0 / rev:0 最低优先级戳且**不入队**
+ * （远端真实 link 记录一到即按 LWW 胜出；本端真实编辑时 linkAtoms 再盖真戳入队）。
+ * 端点已删/缺失的旧关联跳过（语义上已解绑）；本地已有同语义 link（活或墓碑）不动。
+ */
+async function deriveLegacyLinks(table: string, rec: Record<string, unknown>): Promise<void> {
+  const specs = legacyLinkSpecs(table, rec)
+  for (const s of specs as LegacyLinkSpec[]) {
+    const from = await bizTable(s.from.type).get(s.from.id)
+    if (!from || from.deleted) continue
+    const to = await bizTable(s.to.type).get(s.to.id)
+    if (!to || to.deleted) continue
+    const id = buildLinkId(s.from, s.to, s.kind, s.meta)
+    if (await db.links.get(id)) continue
+    await db.links.put({
+      id,
+      fromType: s.from.type,
+      fromId: s.from.id,
+      toType: s.to.type,
+      toId: s.to.id,
+      kind: s.kind,
+      ...(s.meta ? { meta: s.meta } : {}),
+      createdAt: typeof s.createdAt === 'number' ? s.createdAt : 0,
+      updatedAt: 0,
+      rev: 0,
+      deleted: 0,
+    } as never)
   }
 }
 
@@ -153,6 +198,14 @@ export async function mergeRemoteRecord(
   // 前端 `customer.tags.map` / `relations.map` 抛 TypeError（页面白屏、关系被静默回滚成空）
   const revived: Record<string, unknown> = { ...remote }
   reviveRemoteJsonFields(table, revived)
+  // 关联层 Phase 2：迁移族内的表，先把旧关联字段剥掉 —— 本地行从此不再持有它们
+  // （服务端列保留供老客户端降级）。派生要等记录**落库之后**做（记录自身常是 link
+  // 端点，落库前判「端点不存在」会漏派生），故在剥除前留一份快照传给派生。
+  let legacySource: Record<string, unknown> | undefined
+  if (MIGRATED_LINK_TABLES.has(table)) {
+    legacySource = { ...revived }
+    stripLegacyLinkFields(table, revived)
+  }
   const remoteUpdatedAt = typeof revived.updatedAt === 'number' ? revived.updatedAt : 0
   const localUpdatedAt = typeof local?.updatedAt === 'number' ? local.updatedAt : 0
   const localRestoredAt =
@@ -296,6 +349,8 @@ export async function mergeRemoteRecord(
     }
     await attachBlobIfNeeded(table, remote, merged, loadAttachmentBlob)
     await table0.put(merged)
+    // 远端形状的 id 是 PB 哈希主键，派生前必须归一成本地 id（端点寻址靠它）
+    if (legacySource) await deriveLegacyLinks(table, { ...legacySource, id: localId })
     return 'write'
   }
 
@@ -388,6 +443,8 @@ export async function mergeRemoteRecord(
 
   await attachBlobIfNeeded(table, remote, record, loadAttachmentBlob)
   await table0.put(record)
+  // 同上：远端形状的 id 是 PB 哈希主键，派生前归一成本地 id
+  if (legacySource) await deriveLegacyLinks(table, { ...legacySource, id: localId })
   return 'write'
 }
 

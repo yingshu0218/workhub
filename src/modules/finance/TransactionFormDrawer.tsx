@@ -237,13 +237,12 @@ export default function TransactionFormDrawer({
           ...linkPatch,
           status: '待对账',
         }
-    // 附件存根：Blob 入 attachments 表，refId 指向交易；与交易同事务原子落库。
+    // 附件存根：Blob 入 attachments 表，归属（流水→附件）由 saveTransactionWithAttachments
+    // 在同一事务里写 kind='attachment' 的 link（Phase 2 起附件不再自带 refType/refId）。
     // 类型用 PutInput：同步盖章（updatedAt/rev/deleted）由 saveTransactionWithAttachments
     // 在同一事务内统一盖（与 transactions 同款），这里不应自带。
     const attachments: PutInput<Attachment>[] = files.map((f) => ({
       id: newId('att'),
-      refType: 'transaction',
-      refId: txnId,
       name: f.name,
       mime: f.type,
       size: f.size,
