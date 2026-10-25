@@ -90,6 +90,7 @@ export class NexusDB extends Dexie {
   settings!: Table<Settings, string>
   moduleConfigs!: Table<ModuleConfig, string>
   customerGroups!: Table<import('./types').CustomerGroup, string>
+  links!: Table<import('./types').Link, string>
 
   constructor() {
     super('nexus-workspace')
@@ -227,6 +228,17 @@ export class NexusDB extends Dexie {
      */
     this.version(13).stores({
       customers: 'id, updatedAt',
+    })
+    /**
+     * v14（关联层 · 原子化一期，docs/关联层设计方案-20261025.md）：links 通用关联表。
+     * 端点复合索引 [fromType+fromId] / [toType+toId] 是本表读写主路径 —— 统一关联层的
+     * 动机之一就是替换 mentions / transactions 数组的全表内存扫描（即 v11 注释预埋的
+     * 「独立关联表」演进方向），读侧 API 一律走这两个索引，禁止退回全表过滤。
+     * 无 upgrade：新表零存量；服务端集合见 pb_setup/collections.json `links`（同步登记
+     * 清单完整版见方案 §3）。
+     */
+    this.version(14).stores({
+      links: 'id, kind, updatedAt, [fromType+fromId], [toType+toId]',
     })
   }
 }

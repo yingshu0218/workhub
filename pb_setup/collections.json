@@ -1988,5 +1988,112 @@
       "CREATE INDEX idx_agent_events_occurred ON agent_events (occurredAt)"
     ],
     "system": false
+  },
+  {
+    "name": "links",
+    "type": "base",
+    "system": false,
+    "listRule": "@request.auth.id != ''",
+    "viewRule": "@request.auth.id != ''",
+    "createRule": "@request.auth.id != ''",
+    "updateRule": "@request.auth.id != ''",
+    "deleteRule": "@request.auth.id != ''",
+    "fields": [
+      {
+        "name": "id",
+        "type": "text",
+        "primaryKey": true,
+        "required": true,
+        "autogeneratePattern": ""
+      },
+      {
+        "name": "localId",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "fromType",
+        "type": "text"
+      },
+      {
+        "name": "fromId",
+        "type": "text"
+      },
+      {
+        "name": "toType",
+        "type": "text"
+      },
+      {
+        "name": "toId",
+        "type": "text"
+      },
+      {
+        "name": "kind",
+        "type": "text"
+      },
+      {
+        "name": "meta",
+        "type": "json",
+        "maxSize": 2000000
+      },
+      {
+        "name": "createdAt",
+        "type": "number"
+      },
+      {
+        "name": "updatedAt",
+        "type": "number",
+        "required": true
+      },
+      {
+        "name": "deleted",
+        "type": "number"
+      },
+      {
+        "name": "rev",
+        "type": "number"
+      },
+      {
+        "name": "restoredAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "deletedAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "created",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": false
+      },
+      {
+        "name": "updated",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "server_received_at",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "tombstonePushed",
+        "type": "number",
+        "required": false,
+        "presentable": false
+      }
+    ],
+    "indexes": [
+      "CREATE INDEX idx_links_from ON links (fromType, fromId)",
+      "CREATE INDEX idx_links_to ON links (toType, toId)",
+      "CREATE INDEX idx_links_updatedAt ON links (updatedAt)",
+      "CREATE UNIQUE INDEX idx_links_localId ON links (localId)",
+      "CREATE INDEX idx_links_tombstonePushed ON links (tombstonePushed)"
+    ]
   }
 ]

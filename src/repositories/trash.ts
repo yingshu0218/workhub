@@ -1,5 +1,6 @@
 import { storage } from '@/storage'
 import { forgetTombstoneMarks, pushTombstonesNow } from '@/sync/pocketbaseAdapter'
+import { reviveCascadeLinks } from './links'
 import type {
   CustomerRelation,
   NoteMention,
@@ -231,6 +232,8 @@ async function alive(
  * - 子记录必须父项先活；父项与子项一起恢复时在同一个事务内先恢复父项；
  * - 根墓碑的 trashSnapshot 决定恢复哪些子项、回填哪些链接；
  * - 目标已删/已清理的链接跳过并返回 skippedLinks，不为了重建链接复活无关记录；
+ * - 关联层：snapshot.cascadeLinkIds 里的 links 表记录随根复活（两端实体都存活才复活，
+ *   reviveCascadeLinks；必须在实体复活之后调用才能读到同事务内的活行）；
  * - 每条恢复记录都清空 trashSnapshot，入队 upsert，restoredAt 作为同步层唯一复活凭证。
  */
 export async function restoreTrashRecord(
@@ -242,10 +245,12 @@ export async function restoreTrashRecord(
   rebuiltLinks: number
   skippedLinks: number
   prunedRefs: number
+  revivedCascadeLinks: number
+  skippedCascadeLinks: number
 }> {
   if (!TRASH_TABLES.includes(table)) throw new Error('该类型不支持恢复')
   const now = Date.now()
-  return storage.transaction(['syncQueue', ...TRASH_TABLES], async (tx) => {
+  return storage.transaction(['syncQueue', 'links', ...TRASH_TABLES], async (tx) => {
     const root = (await tx.get(table, id)) as Rec | undefined
     if (!root || !isDeleted(root)) throw new Error('记录不存在或已恢复')
 
@@ -294,7 +299,17 @@ export async function restoreTrashRecord(
       else skippedLinks++
     }
 
-    return { restored, rebuiltLinks, skippedLinks, prunedRefs }
+    // 关联层：级联牺牲的 link 记录复活（根与子记录已在上面临活，此处能读到活行）
+    const cascade = await reviveCascadeLinks(tx, snapshot?.cascadeLinkIds ?? [], now)
+
+    return {
+      restored,
+      rebuiltLinks,
+      skippedLinks,
+      prunedRefs,
+      revivedCascadeLinks: cascade.revived,
+      skippedCascadeLinks: cascade.skipped,
+    }
   }).then((result) => {
     storage.requestSync()
     return result

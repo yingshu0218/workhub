@@ -73,6 +73,15 @@ export interface TrashSnapshot {
   children: { table: TrashTable; id: string }[]
   /** 被解除的弱关联（只记删除时目标仍存活的） */
   links: TrashSnapshotLink[]
+  /**
+   * 级联软删时一并墓碑化的 **links 表记录 id**（关联层 · 原子化一期 R2）。
+   * 与 links 字段（旧字段级解绑的回填档案）正交：这里记的是 links 表整条记录，
+   * 恢复时按「两端实体都存活」逐条复活（repositories/links.ts#reviveCascadeLinks）。
+   * 为什么精确记 id 而不按删除时间猜：用户在实体删除前手动解绑的 link 同样是墓碑，
+   * 时间戳区分不了「级联牺牲品」与「用户本意」，只有快照 id 是精确凭证。
+   * 可选字段：无关联层记录的老墓碑与零关联的新墓碑均缺省，恢复侧按空处理。
+   */
+  cascadeLinkIds?: string[]
 }
 
 export interface Workspace extends SyncMeta {
@@ -758,4 +767,58 @@ export function customerInGroup(
   const kind = group.kind ?? 'rule'
   if (kind === 'manual') return customer.groupId === group.id
   return matchGroup(customer, group as CustomerGroup)
+}
+
+// ─────────────────────────── 关联层 links（原子化一期 · docs/关联层设计方案-20261025.md） ───────────────────────────
+
+/**
+ * 可作为 link 端点的表。词表由 kind 方向约定约束（方案 §2.3），Phase 2 各迁移项实际使用；
+ * 刻意不含 workspaces/quickNotes/trophies/moduleConfigs/customerGroups —— 它们不承载
+ * 跨实体关联语义（三期集合成员若落地，届时再扩 customerGroups 进来）。
+ */
+export type LinkEndpointTable =
+  | 'customers'
+  | 'interactions'
+  | 'ledgers'
+  | 'transactions'
+  | 'todos'
+  | 'todoLists'
+  | 'notes'
+  | 'noteFolders'
+  | 'projects'
+  | 'projectMilestones'
+  | 'habits'
+  | 'habitLogs'
+  | 'attachments'
+
+/** 关联种类（闭集；扩词表改这里 + links.ts 的 disc/meta 约定） */
+export const LINK_KINDS = ['related', 'mention', 'relation', 'attachment'] as const
+export type LinkKind = (typeof LINK_KINDS)[number]
+
+/** kind 专属载荷：mention 存提及时的显示名；relation 存关系语义（label 参与 id 判重，Issue #39 口径） */
+export interface LinkMeta {
+  label?: string
+  category?: RelationCategory
+}
+
+/**
+ * 原子间关联记录 —— 关联层唯一真源（Phase 2 起逐步承接 mentions / transactions 数组 /
+ * customer.relations / 附件归属，Phase 1 先落零消费方地基）。
+ *
+ * 设计要点（方案 §2）：
+ * - id 确定性（`lk-` + sha256(seed)，见 repositories/links.ts#buildLinkId）：双端离线各建
+ *   同一关联 → 同 id → LWW 直接合流不产生重复；重复建联天然幂等；
+ * - kind='relation' 是对称关系：建立前按两端 id 字典序 canonical 排序（links.ts 内收口），
+ *   任一端发起得到同一条记录 —— 今日 customer.relations 的双侧镜像双写就此消失；
+ * - meta 是 json 字段（同步侧登记在 JSON_FIELDS_BY_TABLE，防 Issue #169 双重编码白屏）。
+ */
+export interface Link extends SyncMeta {
+  id: string
+  fromType: LinkEndpointTable
+  fromId: string
+  toType: LinkEndpointTable
+  toId: string
+  kind: LinkKind
+  meta?: LinkMeta
+  createdAt: number
 }

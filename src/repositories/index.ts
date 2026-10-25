@@ -22,6 +22,7 @@ import type { SyncMeta, TrashSnapshot } from '@/db/types'
 import type { Attachment } from '@/db/db'
 import { eventBus } from '@/shared/eventBus'
 import { txnCustomerIds, txnProjectIds, toLinkField } from '@/modules/finance/links'
+import { cascadeSoftDeleteLinks } from './links'
 
 /**
  * 关联字段「置空即删键」的更新补丁（Dexie update 语义：显式 undefined 才删键）。
@@ -60,6 +61,17 @@ export const customerGroupRepo =
 export { newId }
 export { txnCustomerIds, txnProjectIds } from '@/modules/finance/links'
 export { toLinkFieldPatch }
+// 关联层（原子化一期）：模块统一从这里拿 links 的读写入口，与其它仓储同口径
+export {
+  linkRepo,
+  buildLinkId,
+  linkAtoms,
+  unlinkAtoms,
+  linksOf,
+  linksTo,
+  cascadeSoftDeleteLinks,
+  reviveCascadeLinks,
+} from './links'
 
 /**
  * 默认账本唯一性收口（P1 补强 · 第 4/7 步跨轮一致性）：
@@ -140,16 +152,26 @@ export async function uncheckHabit(habitId: string, date: string): Promise<void>
  */
 export async function deleteHabitCascade(habitId: string): Promise<void> {
   const now = Date.now()
-  await storage.transaction(['habits', 'habitLogs', 'syncQueue'], async (tx) => {
+  await storage.transaction(['habits', 'habitLogs', 'links', 'syncQueue'], async (tx) => {
     const prevHabit = await tx.get<Habit>('habits', habitId)
     if (!prevHabit || prevHabit.deleted) return
 
     const logs = (await tx.list<HabitLog>('habitLogs')).filter(
       (l) => l.habitId === habitId && !l.deleted,
     )
+    // 关联层钩子：指向习惯及其打卡日志（子记录端点）的 link 一并墓碑化，恢复时随根复活
+    const cascadeLinkIds = await cascadeSoftDeleteLinks(
+      tx,
+      [
+        { type: 'habits', id: habitId },
+        ...logs.map((l) => ({ type: 'habitLogs' as const, id: l.id })),
+      ],
+      now,
+    )
     const trashSnapshot: TrashSnapshot = {
       children: logs.map((l) => ({ table: 'habitLogs' as const, id: l.id })),
       links: [],
+      ...(cascadeLinkIds.length ? { cascadeLinkIds } : {}),
     }
 
     await tx.update('habits', habitId, {
@@ -359,7 +381,7 @@ export async function addCustomerRelation(
 export async function deleteCustomerCascade(customerId: string): Promise<void> {
   const now = Date.now()
   await storage.transaction(
-    ['customers', 'interactions', 'transactions', 'todos', 'projects', 'notes', 'syncQueue'],
+    ['customers', 'interactions', 'transactions', 'todos', 'projects', 'notes', 'links', 'syncQueue'],
     async (tx) => {
       const prevCustomer = await tx.get<Customer>('customers', customerId)
       if (!prevCustomer || prevCustomer.deleted) return
@@ -402,6 +424,17 @@ export async function deleteCustomerCascade(customerId: string): Promise<void> {
         (n) =>
           !n.deleted &&
           (n.mentions ?? []).some((m) => m.type === 'customer' && m.id === customerId),
+      )
+
+      // 关联层钩子：指向客户及其沟通日志（子记录端点）的 link 一并墓碑化。
+      // 被解绑的 txns/todos/projects/notes 仍是活记录 —— 它们身上不触及客户的 link 不动。
+      const cascadeLinkIds = await cascadeSoftDeleteLinks(
+        tx,
+        [
+          { type: 'customers', id: customerId },
+          ...interactions.map((it) => ({ type: 'interactions' as const, id: it.id })),
+        ],
+        now,
       )
 
       const trashSnapshot: TrashSnapshot = {
@@ -450,6 +483,7 @@ export async function deleteCustomerCascade(customerId: string): Promise<void> {
               })),
           ),
         ],
+        ...(cascadeLinkIds.length ? { cascadeLinkIds } : {}),
       }
 
       await tx.update('customers', customerId, {
@@ -606,16 +640,26 @@ export async function createCustomerWithInit(
  */
 export async function deleteTransactionCascade(txnId: string): Promise<void> {
   const now = Date.now()
-  await storage.transaction(['transactions', 'attachments', 'syncQueue'], async (tx) => {
+  await storage.transaction(['transactions', 'attachments', 'links', 'syncQueue'], async (tx) => {
     const prev = await tx.get<Transaction>('transactions', txnId)
     if (!prev || prev.deleted) return
 
     const atts = (await tx.list<Attachment>('attachments')).filter(
       (a) => a.refId === txnId && !a.deleted,
     )
+    // 关联层钩子：指向流水及其附件（子记录端点）的 link 一并墓碑化
+    const cascadeLinkIds = await cascadeSoftDeleteLinks(
+      tx,
+      [
+        { type: 'transactions', id: txnId },
+        ...atts.map((a) => ({ type: 'attachments' as const, id: a.id })),
+      ],
+      now,
+    )
     const trashSnapshot: TrashSnapshot = {
       children: atts.map((a) => ({ table: 'attachments' as const, id: a.id })),
       links: [],
+      ...(cascadeLinkIds.length ? { cascadeLinkIds } : {}),
     }
 
     await tx.update('transactions', txnId, {
@@ -657,7 +701,7 @@ export async function deleteTransactionCascade(txnId: string): Promise<void> {
 export async function deleteProjectCascade(projectId: string): Promise<void> {
   const now = Date.now()
   await storage.transaction(
-    ['projects', 'projectMilestones', 'transactions', 'todos', 'notes', 'interactions', 'syncQueue'],
+    ['projects', 'projectMilestones', 'transactions', 'todos', 'notes', 'interactions', 'links', 'syncQueue'],
     async (tx) => {
       const prev = await tx.get<Project>('projects', projectId)
       if (!prev || prev.deleted) return
@@ -694,6 +738,17 @@ export async function deleteProjectCascade(projectId: string): Promise<void> {
           (n.mentions ?? []).some((m) => m.type === 'project' && m.id === projectId),
       )
 
+      // 关联层钩子：指向项目及其里程碑（子记录端点）的 link 一并墓碑化；
+      // 被解绑的 txns/todos/notes/interactions 仍是活记录，不触及项目的 link 不动
+      const cascadeLinkIds = await cascadeSoftDeleteLinks(
+        tx,
+        [
+          { type: 'projects', id: projectId },
+          ...milestones.map((m) => ({ type: 'projectMilestones' as const, id: m.id })),
+        ],
+        now,
+      )
+
       const trashSnapshot: TrashSnapshot = {
         children: milestones.map((m) => ({ table: 'projectMilestones' as const, id: m.id })),
         links: [
@@ -723,6 +778,7 @@ export async function deleteProjectCascade(projectId: string): Promise<void> {
               })),
           ),
         ],
+        ...(cascadeLinkIds.length ? { cascadeLinkIds } : {}),
       }
 
       await tx.update('projects', projectId, {

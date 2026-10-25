@@ -31,6 +31,9 @@ const SYNC_COLLECTIONS = [
   //    写成驼峰 `moduleConfigs` 会让本 hook 静默不挂上该集合 —— 与 Changelog #100 的同步 404
   //    是同一个命名不一致（客户端表名驼峰 / 服务端集合名下划线）。
   'module_configs', 'customerGroups',
+  // 关联层（原子化一期 2026-10-25）：links 通用关联表参与同步与墓碑清理
+  // （集合名与客户端表名一致，无 module_configs 那种下划线差异）
+  'links',
 ]
 
 onRecordCreateRequest((e) => {

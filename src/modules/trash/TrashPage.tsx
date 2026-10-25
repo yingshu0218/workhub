@@ -141,6 +141,8 @@ export default function TrashPage() {
       const parts = [`已恢复 ${result.restored} 条记录`]
       if (result.rebuiltLinks) parts.push(`重建 ${result.rebuiltLinks} 条关联`)
       if (result.skippedLinks) parts.push(`${result.skippedLinks} 条关联未恢复`)
+      // 关联层（links 表记录）随实体复活的计数；Phase 1 无写入方，常态为 0
+      if (result.revivedCascadeLinks) parts.push(`恢复 ${result.revivedCascadeLinks} 条跨模块关联`)
       toast.success(parts.join('，'))
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '恢复失败')

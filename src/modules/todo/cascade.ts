@@ -1,5 +1,5 @@
 import { storage } from '@/storage'
-import { toLinkFieldPatch } from '@/repositories'
+import { toLinkFieldPatch, cascadeSoftDeleteLinks } from '@/repositories'
 import { txnTodoIds } from '@/modules/finance/links'
 import type { Todo, Transaction, TrashSnapshot, Note } from '@/db/types'
 
@@ -22,9 +22,16 @@ import type { Todo, Transaction, TrashSnapshot, Note } from '@/db/types'
 export async function deleteTodoCascade(todoId: string): Promise<number> {
   const now = Date.now()
   let unlinked = 0
-  await storage.transaction(['todos', 'transactions', 'notes', 'syncQueue'], async (tx) => {
+  await storage.transaction(['todos', 'transactions', 'notes', 'links', 'syncQueue'], async (tx) => {
     const prev = await tx.get<Todo>('todos', todoId)
     if (!prev || prev.deleted) return
+
+    // 关联层钩子：指向待办的 link 一并墓碑化（恢复时随待办复活）
+    const cascadeLinkIds = await cascadeSoftDeleteLinks(
+      tx,
+      [{ type: 'todos', id: todoId }],
+      now,
+    )
 
     // transactions.todoIds 已数组化（Issue #140 v11）：按数组解绑，空数组不落键（toLinkFieldPatch）。
     // 不能写 `todoId: undefined` —— 既解不掉数组里的 id，还会按「双写不双读」留下永不读取的旧键。
@@ -58,6 +65,7 @@ export async function deleteTodoCascade(todoId: string): Promise<number> {
             })),
         ),
       ],
+      ...(cascadeLinkIds.length ? { cascadeLinkIds } : {}),
     }
 
     await tx.update('todos', todoId, {

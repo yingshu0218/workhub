@@ -30,6 +30,8 @@ export const SYNC_TABLES = [
   'attachments',
   'moduleConfigs',
   'customerGroups',
+  // 关联层（原子化一期 · docs/关联层设计方案-20261025.md）：原子间关联的唯一真源
+  'links',
 ] as const
 
 export type SyncTable = (typeof SYNC_TABLES)[number]
@@ -113,6 +115,8 @@ const JSON_FIELDS_BY_TABLE: Record<string, readonly string[]> = {
   projects: ['trashSnapshot'],
   customerGroups: ['includeTags', 'excludeTags', 'rules'],
   moduleConfigs: ['payload'],
+  // 关联层：meta 是对象型 json（不进 JSON_ARRAY_FIELDS_BY_TABLE，只做一层反序列化）
+  links: ['meta'],
 }
 
 /** 反序列化一层：字符串且本身是合法 JSON 时取解析结果，其余原样返回 */
