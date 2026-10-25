@@ -8,6 +8,8 @@
 ① ⚠️⚠️ **P1：凭证详情点「编辑」表单闪现即消失（真机验收发现）**——`TransactionFormDrawer` 渲染在详情 Drawer 的 children 里，而编辑态把 Drawer open 翻 false → usePresence 播完 200ms 出场动画整棵卸载子树，表单跟着消失（该结构 a7c4296/2026-09-06 引入即坏：当时 Drawer 是立即卸载、表单一帧都留不下；动效系统接入后退化为闪现 ~200ms）。既有测试全部直接渲染表单组件（open=true），恰好绕开这条链路。**修法**：表单与确认弹窗改为 Drawer **兄弟节点**、详情编辑期间保持打开（对齐 TodoDetailDrawer 模式与表单「elevated 叠层」注释的原意）。锁 `txnDetailEdit.test.tsx`：越过出场时长表单仍存活；变异（退回子树结构）恰红。⚠️ 该锁初版用同步 `getByRole`，全量并发下暴露真实竞态（按钮区在 txn liveQuery 解析后才渲染）→ 改 `findByRole` 轮询。
 ② **P2：回收站「N 条关联」计数漏 cascadeLinkIds（同场真机验收发现）**——`listTrash` 只数旧字段快照（snapshot.links），links 时代删除的客户显示「1 条关联」而实际恢复带回 4（字段回填 1 + link 复活 3；恢复提示本身正确，纯显示缺陷）。修法：计数 = 两类凭证之和（不重叠：前者回填字段、后者复活 link 记录）；锁在 `trash.test.ts`（字段快照 1 + cascadeLinkIds 1 = 2）；变异恰红。
 
+③ **T4-1 账本级联收口**：`deleteLedgerCascade`（repositories/index.ts）——「有流水的账本禁止删除」守卫从 UI 层收口到数据层（此前 FinancePage 预检是唯一防线，绕过 UI 的调用方会静默删掉带流水的账本；流水.ledgerId 强归属、解绑即失去账目口径）+ 名下 mention link 随删同事务墓碑化、快照 cascadeLinkIds 留档、恢复复活（清掉 2026-10-24 ⑩ 的「账本 mention 无级联」欠账）。FinancePage 改走 cascade（UI 预检保留用于确认前显示计数）。锁 3 条（守卫可操作错误+事务回滚 / mention 墓碑化+恢复复活 / 幂等静默）；变异两方向均恰红（拆守卫→①红；拆 cascade 钩子→②红）。
+
 > **验证**：tsc ✅ 0 错 / eslint ✅ 0 告警 / 全量 vitest（--maxWorkers=4）通过 / 测试站修复版已上线。
 
 **上一轮**：2026-10-25（**原子化二期：四族旧关联字段全量迁 links + 关联层工具面**，接同日一期 R1–R3）。**目标**：把 `docs/关联层设计方案-20261025.md` 规划的 Phase 2（attachments 归属 → notes.mentions → transactions 三组数组 → customer.relations）与 Phase 4（link 工具）一次做完 —— 用户指令「把你规划的所有内容一次做完」。Phase 3（集合层统一）按拍板「另裁」**不在本轮**。

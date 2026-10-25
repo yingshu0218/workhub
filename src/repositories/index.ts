@@ -258,6 +258,59 @@ export async function deleteHabitCascade(habitId: string): Promise<void> {
 }
 
 /**
+ * 账本级联删除：单事务覆盖 ledgers / transactions / links / syncQueue 四表。
+ *
+ * 边界（2026-10-26 T4 收口）：**有流水的账本禁止删除** —— 流水.ledgerId 是强归属
+ * （恢复侧 `pruneDeadRefs` 对「所属账本已删除」直接抛错），解绑流水会让账目失去归属口径；
+ * 该守卫此前只长在 FinancePage 的 UI 层，绕过 UI 的调用方（未来的 agent 删除工具）会静默
+ * 删掉带流水的账本 —— 收口到数据层，UI 预检保留（为了在确认前就显示计数）。
+ *
+ * 空账本删除才走到软删；名下的 mention link（笔记 @账本）随本事务墓碑化，
+ * 快照 `cascadeLinkIds` 留档、恢复时复活 —— 与其余 cascade 同口径，
+ * 修复「账本的 mention 仍无级联」欠账（PROGRESS 2026-10-24 ⑩ 遗留项）。
+ * 账本不存在 / 已删时静默返回（幂等）。
+ *
+ * @throws 可操作错误：名下仍有未删流水（附计数），事务整体回滚。
+ */
+export async function deleteLedgerCascade(ledgerId: string): Promise<void> {
+  const now = Date.now()
+  await storage.transaction(['ledgers', 'transactions', 'links', 'syncQueue'], async (tx) => {
+    const prevLedger = await tx.get<Ledger>('ledgers', ledgerId)
+    if (!prevLedger || prevLedger.deleted) return
+
+    const txnCount = (await tx.list<Transaction>('transactions')).filter(
+      (t) => t.ledgerId === ledgerId && !t.deleted,
+    ).length
+    if (txnCount > 0) {
+      throw new Error(`账本「${prevLedger.name}」下仍有 ${txnCount} 笔流水，无法删除`)
+    }
+
+    // 关联层钩子：指向账本的 mention link 墓碑化（ledgers 在 LinkEndpointTable 内）
+    const cascadeLinkIds = await cascadeSoftDeleteLinks(
+      tx,
+      [{ type: 'ledgers', id: ledgerId }],
+      now,
+    )
+    const trashSnapshot: TrashSnapshot = {
+      children: [],
+      links: [],
+      ...(cascadeLinkIds.length ? { cascadeLinkIds } : {}),
+    }
+
+    await tx.update('ledgers', ledgerId, {
+      deleted: 1,
+      updatedAt: now,
+      rev: prevLedger.rev + 1,
+      deletedAt: now,
+      restoredAt: undefined,
+      trashSnapshot,
+    })
+    await tx.enqueue('ledgers', ledgerId, 'delete', now)
+  })
+  storage.requestSync()
+}
+
+/**
  * 交易 + 附件存根原子落库：单 Dexie 事务覆盖 transactions / attachments / syncQueue 三表，
  * 任一步失败整体回滚（避免"交易已落库而附件写入失败"的半成品数据）。
  * 每条记录统一盖章 updatedAt/rev/deleted 并入同步队列，语义与 repository.put 一致。
@@ -490,8 +543,7 @@ export async function deleteCustomerCascade(customerId: string): Promise<void> {
        * 笔记 mention 已迁 links（v15）：指向该客户的 mention link 由下方
        * cascadeSoftDeleteLinks 统一墓碑化（快照 cascadeLinkIds 留档、恢复时复活），
        * 此前「剪 mentions 字段 + mode:'mention' 快照」路径整体退役。
-       * ⚠️ 账本的 mention 仍无级联：账本删除走 `ledgerRepo.softDelete`（FinancePage 内联），
-       * 没有 cascade 函数 —— 另一个议题，不在这里假装解决。
+       * 账本删除的 mention 级联已由 deleteLedgerCascade 收口（2026-10-26 T4）。
        */
 
       // 关联层钩子：指向客户及其沟通日志（子记录端点）的 link 一并墓碑化。
