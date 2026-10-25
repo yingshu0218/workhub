@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useCollection, useQuery } from '@/queries/hooks'
-import { customerRepo, newId } from '@/repositories'
-import type { Customer, CustomerRelation, RelationCategory, Transaction } from '@/db/types'
+import { newId, saveCustomer } from '@/repositories'
+import type { Customer, CustomerRelation, Link, RelationCategory, Transaction } from '@/db/types'
 import { RELATION_CATEGORIES } from '@/db/types'
 import { Button, Field, Modal, inputCls, useAutoFocus } from '@/design-system/ui'
 import { useFormReset } from '@/shared/useFormReset'
@@ -78,6 +78,37 @@ export default function CustomerFormDrawer({
   // 打开时聚焦姓名且不滚动页面
   const nameRef = useAutoFocus<HTMLInputElement>(open)
 
+  // 客户间关系已迁 links（v15）：编辑回填来自 relation link（canonical，任一端都算
+  // 「该客户的关系」）。查询异步就绪 → 打开时先按已知值回填、links 就绪后水合一次
+  //（hydratedRef 保证每个 customer 只水合一轮，不覆盖用户随后在表单里的增删）。
+  const relationLinksRaw = useQuery(
+    () =>
+      customer
+        ? db.links
+            .where('kind')
+            .equals('relation')
+            .filter((l) => !l.deleted && (l.fromId === customer.id || l.toId === customer.id))
+            .toArray()
+        : Promise.resolve([] as Link[]),
+    [customer?.id],
+  )
+  const relationView = useMemo(() => {
+    if (!customer || !relationLinksRaw) return undefined
+    return relationLinksRaw.map((l) => ({
+      targetId: l.fromId === customer.id ? l.toId : l.fromId,
+      label: typeof l.meta?.label === 'string' ? l.meta.label : '',
+      ...(l.meta?.category ? { category: l.meta.category } : {}),
+    }))
+  }, [customer, relationLinksRaw])
+  const hydratedRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (customer && relationView && hydratedRef.current !== customer.id) {
+      hydratedRef.current = customer.id
+      setRelations(relationView)
+    }
+    if (!customer) hydratedRef.current = null
+  }, [customer, relationView])
+
   // 打开时重置（收口 C-10：骨架走 useFormReset）
   const openKey = `${open}-${customer?.id ?? 'new'}`
   const { seedKey } = useFormReset(openKey, open, (isOpen) => {
@@ -91,7 +122,8 @@ export default function CustomerFormDrawer({
   setWechat(customer?.wechat ?? '')
   setEmail(customer?.email ?? '')
   setAddress(customer?.address ?? '')
-  setRelations(customer?.relations ?? [])
+  setRelations(relationView ?? [])
+  hydratedRef.current = null // 重开抽屉允许 links 就绪后重新水合
   setPendingTags('')
   setRelTargets([])
   setRelLabels([])
@@ -223,20 +255,23 @@ export default function CustomerFormDrawer({
     // 静默失败且零提示。对齐 TransactionFormDrawer 的做法，失败转为可读错误。
     try {
       if (customer) {
-        // 编辑：旧记录为基底，只覆盖表单字段（保留 createdAt 等）
-        await customerRepo.put({
-          ...customer,
-          name: name.trim(),
-          company: company.trim(),
-          title: title.trim(),
-          decisionLevel,
-          tags: settled.tags,
-          phone: phone.trim(),
-          wechat: wechat.trim(),
-          email: email.trim(),
-          address: address.trim(),
-          relations: settled.relations,
-        })
+        // 编辑：旧记录为基底，只覆盖表单字段（保留 createdAt 等）。
+        // 关系已迁 links（v15）：relations 作为选择集随 saveCustomer 与客户行同事务 diff 同步
+        await saveCustomer(
+          {
+            ...customer,
+            name: name.trim(),
+            company: company.trim(),
+            title: title.trim(),
+            decisionLevel,
+            tags: settled.tags,
+            phone: phone.trim(),
+            wechat: wechat.trim(),
+            email: email.trim(),
+            address: address.trim(),
+          },
+          settled.relations,
+        )
       } else {
         const record = {
           id: newId('cus'),
@@ -251,13 +286,13 @@ export default function CustomerFormDrawer({
           address: address.trim(),
           lastContactAt: Date.now(),
           createdAt: Date.now(),
-          // 新建即关联：与编辑同一份 relations 状态，随记录一并落库（Issue #132）
-          ...(settled.relations.length > 0 ? { relations: settled.relations } : {}),
         }
-        // 新建走「建档 + 关联初始化」同事务数据层函数，杜绝多步写半成品
+        // 新建走「建档 + 关联初始化」同事务数据层函数，杜绝多步写半成品；
+        // 新建即关联（Issue #132）：relations 选择集随建档同事务同步成 relation link
         await createCustomerWithInit(record as Customer, {
           openingLog: initLog,
           linkTransactionId: initTxnId || undefined,
+          relations: settled.relations,
         })
       }
       onClose()

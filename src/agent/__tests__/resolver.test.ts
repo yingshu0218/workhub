@@ -128,7 +128,7 @@ describe('§9.7 第 1 步注：归档映射一致性对照断言', () => {
 
 describe('消解投影白名单（§2.2）', () => {
   it('候选项只含 id/type/label/sub/archived，不含实体全字段与 relations', async () => {
-    await db.customers.put({ ...base, id: 'c1', name: '王五', company: '深蓝', title: '经理', decisionLevel: '决策人', tags: ['x'], phone: '138', wechat: 'w', email: 'e', address: 'a', lastContactAt: 1, createdAt: 0, relations: [{ id: 'r1', targetId: 'c2', label: '同事' }] })
+    await db.customers.put({ ...base, id: 'c1', name: '王五', company: '深蓝', title: '经理', decisionLevel: '决策人', tags: ['x'], phone: '138', wechat: 'w', email: 'e', address: 'a', lastContactAt: 1, createdAt: 0 })
     const r = await resolveEntity('王五', 'customer')
     expect(Object.keys(r.candidates[0]).sort()).toEqual(['id', 'label', 'sub', 'type'])
   })

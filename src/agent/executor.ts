@@ -931,12 +931,11 @@ export async function crm_deleteCustomer(input: unknown): Promise<AgentOpResult>
   const found = await mustExist<Customer>(tableRef('customers'), id, '客户')
   if (!found.ok) return err(found.error)
 
-  const [logs, relatedLinks, todos, projects, allCustomers] = await Promise.all([
+  const [logs, relatedLinks, todos, projects] = await Promise.all([
     storage.list<Interaction>('interactions'),
     storage.list<LinkRow>('links'),
     storage.list<Todo>('todos'),
     storage.list<Project>('projects'),
-    storage.list<Customer>('customers'),
   ])
   const sideEffects = {
     cascadedInteractions: logs.filter((l) => l.customerId === id && !l.deleted).length,
@@ -951,8 +950,9 @@ export async function crm_deleteCustomer(input: unknown): Promise<AgentOpResult>
     ).length,
     unlinkedTodos: todos.filter((t) => t.customerId === id && !t.deleted).length,
     unlinkedProjects: projects.filter((p) => p.customerId === id && !p.deleted).length,
-    clearedRelations: allCustomers.filter(
-      (c) => !c.deleted && c.id !== id && (c.relations ?? []).some((r) => r.targetId === id),
+    // relations 已迁 links（v15）：指向该客户（任一端）的 relation link 数（级联会一并墓碑化）
+    clearedRelations: relatedLinks.filter(
+      (l) => !l.deleted && l.kind === 'relation' && (l.fromId === id || l.toId === id),
     ).length,
   }
   await deleteCustomerCascade(id)

@@ -149,6 +149,29 @@ function newAttachment(id: string) {
   }
 }
 
+/** 播种一条客户间关系 link（v15 起关系在 links，canonical） */
+async function seedRelationLink(a: string, b: string, label: string) {
+  const { buildLinkId } = await import('@/repositories/linkId')
+  await db.links.put({
+    id: buildLinkId(
+      { type: 'customers', id: a },
+      { type: 'customers', id: b },
+      'relation',
+      { label },
+    ),
+    fromType: 'customers',
+    fromId: a < b ? a : b,
+    toType: 'customers',
+    toId: a < b ? b : a,
+    kind: 'relation',
+    meta: { label },
+    createdAt: 1,
+    updatedAt: 0,
+    rev: 0,
+    deleted: 0,
+  } as never)
+}
+
 /** 播种「流水 → 客户/项目/待办」related link（关联统计与解绑断言 v15 起都走 links） */
 async function seedRelatedLink(txnId: string, toType: 'customers' | 'projects' | 'todos', toId: string): Promise<void> {
   const { buildLinkId } = await import('@/repositories/linkId')
@@ -325,7 +348,8 @@ describe('fin_deleteTransaction', () => {
 describe('crm_deleteCustomer', () => {
   it('级联软删沟通日志、解绑流水/待办/项目、清关系，sideEffects 逐项如实', async () => {
     await customerRepo.put(newCustomer('c1'))
-    await customerRepo.put(newCustomer('c2', { name: '赵六', relations: [{ targetId: 'c1', label: '同事' } as never] }))
+    await customerRepo.put(newCustomer('c2', { name: '赵六' }))
+    await seedRelationLink('c1', 'c2', '同事')
     await db.interactions.bulkPut([
       { id: 'i1', customerId: 'c1', content: '电话', at: 1, updatedAt: 0, deleted: 0, rev: 0 },
       { id: 'i2', customerId: 'c1', content: '拜访', at: 2, updatedAt: 0, deleted: 0, rev: 0 },
@@ -369,7 +393,11 @@ describe('crm_deleteCustomer', () => {
     ).toBe(1)
     expect((await todoRepo.get('td1'))?.customerId).toBeUndefined()
     expect((await projectRepo.get('p1'))?.customerId).toBeUndefined()
-    expect((await customerRepo.get('c2'))?.relations).toEqual([])
+    const { buildLinkId: relId } = await import('@/repositories/linkId')
+    expect(
+      (await db.links.get(relId({ type: 'customers', id: 'c1' }, { type: 'customers', id: 'c2' }, 'relation', { label: '同事' })))
+        ?.deleted,
+    ).toBe(1)
   })
 })
 

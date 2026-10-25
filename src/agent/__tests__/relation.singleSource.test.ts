@@ -27,6 +27,19 @@ async function mkCustomer(name: string): Promise<string> {
   return (r.data as { customerId: string }).customerId
 }
 
+
+/** 该客户的 relation link 视图（v15 起关系在 links，canonical 一条记录两端可见） */
+async function relationsOf(customerId: string) {
+  const rows = (await db.links.where('kind').equals('relation').toArray()).filter(
+    (l) => !l.deleted && (l.fromId === customerId || l.toId === customerId),
+  )
+  return rows.map((l) => ({
+    id: l.id,
+    targetId: l.fromId === customerId ? l.toId : l.fromId,
+    label: (l.meta?.label as string | undefined) ?? '',
+  }))
+}
+
 describe('客户关系写入：单一来源 + 双向 + 幂等 + 入队', () => {
   it('① 双向落两侧（B 侧反向指回 A）', async () => {
     const a = await mkCustomer('关系甲')
@@ -34,12 +47,13 @@ describe('客户关系写入：单一来源 + 双向 + 幂等 + 入队', () => {
     const r = await crm_addRelation({ customerId: a, targetId: b, label: '转介绍人' })
     expect(r.ok, r.error).toBe(true)
 
-    const ca = await db.customers.get(a)
-    const cb = await db.customers.get(b)
-    expect(ca?.relations).toHaveLength(1)
-    expect(cb?.relations).toHaveLength(1)
-    expect(ca?.relations?.[0].targetId).toBe(b)
-    expect(cb?.relations?.[0].targetId).toBe(a)
+    // v15 起关系是 canonical link（一条记录），A/B 两侧视图各自展开一条
+    const ra = await relationsOf(a)
+    const rb = await relationsOf(b)
+    expect(ra).toHaveLength(1)
+    expect(rb).toHaveLength(1)
+    expect(ra[0].targetId).toBe(b)
+    expect(rb[0].targetId).toBe(a)
   })
 
   it('② 幂等：同 目标+语义 重复调用不重复写，deduped=true', async () => {
@@ -53,9 +67,9 @@ describe('客户关系写入：单一来源 + 双向 + 幂等 + 入队', () => {
     expect(second.ok, second.error).toBe(true)
     expect((second.data as { deduped: boolean }).deduped).toBe(true)
 
-    // 两侧都不因重复调用而多写
-    expect((await db.customers.get(a))?.relations).toHaveLength(1)
-    expect((await db.customers.get(b))?.relations).toHaveLength(1)
+    // 重复调用不产生第二条 link（确定性 id 幂等）
+    expect(await relationsOf(a)).toHaveLength(1)
+    expect(await relationsOf(b)).toHaveLength(1)
   })
 
   it('③ 落库即入同步队列（走仓储层，非裸写）', async () => {
@@ -68,9 +82,10 @@ describe('客户关系写入：单一来源 + 双向 + 幂等 + 入队', () => {
     const r = await crm_addRelation({ customerId: a, targetId: b, label: '上下游' })
     expect(r.ok, r.error).toBe(true)
 
-    const queued = await db.syncQueue.where('table').equals('customers').toArray()
-    const ids = queued.map((q) => q.recordId).sort()
-    expect(ids).toEqual([a, b].sort())
+    // v15 起关系写入的是 links 表的 upsert 队列（客户行不动，双侧镜像退役）
+    const queued = await db.syncQueue.where('table').equals('links').toArray()
+    expect(queued).toHaveLength(1)
+    expect(queued[0].op).toBe('upsert')
     // 关键：必须触发同步（此前裸写实现漏掉这一步，只能等 30s 心跳）
     expect(spy).toHaveBeenCalled()
     spy.mockRestore()

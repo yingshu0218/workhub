@@ -55,7 +55,6 @@ describe('回收站：客户级联删除 → 恢复重建关联', () => {
         name: '乙客户',
         company: '乙公司',
         tags: [],
-        relations: [{ id: 'rel1', targetId: 'c1', label: '转介绍', category: 'other' }],
         createdAt: 1,
         ...meta(),
       } as never,
@@ -103,12 +102,34 @@ describe('回收站：客户级联删除 → 恢复重建关联', () => {
     )
 
     await seedRelated('t1', 'customers', 'c1')
+    // c1↔c2 的客户关系（v15 起为 relation link）：删除时一并墓碑化，恢复时复活
+    const { buildLinkId } = await import('@/repositories/linkId')
+    const relationLinkId = buildLinkId(
+      { type: 'customers', id: 'c1' },
+      { type: 'customers', id: 'c2' },
+      'relation',
+      { label: '同事' },
+    )
+    await db.links.put({
+      id: relationLinkId,
+      fromType: 'customers',
+      fromId: 'c1',
+      toType: 'customers',
+      toId: 'c2',
+      kind: 'relation',
+      meta: { label: '同事' },
+      createdAt: 1,
+      updatedAt: 0,
+      rev: 0,
+      deleted: 0,
+    } as never)
     await deleteCustomerCascade('c1')
 
     const deleted = (await db.customers.get('c1')) as unknown as Record<string, unknown>
     expect(deleted.deleted).toBe(1)
     expect((deleted.trashSnapshot as { children: unknown[] }).children).toHaveLength(1)
-    expect(((await db.customers.get('c2')) as never as { relations: unknown[] }).relations).toEqual([])
+    // 关系 link 随级联墓碑化（双侧镜像/数组清扫已退役）
+    expect((await db.links.get(relationLinkId))!.deleted).toBe(1)
     expect(
       ((await db.links.toArray()).filter((l) => l.kind === 'related' && l.fromId === 't1' && !l.deleted).map((l) => l.toId)),
     ).toEqual([])
@@ -116,12 +137,12 @@ describe('回收站：客户级联删除 → 恢复重建关联', () => {
     const result = await restoreTrashRecord('customers', 'c1')
 
     expect(result.restored).toBe(2) // 客户 + 1 条沟通日志
-    // 旧字段级回填：待办 + 项目 + c2 关系（流水 customerIds 的 append 项已随 v15 迁 links 退役）
-    expect(result.rebuiltLinks).toBe(3)
-    // 关联层：被级联墓碑化的 related link 随客户复活（两端实体都存活）
-    expect(result.revivedCascadeLinks).toBe(1)
+    // 旧字段级回填：待办 + 项目（relations/customerIds 的 append 项已随 v15 迁 links 退役）
+    expect(result.rebuiltLinks).toBe(2)
+    // 关联层：related（流水↔客户）+ relation（客户↔客户）两条 link 随客户复活
+    expect(result.revivedCascadeLinks).toBe(2)
     expect(((await db.customers.get('c1')) as never as { deleted: number }).deleted).toBe(0)
-    expect(((await db.customers.get('c2')) as never as { relations: unknown[] }).relations).toHaveLength(1)
+    expect((await db.links.get(relationLinkId))!.deleted).toBe(0)
     expect(((await db.interactions.get('i1')) as never as { deleted: number }).deleted).toBe(0)
     expect(
       (

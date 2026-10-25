@@ -157,16 +157,19 @@ describe('CRM / Todo 工具面', () => {
     expect(c).not.toHaveProperty('tier')
   })
 
-  it('relations 双向落两侧', async () => {
+  it('relations 建为 canonical link（A/B 两侧视图各一条）', async () => {
     const a = await crm_createCustomer({ name: '甲' })
     const b = await crm_createCustomer({ name: '乙' })
     const ra = await crm_addRelation({ customerId: (a.data as { customerId: string }).customerId, targetId: (b.data as { customerId: string }).customerId, label: '转介绍人' })
     expect(ra.ok).toBe(true)
-    const ca = await db.customers.get((a.data as { customerId: string }).customerId)
-    const cb = await db.customers.get((b.data as { customerId: string }).customerId)
-    expect(ca?.relations).toHaveLength(1)
-    expect(cb?.relations).toHaveLength(1)
-    expect(cb?.relations?.[0].targetId).toBe(ca?.id)
+    const idA = (a.data as { customerId: string }).customerId
+    const idB = (b.data as { customerId: string }).customerId
+    const rows = (await db.links.where('kind').equals('relation').toArray()).filter(
+      (l) => !l.deleted,
+    )
+    expect(rows).toHaveLength(1) // canonical：一条记录，不是双侧两条
+    expect(rows[0].fromId < rows[0].toId ? rows[0].fromId : rows[0].toId).toBeTruthy()
+    expect([rows[0].fromId, rows[0].toId].sort()).toEqual([idA, idB].sort())
   })
 
   it('完成待办走 toggleTodoDone：status+completedAt 成对写', async () => {

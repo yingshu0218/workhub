@@ -54,12 +54,7 @@ export async function seedIfEmpty(): Promise<boolean> {
       address: '厦门市软件园二期',
       lastContactAt: now - 2 * 3600_000,
       createdAt: now - 90 * 86400_000,
-      // 演示可见关系（Issue #123）：三人都与「我」连成星型，且互相之间有关系线，
-      // 画布上不会出现孤立点；每条关系带归类维度（项目/财务/人物）供着色与筛选演示
-      relations: [
-        { targetId: 'c2', label: '项目合作', category: 'project' },
-        { targetId: 'c3', label: '同行伙伴', category: 'person' },
-      ],
+      // 演示关系（Issue #123）已迁 links：见下方 links 数组的 kind='relation' 条目
       ...meta(),
     },
     {
@@ -75,10 +70,7 @@ export async function seedIfEmpty(): Promise<boolean> {
       address: '厦门市湖里区',
       lastContactAt: now - 3 * 86400_000,
       createdAt: now - 45 * 86400_000,
-      relations: [
-        { targetId: 'c1', label: '项目合作', category: 'project' },
-        { targetId: 'c3', label: '转介绍人', category: 'person' },
-      ],
+
       ...meta(),
     },
     {
@@ -95,10 +87,7 @@ export async function seedIfEmpty(): Promise<boolean> {
       lastContactAt: now - 21 * 86400_000,
       createdAt: now - 120 * 86400_000,
       // 双向补全（Issue #123）：与 c1/c2 互指，连线标签聚合后完整呈现
-      relations: [
-        { targetId: 'c1', label: '同行伙伴', category: 'person' },
-        { targetId: 'c2', label: '转介绍人', category: 'person' },
-      ],
+
       ...meta(),
     },
   ]
@@ -285,6 +274,55 @@ export async function seedIfEmpty(): Promise<boolean> {
       toId: 'c2',
       kind: 'related',
       createdAt: now - 2 * 86400_000,
+      ...meta(),
+    },
+    // 演示客户关系（Issue #123，v15 起为 kind='relation' link；与 backfillDemoRelations 同源）
+    {
+      id: buildLinkId(
+        { type: 'customers', id: 'c1' },
+        { type: 'customers', id: 'c2' },
+        'relation',
+        { label: '项目合作', category: 'project' },
+      ),
+      fromType: 'customers',
+      fromId: 'c1',
+      toType: 'customers',
+      toId: 'c2',
+      kind: 'relation',
+      meta: { label: '项目合作', category: 'project' },
+      createdAt: now - 90 * 86400_000,
+      ...meta(),
+    },
+    {
+      id: buildLinkId(
+        { type: 'customers', id: 'c2' },
+        { type: 'customers', id: 'c3' },
+        'relation',
+        { label: '转介绍人', category: 'person' },
+      ),
+      fromType: 'customers',
+      fromId: 'c2',
+      toType: 'customers',
+      toId: 'c3',
+      kind: 'relation',
+      meta: { label: '转介绍人', category: 'person' },
+      createdAt: now - 90 * 86400_000,
+      ...meta(),
+    },
+    {
+      id: buildLinkId(
+        { type: 'customers', id: 'c1' },
+        { type: 'customers', id: 'c3' },
+        'relation',
+        { label: '同行伙伴', category: 'person' },
+      ),
+      fromType: 'customers',
+      fromId: 'c1',
+      toType: 'customers',
+      toId: 'c3',
+      kind: 'relation',
+      meta: { label: '同行伙伴', category: 'person' },
+      createdAt: now - 90 * 86400_000,
       ...meta(),
     },
   ]
@@ -506,7 +544,8 @@ export const SEED_DEMO_CUSTOMER_IDS = ['c1', 'c2', 'c3'] as const
 export async function backfillDemoRelations(): Promise<number> {
   const rows = await Promise.all(SEED_DEMO_CUSTOMER_IDS.map((id) => db.customers.get(id)))
   if (rows.some((c) => !c || c.deleted)) return 0
-  if (rows.some((c) => (c!.relations ?? []).length > 0)) return 0
+  const existing = await db.links.where('kind').equals('relation').toArray()
+  if (existing.some((l) => !l.deleted)) return 0
 
   // 与 seedIfEmpty 里的演示关系**同源**：同一对客户、同一语义、同一归类
   const [c1, c2, c3] = SEED_DEMO_CUSTOMER_IDS

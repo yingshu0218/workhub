@@ -10,7 +10,6 @@ import {
 // 归一化逻辑但不能拖 Dexie）——本文件消费，不再各自持有副本。
 import {
   isTombstone,
-  rawJsonFromRemote,
   reviveRemoteJsonFields,
   stripPbMeta,
 } from './remoteNormalize'
@@ -18,7 +17,8 @@ import {
 /**
  * 远端记录 → 本地 LWW 合并（从 pocketbaseAdapter 抽出，Issue #130）
  *
- * 抽出动机：合并策略（本地未推送编辑保护 / relations 并集 / 待办完成态本地优先）
+ * 抽出动机：合并策略（本地未推送编辑保护 / 待办完成态本地优先；relations 并集已随
+ * 关联层 Phase 2 退役 —— 关联迁 links 后按条 LWW，整体覆盖不再可能丢关系）
  * 是纯数据逻辑，与网络层无关；独立成模块后可被单测直接覆盖（原实现被
  * readSyncSettings / login / fetch 等网络依赖包裹，无法在 node 环境验证）。
  *
@@ -126,51 +126,12 @@ export async function buildPendingUpsertIndex(): Promise<Set<string>> {
   return new Set(rows.map((q) => `${q.table}:${q.recordId}`))
 }
 
-/**
- * 需要落库为数组的 json 字段（服务端可能返回 JSON 字符串）。
- * 只用于「远端缺该字段时是否兜底」的判断，不再承担反序列化职责 —— 见 rawJsonFromRemote。
- *
- * Issue #140 补充：transactions 的 `customerIds/todoIds/projectIds` 同为 json 数组字段 ——
- * 服务端集合未升级时这些键根本不会回来，本地数组会被整体覆盖丢掉（与 relations 同源的静默丢数据），
- * 故必须并入本表走「远端可解析才覆盖、否则保留本地」的收口逻辑。
- */
-const JSON_ARRAY_FIELDS = ['tags', 'relations', 'customerIds', 'todoIds', 'projectIds'] as const
-
 // JSON_FIELDS_BY_TABLE / JSON_ARRAY_FIELDS_BY_TABLE / parseOnce / toSafeArrayField /
 // reviveRemoteJsonFields 已收口 `./remoteNormalize`（单一事实源，两宿主共用）。
-
-/**
- * json 字段（customers.tags / customers.relations / customers.intimacy 等）归一化为数组，
- * 兼容服务端返回字符串或对象；空字符串 / null / 解析失败一律视为「无值」（null）。
- */
-function toArrayField(v: unknown): unknown[] | null {
-  const parsed = rawJsonFromRemote(v)
-  return Array.isArray(parsed) ? parsed : null
-}
 
 /** 值是否「有内容」：null/undefined/空串视为无值（服务端空 json 字段即此形态） */
 function hasJsonValue(v: unknown): boolean {
   return v !== undefined && v !== null && v !== ''
-}
-
-/** 关系条目稳定标识：优先条目 id，旧数据按 目标::语义 兜底（与 CustomerFormDrawer.relKey 同口径） */
-function relationKey(r: Record<string, unknown>): string {
-  const id = typeof r.id === 'string' && r.id ? r.id : ''
-  if (id) return id
-  return `${String(r.targetId ?? '')}::${String(r.label ?? '')}`
-}
-
-/**
- * customers.relations 并集合并（Issue #130）：
- * 服务端记录先到、本地编辑尚未推送成功时，关系数组按「条目 id」取并集而非整体覆盖 ——
- * 既保住本地新增的关系，也保住其他设备新增的关系，用户保存的编辑不再被回滚。
- */
-function unionRelations(localVal: unknown, remoteVal: unknown): unknown {
-  const local = toArrayField(localVal) ?? []
-  const remote = toArrayField(remoteVal) ?? []
-  const seen = new Set(remote.map((r) => relationKey(r as Record<string, unknown>)))
-  const extra = local.filter((r) => !seen.has(relationKey(r as Record<string, unknown>)))
-  return [...remote, ...extra]
 }
 
 // ─────────────────────────── LWW 合并（远端 → 本地，盖 rev 不入队） ───────────────────────────
@@ -309,20 +270,11 @@ export async function mergeRemoteRecord(
     // （`revived` 已在函数开头按表声明还原，这里直接消费 `revived[key]` 即可，不再需要逐表判定）。
     // notes / todos / customerGroups 等表此前既没有声明也没有本分支收口，属同一形状的漏网。
     if (table === 'customers') {
-      for (const key of JSON_ARRAY_FIELDS as readonly string[]) {
+      // relations 的并集合并已随关联层 Phase 2（v15）退役：关系本体是独立 link 记录
+      // （各自 LWW + 确定性 id 合流），远端 customers 行不再携带 relations 键
+      // （旧键由 MIGRATED 流程剥除 + 派生）。此处只保护仍在行上的 tags 数组。
+      for (const key of ['tags'] as const) {
         const localVal = (local as Record<string, unknown>)[key]
-        if (key === 'relations') {
-          const remoteRels = revived[key]
-          if (remoteRels !== undefined) {
-            merged[key] = unionRelations(localVal, remoteRels)
-          } else if (hasJsonValue(localVal)) {
-            merged[key] = localVal
-          } else {
-            delete merged[key]
-          }
-          continue
-        }
-        // 其余数组字段：远端取值「有内容」才并入，否则保留本地（本地未推送编辑优先）
         const remoteVal = revived[key]
         if (hasJsonValue(remoteVal)) merged[key] = remoteVal
         else if (!hasJsonValue(localVal)) delete merged[key]
@@ -402,21 +354,6 @@ export async function mergeRemoteRecord(
     record.convertedTo = local!.convertedTo
     record.convertedAt = local!.convertedAt
     record.convertedVia = local!.convertedVia
-  }
-
-  // 客户关系并集合并（Issue #130）：relations 是弱引用数组，
-  // 远端先到 + 本地编辑未推送成功时整体覆盖会丢新增关系；
-  // 服务端集合也可能没有 relations 字段（Schema 未升级），此时同样不能丢本地关系。
-  if (table === 'customers') {
-    const localRels = (local as { relations?: unknown } | undefined)?.relations
-    const remoteRels = (revived as { relations?: unknown }).relations
-    if (hasJsonValue(remoteRels)) {
-      const merged = unionRelations(localRels, remoteRels)
-      record.relations = merged
-    } else if (hasJsonValue(localRels)) {
-      // 服务端 Schema 缺 relations 字段（collections.json 未导入/未升级）或返回空值：保留本地
-      record.relations = localRels
-    }
   }
 
   await attachBlobIfNeeded(table, remote, record, loadAttachmentBlob)

@@ -118,20 +118,40 @@ export function useCanvasGraph(): CanvasGraph {
     for (const l of mentionLinks) {
       if (!mentionByNote.has(l.fromId)) mentionByNote.set(l.fromId, l.toId)
     }
-    // 悬挂关系计数：独立于下面那份投影数一遍（不改投影本身，diff 最小且口径一目了然）。
-    // 投影里的 filter 是「防御」，这里是「可见性」——两者必须同源，改一处必须改另一处。
-    const danglingRelations = customers.reduce(
-      (n, c) => n + (c.relations ?? []).filter((r) => !customerIds.has(r.targetId)).length,
-      0,
+    // 客户间关系已迁 links（v15，kind='relation' canonical）：按任一端归组出「各客户的关系视图」
+    const relationLinks = (await db.links.where('kind').equals('relation').toArray()).filter(
+      (l) => !l.deleted,
     )
+    const relationsByCustomer = new Map<string, { targetId: string; label: string; category?: RelationCategory }[]>()
+    for (const l of relationLinks) {
+      if (!customerIds.has(l.fromId) || !customerIds.has(l.toId)) continue
+      const push = (owner: string, target: string) => {
+        const list = relationsByCustomer.get(owner) ?? []
+        list.push({
+          targetId: target,
+          label: typeof l.meta?.label === 'string' ? l.meta.label : '',
+          ...(l.meta?.category ? { category: l.meta.category } : {}),
+        })
+        relationsByCustomer.set(owner, list)
+      }
+      push(l.fromId, l.toId)
+      push(l.toId, l.fromId) // canonical 一条记录，两侧视图各自展开
+    }
+    // 悬挂关系：写入端已校验端点存活、级联会墓碑化，结构上不可产生；此处仍逐条防御
+    //（手工改库/异常数据），口径与投影过滤同源 —— 改一处必须改另一处。
+    const aliveRelationLinks = relationLinks.filter(
+      (l) => customerIds.has(l.fromId) && customerIds.has(l.toId),
+    )
+    const danglingRelations = relationLinks.length - aliveRelationLinks.length
     return {
       customers: customers.map((c) => ({
         id: c.id,
         name: c.name,
         company: c.company,
         lastContactAt: c.lastContactAt,
-        // 悬挂防御：只带出指向现存客户的 relations（删除级联已解绑，这里再挡一层历史脏数据）
-        relations: (c.relations ?? []).filter((r) => customerIds.has(r.targetId)),
+        // 双侧视图：canonical link 在两端各自展开成「我的关系」条目（原数组口径的形状不变，
+        // 下游 buildGraph 纯函数层零改动）
+        relations: relationsByCustomer.get(c.id) ?? [],
         intimacy: c.intimacy
           ? { level: c.intimacy.level, note: c.intimacy.note, updatedAt: c.intimacy.updatedAt }
           : undefined,

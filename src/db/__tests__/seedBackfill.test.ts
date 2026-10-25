@@ -12,7 +12,7 @@ import type { Customer } from '../types'
  * 或者库里不是这份种子数据，一个字节都不许动。
  */
 
-function cust(id: string, relations: Customer['relations'] = []): Customer {
+function cust(id: string): Customer {
   return {
     id,
     name: `客户${id}`,
@@ -26,15 +26,27 @@ function cust(id: string, relations: Customer['relations'] = []): Customer {
     address: '',
     lastContactAt: 0,
     createdAt: 0,
-    relations,
     updatedAt: 0,
     deleted: 0,
     rev: 0,
   }
 }
 
+async function relationCountOf(customerId: string): Promise<number> {
+  return (
+    await db.links.where('kind').equals('relation').toArray()
+  ).filter((l) => !l.deleted && (l.fromId === customerId || l.toId === customerId)).length
+}
+
+async function relationLabelsOf(customerId: string): Promise<{ label: string; category?: string }[]> {
+  return (await db.links.where('kind').equals('relation').toArray())
+    .filter((l) => !l.deleted && (l.fromId === customerId || l.toId === customerId))
+    .map((l) => ({ label: (l.meta?.label as string | undefined) ?? '', category: l.meta?.category }))
+}
+
 beforeEach(async () => {
   await db.customers.clear()
+  await db.links.clear()
 })
 
 describe('backfillDemoRelations：老本地库的演示关系自愈', () => {
@@ -42,31 +54,47 @@ describe('backfillDemoRelations：老本地库的演示关系自愈', () => {
     await db.customers.bulkPut([cust('c1'), cust('c2'), cust('c3')])
     expect(await backfillDemoRelations()).toBe(3)
 
-    const rows = await Promise.all(['c1', 'c2', 'c3'].map((id) => db.customers.get(id)))
-    expect(rows.map((r) => (r!.relations ?? []).length)).toEqual([2, 2, 2])
+    // v15 起关系在 links：三角 = 3 条 canonical link，每人两端各见 2 条视图
+    expect(await db.links.where('kind').equals('relation').count()).toBe(3)
+    expect(await relationCountOf('c1')).toBe(2)
+    expect(await relationCountOf('c2')).toBe(2)
+    expect(await relationCountOf('c3')).toBe(2)
     // 语义与归类与种子里的一致（不是随手编的）
-    const c1 = rows[0]!
-    expect(c1.relations!.map((r) => r.label).sort()).toEqual(['同行伙伴', '项目合作'])
-    expect(c1.relations!.every((r) => !!r.category)).toBe(true)
+    expect((await relationLabelsOf('c1')).map((r) => r.label).sort()).toEqual(['同行伙伴', '项目合作'])
+    expect((await relationLabelsOf('c1')).every((r) => !!r.category)).toBe(true)
   })
 
   it('幂等：补齐后再跑一次返回 0（不重复写）', async () => {
     await db.customers.bulkPut([cust('c1'), cust('c2'), cust('c3')])
     expect(await backfillDemoRelations()).toBe(3)
     expect(await backfillDemoRelations()).toBe(0)
-    expect((await db.customers.get('c1'))!.relations).toHaveLength(2)
+    expect(await relationCountOf('c1')).toBe(2)
   })
 
   it('用户自己管过关系（任一条存在）→ 绝不掺和，也不覆盖', async () => {
-    await db.customers.bulkPut([
-      cust('c1', [{ targetId: 'c3', label: '我自己设的' }]),
-      cust('c2'),
-      cust('c3'),
-    ])
+    await db.customers.bulkPut([cust('c1'), cust('c2'), cust('c3')])
+    const { buildLinkId } = await import('@/repositories/linkId')
+    await db.links.put({
+      id: buildLinkId(
+        { type: 'customers', id: 'c1' },
+        { type: 'customers', id: 'c3' },
+        'relation',
+        { label: '我自己设的' },
+      ),
+      fromType: 'customers',
+      fromId: 'c1',
+      toType: 'customers',
+      toId: 'c3',
+      kind: 'relation',
+      meta: { label: '我自己设的' },
+      createdAt: 1,
+      updatedAt: 0,
+      rev: 0,
+      deleted: 0,
+    } as never)
     expect(await backfillDemoRelations()).toBe(0)
-    const c1 = await db.customers.get('c1')
-    expect(c1!.relations).toHaveLength(1)
-    expect(c1!.relations![0]!.label).toBe('我自己设的')
+    expect(await db.links.where('kind').equals('relation').count()).toBe(1)
+    expect((await relationLabelsOf('c1'))[0].label).toBe('我自己设的')
   })
 
   it('不是这份种子数据（缺 id / 已删除）→ 不动', async () => {

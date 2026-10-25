@@ -15,6 +15,7 @@ import type {
   Workspace,
   ModuleConfig,
   RelationCategory,
+  CustomerRelation,
   Project,
   ProjectMilestone,
 } from '@/db/types'
@@ -22,7 +23,16 @@ import type { SyncMeta, TrashSnapshot } from '@/db/types'
 import type { Attachment } from '@/db/db'
 import type { Link } from '@/db/types'
 import { eventBus } from '@/shared/eventBus'
-import { cascadeSoftDeleteLinks, putLinkTx, syncMentionLinks, syncRelatedLinks } from './links'
+import {
+  cascadeSoftDeleteLinks,
+  putLinkTx,
+  syncMentionLinks,
+  syncRelatedLinks,
+  syncRelationLinks,
+  linkAtoms,
+  linkRepo,
+} from './links'
+import { buildLinkId } from './linkId'
 import type { TxnRelatedInput } from './links'
 import { extractMentions } from '@/modules/notes/mentionParse'
 
@@ -374,15 +384,14 @@ export async function saveInteractionAndTouchCustomer(
 }
 
 /**
- * 客户关系新增：**双向落两侧**（v0.2 裁决——存储只在各自 `relations[]` 内保存一条，
- * 客户详情页只读自己的 relations，故 A/B 两侧都要写，B 侧才看得到）。
+ * 客户关系新增（关联层 Phase 2 · v15 起实现为 kind='relation' link）。
  *
- * 单事务覆盖 customers + syncQueue；任一步失败整体回滚。
- * 单一来源：UI（CustomerFormDrawer 编辑态）与 agentOps（crm_addRelation）**都经此**，
- * 避免「各写一份盖章/入队」漂移（此前 agent 侧手写 update+syncQueue.add，
- * 漏了 storage.requestSync()，只能等 30s 心跳才推送，且与 repository 盖章口径两套实现）。
+ * 历史口径「双向落两侧 relations[]」（v0.2）已退役：canonical 存储（两端 id 字典序）
+ * 下一条 link 就是这对客户的这条语义关系，A/B 任一侧、任一设备发起都操作同一条记录。
+ * 单一来源不变：UI（CustomerFormDrawer 经 saveCustomer/createCustomerWithInit 的
+ * relations 选择集）与 agentOps（crm_addRelation）都经本层，不各写一份盖章/入队。
  *
- * @returns `{ relationId, deduped }`；同 `目标 + 语义` 已存在时幂等返回既有关系（deduped=true）
+ * @returns `{ relationId, deduped }`；同 `目标 + 语义` 已有活 link 时幂等返回（deduped=true）
  */
 export async function addCustomerRelation(
   customerId: string,
@@ -391,51 +400,56 @@ export async function addCustomerRelation(
   category?: RelationCategory,
 ): Promise<{ relationId: string; deduped: boolean }> {
   if (customerId === targetId) throw new Error('addCustomerRelation: 不能与自身建立关系')
+  // 关联层 Phase 2（v15）：关系 = kind='relation' link（canonical 排序 + meta{label,category}），
+  // 双侧镜像数组退役 —— A/B 任一侧看到的是同一条记录，多端并发天然合流。
+  const id = buildLinkId(
+    { type: 'customers', id: customerId },
+    { type: 'customers', id: targetId },
+    'relation',
+    { label, ...(category ? { category } : {}) },
+  )
+  // 同 目标+语义 判重（与 UI 同款纪律，Issue #39）：已有活 link 即幂等返回，不重复盖章
+  const prev = await linkRepo.get(id)
+  if (prev) return { relationId: id, deduped: true }
+  // linkAtoms 前置校验两端客户存活（幽灵纪律③），违例抛可操作错误
+  await linkAtoms({
+    from: { type: 'customers', id: customerId },
+    to: { type: 'customers', id: targetId },
+    kind: 'relation',
+    meta: { label, ...(category ? { category } : {}) },
+  })
+  return { relationId: id, deduped: false }
+}
+
+/**
+ * 客户保存 + 关系选择集原子落库（关联层 Phase 2）：客户行与 relation links 单事务，
+ * 盖章/入队与 repository.put 同款口径。UI（CustomerFormDrawer 编辑态）走此，
+ * 禁止再整记录展开携带 relations 字段（该字段已随 v15 迁 links）。
+ */
+export async function saveCustomer(
+  customer: PutInput<Customer>,
+  relations?: CustomerRelation[],
+): Promise<string> {
   const now = Date.now()
-  let relationId = ''
-  let deduped = false
-  await storage.transaction(['customers', 'syncQueue'], async (tx) => {
-    const [a, b] = await Promise.all([
-      tx.get<Customer>('customers', customerId),
-      tx.get<Customer>('customers', targetId),
-    ])
-    if (!a || a.deleted) throw new Error(`addCustomerRelation: customer ${customerId} not found`)
-    if (!b || b.deleted) throw new Error(`addCustomerRelation: customer ${targetId} not found`)
-
-    // 同 目标+语义 判重（与 UI 同款纪律，Issue #39）：命中即幂等返回，不重复写
-    const aRels = a.relations ?? []
-    const existing = aRels.find((r) => r.targetId === targetId && r.label === label)
-    if (existing) {
-      // 旧数据可能无 id（Issue #39 前落库的条目）：有则复用，无则按目标+语义回填一个稳定 id
-      relationId = existing.id ?? newId('rel')
-      deduped = true
-      return
+  await storage.transaction(['customers', 'links', 'syncQueue'], async (tx) => {
+    const prev = await tx.get<Customer>('customers', customer.id)
+    const reviving = prev?.deleted === 1
+    const restoredAt = reviving ? now : (customer.restoredAt ?? prev?.restoredAt)
+    await tx.put('customers', {
+      ...customer,
+      updatedAt: now,
+      rev: (prev?.rev ?? 0) + 1,
+      deleted: 0 as const,
+      deletedAt: undefined,
+      ...(restoredAt ? { restoredAt } : {}),
+    } as Customer)
+    await tx.enqueue('customers', customer.id, 'upsert', now)
+    if (relations) {
+      await syncRelationLinks(tx, customer.id, relations, now)
     }
-
-    relationId = newId('rel')
-    await tx.update('customers', a.id, {
-      relations: [
-        ...aRels,
-        { id: relationId, targetId, label, ...(category ? { category } : {}) },
-      ],
-      updatedAt: now,
-      rev: a.rev + 1,
-    })
-    await tx.enqueue('customers', a.id, 'upsert', now)
-
-    const bRels = b.relations ?? []
-    await tx.update('customers', b.id, {
-      // B 侧反向写回 A：无该关系才写（防重复调用把 B 侧写重）
-      relations: bRels.some((r) => r.targetId === a.id && r.label === label)
-        ? bRels
-        : [...bRels, { id: newId('rel'), targetId: a.id, label, ...(category ? { category } : {}) }],
-      updatedAt: now,
-      rev: b.rev + 1,
-    })
-    await tx.enqueue('customers', b.id, 'upsert', now)
   })
   storage.requestSync()
-  return { relationId, deduped }
+  return customer.id
 }
 
 /**
@@ -465,15 +479,9 @@ export async function deleteCustomerCascade(customerId: string): Promise<void> {
       const todos = (await tx.list<Todo>('todos')).filter(
         (t) => t.customerId === customerId && !t.deleted,
       )
-      // 解绑其它客户 relations 中指向被删者的条目（双向弱引用，Issue #22）
-      const allCustomers = await tx.list<Customer>('customers')
-      const relationOwners = allCustomers
-        .filter((other) => !other.deleted && other.id !== customerId)
-        .map((other) => ({
-          other,
-          rels: (other.relations ?? []).filter((r) => r.targetId === customerId),
-        }))
-        .filter((x) => x.rels.length > 0)
+      // relations 已迁 links（v15）：指向该客户的 relation link 由 cascadeSoftDeleteLinks
+      // 统一墓碑化（canonical 一条记录，无「双侧清扫」），快照留档、恢复复活 —— 退役
+      // 原「遍历全部客户剪 relations 数组 + mode:'relation' 快照」路径。
       // 解绑名下项目：项目不随客户消失，只清挂靠关系（弱引用语义，画布/CRM 下钻不悬挂）
       const projects = (await tx.list<import('@/db/types').Project>('projects')).filter(
         (p) => p.customerId === customerId && !p.deleted,
@@ -514,15 +522,6 @@ export async function deleteCustomerCascade(customerId: string): Promise<void> {
             mode: 'set' as const,
             value: customerId,
           })),
-          ...relationOwners.flatMap(({ other, rels }) =>
-            rels.map((rel) => ({
-              table: 'customers' as const,
-              id: other.id,
-              field: 'relations',
-              mode: 'relation' as const,
-              value: rel,
-            })),
-          ),
         ],
         ...(cascadeLinkIds.length ? { cascadeLinkIds } : {}),
       }
@@ -558,14 +557,6 @@ export async function deleteCustomerCascade(customerId: string): Promise<void> {
         await tx.enqueue('todos', todo.id, 'upsert', now)
       }
 
-      for (const { other } of relationOwners) {
-        await tx.update('customers', other.id, {
-          relations: (other.relations ?? []).filter((r) => r.targetId !== customerId),
-          updatedAt: now,
-          rev: other.rev + 1,
-        })
-        await tx.enqueue('customers', other.id, 'upsert', now)
-      }
 
       for (const proj of projects) {
         await tx.update('projects', proj.id, {
@@ -591,8 +582,10 @@ export async function deleteCustomerCascade(customerId: string): Promise<void> {
 export interface CustomerInitOptions {
   /** 创建一条 opening 沟通日志 */
   openingLog?: boolean
-  /** 关联已有交易：把该交易的 customerId 指向新客户 */
+  /** 关联已有交易：建「流水 → 新客户」related link */
   linkTransactionId?: string
+  /** 建档即建关系（v15 起为 relation link 选择集，随建档同事务 diff 同步） */
+  relations?: CustomerRelation[]
 }
 
 export async function createCustomerWithInit(
@@ -611,6 +604,10 @@ export async function createCustomerWithInit(
         deleted: 0 as const,
       } as Customer)
       await tx.enqueue('customers', customer.id, 'upsert', now)
+
+      if (opts.relations?.length) {
+        await syncRelationLinks(tx, customer.id, opts.relations, now)
+      }
 
       if (opts.openingLog) {
         const itx = {

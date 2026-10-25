@@ -20,11 +20,7 @@ import { db } from '@/db/db'
 import type { Customer } from '@/db/types'
 import { useCanvasGraph } from '../hooks'
 
-function customer(over: {
-  id: string
-  name: string
-  relations?: Customer['relations']
-}): Customer {
+function customer(over: { id: string; name: string }): Customer {
   return {
     id: over.id,
     name: over.name,
@@ -38,31 +34,52 @@ function customer(over: {
     address: '',
     lastContactAt: 0,
     createdAt: 0,
-    relations: over.relations,
     updatedAt: 0,
     deleted: 0,
     rev: 0,
   }
 }
 
+/**
+ * 播种一条客户间关系 link（v15 起关系在 links，canonical）。target 可以不存在 ——
+ * 这正是本文件要锁的「悬挂防御」：写入端会校验端点，但手工改库/异常数据仍可能造出脏 link。
+ */
+async function seedRelation(a: string, b: string, label: string) {
+  const { buildLinkId } = await import('@/repositories/linkId')
+  await db.links.put({
+    id: buildLinkId(
+      { type: 'customers', id: a },
+      { type: 'customers', id: b },
+      'relation',
+      { label },
+    ),
+    fromType: 'customers',
+    fromId: a < b ? a : b,
+    toType: 'customers',
+    toId: a < b ? b : a,
+    kind: 'relation',
+    meta: { label },
+    createdAt: 1,
+    updatedAt: 0,
+    rev: 0,
+    deleted: 0,
+  } as never)
+}
+
 beforeEach(async () => {
   await db.customers.clear()
+  await db.links.clear()
 })
 
 describe('useCanvasGraph：悬挂关系既被挡住、又不被静默吞掉', () => {
   it('有效关系保留、悬挂条目被过滤，同时计入 danglingRelations', async () => {
     await db.customers.bulkPut([
-      customer({ id: 'a', name: '甲', relations: [{ targetId: 'b', label: '项目合作' }] }),
-      customer({
-        id: 'b',
-        name: '乙',
-        relations: [
-          { targetId: 'ghost', label: '转介绍人' }, // 指向不存在的客户
-          { targetId: 'a', label: '项目合作' },
-        ],
-      }),
+      customer({ id: 'a', name: '甲' }),
+      customer({ id: 'b', name: '乙' }),
       customer({ id: 'c', name: '丙' }),
     ])
+    await seedRelation('a', 'b', '项目合作')
+    await seedRelation('b', 'ghost', '转介绍人') // 指向不存在的客户
     const { result } = renderHook(() => useCanvasGraph())
     await waitFor(() => expect(result.current.customers).toHaveLength(3))
 
@@ -75,10 +92,13 @@ describe('useCanvasGraph：悬挂关系既被挡住、又不被静默吞掉', ()
 
   it('全部悬挂时：客户仍在、关系全空、计数等于条目总数（画布会一条线都没有）', async () => {
     await db.customers.bulkPut([
-      customer({ id: 'a', name: '甲', relations: [{ targetId: 'c1', label: '项目合作' }] }),
-      customer({ id: 'b', name: '乙', relations: [{ targetId: 'c2', label: '同行伙伴' }] }),
-      customer({ id: 'c', name: '丙', relations: [{ targetId: 'ghost', label: '同一公司' }] }),
+      customer({ id: 'a', name: '甲' }),
+      customer({ id: 'b', name: '乙' }),
+      customer({ id: 'c', name: '丙' }),
     ])
+    await seedRelation('a', 'c1', '项目合作')
+    await seedRelation('b', 'c2', '同行伙伴')
+    await seedRelation('c', 'ghost', '同一公司')
     const { result } = renderHook(() => useCanvasGraph())
     await waitFor(() => expect(result.current.customers).toHaveLength(3))
 
@@ -88,9 +108,10 @@ describe('useCanvasGraph：悬挂关系既被挡住、又不被静默吞掉', ()
 
   it('数据健康时不产生噪音提示（计数为 0，页面据此不渲染 chip）', async () => {
     await db.customers.bulkPut([
-      customer({ id: 'a', name: '甲', relations: [{ targetId: 'b', label: '项目合作' }] }),
-      customer({ id: 'b', name: '乙', relations: [{ targetId: 'a', label: '项目合作' }] }),
+      customer({ id: 'a', name: '甲' }),
+      customer({ id: 'b', name: '乙' }),
     ])
+    await seedRelation('a', 'b', '项目合作')
     const { result } = renderHook(() => useCanvasGraph())
     await waitFor(() => expect(result.current.customers).toHaveLength(2))
 

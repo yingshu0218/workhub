@@ -141,8 +141,12 @@ export interface Customer extends SyncMeta {
   address: string
   lastContactAt: number
   createdAt: number
-  /** 客户间语义关系（双向弱引用；编辑抽屉维护，删除级联双向解绑） */
-  relations?: CustomerRelation[]
+  /**
+   * 客户间语义关系已随关联层 Phase 2（v15）迁往 links 表（kind='relation'，对称：
+   * canonical 按两端 id 字典序，meta 承载 {label, category}）。双侧镜像数组就此退役，
+   * 多端并发加关系按条 LWW 合流（mergeRemote 的并集特例退役）。服务端旧列保留供
+   * 老客户端降级，pull 侧剥旧键 + 派生 link（legacyLinkSpecs）。
+   */
   /** 亲密度手动档（Issue #34）：内嵌可选字段零迁移；缺省=未设置=走算法兜底 */
   intimacy?: CustomerIntimacy
   /**

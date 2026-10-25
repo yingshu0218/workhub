@@ -260,6 +260,68 @@ export async function syncRelatedLinks(
   }
 }
 
+// ─────────────────────────── relation 同步（Phase 2 · 客户保存时与客户行同事务） ───────────────────────────
+
+/** 对称关系的选择集条目（与 CustomerRelation 同构；targetId 为另一端客户） */
+export interface RelationInput {
+  targetId: string
+  label: string
+  category?: LinkMeta['category']
+}
+
+/**
+ * 客户保存时的 relation link 同步（diff 式）。canonical 存储下一条 link 代表一对客户的
+ * 一条语义关系，「该客户的关系」= 它作为**任一端**参与的 relation link —— 双侧镜像数组
+ * 就此退役（A 侧保存与 B 侧保存操作同一条记录，天然合流）。
+ *
+ * - 选择集里的关系 → putLinkTx（确定性 id 含 label#category，幂等；label 变更 = 换一条关系）；
+ * - 不在选择集里的既有活 link → 墓碑化（重新添加时同 id 复活）；
+ * - 指向已删/不存在客户 → 跳过（幽灵纪律③）。
+ */
+export async function syncRelationLinks(
+  tx: StorageTx,
+  customerId: string,
+  wanted: ReadonlyArray<RelationInput>,
+  now: number,
+): Promise<void> {
+  const existing = (await tx.list<Link>('links')).filter(
+    (l) => l.kind === 'relation' && (l.fromId === customerId || l.toId === customerId),
+  )
+  const keyOf = (a: string, b: string, label: string, category?: string) =>
+    `${[a, b].sort().join('~')}~${label}#${category ?? ''}`
+  const wantedKeys = new Set<string>()
+  for (const w of wanted) {
+    if (!w.targetId || w.targetId === customerId) continue
+    wantedKeys.add(keyOf(customerId, w.targetId, w.label, w.category))
+    const target = await tx.get<{ id: string }>('customers', w.targetId)
+    if (!target || target.deleted) continue
+    await putLinkTx(
+      tx,
+      {
+        from: { type: 'customers', id: customerId },
+        to: { type: 'customers', id: w.targetId },
+        kind: 'relation',
+        meta: { label: w.label, ...(w.category ? { category: w.category } : {}) },
+      },
+      now,
+    )
+  }
+  for (const l of existing) {
+    if (l.deleted === 1) continue
+    const other = l.fromId === customerId ? l.toId : l.fromId
+    if (wantedKeys.has(keyOf(customerId, other, l.meta?.label ?? '', l.meta?.category))) continue
+    await tx.update('links', l.id, {
+      deleted: 1,
+      updatedAt: now,
+      rev: (l.rev ?? 0) + 1,
+      deletedAt: now,
+      restoredAt: undefined,
+      trashSnapshot: undefined,
+    })
+    await tx.enqueue('links', l.id, 'delete', now)
+  }
+}
+
 // ─────────────────────────── 级联 / 恢复钩子（R2 · 与实体软删恢复同事务） ───────────────────────────
 
 /**

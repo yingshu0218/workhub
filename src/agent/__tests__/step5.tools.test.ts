@@ -251,9 +251,27 @@ async function seedRelated(txnId: string, toType: 'customers' | 'todos' | 'proje
   })
 
   it('getCustomer 投影不含 relations 全量，仅 relationCount；软删返回空', async () => {
-    await db.customers.put(
-      newCustomer('c1', { relations: [{ id: 'r1', targetId: 'c2', label: '转介绍人' }] }),
-    )
+    await db.customers.put(newCustomer('c1'))
+    await db.customers.put(newCustomer('c2'))
+    const { buildLinkId } = await import('@/repositories/linkId')
+    await db.links.put({
+      id: buildLinkId(
+        { type: 'customers', id: 'c1' },
+        { type: 'customers', id: 'c2' },
+        'relation',
+        { label: '转介绍人' },
+      ),
+      fromType: 'customers',
+      fromId: 'c1',
+      toType: 'customers',
+      toId: 'c2',
+      kind: 'relation',
+      meta: { label: '转介绍人' },
+      createdAt: 1,
+      updatedAt: 0,
+      rev: 0,
+      deleted: 0,
+    } as never)
     const r = await dispatchAgentTool('getCustomer', { id: 'c1' })
     const item = (r.data!.items as Record<string, unknown>[])[0]
     expect(item).toMatchObject({ id: 'c1', name: '王五', company: '深蓝科技', relationCount: 1 })

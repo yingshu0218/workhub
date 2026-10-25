@@ -74,6 +74,8 @@ describe('远端 json 字段反序列化（rawJsonFromRemote）', () => {
 describe('pull 落库后字段类型与本地写入一致', () => {
   it('远端 tags 是 JSON 字符串：正常 LWW 分支不得把数组写成字符串（白屏根因）', async () => {
     await db.customers.put(localCustomer({ updatedAt: 100 }) as never)
+    // 关系目标客户须存活，远端旧 relations 键才会派生成 link
+    await db.customers.put({ ...localCustomer({ id: 'c2', name: '客户乙' }) } as never)
     // 服务端返回字符串形态的 json 字段（版本/编码差异），updatedAt 更新 → 走正常 LWW 分支
     await mergeRemote('customers', {
       id: 'pbh1',
@@ -94,16 +96,26 @@ describe('pull 落库后字段类型与本地写入一致', () => {
 
     const after = (await db.customers.get('c1')) as unknown as {
       tags: string[]
-      relations: { id: string }[]
       intimacy: { level?: string }
-    }
-    // 这三条就是前端会直接调用的形态：tags.join / tags.map / relations.map / intimacy.level
+    } & Record<string, unknown>
+    // 这些就是前端会直接调用的形态：tags.join / tags.map / intimacy.level
     expect(Array.isArray(after.tags)).toBe(true)
     expect(after.tags.join(' ')).toBe('高客单 关键决策者')
     expect(after.tags.map((t) => `#${t}`)).toEqual(['#高客单', '#关键决策者'])
-    expect(Array.isArray(after.relations)).toBe(true)
-    expect(after.relations.map((r) => r.id)).toEqual(['r1'])
+    // relations 已迁 links（v15）：本地行剥旧键；远端旧键派生成 relation link
+    expect(after).not.toHaveProperty('relations')
     expect(after.intimacy).toEqual({ level: 'T1' })
+    const { buildLinkId } = await import('@/repositories/linkId')
+    const link = await db.links.get(
+      buildLinkId(
+        { type: 'customers', id: 'c1' },
+        { type: 'customers', id: 'c2' },
+        'relation',
+        { label: '转介绍人' },
+      ),
+    )
+    expect(link).toMatchObject({ kind: 'relation', deleted: 0 })
+    expect(link!.meta?.label).toBe('转介绍人')
   })
 
   it('远端 tags 是双层编码字符串：仍然还原成数组', async () => {
@@ -138,32 +150,37 @@ describe('pull 落库后字段类型与本地写入一致', () => {
     expect(typeof after.tags).not.toBe('string')
   })
 
-  it('relations 是 JSON 字符串时与本地取并集，不是整体覆盖', async () => {
-    await db.customers.put(
-      localCustomer({
-        relations: [{ id: 'local-1', targetId: 'c3', label: '本地新增' }],
-      }) as never,
-    )
-    await db.syncQueue.clear() // 本地已推送成功，走正常 LWW 分支
+  it('relations 是 JSON 字符串时：旧键派生成 link，本地行剥键（并集已由 per-link LWW 取代）', async () => {
+    await db.customers.put(localCustomer() as never)
+    await db.customers.put({ ...localCustomer({ id: 'c2', name: '客户乙' }) } as never)
+    await db.syncQueue.clear()
     await mergeRemote('customers', {
       id: 'pbh1',
       localId: 'c1',
       name: '严伟强',
       tags: '[]',
-      relations: JSON.stringify([{ id: 'remote-1', targetId: 'c2', label: '远端新增' }]),
+      relations: JSON.stringify([{ targetId: 'c2', label: '远端新增' }]),
       updatedAt: 200,
       deleted: false,
       rev: 2,
     } as never)
-    const after = (await db.customers.get('c1')) as unknown as { relations: { id: string }[] }
-    expect(Array.isArray(after.relations)).toBe(true)
-    expect(after.relations.map((r) => r.id).sort()).toEqual(['local-1', 'remote-1'])
+    const after = (await db.customers.get('c1')) as unknown as Record<string, unknown>
+    expect(after).not.toHaveProperty('relations')
+    // 远端旧键按确定性 id 派生成 link —— 多端各自派生天然合流（取代并集合并）
+    const { buildLinkId } = await import('@/repositories/linkId')
+    const link = await db.links.get(
+      buildLinkId(
+        { type: 'customers', id: 'c1' },
+        { type: 'customers', id: 'c2' },
+        'relation',
+        { label: '远端新增' },
+      ),
+    )
+    expect(link).toMatchObject({ kind: 'relation', deleted: 0 })
   })
 
-  it('服务端空 json 字段（"" / null）不覆盖本地已有关系', async () => {
-    await db.customers.put(
-      localCustomer({ relations: [{ id: 'local-1', targetId: 'c3', label: '本地' }] }) as never,
-    )
+  it('服务端空 json 字段（"" / null）：不派生 link，本地行剥旧键（本地 link 不受影响）', async () => {
+    await db.customers.put(localCustomer() as never)
     for (const empty of ['', null]) {
       await mergeRemote('customers', {
         id: `pbh-${String(empty)}`,
@@ -175,9 +192,9 @@ describe('pull 落库后字段类型与本地写入一致', () => {
         deleted: false,
         rev: 2,
       } as never)
-      const after = (await db.customers.get('c1')) as unknown as { relations: { id: string }[] }
-      expect(Array.isArray(after.relations)).toBe(true)
-      expect(after.relations.map((r) => r.id)).toEqual(['local-1'])
+      const after = (await db.customers.get('c1')) as unknown as Record<string, unknown>
+      expect(after).not.toHaveProperty('relations')
+      expect(await db.links.where('kind').equals('relation').count()).toBe(0)
     }
   })
 })
@@ -230,20 +247,14 @@ describe('端到端：模拟真实 PocketBase 的编码往返', () => {
     expect(after.tags).toEqual(['高客单'])
   })
 
-  it('回环校验：本端 push 后立刻 pull 自己那条记录，关系不丢也不变字符串', async () => {
-    // 本地保存（含关系）
-    await db.customers.put(
-      localCustomer({ relations: [{ id: 'r1', targetId: 'c2', label: '转介绍人' }] }) as never,
-    )
+  it('回环校验：本端 push 后立刻 pull 自己那条记录，tags 不丢也不变字符串', async () => {
+    // 本地保存（tags 在行上；关系 v15 起在 links 表，不随 customers 行往返）
+    await db.customers.put(localCustomer() as never)
     const pushed = (await db.customers.get('c1')) as unknown as Record<string, unknown>
     // 服务端收到并原样返回（本地发的是真数组 → PB 存真数组 → 返回真数组）
     const echoed = { ...pushed, id: 'pbh1', localId: 'c1', updatedAt: (pushed.updatedAt as number) + 1000, rev: 2 }
     await mergeRemote('customers', echoed as never)
-    const after = (await db.customers.get('c1')) as unknown as {
-      relations: { id: string; label: string }[]
-      tags: string[]
-    }
-    expect(after.relations).toEqual([{ id: 'r1', targetId: 'c2', label: '转介绍人' }])
+    const after = (await db.customers.get('c1')) as unknown as { tags: string[] }
     expect(after.tags).toEqual(['高客单'])
   })
 })

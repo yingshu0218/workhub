@@ -69,6 +69,7 @@ export const MIGRATED_LINK_TABLES: ReadonlySet<string> = new Set([
   'attachments',
   'notes',
   'transactions',
+  'customers',
 ])
 
 /** 各表要剥掉的旧关联字段键（服务端列保留供老客户端降级，本地行不再落这些键） */

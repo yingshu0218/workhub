@@ -3,6 +3,7 @@ import { Icon } from '@/design-system/Icon'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useCollection, useQuery, useRecord } from '@/queries/hooks'
 import { linksTo } from '@/repositories/links'
+import { db } from '@/db/db'
 import { isImeComposing } from '@/shared/ime'
 import type { Customer, Note, Project } from '@/db/types'
 import { deleteCustomerCascade, newId, saveInteractionAndTouchCustomer } from '@/repositories'
@@ -635,6 +636,20 @@ function ProfileTab({
   notes: Note[]
   onOpenNote: (noteId: string) => void
 }) {
+  // 客户间关系已迁 links（v15）：档案属性行的关系语义来自 relation link 的 meta.label
+  const relationLinks =
+    useQuery(
+      () =>
+        db.links
+          .where('kind')
+          .equals('relation')
+          .filter((l) => !l.deleted && (l.fromId === customer.id || l.toId === customer.id))
+          .toArray(),
+      [customer.id],
+    ) ?? []
+  const relationLabels = relationLinks.map((l) =>
+    typeof l.meta?.label === 'string' ? l.meta.label : '',
+  )
   // 可复制字段（与同步前的「即时通讯与联系渠道」能力对齐，唯一出处收敛于此）
   const rows: [string, string, boolean?][] = [
     ['公司', customer.company || '—'],
@@ -645,12 +660,7 @@ function ProfileTab({
     ['工作邮箱', customer.email || '—', true],
     ['地址', customer.address || '—'],
     ['标签', customer.tags.length > 0 ? customer.tags.map((t) => `#${t}`).join(' ') : '—'],
-    [
-      '客户关系',
-      (customer.relations ?? []).length > 0
-        ? (customer.relations ?? []).map((r) => r.label).join(' / ')
-        : '—',
-    ],
+    ['客户关系', relationLabels.length > 0 ? relationLabels.join(' / ') : '—'],
   ]
   return (
     <div className="grid gap-4 lg:grid-cols-2">

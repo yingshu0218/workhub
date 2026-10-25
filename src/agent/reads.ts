@@ -197,7 +197,7 @@ function projectLedger(l: Ledger) {
 }
 
 /** 客户档案投影：基本档案 + 关系档位摘要，**不含** relations 全量与附件（§2.2） */
-function projectCustomer(c: Customer) {
+function projectCustomer(c: Customer, relationLinks: Link[]) {
   return {
     id: c.id,
     name: c.name,
@@ -208,8 +208,10 @@ function projectCustomer(c: Customer) {
     lastContactAt: c.lastContactAt,
     /** 关系档位（Issue #108：健康分单一来源；缺省=未设置走算法兜底） */
     ...(c.intimacy ? { intimacy: c.intimacy } : {}),
-    /** 关系条数摘要（仅计数，不下发 relations 全量，防上下文膨胀） */
-    relationCount: (c.relations ?? []).length,
+    /** 关系条数摘要（仅计数，不下发全量，防上下文膨胀；relations 已迁 links，按 link 计数） */
+    relationCount: relationLinks.filter(
+      (l) => !l.deleted && (l.fromId === c.id || l.toId === c.id),
+    ).length,
   }
 }
 
@@ -237,7 +239,9 @@ export async function getCustomer(input: unknown): Promise<ReadResult> {
   const d = getCustomerSchema.parse(input)
   const c = await storage.get<Customer>('customers', d.id)
   if (!c || c.deleted) return { items: [], count: 0, truncated: false }
-  return { items: [projectCustomer(c)], count: 1, truncated: false }
+  const allLinks = await storage.list<Link>('links')
+  const relationLinks = allLinks.filter((l) => l.kind === 'relation')
+  return { items: [projectCustomer(c, relationLinks)], count: 1, truncated: false }
 }
 
 /** listTodos：待办查询（最小投影） */
