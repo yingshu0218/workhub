@@ -204,7 +204,11 @@ export async function listTrash(): Promise<TrashItem[]> {
       const parentAlive = parent ? isAlive(parentRec) : undefined
       const snapshot = readSnapshot(r)
       const childCount = snapshot?.children?.length ?? 0
-      const linkCount = snapshot?.links?.length ?? 0
+      // 关联数 = 旧字段快照（links 数组，v15 前语义）+ 级联 link 墓碑（cascadeLinkIds，v15 起）。
+      // 两类不重叠：前者是「字段回填凭证」，后者是「link 记录复活凭证」——只数前者会把
+      // links 时代删除的客户显示成 0~1 条关联，而恢复实际会带回全部（2026-10-26 真机验收发现）。
+      const linkCount =
+        (snapshot?.links?.length ?? 0) + (snapshot?.cascadeLinkIds?.length ?? 0)
       const canRestore = !parent || parentAlive === true
       items.push({
         table,

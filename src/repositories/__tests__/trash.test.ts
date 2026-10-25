@@ -258,6 +258,42 @@ describe('回收站：列表与父子禁用', () => {
 })
 
 /**
+ * 回收站「N 条关联」计数 = 字段快照（snapshot.links）+ 级联 link 墓碑（cascadeLinkIds）。
+ *
+ * links 时代（v15）只数前者 → 删客户在回收站显示「1 条关联」、恢复确认也说 1 条，
+ * 而实际恢复会带回字段回填 + 全部 link 复活（2026-10-26 真机验收发现：快照 3 条
+ * cascadeLinkIds + 1 条字段快照，界面只报 1）。两类凭证不重叠：前者回填字段，后者复活 link 记录。
+ */
+describe('回收站关联计数：字段快照 + 级联 link 墓碑合计', () => {
+  it('删客户后 linkCount 含 cascadeLinkIds（不只旧字段快照）', async () => {
+    await db.customers.put(
+      { id: 'c1', name: '甲客户', company: '', tags: [], relations: [], createdAt: 1, ...meta() } as never,
+    )
+    // 字段型关联：待办挂在客户上（级联会以 set 模式记进 snapshot.links，恢复时回填字段）
+    await db.todos.put(
+      { id: 'td1', title: '跟进', desc: '', priority: 'mid', status: 'todo', tags: [], customerId: 'c1', createdAt: 1, ...meta() } as never,
+    )
+    // link 型关联：mention（级联会墓碑化并记进 cascadeLinkIds，恢复时复活 link）
+    const { buildLinkId } = await import('@/repositories/linkId')
+    const mentionId = buildLinkId({ type: 'notes', id: 'n1' }, { type: 'customers', id: 'c1' }, 'mention')
+    await db.notes.put({ id: 'n1', title: '纪要', markdown: '', tags: [], createdAt: 1, ...meta() } as never)
+    await db.links.put(
+      { id: mentionId, fromType: 'notes', fromId: 'n1', toType: 'customers', toId: 'c1', kind: 'mention', createdAt: 1, updatedAt: 0, rev: 0, deleted: 0 } as never,
+    )
+
+    await deleteCustomerCascade('c1')
+
+    const tomb = (await db.customers.get('c1')) as unknown as Record<string, unknown>
+    const snapshot = tomb.trashSnapshot as { links: unknown[]; cascadeLinkIds: string[] }
+    expect(snapshot.links).toHaveLength(1) // 字段快照：todo.customerId
+    expect(snapshot.cascadeLinkIds).toHaveLength(1) // link 墓碑：mention
+
+    const item = (await listTrash()).find((i) => i.table === 'customers' && i.id === 'c1')
+    expect(item?.linkCount).toBe(2)
+  })
+})
+
+/**
  * 删除时间必须是**独立字段**。
  *
  * 锁的是这条因果：墓碑的 updatedAt 会被同步合并反复抬高（`mergeRemote` 取 max），
