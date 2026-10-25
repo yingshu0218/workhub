@@ -16,6 +16,38 @@ export type AppEvent = {
 
 type Handler<K extends keyof AppEvent> = (payload: AppEvent[K]) => void
 
+/**
+ * 事件名的运行期白名单（与 AppEvent 键集**双向编译期锁死**，见下方两个类型断言）。
+ *
+ * 为什么需要它：AppEvent 是闭集字面量，但 replay 通道（drainAgentEvents）拿到的是
+ * 服务端行里的**任意字符串**——`as keyof AppEvent` 盲转型把类型安全整个旁路。
+ * 闭集 registry 下未知名今天是无害 no-op，但事件名一旦泛化（事件总线泛化议题，
+ * 见 docs/关联层剩余任务-交接-20261026.md T3），未知名就会穿透分发。replay 侧
+ * **必须**先有这份白名单校验，泛化才有安全的落点（2026-10-26 T3 前置项）。
+ */
+export const APP_EVENT_NAMES = [
+  'focus:completed',
+  'habit:checked',
+  'transaction:created',
+  'customer:contacted',
+  'quicknote:convert',
+  'exp:changed',
+  'settings:changed',
+  'trophy:unlocked',
+  'moduleConfig:changed',
+] as const satisfies readonly (keyof AppEvent)[]
+
+/**
+ * 防漂移（编译期双向）：
+ * ① 数组项必须是合法事件名 —— 由上方 `satisfies readonly (keyof AppEvent)[]` 保证；
+ * ② AppEvent 的每个键都必须出现在数组里 —— `_assertExhaustive` 保证：漏一个键时
+ *    条件类型落到 `never` 分支、`true` 赋值报错。**不能用 `null as never` 占位**——
+ *    `never` 可赋给任何类型，断言会静默失效（2026-10-26 实测踩到）。
+ */
+type _Missing = Exclude<keyof AppEvent, (typeof APP_EVENT_NAMES)[number]>
+const _assertExhaustive: _Missing extends never ? true : never = true
+void _assertExhaustive
+
 const registry = new Map<keyof AppEvent, Set<(payload: never) => void>>()
 
 /**

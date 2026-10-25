@@ -83,4 +83,49 @@ describe('drainAgentEvents（客户端 replay + 游标）', () => {
   it('未配置同步中心：直接返回不报错', async () => {
     await expect(drainAgentEvents()).resolves.toBeUndefined()
   })
+
+  it('replay 白名单（T3 前置）：未知事件名拒发且警告、已知事件正常分发、游标照常推进', async () => {
+    const { db } = await import('@/db/db')
+    await db.settings.put({
+      key: 'singleton',
+      sync: { serverUrl: 'http://127.0.0.1:9999', token: 'tok' },
+    } as never)
+    await db.meta.put({ key: 'agent_events_cursor', value: 0 })
+
+    // 回包混入一条未知事件名（模拟服务端脏数据 / 未来版本事件）与一条已知事件
+    const fetchImpl = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          items: [
+            { type: 'trophy:unlocked', payload: { trophyId: 't1' }, occurredAt: 100 },
+            { type: 'bogus:future-event', payload: { x: 1 }, occurredAt: 200 },
+          ],
+        }),
+        { status: 200 },
+      ),
+    ) as unknown as typeof fetch
+    vi.stubGlobal('fetch', fetchImpl)
+    const warns: string[] = []
+    vi.spyOn(console, 'warn').mockImplementation((...a: unknown[]) => {
+      warns.push(String(a[0]))
+    })
+
+    const seen: string[] = []
+    const off = eventBus.on('trophy:unlocked', () => seen.push('trophy:unlocked'))
+    const offBogus = eventBus.on('bogus:future-event' as keyof AppEvent, () =>
+      seen.push('bogus'),
+    )
+    try {
+      await drainAgentEvents()
+    } finally {
+      vi.unstubAllGlobals()
+      off()
+      offBogus()
+    }
+
+    expect(seen).toEqual(['trophy:unlocked']) // 已知事件分发、未知事件未穿透
+    expect(warns.some((w) => w.includes('bogus:future-event'))).toBe(true)
+    // 未知事件不卡游标：maxAt 取整批最大值（含被跳过行），下轮不会重复拉取
+    expect((await db.meta.get('agent_events_cursor'))?.value).toBe(200)
+  })
 })

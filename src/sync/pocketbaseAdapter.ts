@@ -5,7 +5,7 @@ import { DEFAULT_SETTINGS } from '@/db/types'
 import { SETTINGS_KEY } from '@/db/types'
 import type { SyncAdapter } from './adapter'
 import { mergeRemoteRecord, buildPendingUpsertIndex } from './mergeRemote'
-import { eventBus, type AppEvent } from '@/shared/eventBus'
+import { eventBus, APP_EVENT_NAMES, type AppEvent } from '@/shared/eventBus'
 import { isHealthPayload } from './connectivity'
 import type { AttachmentBlobLoader, PbRecord as MergePbRecord } from './mergeRemote'
 
@@ -615,6 +615,13 @@ export async function drainAgentEvents(): Promise<void> {
   for (const ev of data.items ?? []) {
     if (typeof ev.type !== 'string' || !ev.type) continue
     if (typeof ev.occurredAt === 'number' && ev.occurredAt > maxAt) maxAt = ev.occurredAt
+    // replay 白名单（T3 前置）：服务端行是任意字符串，未知名拒绝分发——此前的
+    // `as keyof AppEvent` 盲转型会在事件名泛化后变成穿透分发口。跳过的行游标照常
+    // 推进（maxAt 已在上方更新），不让一条脏数据卡住整条 replay 通道。
+    if (!(APP_EVENT_NAMES as readonly string[]).includes(ev.type)) {
+      console.warn(`[sync] agent_events replay 跳过未知事件名：${ev.type}`)
+      continue
+    }
     try {
       eventBus.emit(ev.type as keyof AppEvent, (ev.payload ?? {}) as never)
     } catch (err) {
