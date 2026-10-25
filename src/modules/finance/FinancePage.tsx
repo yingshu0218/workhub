@@ -29,7 +29,7 @@ import {
   deleteTransactionCascade,
   reorderLedgers,
 } from './hooks'
-import { ledgerRepo, transactionRepo } from '@/repositories'
+import { deleteLedgerCascade, transactionRepo } from '@/repositories'
 import { staggerStyle } from '@/shared/stagger'
 
 type TypeFilter = 'all' | 'income' | 'expense'
@@ -124,10 +124,15 @@ export default function FinancePage() {
     setConfirmLedger(l)
   }
 
-  /** 确认后软删账本并回到「全部」范围 */
+  /** 确认后级联软删账本（有流水的账本已在上方预检拦截，数据层守卫双保险）并回到「全部」范围 */
   async function doDeleteLedger(l: Ledger) {
-    await ledgerRepo.softDelete(l.id)
-    setScope('all')
+    try {
+      await deleteLedgerCascade(l.id)
+      setScope('all')
+    } catch (e) {
+      // 数据层守卫（与 UI 预检同口径）：绕过预检的路径或并发新增流水时给出可读错误
+      setLedgerError(e instanceof Error ? e.message : '删除失败，请重试')
+    }
   }
 
   function handleLedgerDrop(e: React.DragEvent, targetId: string) {
@@ -820,13 +825,17 @@ function TransactionDetailDrawer({
     onClose()
   }
 
+  // ⚠️ 表单与确认弹窗必须是 Drawer 的「兄弟」而非子节点：Drawer 退场动画播完会整棵卸载子树
+  // （usePresence → return null），曾经把内嵌的编辑表单一起带走 —— 表单闪现 ~200ms 即消失，
+  // 凭证详情里根本无法编辑流水。待办详情（TodoDetailDrawer）的同位做法就是表单挂在外层。
   return (
-    <Drawer
-      open={transactionId !== null && !editing}
-      title="财务流水凭证详情"
-      onClose={onClose}
-      width={460}
-    >
+    <>
+      <Drawer
+        open={transactionId !== null}
+        title="财务流水凭证详情"
+        onClose={onClose}
+        width={460}
+      >
       {!txn ? null : (
         <div className="space-y-5">
           {/* 金额主卡 */}
@@ -1013,8 +1022,9 @@ function TransactionDetailDrawer({
           )}
         </div>
       )}
+      </Drawer>
       {/* 编辑模式：以当前流水为基底回填表单，保存后详情随 liveQuery 刷新；
-          该表单从详情抽屉内打开，需 elevated 抬到更高层级 */}
+          elevated 叠在仍打开的详情抽屉之上（对齐待办详情→编辑的既有模式） */}
       <TransactionFormDrawer
         open={editing}
         defaultLedgerId={txn?.ledgerId ?? 'all'}
@@ -1036,7 +1046,7 @@ function TransactionDetailDrawer({
           void doDelete()
         }}
       />
-    </Drawer>
+    </>
   )
 }
 
