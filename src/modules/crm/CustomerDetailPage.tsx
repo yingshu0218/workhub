@@ -6,7 +6,8 @@ import { linksTo } from '@/repositories/links'
 import { db } from '@/db/db'
 import { isImeComposing } from '@/shared/ime'
 import type { Customer, Note, Project } from '@/db/types'
-import { deleteCustomerCascade, newId, saveInteractionAndTouchCustomer } from '@/repositories'
+import {
+  setCustomerGroup, deleteCustomerCascade, newId, saveInteractionAndTouchCustomer } from '@/repositories'
 import {
   Avatar,
   Button,
@@ -21,11 +22,12 @@ import dayjs from 'dayjs'
 import { isTodoOpen } from '@/modules/todo/domain'
 import { todoPriorityLabel, todoPriorityTone } from '@/modules/todo/priority'
 import CustomerFormDrawer from './CustomerFormDrawer'
-import { useCustomerTodos, useCustomerTransactions } from './hooks'
+import { useCustomerTodos, useCustomerTransactions,
+  useCustomerGroupIdOf,
+} from './hooks'
 import { financeFocusPath } from '@/modules/finance/links'
 import { fmtRelative } from './shared'
 import IntimacyPicker from './intimacy/IntimacyPicker'
-import { customerRepo } from '@/repositories'
 import { useCustomerGroups } from './hooks'
 import type { CustomerGroup } from '@/db/types'
 import { staggerStyle } from '@/shared/stagger'
@@ -62,6 +64,8 @@ export default function CustomerDetailPage() {
   const transactions = useCustomerTransactions(id)
   const todos = useCustomerTodos(id)
   const manualGroups = useCustomerGroups().filter((g) => !g.deleted && g.kind === 'manual')
+  // 手动分组归属已迁 links（v16 member）
+  const groupIdOf = useCustomerGroupIdOf()
   const timeline = useCustomerTimeline(id)
   // 客户关联笔记（经 mention link 反查，与图谱投影同一口径；v15 起 mentions 迁 links）
   // 审计纪律 P2-9：只投影所需字段，笔记整篇 markdown 不进入 React 状态
@@ -192,7 +196,7 @@ export default function CustomerDetailPage() {
       </Card>
 
       {/* 手动分组（2026-10-17 双模式）：单选归属——与标签规则分组正交，这里只管手动组。
-          变更走 customerRepo.update（盖章 + 入队同步）。 */}
+          变更走 setCustomerGroup（v16 member link，盖章 + 入队同步）。 */}
       {manualGroups.length > 0 && (
         <Card className="mt-4 p-5">
           <div className="mb-3 flex items-center gap-1.5 text-[0.8571rem] font-medium uppercase tracking-wide text-on-surface-variant">
@@ -200,9 +204,9 @@ export default function CustomerDetailPage() {
             手动分组
           </div>
           <ManualGroupPicker
-            customer={customer}
             groups={manualGroups}
-            onChange={(groupId) => void customerRepo.update(customer.id, { groupId: groupId || undefined })}
+            currentGroupId={groupIdOf.get(customer.id)}
+            onChange={(groupId) => void setCustomerGroup(customer.id, groupId)}
           />
         </Card>
       )}
@@ -871,15 +875,16 @@ function QuickLog({ customerId }: { customerId: string }) {
  * 单选语义：选新组即离开旧组（groupId 覆盖）；选「无分组」清空归属。
  */
 function ManualGroupPicker({
-  customer,
   groups,
+  currentGroupId,
   onChange,
 }: {
-  customer: Customer
   groups: CustomerGroup[]
+  /** 当前手动归属（v16 member 索引注入；undefined = 无分组） */
+  currentGroupId: string | undefined
   onChange: (groupId: string | undefined) => void
 }) {
-  const current = groups.find((g) => g.id === customer.groupId) ?? null
+  const current = groups.find((g) => g.id === currentGroupId) ?? null
   return (
     <div className="flex flex-wrap items-center gap-2">
       <select

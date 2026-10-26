@@ -6,6 +6,7 @@ import { customerRepo } from '@/repositories'
 import { useIsMobile } from '@/shared/useIsMobile'
 import type { Customer, CustomerGroup, IntimacyLevel } from '@/db/types'
 import { INTIMACY_VISUAL, customerInGroup } from '@/db/types'
+import { setCustomerGroup } from '@/repositories'
 import {
   Button,
   Card,
@@ -23,6 +24,7 @@ import { filterBlacklisted, useIntimacyConfig, resolveIntimacyLevel } from './in
 import {
   useCustomerGroups,
   useCustomerGroupCounts,
+  useCustomerGroupIdOf,
   useCustomerListStats,
   STALE_FOLLOW_UP_DAYS,
   useCustomerScoreRows,
@@ -67,6 +69,8 @@ export default function CrmPage() {
   const [editorGroup, setEditorGroup] = useState<CustomerGroup | 'new' | null>(null)
 
   const customGroups = useCustomerGroups()
+  // 手动分组归属已迁 links（v16 member）：Map<customerId, groupId> 索引代替行字段
+  const groupIdOf = useCustomerGroupIdOf()
   const intimacyCfg = useIntimacyConfig()
   /**
    * 客户拖入分组（2026-10-16，2026-10-17 起分模式）：
@@ -76,10 +80,10 @@ export default function CrmPage() {
    */
   /** 拖到「全部客户」= 清空手动分组归属（只对手动组成员有意义；规则组是标签判定无从「拖出」） */
   async function handleDropCustomerToAll(customerId: string) {
-    const customer = customers.find((c) => c.id === customerId)
-    if (!customer?.groupId) return
+    if (!groupIdOf.get(customerId)) return
     try {
-      await customerRepo.update(customerId, { groupId: undefined })
+      // 归属已迁 links（v16 member）：只动 member link，不动客户行
+      await setCustomerGroup(customerId, undefined)
     } catch (err) {
       console.error('[crm] 移出分组失败', err)
     }
@@ -90,9 +94,9 @@ export default function CrmPage() {
     const customer = customers.find((c) => c.id === customerId)
     if (!group || !customer) return
     try {
-      if (customerInGroup(customer, group)) return // 已在该组：拖入无操作
+      if (customerInGroup(customer, group, groupIdOf.get(customerId))) return // 已在该组：拖入无操作
       if ((group.kind ?? 'rule') === 'manual') {
-        await customerRepo.update(customerId, { groupId: group.id })
+        await setCustomerGroup(customerId, group.id)
         return
       }
       const merged = tagsForGroupJoin(customer.tags, group.includeTags)
@@ -114,7 +118,7 @@ export default function CrmPage() {
   const scoreInputs = useCustomerScoreRows(
     customers.filter((c) => !c.intimacy?.level).map((c) => c.id),
   )
-  const groupCounts = useCustomerGroupCounts(visibleCustomers, customGroups)
+  const groupCounts = useCustomerGroupCounts(visibleCustomers, customGroups, groupIdOf)
   const selectedGroup = customGroups.find((g) => g.id === selectedGroupId) ?? null
   // 顶部统计（改版）：口径全部与分层无关 —— 总数 / 本月新增 / 待跟进 / 待回收款
   const stats = useCustomerListStats(visibleCustomers)
@@ -137,7 +141,7 @@ export default function CrmPage() {
   const list = visibleCustomers
     .filter((c) => {
       if (levelFilter !== 'all' && levelOf(c) !== levelFilter) return false
-      if (selectedGroup && !customerInGroup(c, selectedGroup)) return false
+      if (selectedGroup && !customerInGroup(c, selectedGroup, groupIdOf.get(c.id))) return false
       if (keyword.trim()) {
         const kw = keyword.trim().toLowerCase()
         const haystack = [c.name, c.company, c.title, c.tags.join(' ')]

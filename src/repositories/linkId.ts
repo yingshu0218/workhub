@@ -80,7 +80,7 @@ export const LEGACY_LINK_FIELDS: Record<string, readonly string[]> = {
   // notes 同表双族：mentions（v15，related 语义）+ folderId（v16，member 语义）
   notes: ['mentions', 'backlinks', 'folderId'],
   transactions: ['customerId', 'todoId', 'projectId', 'customerIds', 'todoIds', 'projectIds'],
-  customers: ['relations'],
+  customers: ['relations', 'groupId'],
   attachments: ['refType', 'refId'],
 }
 
@@ -176,6 +176,13 @@ export function legacyLinkSpecs(table: string, rec: Record<string, unknown>): Le
 
   if (table === 'customers') {
     const out: LegacyLinkSpec[] = []
+    // Phase 3 第三族：手动分组归属 groupId → kind='member'（from=客户 → to=分组）。
+    // 只对**实际写过的字段**派生；目标组是 rule 组时成员 link 对读侧不可见（manual 口径
+    // 才消费 member），脏数据无害（docs/集合层设计方案-20261026.md 裁决 C）。
+    const gid = typeof rec.groupId === 'string' && rec.groupId ? rec.groupId : ''
+    if (gid) {
+      out.push({ from: { type: 'customers', id: rid }, to: { type: 'customerGroups', id: gid }, kind: 'member', createdAt })
+    }
     const rels = Array.isArray(rec.relations) ? rec.relations : []
     for (const r of rels) {
       if (!r || typeof r !== 'object') continue

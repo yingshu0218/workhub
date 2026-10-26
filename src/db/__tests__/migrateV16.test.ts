@@ -161,3 +161,67 @@ describe('v16 · notes 族：folderId → kind=member link（同表双族：ment
     expect(await migrateLegacyLinks(tableOf)).toBe(0)
   })
 })
+
+describe('v16 · customers 族：groupId → kind=member link（manual 组；relations 见 v15）', () => {
+  async function seedCustomer(id: string, over: Record<string, unknown> = {}): Promise<void> {
+    await db.customers.put({
+      id,
+      name: `客户 ${id}`,
+      company: '',
+      tags: [],
+      relations: [],
+      createdAt: 5,
+      updatedAt: 5,
+      deleted: 0,
+      rev: 1,
+      ...over,
+    } as never)
+  }
+
+  async function seedGroup(id: string, over: Record<string, unknown> = {}): Promise<void> {
+    await db.customerGroups.put({
+      id,
+      name: `分组 ${id}`,
+      kind: 'manual',
+      includeTags: [],
+      excludeTags: [],
+      sortOrder: 1,
+      createdAt: 5,
+      updatedAt: 5,
+      deleted: 0,
+      rev: 1,
+      ...over,
+    } as never)
+  }
+
+  it('groupId 翻成 member link，旧键清掉；relations（v15 族）同轮共存', async () => {
+    await seedGroup('cg1')
+    await seedCustomer('c1', {
+      groupId: 'cg1',
+      relations: [{ id: 'r1', targetId: 'c2', label: '转介绍人' }],
+    })
+    await seedCustomer('c2')
+
+    await migrateLegacyLinks(tableOf)
+
+    const member = await db.links.get(
+      buildLinkId({ type: 'customers', id: 'c1' }, { type: 'customerGroups', id: 'cg1' }, 'member'),
+    )
+    expect(member).toMatchObject({ kind: 'member', fromType: 'customers', toType: 'customerGroups', toId: 'cg1' })
+    const rel = await db.links.get(
+      buildLinkId({ type: 'customers', id: 'c1' }, { type: 'customers', id: 'c2' }, 'relation', { label: '转介绍人' }),
+    )
+    expect(rel).toMatchObject({ kind: 'relation' })
+    expect((await db.customers.get('c1'))! as unknown as Record<string, unknown>).not.toHaveProperty('groupId')
+  })
+
+  it('分组已删/缺失：跳过派生，旧键仍清掉；幂等不重复', async () => {
+    await seedGroup('cg1', { deleted: 1 })
+    await seedCustomer('c1', { groupId: 'cg1' })
+    await seedCustomer('c2', { groupId: 'nope' })
+
+    await migrateLegacyLinks(tableOf)
+    expect(await db.links.toArray()).toHaveLength(0)
+    expect(await migrateLegacyLinks(tableOf)).toBe(0)
+  })
+})

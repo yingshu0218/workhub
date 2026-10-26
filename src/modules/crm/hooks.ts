@@ -457,8 +457,9 @@ export { createCustomerWithInit, type CustomerInitOptions } from '@/repositories
 
 // ─────────────────────────── 自定义客户分组（Issue #63 收敛稿） ───────────────────────────
 
-import type { CustomerGroup } from '@/db/types'
+import type { CustomerGroup, Link, TrashSnapshot } from '@/db/types'
 import { customerInGroup } from '@/db/types'
+import { cascadeSoftDeleteLinks, memberIndexOf } from '@/repositories/links'
 
 /** 订阅自定义分组（按 sortOrder 排序，过滤软删） */
 export function useCustomerGroups(): CustomerGroup[] {
@@ -469,19 +470,45 @@ export function useCustomerGroups(): CustomerGroup[] {
   return groups ?? []
 }
 
-/** 各分组实时命中人数（Dexie 全量推导，本地量级无压力；不落快照，改 tag 即进出组） */
+/**
+ * 客户 → 手动分组归属索引（Phase 3 读侧收口）：Map<customerId, groupId>，
+ * liveQuery 订阅 links —— 拖拽/级联/恢复/同步对 member link 的任何变更都自动重渲染。
+ * 只覆盖 manual 语义（rule 组是标签视图，不消费 member link —— 裁决 C）。
+ */
+export function useCustomerGroupIdOf(): Map<string, string> {
+  const rows =
+    useQuery<Link[]>(
+      () =>
+        db.links
+          .where('kind')
+          .equals('member')
+          .filter((l) => !l.deleted && l.fromType === 'customers' && l.toType === 'customerGroups')
+          .toArray(),
+      [],
+    ) ?? EMPTY_GROUP_MEMBER_ROWS
+  return memberIndexOf(rows)
+}
+
+const EMPTY_GROUP_MEMBER_ROWS: Link[] = []
+
+/** 各分组实时命中人数（本地量级无压力；不落快照，改 tag 即进出组）。
+ *  Phase 3 双轨：manual 组按 member 索引计数（groupIdOf 注入），rule 组按标签匹配。 */
 export function useCustomerGroupCounts(
   customers: Customer[],
   groups: CustomerGroup[],
+  groupIdOf: Map<string, string>,
 ): Record<string, number> {
   return useMemo(() => {
     const map: Record<string, number> = {}
     for (const g of groups) {
-      // 双模式口径（2026-10-17）：手动组看 groupId 单选、规则组走标签匹配
-      map[g.id] = customers.filter((c) => customerInGroup(c, g)).length
+      const kind = g.kind ?? 'rule'
+      map[g.id] =
+        kind === 'manual'
+          ? customers.filter((c) => groupIdOf.get(c.id) === g.id).length
+          : customers.filter((c) => customerInGroup(c, g)).length
     }
     return map
-  }, [customers, groups])
+  }, [customers, groups, groupIdOf])
 }
 
 /**
@@ -558,20 +585,30 @@ export async function updateCustomerGroup(
   storage.requestSync()
 }
 
-/** 删除分组（纯删规则，不动客户档案 —— 分组是视图） */
+/**
+ * 删除分组（Phase 3 集合层版：manual 成员 = member link，删除即统一墓碑化）。
+ *
+ * rule 组本无存储成员（标签视图），member 清扫对它是 no-op —— 与 manual 组同一实现。
+ * 快照 `cascadeLinkIds` 留档：恢复分组时两端存活的成员关系逐条复活。
+ */
 export async function deleteCustomerGroup(id: string): Promise<void> {
   const now = Date.now()
-  await storage.transaction(['customerGroups', 'syncQueue'], async (tx) => {
+  await storage.transaction(['customerGroups', 'links', 'syncQueue'], async (tx) => {
     const prev = await tx.get<CustomerGroup>('customerGroups', id)
     if (!prev || prev.deleted) return
-    await tx.put('customerGroups', {
-      ...prev,
+    const cascadeLinkIds = await cascadeSoftDeleteLinks(tx, [{ type: 'customerGroups', id }], now)
+    const trashSnapshot: TrashSnapshot = {
+      children: [],
+      links: [],
+      ...(cascadeLinkIds.length ? { cascadeLinkIds } : {}),
+    }
+    await tx.update('customerGroups', id, {
       deleted: 1,
       updatedAt: now,
       rev: prev.rev + 1,
       deletedAt: now,
       restoredAt: undefined,
-      trashSnapshot: undefined,
+      trashSnapshot,
     })
     await tx.enqueue('customerGroups', id, 'delete', now)
   })

@@ -149,11 +149,8 @@ export interface Customer extends SyncMeta {
    */
   /** 亲密度手动档（Issue #34）：内嵌可选字段零迁移；缺省=未设置=走算法兜底 */
   intimacy?: CustomerIntimacy
-  /**
-   * 手动分组归属（2026-10-17，单选）：指向 kind='manual' 的 CustomerGroup.id；
-   * 缺省 = 未加入任何手动分组。规则分组不落此字段（按标签动态判定）。
-   */
-  groupId?: string
+  // 手动分组归属已迁 links（v16，kind='member' → customerGroups）：读侧 crm/hooks#useCustomerGroupIdOf、
+  // 写侧 setCustomerGroup —— rule 组保持标签视图（裁决 C，无存储成员）
 }
 
 /**
@@ -765,12 +762,18 @@ function matchesRule(
  * 规则组走标签匹配（matchGroup）。kind 缺省按 'rule' 处理（存量数据兼容，零迁移）。
  * 列表过滤 / 计数 / 拖拽判定一律经此函数，禁止各处自写分支。
  */
+/**
+ * 分组归属判定（Phase 3 起双轨）：manual 组的成员在 member link（`manualGroupId` 由
+ * 读侧索引注入，见 crm/hooks#useCustomerGroupIdOf），rule 组仍走标签匹配。
+ * 第三参缺省 = 无手动归属（拖拽判定等场景传索引值）。
+ */
 export function customerInGroup(
-  customer: Pick<Customer, 'groupId' | 'tags'>,
+  customer: Pick<Customer, 'tags'>,
   group: Pick<CustomerGroup, 'id' | 'kind' | 'includeTags' | 'excludeTags' | 'rules'>,
+  manualGroupId?: string,
 ): boolean {
   const kind = group.kind ?? 'rule'
-  if (kind === 'manual') return customer.groupId === group.id
+  if (kind === 'manual') return manualGroupId === group.id
   return matchGroup(customer, group as CustomerGroup)
 }
 

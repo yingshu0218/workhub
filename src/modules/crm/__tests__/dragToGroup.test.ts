@@ -56,28 +56,29 @@ describe('customerInGroup：双模式分组归属统一口径（2026-10-17）', 
       rev: 0,
     })
 
-  it('手动组：看 groupId 单选（不看标签）', () => {
-    expect(customerInGroup({ groupId: 'm1', tags: [] }, manual('m1'))).toBe(true)
-    expect(customerInGroup({ groupId: 'other', tags: [] }, manual('m1'))).toBe(false)
+  it('手动组：看 member 归属单选（manualGroupId 注入，不看标签）', () => {
+    expect(customerInGroup({ tags: [] }, manual('m1'), 'm1')).toBe(true)
+    expect(customerInGroup({ tags: [] }, manual('m1'), 'other')).toBe(false)
+    expect(customerInGroup({ tags: [] }, manual('m1'))).toBe(false) // 无归属 = 不在
   })
 
-  it('规则组：看标签匹配（不看 groupId）；kind 缺省按 rule 处理（存量兼容）', () => {
+  it('规则组：看标签匹配（不看归属）；kind 缺省按 rule 处理（存量兼容）', () => {
     const rule = {
       id: 'r1',
       includeTags: ['重点'],
       excludeTags: [],
     } as unknown as CustomerGroup
     const ruleNoKind = { ...rule } // 无 kind 字段 = 存量数据
-    expect(customerInGroup({ groupId: 'm1', tags: ['重点'] }, rule)).toBe(true)
-    expect(customerInGroup({ groupId: 'm1', tags: [] }, rule)).toBe(false)
+    expect(customerInGroup({ tags: ['重点'] }, rule, 'm1')).toBe(true)
+    expect(customerInGroup({ tags: [] }, rule, 'm1')).toBe(false)
     expect(customerInGroup({ tags: ['重点'] }, ruleNoKind)).toBe(true)
   })
 
-  it('拖入手动组 = groupId 覆盖（单选：自动离开旧手动组）', () => {
-    expect(customerInGroup({ groupId: 'm1', tags: [] }, manual('m1'))).toBe(true)
-    expect(customerInGroup({ groupId: 'm1', tags: [] }, manual('m2'))).toBe(false)
-    // 拖入 m2 后（groupId 覆盖为 m2）：离开 m1、加入 m2
-    expect(customerInGroup({ groupId: 'm2', tags: [] }, manual('m1'))).toBe(false)
-    expect(customerInGroup({ groupId: 'm2', tags: [] }, manual('m2'))).toBe(true)
+  it('拖入手动组 = member 归属覆盖（单选：自动离开旧手动组）', () => {
+    expect(customerInGroup({ tags: [] }, manual('m1'), 'm1')).toBe(true)
+    expect(customerInGroup({ tags: [] }, manual('m2'), 'm1')).toBe(false)
+    // 拖入 m2 后（归属覆盖为 m2）：离开 m1、加入 m2
+    expect(customerInGroup({ tags: [] }, manual('m1'), 'm2')).toBe(false)
+    expect(customerInGroup({ tags: [] }, manual('m2'), 'm2')).toBe(true)
   })
 })

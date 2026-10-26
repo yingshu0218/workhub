@@ -188,6 +188,24 @@ export async function deleteNoteCascade(noteId: string): Promise<void> {
 }
 
 /**
+ * 仅改客户手动分组归属（不动客户行）：拖拽入组 / 移出组的快捷路径。
+ * 幽灵客户静默返回（repository.update 同款幂等口径）；幽灵分组抛错回滚。
+ * rule 组不落 member（裁决 C）——调用方保证只在 manual 分支调用。
+ */
+export async function setCustomerGroup(
+  customerId: string,
+  groupId: string | undefined,
+): Promise<void> {
+  const now = Date.now()
+  await storage.transaction(['customers', 'customerGroups', 'links', 'syncQueue'], async (tx) => {
+    const customer = await tx.get<Customer>('customers', customerId)
+    if (!customer || customer.deleted) return
+    await syncMemberLinks(tx, { type: 'customers', id: customerId }, 'customerGroups', groupId, now)
+  })
+  storage.requestSync()
+}
+
+/**
  * 仅改文件夹归属（不动笔记行）：移动到文件夹 / 移回根层的快捷路径。
  * 幽灵笔记静默返回（repository.update 同款幂等口径）；幽灵文件夹抛错回滚。
  */
