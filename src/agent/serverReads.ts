@@ -173,8 +173,8 @@ export function initServerExecutor(opts: ServerExecutorOptions): {
   const pbAdapter = createPocketBaseAdapter(opts.pb)
   setStorageAdapter(pbAdapter)
   // P4 agent_events：服务端复合函数 emit 的领域事件落 PB（§5.4-A「事件源多一个、评估不动」）
-  setEventForwarder((event, payload) => {
-    void pbAdapter.recordEvent?.(String(event), payload, 'server-executor')
+  setEventForwarder((event, payload, meta) => {
+    void pbAdapter.recordEvent?.(String(event), payload, 'server-executor', meta?.occurredAt)
   })
   const domains = opts.domains ?? {}
 

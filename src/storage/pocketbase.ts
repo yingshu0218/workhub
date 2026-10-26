@@ -268,10 +268,12 @@ export function createPocketBaseAdapter(opts: PocketBaseAdapterOptions): Storage
     /** 服务端直写中心：写后无需触发同步（客户端靠既有 pull 心跳收敛） */
     requestSync() {},
     /** P4 agent_events：服务端复合函数 emit 的领域事件落 PB，客户端 pull 后 replay（方案 §5.4-A） */
-    recordEvent: async (event, payload, tool) => {
+    recordEvent: async (event, payload, tool, occurredAt) => {
       const res = await api('/api/collections/agent_events/records', {
         method: 'POST',
-        body: { type: event, payload, tool, occurredAt: Date.now() },
+        // occurredAt = emit 时刻（T3 信封 as-built：事件发生与 PB 落库之间隔着队列，
+        // 落库时刻是错误的语义）；缺省回落 Date.now()（兼容旧调用方）
+        body: { type: event, payload, tool, occurredAt: occurredAt ?? Date.now() },
       })
       if (!res.ok) {
         // 事件落库失败**不阻断写操作本身**（写已成功）：记错误日志，客户端评估会延迟但不丢

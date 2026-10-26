@@ -1,6 +1,7 @@
 import dayjs from 'dayjs'
 import { z } from 'zod'
 import type { AiDomain } from '@/db/types'
+import { EVENT_DECLARATIONS, toolEventsMap, isSunk, type EventName } from '@/shared/eventContract'
 import {
   DEFAULT_TODO_PRIORITY,
   TODO_PRIORITY_LEVELS,
@@ -39,11 +40,19 @@ export const todoPrioritySchema = z
  */
 export type RiskLevel = 'low' | 'medium' | 'high'
 
-/** 领域事件声明（§2.1 事件声明表，agentOps 唯一事件出口） */
-export type AgentEventDeclaration =
-  | { event: 'transaction:created'; payload: { transactionId: string; customerId?: string } }
-  | { event: 'customer:contacted'; payload: { customerId: string } }
-  | { event: 'habit:checked'; payload: { habitId: string; date: string } }
+/**
+ * 领域事件声明（§2.1 事件声明表，agentOps 唯一事件出口）。
+ *
+ * **T3 收敛**：payload 形状与工具绑定/下沉标记的唯一事实源在
+ * `shared/eventContract.ts`（EVENT_DECLARATIONS）——本类型只是它的 agent 契约投影，
+ * 不再手写 payload 副本（此前与 AppEvent 双份手写，加事件要两处同步）。
+ * 领域事件 = 声明表里有 tool 绑定的子集；本地事件不进 agent 契约。
+ */
+export type AgentEventDeclaration = {
+  [K in keyof typeof EVENT_DECLARATIONS]: (typeof EVENT_DECLARATIONS)[K]['tool'] extends string
+    ? { event: K; payload: import('@/shared/eventContract').EventPayload<K> }
+    : never
+}[keyof typeof EVENT_DECLARATIONS]
 
 const MAX_AMOUNT = 9_999_999_999
 const CHANNELS = ['微信', '支付宝', '银行卡', '现金', '对公转账'] as const
@@ -578,30 +587,21 @@ export const TOOL_RISK: Record<string, RiskLevel> = {
 }
 
 /**
- * 事件声明表（唯一事实源）：写工具 → 该工具**必然发出**的领域事件。
+ * 事件声明表（T3 起由 shared/eventContract 派生，不再是手写事实源）：
+ * 写工具 → 该工具**必然发出**的领域事件。
  *
  * **下沉标记（P1 第 2 步 / §2.1「repositories 复合函数下沉 emit」）**：
  * `SUNK_EVENTS` 列出已下沉到 repositories 复合函数（事务 commit 之后）在函数出口 emit 的事件。
- * 下沉后 agentOps 执行器**不得**再对同一事件二次 emit（否则单次操作发两次事件），
- * 由 `SUNK_EVENTS` + `TOOL_EVENTS` 共同约束：声明表仍声明该工具「必有此事件」，
- * 但发出方由本表标注为 repositories 层。
+ * 下沉后 agentOps 执行器**不得**再对同一事件二次 emit（否则单次操作发两次事件）。
+ * 两张表现在都是 EVENT_DECLARATIONS（tool 绑定 + sunk 标记）的投影——加事件的唯一动作
+ * 是在 eventContract 里加一条 domainEvent(…, tool)，这里自动出现。
  */
-export const TOOL_EVENTS: Record<string, AgentEventDeclaration['event'][]> = {
-  'fin_recordTransaction': ['transaction:created'],
-  'crm_addInteraction': ['customer:contacted'],
-  // habit_checkin：`habit:checked` 已随 checkinHabit 收口在 repositories（事务 commit 后 emit），
-  // 声明表仍声明「必有此事件」，发出方由 SUNK_EVENTS 标记为 repositories 层
-  'habit_checkin': ['habit:checked'],
-  // crm_createCustomer / fin_createLedger / todo_* / crm_addRelation：无既有事件，不加新的
-}
+export const TOOL_EVENTS: Record<string, AgentEventDeclaration['event'][]> = toolEventsMap()
 
 /** 已下沉 repositories 层 emit 的事件（agentOps 不得重复发；见 TOOL_EVENTS 注释与 §2.1 边界） */
-export const SUNK_EVENTS: ReadonlySet<AgentEventDeclaration['event']> = new Set([
-  'transaction:created',
-  'customer:contacted',
-  // 第 5 步随 checkinHabit 收口：`habit:checked` 由 repositories 层在事务 commit 后 emit
-  'habit:checked',
-])
+export const SUNK_EVENTS: ReadonlySet<AgentEventDeclaration['event']> = new Set(
+  (Object.keys(EVENT_DECLARATIONS) as EventName[]).filter((e) => isSunk(e)),
+) as ReadonlySet<AgentEventDeclaration['event']>
 
 /** 某工具在 agentOps 层**仍需自己 emit**的事件 = 声明表中未下沉的部分（下游可用于断言/防漂移） */
 export function agentLayerEvents(tool: string): AgentEventDeclaration['event'][] {

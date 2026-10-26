@@ -66,5 +66,5 @@ export interface StorageAdapter {
    * 服务端**必须实现**（服务端 eventBus 无消费者，事件经此落 PB `agent_events` 集合，
    * 各客户端 pull 后 replay 到本地 eventBus —— 「事件源多一个、评估逻辑不动」）。
    */
-  recordEvent?(event: string, payload: unknown, tool: string): Promise<void>
+  recordEvent?(event: string, payload: unknown, tool: string, occurredAt?: number): Promise<void>
 }

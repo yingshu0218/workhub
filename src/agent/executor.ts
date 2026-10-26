@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { storage } from '@/storage'
 import { newId } from '@/repositories'
 import { eventBus } from '@/shared/eventBus'
+import { EVENT_DECLARATIONS } from '@/shared/eventContract'
 import {
   saveInteractionAndTouchCustomer,
   createCustomerWithInit,
@@ -174,7 +175,15 @@ export function emitDeclared(tool: string, payloads: Record<string, AgentEventDe
     if (payload === undefined) {
       throw new Error(`emitDeclared: 工具 ${tool} 声明了事件 ${event} 但未提供 payload`)
     }
-    eventBus.emit(event, payload)
+    // T3 收敛：payload 形状由声明表 zod schema 校验（此前只查「给了没给」，
+    // 载荷形状错了会静默发给消费者）。safeParse 失败 = 调用方构造的载荷与契约漂移。
+    const parsed = EVENT_DECLARATIONS[event as keyof typeof EVENT_DECLARATIONS].schema.safeParse(payload)
+    if (!parsed.success) {
+      throw new Error(
+        `emitDeclared: 事件 ${event} 的载荷不符合声明表契约：${parsed.error.issues[0]?.message ?? 'unknown'}`,
+      )
+    }
+    eventBus.emit(event, parsed.data as never)
   }
   // 调用方多给了未声明事件的 payload → 同样视为漂移，直接拒绝
   for (const event of Object.keys(payloads)) {

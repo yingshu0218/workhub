@@ -1,54 +1,35 @@
-/** 轻量类型化事件总线 —— 跨模块联动（开发计划 2.3 联动机制）的解耦核心 */
-import type { Settings } from '@/db/types'
+/**
+ * 轻量类型化事件总线 —— 跨模块联动（开发计划 2.3 联动机制）的解耦核心。
+ *
+ * **事件契约的单一事实源在 `./eventContract.ts`（T3 泛化收敛）**：本文件的 AppEvent
+ * 与 APP_EVENT_NAMES 都从声明表派生，不再手写映射——加一种事件只改 eventContract
+ * 一处（类型、replay 白名单、agent 契约治理表随之生效）。本文件只保留总线机制本身
+ * （订阅表 / emit 顺序纪律 / 转发器）。
+ */
+import { EVENT_DECLARATIONS, EVENT_NAMES, type EventName, type EventPayload } from './eventContract'
 
+/** 事件名 → payload 的映射（由声明表逐键派生；改 contract 即改这里） */
 export type AppEvent = {
-  'focus:completed': { minutes: number }
-  'habit:checked': { habitId: string; date: string }
-  'transaction:created': { transactionId: string; customerId?: string }
-  'customer:contacted': { customerId: string }
-  'quicknote:convert': { quickNoteId: string; to: 'todo' | 'note' }
-  'exp:changed': { delta: number; reason: string }
-  'trophy:unlocked': { trophyId: string }
-  'settings:changed': { settings: Settings }
-  /** 模块配置变更（Issue #34 亲密度配置走 moduleConfigs 同步表，消费端实时应用） */
-  'moduleConfig:changed': { key: string }
+  [K in keyof typeof EVENT_DECLARATIONS]: EventPayload<K>
 }
 
 type Handler<K extends keyof AppEvent> = (payload: AppEvent[K]) => void
 
 /**
- * 事件名的运行期白名单（与 AppEvent 键集**双向编译期锁死**，见下方两个类型断言）。
+ * 事件名的运行期白名单（replay 通道用，T3 前置项）。
  *
- * 为什么需要它：AppEvent 是闭集字面量，但 replay 通道（drainAgentEvents）拿到的是
- * 服务端行里的**任意字符串**——`as keyof AppEvent` 盲转型把类型安全整个旁路。
- * 闭集 registry 下未知名今天是无害 no-op，但事件名一旦泛化（事件总线泛化议题，
- * 见 docs/关联层剩余任务-交接-20261026.md T3），未知名就会穿透分发。replay 侧
- * **必须**先有这份白名单校验，泛化才有安全的落点（2026-10-26 T3 前置项）。
+ * 为什么需要它：replay 通道（drainAgentEvents）拿到的是服务端行里的**任意字符串**——
+ * `as keyof AppEvent` 盲转型把类型安全整个旁路。未知名现在会在 replay 侧被拒绝
+ * （警告跳过），泛化事件名才有安全落点。由声明表派生，不存在「加事件忘登记」。
  */
-export const APP_EVENT_NAMES = [
-  'focus:completed',
-  'habit:checked',
-  'transaction:created',
-  'customer:contacted',
-  'quicknote:convert',
-  'exp:changed',
-  'settings:changed',
-  'trophy:unlocked',
-  'moduleConfig:changed',
-] as const satisfies readonly (keyof AppEvent)[]
-
-/**
- * 防漂移（编译期双向）：
- * ① 数组项必须是合法事件名 —— 由上方 `satisfies readonly (keyof AppEvent)[]` 保证；
- * ② AppEvent 的每个键都必须出现在数组里 —— `_assertExhaustive` 保证：漏一个键时
- *    条件类型落到 `never` 分支、`true` 赋值报错。**不能用 `null as never` 占位**——
- *    `never` 可赋给任何类型，断言会静默失效（2026-10-26 实测踩到）。
- */
-type _Missing = Exclude<keyof AppEvent, (typeof APP_EVENT_NAMES)[number]>
-const _assertExhaustive: _Missing extends never ? true : never = true
-void _assertExhaustive
+export const APP_EVENT_NAMES = EVENT_NAMES
 
 const registry = new Map<keyof AppEvent, Set<(payload: never) => void>>()
+
+/** 转发元数据（信封 as-built，见 eventContract 头注释）：occurredAt = **emit 时刻** */
+export interface EventForwardMeta {
+  occurredAt: number
+}
 
 /**
  * 事件转发器（P4 agent_events，方案 §5.4-A）：emit 时额外调用（在本地分发之后）。
@@ -56,9 +37,12 @@ const registry = new Map<keyof AppEvent, Set<(payload: never) => void>>()
  * 无消费者，领域事件经此落 PB `agent_events`，客户端 pull 后 replay 到本地 eventBus。
  * 浏览器端不注入（转发器为 null，行为与既有完全一致）。
  */
-let forwarder: ((event: keyof AppEvent, payload: unknown) => void) | null = null
+let forwarder: ((event: keyof AppEvent, payload: unknown, meta: EventForwardMeta) => void) | null =
+  null
 
-export function setEventForwarder(fn: (event: keyof AppEvent, payload: unknown) => void): void {
+export function setEventForwarder(
+  fn: (event: keyof AppEvent, payload: unknown, meta: EventForwardMeta) => void,
+): void {
   forwarder = fn
 }
 
@@ -78,13 +62,17 @@ export const eventBus = {
         console.error(`[eventBus] handler error on ${String(event)}`, err)
       }
     })
-    // 转发器在本地分发**之后**调用（顺序纪律：事件永在事务之后，转发不改变本地语义）
+    // 转发器在本地分发**之后**调用（顺序纪律：事件永在事务之后，转发不改变本地语义）；
+    // occurredAt 取 emit 时刻而非落库时刻——事件发生与落库之间隔着 PB 写入队列。
     if (forwarder) {
       try {
-        forwarder(event, payload)
+        forwarder(event, payload, { occurredAt: Date.now() })
       } catch (err) {
         console.error(`[eventBus] forwarder error on ${String(event)}`, err)
       }
     }
   },
 }
+
+/** 供测试/工具断言的事件名类型收窄（与 EventName 同一来源） */
+export type { EventName }
