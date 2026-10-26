@@ -45,7 +45,7 @@ async function memberLinksOf(customerId: string) {
 
 describe('手动分组归属（member link）', () => {
   it('① 拖入手动组：member link 落库（确定性 id）；客户行不持 groupId 字段', async () => {
-    const group = await createCustomerGroup({ name: '重点', kind: 'manual' })
+    const group = await createCustomerGroup({ name: '重点', includeTags: [], excludeTags: [], kind: 'manual' })
     await createCustomerWithInit(baseCustomer('c1') as never, {})
 
     await setCustomerGroup('c1', group.id)
@@ -65,8 +65,8 @@ describe('手动分组归属（member link）', () => {
   })
 
   it('② 换组 = 旧 link 墓碑化 + 新 link 建立；undefined = 移出', async () => {
-    const m1 = await createCustomerGroup({ name: 'M1', kind: 'manual' })
-    const m2 = await createCustomerGroup({ name: 'M2', kind: 'manual' })
+    const m1 = await createCustomerGroup({ name: 'M1', includeTags: [], excludeTags: [], kind: 'manual' })
+    const m2 = await createCustomerGroup({ name: 'M2', includeTags: [], excludeTags: [], kind: 'manual' })
     await createCustomerWithInit(baseCustomer('c1') as never, {})
     await setCustomerGroup('c1', m1.id)
 
@@ -90,7 +90,7 @@ describe('手动分组归属（member link）', () => {
 
 describe('删除分组（v2 级联）与恢复', () => {
   it('④ 删 manual 组：成员 link 墓碑化 + 快照留档、客户行不动；恢复按两端存活复活', async () => {
-    const group = await createCustomerGroup({ name: '重点', kind: 'manual' })
+    const group = await createCustomerGroup({ name: '重点', includeTags: [], excludeTags: [], kind: 'manual' })
     await createCustomerWithInit(baseCustomer('c1') as never, {})
     await createCustomerWithInit(baseCustomer('c2') as never, {})
     await setCustomerGroup('c1', group.id)
@@ -114,7 +114,7 @@ describe('删除分组（v2 级联）与恢复', () => {
   })
 
   it('⑤ rule 组删除：member 清扫 no-op（裁决 C：rule 组无存储成员）', async () => {
-    const group = await createCustomerGroup({ name: '规则组', includeTags: ['重点'] })
+    const group = await createCustomerGroup({ name: '规则组', includeTags: ['重点'], excludeTags: [] })
     await createCustomerWithInit(baseCustomer('c1') as never, {})
     await setCustomerGroup('c1', undefined) // no-op 边界
     await deleteCustomerGroup(group.id)
