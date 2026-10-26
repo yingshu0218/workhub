@@ -40,9 +40,10 @@ const ALLOWED: Record<string, string> = {
   'src/shared/useFormReset.ts':
     '**hook 自身的实现处** —— 它是这套骨架的唯一合法归属地（判据要找的「手写特征」正是它实现的东西）。' +
     '这里必须直写 lastKey state 与渲染期比较，逻辑上不可能「再走 useFormReset」。',
-  'src/modules/todo/TodoPage.tsx':
-    '待办页的重置块服务于**主页面内的新建/编辑表单**，本轮收口范围只含 5 个 *FormDrawer + GroupEditorDrawer；' +
-    '其语义与 useFormReset 一致但未纳入本轮。⚠️ 保留此条是为了「不假装已收口」——后续若一并收口，应同步删除本条。',
+  'src/modules/todo/TodoFormDrawer.tsx':
+    '待办表单的重置块（2026-10-26 随组件从 TodoPage.tsx 拆出，路径随迁、语义未变）服务于**待办新建/编辑表单**；' +
+    '当前收口范围只含 5 个 *FormDrawer + GroupEditorDrawer，其语义与 useFormReset 一致但未纳入。' +
+    '⚠️ 保留此条是为了「不假装已收口」——后续若一并收口，应同步删除本条。',
 }
 
 function walk(dir: string): string[] {

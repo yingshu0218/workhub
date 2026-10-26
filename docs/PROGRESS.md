@@ -4,7 +4,16 @@
 >
 > ⚠️ **环境口径（读下面历史轮次前必看）**：测试环境唯一地址 = **`http://8.153.19.221:9001`**（devtest 直连，**明文 HTTP、无域名**）；正式环境 = **`https://team.fpigeon.fun`**（CNB 镜像部署）。域名 **`dev.fpigeon.fun` 已作废**（2026-10-09 全仓清理）——**本文正文中凡出现该域名，一律是历史轮次记述，不代表当前环境**。权威口径见 `docs/开发测试环境说明.md`。
 
-**最后更新**：2026-10-26（**全仓审计 + 按审计结论整改**——实证全绿；问题集中在「文档事实源」与「质量门禁」两处，本轮把这两处收口，未动业务行为）。
+**最后更新**：2026-10-26（**把审计里「如实挂起」的四项一并处理**——zod 升 v4、四个零测试模块补锁、TodoPage 拆出表单抽屉、worktree 清理）。
+**① zod 升 v4（生产依赖高危清零）**：`zod ^3.24.1 → ^4.6.7`，`npm audit --omit=dev` 由 **1 high → 0**。
+⚠️⚠️ **升级暴露一个「看着兼容、实则全错」的坑**：`jsonSchema.ts` 原按 v3 的 `_def.typeName`（`'ZodObject'` 驼峰）分派，v4 改成小写 `_def.type`（`'object'`）。旧代码那句 `def.typeName ?? def.type` 兜底**看起来**是版本兼容，实际把「找不到」换成了「拿到另一种形状」→ 所有分支都不再命中，**37 个工具的 `inputSchema` 全部退化成 `{}`**，三个锁（bridge / skill.parity / functional.sweep）同时红。修法：按 v4 结构重写分派（object→`shape`、array→`element`、enum→`entries`、literal→`values`、transform→`pipe.in`、optional/nullable/default/catch→`innerType`；`.refine()` 在 v4 不再产生包装类型，类型名不变）。**教训：`?? 兜底` ≠ 兼容 —— 取值域变了就是语义变了。**
+**② 四个零测试模块补齐（5 文件 36 条，全部变异校验）**：新增 `shared/__tests__/streak.test.ts`（7）· `habits/__tests__/habitCheckin.test.ts`（6）· `trophies/__tests__/trophyEngine.test.ts`（9）· `projects/__tests__/projectWrites.test.ts`（7）· `moduleConfig/__tests__/registry.test.ts`（7）。锁的都是「错了不会报错、只会显示错」的一类：连击天数（**当前连击 vs 历史最长语义不同**，混淆后读数恒偏一天）、打卡幂等与「取消后复活同一条」、奖杯解锁幂等与事件时机、`createdAt` 编辑不被覆盖、注册表 id 唯一与深链可达。**变异校验三处命中**：`calcLongestStreak` 改成 `dates.size` → 恰 2 红；删 `if (prev) return { created: false }` → 幂等锁红；删 `if (trophy.unlockedAt) continue` → 奖杯幂等红（均已还原）。
+**③ TodoPage 拆出 TodoFormDrawer**：`TodoPage.tsx` **1529 → 1172 行**，`TodoFormDrawer.tsx` 369 行（**零逻辑改写**，`./TodoPage` 保留同名再导出，外部 import 路径不变）。两把形状锁随之更新路径（`formResetConvention` 的例外表、`blacklistScenes` 的消费面清单）—— **是路径随迁、不是放宽判据**（改错会立刻红，本轮正是它先报的）。
+**④ worktree 清理**：移除 2 个干净工作树（释放 ~587MB）+ 删除 2 个已合并分支（ahead 0）；**保留** `main-637aaa64`（**有未提交改动，不销毁**）与 `workbuddy/main-cd5ddeb1` 分支（ahead 3、语义已并入但 patch-id 不同，留作取证）。
+**仍然挂起（如实记录）**：`@vitest/mocker` + `undici` 共 3 个 **dev 链路**漏洞 —— `npm audit fix` 无法自动解决（需等 vitest 发补丁版），**生产依赖侧为 0**；其余 **7 个 >800 行文件不拆** —— 依 `C-7` 既有裁决（拆出 = 把闭包变量显式化成 props，净减有限却引入「props 漏传 → 静默失效」的新风险面），只处理了结构上确实不合理的一处（页面内联表单抽屉）。
+> **本轮验证**：`npm run check:all` 全绿 —— **1064 passed / 0 failed / 7 skipped**（130 文件 1071 用例，较上轮 +36 条 / +5 文件）/ `tsc -b` 0 错 / `eslint` 0 告警 / `build` ✅ 1.89s（主包 452.85 kB · gzip 115.33 kB）/ `npm audit --omit=dev` **0 漏洞**。
+
+**上一轮**：2026-10-26（**全仓审计 + 按审计结论整改**——实证全绿；问题集中在「文档事实源」与「质量门禁」两处，本轮把这两处收口，未动业务行为）。
 **审计基线（本机实跑，不引用自述值）**：`tsc -b` 0 错 · `eslint src` 0 告警 · 全量 vitest **1028 passed / 0 failed / 7 skipped**（125 文件 1035 用例）· `build` 1.68s（主包 453.13 kB / gzip 115.39 kB）· `check:icons` 138 · `gen:skills` 37 工具复跑零 diff · `check:schema` **测试站与正式站均「完全一致」（21 集合）** · 测试站线上入口 `index-DR0uUlqs.js` 与本机构建**同哈希** · 工作区干净、与 origin 同步。报告见 `docs/审计报告-全仓-20261026.md`。
 **整改 ① 事实源校正（P1）**：状态表三处失真已改 —— `全站回收站`「⚠️ 服务端 Schema 未升级」→ **已升级**（2026-10-24 双站导入，本轮复查一致）；集合数 **20 → 21**（补 `links`）；架构速览「17 collections / Dexie v8」→ **21 集合 / Dexie v16**。⚠️ 为什么算 P1：AGENTS 规定「判断做到哪了只认 PROGRESS」，而原文会让下一个接手者得出「上线前必须导 schema」的错误前置条件。
 **整改 ② PROGRESS 二次归档**：正文 **31 段 → 15 段**（迁 17 段到 `PROGRESS-archive-2026H2.md`，累计 68 轮），执行 AGENTS §7 的成文规则（原规则已写成但未执行，属「规则存在≠机制存在」）。

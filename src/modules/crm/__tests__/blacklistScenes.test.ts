@@ -146,7 +146,7 @@ describe('④【结构层】三个场景各自的消费点必须存在（D15 的
     // 单据选择器：流水 / 待办 / 项目三个表单 + 笔记 @ 提及 + Agent 消解器
     excludeFromPicker: [
       'modules/finance/TransactionFormDrawer.tsx',
-      'modules/todo/TodoPage.tsx',
+      'modules/todo/TodoFormDrawer.tsx',
       'modules/projects/ProjectFormDrawer.tsx',
       'modules/notes/NoteEditorPage.tsx',
       'agent/resolver.ts',
@@ -200,7 +200,7 @@ describe('④【结构层】三个场景各自的消费点必须存在（D15 的
       'agent/reads.ts',
       'agent/resolver.ts',
       'modules/finance/TransactionFormDrawer.tsx',
-      'modules/todo/TodoPage.tsx',
+      'modules/todo/TodoFormDrawer.tsx',
       'modules/projects/ProjectFormDrawer.tsx',
       'modules/crm/CrmPage.tsx',
       'modules/crm/AllTimelinesPage.tsx',
