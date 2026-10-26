@@ -94,6 +94,24 @@
         git ls-remote origin "refs/heads/main" "refs/tags/*"
 
 # ─────────────────────────────────────────────────────────────────────────────
+# 质量门禁（2026-10-26 审计补）：镜像构建的**前置 stage**，不通过就不出镜像
+#
+# 为什么加：此前流水线只有「GitHub 镜像同步 + docker build」，lint / tsc / vitest
+# 一个都不跑 —— 任何带红提交都能构建成镜像并推到 latest，回归完全依赖个人自律
+# （历史记录里确实出现过「全量测试未跑完即交付」）。Dockerfile 里也只有 npm run build。
+#
+# ⚠️ 必须复用 `npm run check:all`（单一口径）：本仓 jsdom 用例要等
+# IndexedDB → liveQuery → React 三跳，默认并发下会随机器负载假红；门禁里另写一遍
+# 不带 --maxWorkers=4 的 vitest，只会得到随机红灯和「重跑一次变绿」的假结论。
+.quality-gate: &quality-gate
+  name: quality gate
+  image: node:22-bookworm-slim # 与 Dockerfile 的 web/runtime 同版本，验的就是「能不能进镜像」
+  script: |
+    set -e
+    npm ci
+    npm run check:all
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Web 版 docker 镜像：推送即构建，推到 CNB 制品库，VPS 上 docker pull 部署
 #
 # 只出 **Web 版**：手机端/桌面端（Tauri）由 .dockerignore 挡在构建上下文之外，
@@ -111,6 +129,7 @@
     wait: true
     timeout: 1800
   stages:
+    - <<: *quality-gate
     - name: docker build
       script: |
         set -e
@@ -144,6 +163,7 @@
         wait: true
         timeout: 1800
       stages:
+        - <<: *quality-gate
         - name: docker build
           script: |
             set -e

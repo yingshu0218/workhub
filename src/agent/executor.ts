@@ -1079,7 +1079,10 @@ export function agent_listLedgers(input: unknown): Promise<AgentOpResult> {
 
 /** listHabits：习惯清单 */
 export function agent_listHabits(input: unknown): Promise<AgentOpResult> {
-  return wrapRead(z.object({}).strict(), listHabits, input)
+  // 2026-10-26 审计：此处原为内联 `z.object({}).strict()`，与 reads.ts 的 listHabitsSchema
+  // 内容等价但**不是同一实例** —— 同一契约两份实现，改一处漏一处时 AI 侧校验会静默分叉
+  // （历史同类事故见 skillSource.ts 顶部「抄一份简化实现」复盘）。统一引用单一事实源。
+  return wrapRead(listHabitsSchema, listHabits, input)
 }
 
 /** listProjects：项目清单（P2 动作扩面） */

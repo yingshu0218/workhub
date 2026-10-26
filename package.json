@@ -10,6 +10,7 @@
     "build:server": "node scripts/build-server-executor.mjs",
     "preview": "vite preview",
     "lint": "eslint src",
+    "check:all": "node scripts/check-icons.mjs && tsc -b && eslint src && vitest run --maxWorkers=4",
     "format": "prettier --write src",
     "check:icons": "node scripts/check-icons.mjs",
     "check:schema": "node scripts/check-schema.mjs",

@@ -39,8 +39,14 @@ const GUARDED_DIRS = ['src/modules', 'src/app', 'src/shared']
  * - `src/repositories/` 本身是**仓储实现层**，Dexie 直写有其正当位置（如需要 `bulkPut` 等
  *   StorageAdapter 未提供的能力）—— 故以 ALLOWED 逐条署名，不允许悄悄新增。
  * - `src/sync/` 是同步协议实现层，同理。
+ *
+ * ⚠️ 第三批补面（2026-10-26 审计）：`src/storage` 与 `src/db` 也承担「写库」职责，
+ * 此前同样处于**扫描面之外** —— `storage/dexie.ts`（StorageAdapter 的 Dexie 实现）与
+ * `db/seed.ts`（播种）的直写一直靠「目录没被扫」，而不是靠「逐条署名放行」。
+ * 这与本文件头「必须逐条署名」的自我要求不符：**绿灯必须来自判据，不能来自盲区**。
+ * （同类教训见上面第二批那段的「按目录圈范围时要反问还有哪些目录」；这次是它的复盘执行。）
  */
-const GUARDED_DIRS_2 = ['src/repositories', 'src/sync']
+const GUARDED_DIRS_2 = ['src/repositories', 'src/sync', 'src/storage', 'src/db']
 
 /**
  * 允许直写 `db.transaction(` 的例外（相对仓库根的路径 → 理由）。
@@ -60,6 +66,12 @@ const ALLOWED_IMPL: Record<string, string> = {
     'settingsRepo.save：settings 表主键是 `key`（非 `id`），与 StorageTx 的 `T extends { id: string }` ' +
     '约束类型不兼容；且它是本地 singleton、刻意不进同步队列，无「随 StorageAdapter 迁移」诉求。' +
     '（同文件另有 focusSessionRepo.bulkPut / restoreFromJson 用 bulkPut：StorageTx 无该原语。）',
+  'src/storage/dexie.ts':
+    '**它就是 StorageAdapter 的实现层**（DexieAdapter.transaction 把 StorageTx 原语直映射到 Dexie 原生事务）。' +
+    '「不随适配器迁移」这条理由对它不成立 —— 换 Tauri SQLite 时替换的是整个文件，而不是要求它调用自己。',
+  'src/db/seed.ts':
+    '**DB 层播种**（seedLocalData）：建库后一次性写入种子数据，含 `db.transactions.bulkPut` 等' +
+    ' StorageTx 未提供的能力；且它只在「空库首启」路径上跑，不在业务写链路内。',
   'src/repositories/__tests__/writeThroughStorage.test.ts': '本文件自身（判据里的示例字符串）',
 }
 
@@ -128,6 +140,12 @@ describe('防漂移锁：模块层写库必须经 storage.transaction（不得�
     expect(ALLOWED_IMPL[allowed]).toBeTruthy()
     // pocketbaseAdapter 已经收口（enqueueAllForPush 改为 storage.transaction）→ 不应在署名表里
     expect(ALLOWED_IMPL[notAllowed]).toBeUndefined()
+
+    // 2026-10-26 补面：storage / db 必须在扫描面内**且各有署名** —— 否则绿灯来自盲区而非判据
+    expect(GUARDED_DIRS_2).toContain('src/storage')
+    expect(GUARDED_DIRS_2).toContain('src/db')
+    expect(ALLOWED_IMPL['src/storage/dexie.ts']).toBeTruthy()
+    expect(ALLOWED_IMPL['src/db/seed.ts']).toBeTruthy()
   })
 
   /**

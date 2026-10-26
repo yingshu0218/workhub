@@ -24,7 +24,7 @@
 
 ## 3. 技术栈（已锁定，勿擅自替换）
 
-React 18 · Vite · TypeScript strict · Tailwind 4 · Zustand · Dexie(IndexedDB) · react-router v6
+React 18 · Vite · TypeScript strict · Tailwind 4 · Zustand · Dexie(IndexedDB) · react-router v7（2026-10-21 由 v6 升级）
 预留：d3-force · CodeMirror 6 · marked · SQLite WASM（迁移口已留）
 
 后端：**自托管 PocketBase**（自有云服务器）。
@@ -38,7 +38,9 @@ src/repositories/   写入口唯一层：所有落库走这里（存储无关，
                     ⚠️ 模块层（modules / app / shared）写库**必须经 `storage.transaction`**
                     （StorageAdapter 原语），**禁止 `db.transaction(...)` 直写** ——
                     直写不随存储适配器迁移，换 Tauri SQLite 时会静默失效。
-                    由 `repositories/__tests__/writeThroughStorage.test.ts` 锁住（白名单为空）。
+                    由 `repositories/__tests__/writeThroughStorage.test.ts` 锁住：
+                    modules/app/shared **白名单为空**；repositories / sync / storage / db
+                    四目录为「默认禁 + 逐条署名」（2026-10-26 补面，此前 storage/db 在扫描面外）。
                     读路径（`db.<table>` 查询）不受此限。
 src/domain/         动作编排唯一层：跨表编排（记账口径、默认账本策略…）
 src/agent/          agentOps：MCP 工具 schema / 执行器 / 浏览器侧桥
@@ -54,7 +56,8 @@ docs/               开发计划 / 进度 / 审查报告 / 部署指南
 ```bash
 npm run dev            # 开发（relay 自动内嵌在 /relay，无需第二个进程）
 npm run build          # check:icons + tsc -b + vite build
-npm test               # vitest
+npm run check:all      # 全量门禁：check:icons + tsc -b + eslint + vitest --maxWorkers=4（CI 与本机同一条命令）
+npm test               # vitest（⚠️ 全套请用 check:all，默认并发会假红）
 npm run lint           # eslint src
 npm run gen:skills     # 从 skillSource.ts 重新生成 docs/skills/*（自动生成物，勿手改）
 npm run agent:setup    # 一键把本项目接入本机已有的 Agent 工具（见 §8）
@@ -93,7 +96,9 @@ npm run serve          # 生产形态：同进程托管 dist + relay（同源 ws
   `CHANGELOG.md` 追加该版本小节（版本号 / 日期 / 要点）；日常逐条记录交给 PROGRESS 与 git 提交历史。
   旧 README 底部的逐条表格（#1~#128）已归档到 `docs/CHANGELOG-详细流水-v1.0.0至v1.2.1.md`（**只归档、不再追加**）。
 - 提交署名统一用 CNB 账号身份。
-- 推送前先过 pre-push 检查（规则见本仓库 `.pushcheck.conf`；⚠️ 若文件缺失，此项暂无可执行规则，不要以「已通过 pre-push」为交付依据）。
+- 推送前先过 **`npm run check:all`**（2026-10-26 起为唯一门禁入口，CI 的同名 stage 跑的是同一条命令）。
+  ⚠️ 本仓库**没有**安装 git pre-push 钩子，`.pushcheck.conf` 也不存在 —— 不要以「已通过 pre-push」为交付依据，
+  只认 `check:all` 的实际输出（且 vitest 必须 `--maxWorkers=4`，默认并发会假红）。
 - **一次提交只做一件事**。批量修复要分组，不要混成一坨。
 - **两套版本号，语义不同，不要互相覆盖**（2026-10-21 立明文，此前只是隐含）：
   | 编号 | 位置 | 含义 |
@@ -106,7 +111,7 @@ npm run serve          # 生产形态：同进程托管 dist + relay（同源 ws
 
 ## 8. 接入 Agent（本项目自带的桥）
 
-本项目把 34 个业务工具（客户 / 流水 / 待办 / 笔记 / 习惯 / 账本…）通过 MCP 暴露给外部 Agent，
+本项目把 **37 个业务工具**（客户 / 流水 / 待办 / 笔记 / 习惯 / 账本 / 关联…；`tools/list` 另含 `confirm_preview` 共 38 条）通过 MCP 暴露给外部 Agent，
 数据始终留在浏览器 IndexedDB，relay 只转发、零特权。
 
 ```bash
