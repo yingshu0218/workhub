@@ -411,3 +411,62 @@ Gradle 的 `:app:rustBuildArm64Release` 执行的是 **`npm run -- tauri android
 4. **仅 arm64**：老设备（armeabi-v7a）与 x86_64 模拟器装不上；需要时加 `--target` 重出。
 5. **存储仍是 Dexie**：阶段 2 的 SQLite 迁移未做，WebView 的 IndexedDB 仍可用（macOS 已实证）。
 6. **构建很慢**：2 核构建机首次 release 约 30~40 分钟（Rust 全量 + Gradle 依赖），增量 2~5 分钟；Gradle 发行包下载**不会自动续传**（中断即从 0 开始），必要时用 `curl -C -` 预置到 wrapper 缓存。
+
+### 12.8 CNB 上出包（仅在打 tag 时）
+
+> 目标：不用本机也能出 APK。**只在 `v*` tag 触发**——一次构建约 1~1.5 核时，每次 push 都跑会吃掉 160 核时/月 的免费额度。
+
+#### 三个文件
+
+| 文件 | 作用 |
+|---|---|
+| `.cnb/android/Dockerfile` | 构建环境镜像：JDK 17 + Android SDK/NDK + Rust + Node |
+| `.cnb.yml` 的 `.android-builder-image` | 仅当上面 Dockerfile 变更时重建镜像（main push 触发） |
+| `.cnb.yml` 的 `.android-apk` | tag 流水线：写入签名 → 构建 → 建 Release → 挂 APK |
+
+#### 为什么钉 SDK 36
+
+腾讯云镜像站（`mirrors.cloud.tencent.com/AndroidSDK/`，国内 CI 可达）**只同步到 `platforms;android-36`**，37 只能走 `dl.google.com`（国内不可达）。因此把 `compileSdk`/`targetSdk` 钉到 36，全链路可走镜像。36 与 37 对本应用无行为差异（edge-to-edge 自 35 起强制）。
+
+⚠️ 将来镜像站补齐 37、或 CI 能稳定访问 Google 时，两处一起升：`.cnb/android/Dockerfile` 的 `sdkmanager` 参数 + `gen/android/app/build.gradle.kts`。
+
+#### Gradle 发行包
+
+`gradle-wrapper.properties` 的 `distributionUrl` 改为腾讯镜像
+`https://mirrors.cloud.tencent.com/gradle/gradle-9.6.1-bin.zip`（已验证可下；官方地址会 302 到 GitHub，国内 CI 大概率失败）。
+
+#### 密钥：需要人工在 CNB 网页做一次
+
+在密钥仓库 `blueteam0715/keystore` 新建 `android-signing.yml`：
+
+```yaml
+ANDROID_KEYSTORE_B64: "<nexus-release.jks 的 base64，一行>"
+ANDROID_KEY_ALIAS: "nexus"
+ANDROID_KEY_PASSWORD: "<keystore.properties 里的 password>"
+```
+
+- 生成 base64：`base64 -w0 ~/.workhub/android/nexus-release.jks`
+- 密钥仓库禁止本地 clone，只能在网页编辑
+- **不要把 jks 或密码提交进本仓库**；`gen/android/keystore.properties` 已被 gitignore
+
+#### 首次启用顺序（顺序错了 tag 会失败）
+
+1. 把 `.cnb/android/Dockerfile` 与 `.cnb.yml` 推到 `main` → 触发镜像构建（约 10~15 分钟，8~10 GiB 上传）
+2. 在 CNB 确认镜像已出现在制品库：`docker.cnb.cool/blueteam0715/workhub/android-builder:latest`
+3. 打 tag：`git tag v1.2.2 && git push origin v1.2.2`
+4. 构建完成后，Release 页会出现 `app-universal-release.apk` 附件，手机直接下载安装
+
+#### 额度
+
+| 项 | 估算 |
+|---|---|
+| 单次 tag 构建 | 1~1.5 核时（4 核 × 15~20 分钟，冷缓存） |
+| 有缓存 | 约 0.5 核时 |
+| 镜像 | 占对象存储 8~10 GiB（一次性） |
+| 免费额度 | 160 核时/月；按 tag 触发，一个月几个版本，占用可忽略 |
+
+#### 未验证项（如实标注）
+
+- **本机未完成 SDK36 的 release 重打**：2 核 3.5G 构建机上 Gradle/R8 每次在工具单次时限内跑不完。**现有本地 APK 仍是 targetSdk 37 的旧包**；36 的包将由 CI 首次 tag 产出，或在一台正常配置的机器上打。
+- **CNB 网络未实测**：镜像站可达性是在本机（阿里云）验证的，与 CNB 构建节点可能不同；首次镜像构建若卡在 `sdkmanager`，把 `ANDROID_SDK_MIRROR` 换成清华/阿里源再试。
+- **Release 附件需要 release 已存在**：流水线已加 `git:release` 在前，顺序不要调换。
