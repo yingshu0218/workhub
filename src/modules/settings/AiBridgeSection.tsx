@@ -27,13 +27,18 @@ const DOMAIN_LABELS: Record<AiDomain, { label: string; desc: string }> = {
 
 const DOMAIN_ORDER: AiDomain[] = ['fin', 'crm', 'todo', 'project', 'habit', 'note', 'read']
 
-function genToken(): string {
-  const bytes = new Uint8Array(24)
-  crypto.getRandomValues(bytes)
-  return btoa(String.fromCharCode(...bytes))
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '')
+/**
+ * ws(s)://host/relay → http(s)://host/relay。
+ *
+ * 配对码兑换走普通 HTTP（`POST /relay/pair`）而不是 WS：页面此刻还没有 token，连不上 WS。
+ *
+ * ⚠️ 这里原本有一个本地 `genToken()`，已删除（2026-10-28 线上事故根因）：
+ * 页面自己随机生成的 token，relay 不认（它只认启动时环境变量/数据卷里那份），
+ * 两边永远对不上 → 桥永久停在「连接中…」，Agent 侧只看到「未连接 relay」。
+ * **token 只能由 relay 经配对码下发，页面不得自造。**
+ */
+function relayHttpBase(wsBase: string): string {
+  return wsBase.replace(/^ws(s?):/, 'http$1:')
 }
 
 export function AiBridgeSection({
@@ -49,6 +54,16 @@ export function AiBridgeSection({
   const [copied, setCopied] = useState(false)
   const [copiedCmd, setCopiedCmd] = useState(false)
   const [copiedConfig, setCopiedConfig] = useState(false)
+  /** 配对码兑换状态 —— 页面拿到 relay token 的唯一入口 */
+  const [pairCode, setPairCode] = useState('')
+  const [pairState, setPairState] = useState<{ busy: boolean; error: string; ok: string }>({
+    busy: false,
+    error: '',
+    ok: '',
+  })
+  /** 本页签发给 Agent / 第二台设备的一次性配对码（5 分钟有效） */
+  const [issued, setIssued] = useState<{ code: string; minutes: number } | null>(null)
+  const [issueBusy, setIssueBusy] = useState(false)
   /** 桥实际连出的 relay 基址（留空 = 当前站点同源 /relay，与实际连接口径同源，不另算一份） */
   const bridgeBase = resolveBridgeBase(ai.bridgeUrl)
 
@@ -90,21 +105,79 @@ export function AiBridgeSection({
   const setDomain = (d: AiDomain, on: boolean) => save({ ai: { ...ai, domains: { ...domains, [d]: on } } })
 
   const toggleBridge = (on: boolean) => {
-    // 启用即保证有 token（无 token 桥连不上 relay，配了也没用）
-    const token = ai.bridgeToken || (on ? genToken() : ai.bridgeToken)
-    save({ ai: { ...ai, bridgeEnabled: on, bridgeToken: token } })
-    if (on && token) {
-      agentBridge.connect({ url: ai.bridgeUrl ?? '', token })
+    // 只切开关：**不再顺带造 token**。没有 token 时桥必然连不上，由上面的配对区引导去配对
+    // （历史教训：这里原来是 `ai.bridgeToken || genToken()`，正是 token 对不上那类故障的源头）。
+    save({ ai: { ...ai, bridgeEnabled: on } })
+    if (on && ai.bridgeToken) {
+      agentBridge.connect({ url: ai.bridgeUrl ?? '', token: ai.bridgeToken })
     } else {
       agentBridge.disconnect()
     }
   }
 
-  const resetToken = () => {
-    const token = genToken()
-    save({ ai: { ...ai, bridgeToken: token } })
-    // 地址留空 → 桥自动用当前站点同源 /relay（内嵌形态）；显式填了地址仍按填的走。
-    if (ai.bridgeEnabled) agentBridge.connect({ url: ai.bridgeUrl ?? '', token })
+  /**
+   * 用配对码换 relay 的接入 token。
+   *
+   * 校验全在服务端（一次性、5 分钟、按 IP 限流），兑换回来的就是 **relay 正在用的那串** token，
+   * 所以页面与外部 Agent 天然一致 —— 这是删掉本地随机生成后要守住的不变式。
+   */
+  const redeemPair = async () => {
+    const code = pairCode.trim().toUpperCase()
+    if (!code) {
+      setPairState({ busy: false, error: '请先填入配对码', ok: '' })
+      return
+    }
+    setPairState({ busy: true, error: '', ok: '' })
+    try {
+      const res = await fetch(`${relayHttpBase(bridgeBase)}/pair`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ code }),
+      })
+      const data = (await res.json().catch(() => ({}))) as { token?: string; error?: string }
+      if (!res.ok || !data.token) throw new Error(data.error || `配对失败（HTTP ${res.status}）`)
+      save({ ai: { ...ai, bridgeEnabled: true, bridgeToken: data.token } })
+      agentBridge.connect({ url: ai.bridgeUrl ?? '', token: data.token })
+      setPairCode('')
+      setPairState({ busy: false, error: '', ok: '配对成功，正在连接 relay…' })
+    } catch (e) {
+      setPairState({ busy: false, error: e instanceof Error ? e.message : String(e), ok: '' })
+    }
+  }
+
+  /** 解绑：清掉本地 token（换设备/换环境时用），之后必须重新配对才连得上 */
+  const clearToken = () => {
+    save({ ai: { ...ai, bridgeEnabled: false, bridgeToken: undefined } })
+    agentBridge.disconnect()
+    setPairState({ busy: false, error: '', ok: '已清除本地 token，请用新的配对码重新配对' })
+  }
+
+  /**
+   * 以已持有的 token 为凭据，签发一枚**给 Agent / 第二台设备用**的一次性配对码。
+   *
+   * 这就是「后台签发」：与 GitHub 生成 PAT 同一模型 —— 后台可见/可发凭据，客户端只负责填。
+   * 服务端要求 Bearer（`/pair/new`），所以桥没连上时这里必然 401，错误原样显示出来。
+   */
+  const issueCode = async () => {
+    if (!ai.bridgeToken) {
+      setPairState({ busy: false, error: '尚未配对，无法签发配对码', ok: '' })
+      return
+    }
+    setIssueBusy(true)
+    setPairState({ busy: false, error: '', ok: '' })
+    try {
+      const res = await fetch(`${relayHttpBase(bridgeBase)}/pair/new`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', Authorization: `Bearer ${ai.bridgeToken}` },
+      })
+      const data = (await res.json().catch(() => ({}))) as { code?: string; ttlSeconds?: number; error?: string }
+      if (!res.ok || !data.code) throw new Error(data.error || `签发失败（HTTP ${res.status}）`)
+      setIssued({ code: data.code, minutes: Math.round((data.ttlSeconds ?? 300) / 60) })
+    } catch (e) {
+      setPairState({ busy: false, error: e instanceof Error ? e.message : String(e), ok: '' })
+    } finally {
+      setIssueBusy(false)
+    }
   }
 
   const copyToken = async () => {
@@ -181,6 +254,46 @@ export function AiBridgeSection({
             </div>
             <div>
               <div className="mb-1 text-[0.8214rem] font-medium text-on-surface-variant">
+                配对码（首次连接用）
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  className="min-w-0 flex-1 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 font-mono text-[0.8571rem] uppercase tracking-wider"
+                  value={pairCode}
+                  onChange={(e) => setPairCode(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void redeemPair()
+                  }}
+                  placeholder="6 位，服务器启动日志里打印"
+                />
+                <Button size="sm" variant="ghost" onClick={() => void redeemPair()}>
+                  {pairState.busy ? '配对中…' : '配对'}
+                </Button>
+              </div>
+              {pairState.error && <p className="mt-1 text-[0.7857rem] text-error">{pairState.error}</p>}
+              {!pairState.error && pairState.ok && (
+                <p className="mt-1 text-[0.7857rem] text-success">{pairState.ok}</p>
+              )}
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <Button size="sm" variant="ghost" onClick={() => void issueCode()}>
+                  {issueBusy ? '签发中…' : '生成配对码'}
+                </Button>
+                {issued && (
+                  <span className="font-mono text-[0.9286rem] tracking-wider text-primary">
+                    {issued.code}
+                    <span className="ml-2 font-sans text-[0.7857rem] text-outline">
+                      {issued.minutes} 分钟内有效
+                    </span>
+                  </span>
+                )}
+              </div>
+              <p className="mt-1 text-[0.7857rem] text-outline">
+                首次用启动日志里的<b>引导码</b>（<code>docker logs &lt;容器&gt; | grep 配对码</code>，
+                一次性、不限期）；此后的码由本页签发，5 分钟有效，给 Agent 或第二台设备兑换。
+              </p>
+            </div>
+            <div>
+              <div className="mb-1 text-[0.8214rem] font-medium text-on-surface-variant">
                 接入 token（仅存本地，不进同步）
               </div>
               <div className="flex items-center gap-2">
@@ -188,18 +301,19 @@ export function AiBridgeSection({
                   readOnly
                   className="min-w-0 flex-1 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 font-mono text-[0.8571rem]"
                   value={ai.bridgeToken ?? ''}
-                  placeholder="启用后自动生成"
+                  placeholder="配对成功后自动填入"
                 />
                 <Button size="sm" variant="ghost" icon="content_copy" onClick={copyToken}>
                   {copied ? '已复制' : '复制'}
                 </Button>
-                <Button size="sm" variant="ghost" icon="autorenew" onClick={resetToken}>
-                  重置
+                <Button size="sm" variant="ghost" icon="autorenew" onClick={clearToken}>
+                  解绑
                 </Button>
               </div>
               <p className="mt-1 text-[0.7857rem] text-outline">
-                注入 token 由项目在启动时生成/指定（`npm run dev` 或 `npm run serve` 的控制台会打印；
-                也可用 <code>WORKHUB_RELAY_TOKEN</code> 固定），把同一 token 交给 Agent 即可。
+                这串就是 relay 的接入 token：填进 MCP 客户端的 <code>Authorization: Bearer</code> 即可
+                （也可以把配对码交给 Agent，让它自己换）。它由 relay 启动时从{' '}
+                <code>WORKHUB_RELAY_TOKEN</code> 或数据卷读取，重建镜像不会变。
               </p>
             </div>
             {status.error && <p className="text-[0.8214rem] text-error">{status.error}</p>}

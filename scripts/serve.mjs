@@ -13,14 +13,16 @@
  * 环境变量：
  *   PORT                    监听端口（默认 9001，对齐现有开发测试环境）
  *   HOST                    监听地址（默认 0.0.0.0；relay 与静态同进程，服务对象就是站点访问者）
- *   WORKHUB_RELAY_TOKEN     接入 token（强烈建议显式指定；缺省随机生成并打印）
+ *   WORKHUB_RELAY_TOKEN     接入 token（显式指定则优先；缺省走数据卷文件，见下）
+ *   WORKHUB_RELAY_TOKEN_FILE  token 落盘路径（缺省 <dataDir>/relay-token）
+ *   WORKHUB_DATA_DIR        数据目录（缺省取 PB_DATA_DIR 的父目录，容器内即 /data）
  *   WORKHUB_RELAY_PATH      relay 挂载路径（默认 /relay）
  *   WORKHUB_RELAY_AUTO_CONFIRM=1  dev 便利：预览自动附票（**勿用于生产**）
  */
 import { createServer } from 'node:http'
-import { createReadStream, existsSync, statSync } from 'node:fs'
-import { createHash } from 'node:crypto'
-import { join, extname, resolve, sep } from 'node:path'
+import { createReadStream, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { createHash, randomBytes } from 'node:crypto'
+import { dirname, join, extname, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createRelay } from '../relay/server.mjs'
 
@@ -96,8 +98,43 @@ const MIME = {
   '.txt': 'text/plain; charset=utf-8',
 }
 
+// ── 接入 token：运行期解析，**绝不在构建期生成** ──
+/**
+ * 为什么必须运行期决定（而不是构建镜像时随机一个内置）：
+ * 1) 镜像要可复现 —— 同一 commit 构建两次不能得到两个不同 token，否则线上问题无法复现；
+ * 2) 重建/回滚不能让已配对的身份失效 —— 2026-10-28 线上事故正是「页面里的 token 与 relay 的不
+ *    是同一串」，桥永久停在「连接中…」，Agent 侧只看到 -32001「未连接 relay」，两边都以为是配置错；
+ * 3) 所以 token 落**数据卷**（容器重建、镜像升级都不变），环境变量仍可显式覆盖。
+ *
+ * 优先级：WORKHUB_RELAY_TOKEN > token 文件 > 首次生成并写入（0600）。
+ */
+const dataDir = process.env.WORKHUB_DATA_DIR || (process.env.PB_DATA_DIR ? dirname(process.env.PB_DATA_DIR) : join(root, '.data'))
+const tokenFile = process.env.WORKHUB_RELAY_TOKEN_FILE || join(dataDir, 'relay-token')
+
+function resolveRelayToken() {
+  const fromEnv = (process.env.WORKHUB_RELAY_TOKEN || '').trim()
+  if (fromEnv) return { token: fromEnv, source: '环境变量 WORKHUB_RELAY_TOKEN' }
+  try {
+    const saved = readFileSync(tokenFile, 'utf8').trim()
+    if (saved) return { token: saved, source: tokenFile }
+  } catch {
+    /* 首次启动：文件还不存在，走下面的生成分支 */
+  }
+  const fresh = randomBytes(24).toString('base64url')
+  try {
+    mkdirSync(dirname(tokenFile), { recursive: true })
+    writeFileSync(tokenFile, fresh + '\n', { mode: 0o600 })
+    return { token: fresh, source: `${tokenFile}（首次生成）` }
+  } catch (e) {
+    process.stderr.write(`[serve] ⚠️ token 无法写入 ${tokenFile}：${e?.message ?? e}（重启后 token 会变）\n`)
+    return { token: fresh, source: '内存生成（未落盘）' }
+  }
+}
+
+const { token: relayToken, source: tokenSource } = resolveRelayToken()
+
 const relay = createRelay({
-  token: process.env.WORKHUB_RELAY_TOKEN || undefined,
+  token: relayToken,
   autoIssueConfirm,
   path: relayPath,
   serverExecutor,
@@ -173,7 +210,15 @@ server.once('error', (e) => {
 server.listen(port, host, () => {
   process.stderr.write(`[serve] 站点已监听 http://${host}:${port}（静态目录 dist/）\n`)
   process.stderr.write(`[serve] Relay 同源内嵌于 ${relayPath}（无需 Nginx/Docker/额外进程）\n`)
-  process.stderr.write(`[serve] 接入 token：${relay.token}\n`)
+  process.stderr.write(`[serve] 接入 token 来源：${tokenSource}\n`)
+  // 启动即签发一枚**引导配对码**（不过期，兑换即作废）—— 这是「页面首次拿到 token」的唯一入口。
+  // 为什么要这一步：页面没有 token 就调不了 /pair/new（签码要持 token），会死锁；
+  // 而把长期 token 打进日志，等于让任何能看容器日志的人都拿到接入凭据。
+  // 引导码一次性、用完即消失，暴露面与打印 token 相当但危害小得多。
+  // 不给 5 分钟 TTL：部署完过一会儿再看日志是很正常的，过期就要重启容器，纯属自找麻烦。
+  const boot = relay.mintPairCode(0)
+  process.stderr.write(`[serve] 首次配对码：${boot.code}（一次性，配对成功后自动作废）\n`)
+  process.stderr.write('[serve] 配对方式：打开站点 → 设置 → AI Agent 桥 → 填配对码 → 配对\n')
   process.stderr.write(`[serve] 浏览器侧：「AI Agent 桥」地址留空即用当前站点\n`)
   if (autoIssueConfirm) process.stderr.write('[serve] ⚠️ AUTO_CONFIRM 已开启（勿用于生产）\n')
 })

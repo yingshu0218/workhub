@@ -139,14 +139,36 @@ POST，relay 只认 Upgrade 握手，直接 426）。所以 Agent 侧需要一�
 > 设置页「AI Agent 桥」现在把这两条**生成好供复制**（地址取当前站点同源 `/relay`、token 已填）。
 > 一键接入的完整说明（写了哪些文件、怎么卸载、怎么排障）见 `docs/一键接入-Agent说明.md`。
 
-**常见坑（四条，逐条对应一个可操作动作）**：
+**常见坑（五条，逐条对应一个可操作动作）**：
 
 | 现象 | 原因 | 处理 |
 |---|---|---|
 | 配了 `http(s)://<站点>/relay` 连不上 | relay 是 **WebSocket 端点**，不是 HTTP 端点（客户端会按 Streamable HTTP 发 POST，relay 只认 Upgrade 握手，回 426） | 地址写 `ws://` / `wss://`；shim 对缺协议名的写法会自动补 `ws://` 并补 `/relay` |
-| `接入 token 无效` | 三个落点不一致（多半是重置过页面 token） | 按「token 轮换注意」一节：重启 relay 带上新 token，并重跑 `agent:setup` |
-| `工具清单不可用：寻鸽工作台未连接 relay` | 桥没启用、或服务器上那个页面没开着 | 打开站点 → 设置 → AI Agent 桥 → 启用；**这不是配置错误，别改参数** |
+| `接入 token 无效` | 页面 token 与 relay 的不是同一串（历史成因：页面在「启用」时会 `genToken()` 本地随机，两端从不握手） | 按下面「token 从哪来」重新配对一次；配对后两端必然一致 |
+| `工具清单不可用：寻鸽工作台未连接 relay` | 桥没启用、或服务器上那个页面没开着 | 打开站点 → 设置 → AI Agent 桥 → 启用并完成配对；**这不是配置错误，别改参数** |
 | 想用 `npm run relay:stdio` 直接给 Agent | 那是「自己单独起一个 relay 进程」的入口 | 日常内嵌形态下 Agent 要连的是**站点里的** relay，走 shim 转发（见「与独立进程形态的关系」） |
+| `/relay/pair` 返回的 `url` 是 `https://127.0.0.1:9001/…` | 反代没透传 `X-Forwarded-Host`，容器入口又把 `Host` 改写成上游地址 | nginx 加 `proxy_set_header X-Forwarded-Host $host;`（仓库副本 `deploy/nginx/team.fpigeon.fun.conf`），`nginx -t && systemctl reload nginx`。别照抄那个字段配客户端 |
+
+## token 从哪来：引导码 → 配对 → 签发（2026-10-28 起）
+
+此前 token 有两个互不相干的来源：relay 启动时随机/环境变量、页面「启用」时本地 `genToken()`。
+**两端从不握手**，线上表现就是：页面状态永久「连接中…」、relay 日志刷
+`浏览器 WS 连接 token 无效，已拒绝`、Agent 侧只看到「未连接 relay」——两边都以为是对方配错。
+
+现在收敛成一条链：
+
+| 步骤 | 谁做 | 做法 |
+|---|---|---|
+| ① 定 token | 运维（首次） | relay 启动时按 `WORKHUB_RELAY_TOKEN` → 数据卷 `<dataDir>/relay-token` → 首次生成并写盘（0600）的顺序取值。**刻意不在构建期随机**：镜像要可复现，重建/回滚不能让已配对的身份失效 |
+| ② 配对 | 页面（首次） | 启动日志打印一枚**引导码**（一次性、不限期）：`docker logs <容器> \| grep 配对码`。设置 → AI Agent 桥 → 填码 → 配对，成功即写入 `settings.ai.bridgeToken` |
+| ③ 使用 | Agent | 把页面显示的「接入 token」填进 MCP 客户端的 `Authorization: Bearer`；或在页面点「生成配对码」签一枚 5 分钟码，交给 Agent 自己 `POST <relay>/pair` 兑换 |
+
+不变式（由 `src/modules/settings/__tests__/aiBridgePair.test.tsx` 与
+`src/agent/__tests__/relayHttp.test.ts` 锁定）：
+
+- **token 只能由 relay 下发**，页面不得自造（`genToken()` 已删除，别再改回来）；
+- 引导码一次性、兑换即作废；接口签发的码 5 分钟有效、按 IP 限流（10 次/分钟）；
+- 页面换 token 走 **普通 HTTP** `POST <relay>/pair`（此时还没有 token，连不上 WS）。
 
 ## 远程场景：Agent 在本机、站点在服务器（★ 常见形态）
 

@@ -31,3 +31,6 @@ GEMINI.md
 # 开发测试环境的本机凭据（含密码明文，严禁入库）
 .devtest.local.md
 dist-server/
+
+# relay 接入 token 落盘目录（serve.mjs 首次启动生成，含凭据，绝不入库）
+.data/

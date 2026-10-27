@@ -167,4 +167,43 @@ describe('一次性配对码：长期 token 不出聊天记录', () => {
     expect(expiresAt).toBeGreaterThan(Date.now())
     expect(expiresAt - Date.now()).toBeLessThanOrEqual(5 * 60 * 1000)
   })
+
+  /**
+   * 引导码（`ttlMs: 0`）：**不限期**、仍是一次性。
+   *
+   * 为什么必须有这个例外：部署完过一阵子才去翻启动日志是常态，5 分钟的码早废了；
+   * 而页面此时还没有 token、签不出新码（`/pair/new` 要 Bearer），会形成死锁 ——
+   * 2026-10-28 线上「桥永远连不上」那次，本质就是卡在没有可用码拿到 token 这一步。
+   */
+  it('引导码不限期，但同样只能兑一次（兑完即作废）', async () => {
+    const { code, expiresAt } = relay.mintPairCode(0)
+    expect(expiresAt).toBe(Number.POSITIVE_INFINITY)
+    // 兑换判据是 `Date.now() > expiresAt`，Infinity 让它永远不成立
+    expect(Date.now() > expiresAt).toBe(false)
+
+    const first = await post('/pair', { code })
+    expect(first.status).toBe(200)
+    expect(((await first.json()) as { token: string }).token).toBe(TOKEN)
+
+    const second = await post('/pair', { code })
+    expect(second.status).toBe(401)
+  })
+
+  /**
+   * 配对响应里的 `url` 必须是**外部可见地址**。
+   *
+   * 2026-10-28 实测事故：容器入口把 `Host` 改写成 `127.0.0.1:9001` 且不补 `X-Forwarded-Host`，
+   * relay 于是返回 `https://127.0.0.1:9001/relay/mcp` —— 照着这个字段配置的客户端必连不上，
+   * 现场看起来却像「客户端配错」。这条锁住「有 forwarded 头就用它」这个契约。
+   */
+  it('配对响应的 url 用反代透传的真实域名，不吐内网地址', async () => {
+    const r = await post('/pair/new', {}, {
+      ...bearer,
+      'x-forwarded-host': 'team.example.com',
+      'x-forwarded-proto': 'https',
+    })
+    expect(r.status).toBe(200)
+    const j = (await r.json()) as { url: string }
+    expect(j.url).toBe('https://team.example.com/relay/mcp')
+  })
 })

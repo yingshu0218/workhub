@@ -132,6 +132,19 @@ npm run agent:setup -- --dry-run       # 只预览改动，不落盘
 **前置条件（配不出来的那部分，必须人工）**：relay 要有工具清单，前提是**站点页面在线并已在
 「设置 → AI Agent 桥」启用桥**。否则 `tools/list` 返回 `-32001 工具清单不可用` —— 这不是配置错误。
 
+**token 只有一个来源（2026-10-28 定死，别再分叉）**：
+
+| 环节 | 谁做 | 怎么拿 |
+|---|---|---|
+| 定 token | relay 启动 | `WORKHUB_RELAY_TOKEN` → `<dataDir>/relay-token`（0600）→ 首次生成写盘。**不允许构建期随机**（镜像要可复现，重建/回滚不能让已配对身份失效） |
+| 页面配对 | 人 | 启动日志打印**引导码**（`docker logs <容器> \| grep 配对码`，一次性、不限期）→ 设置页「配对码」→ 配对，写入 `settings.ai.bridgeToken` |
+| Agent 接入 | 人 / Agent | 页面显示的「接入 token」填进 `Authorization: Bearer`；或页面「生成配对码」签 5 分钟码，由 Agent `POST <relay>/pair` 兑换 |
+
+⚠️ **页面不得自造 token**：`AiBridgeSection` 里原来的 `genToken()` 已删除。它让页面 token 与 relay token
+永不相等 —— 症状是页面永久「连接中…」而 Agent 只看到「未连接 relay」，两边都以为是对方配错。
+证据锁在 `src/modules/settings/__tests__/aiBridgePair.test.tsx`。⚠️ `mintPairCode` 的签名在
+`src/agent/relay-modules.d.ts` 另有一份 `.d.ts` 副本，改 JS 必须同步改它（否则类型仍按旧签名报错）。
+
 安全边界（改动前先想清楚，五条都不许放宽）：token 鉴权 · 按域能力白名单 · 中风险一次性确认票据
 （**票据绑定参数指纹**，防「预览 A 执行 B」）· relay 零特权不 import 业务代码 · 数据不出浏览器。
 

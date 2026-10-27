@@ -404,14 +404,24 @@ export function createRelay({ token = generateToken(), autoIssueConfirm = false,
 
   const authOk = (req, url) => Boolean(token) && safeEqual(authToken(req, url), token)
 
-  function mintPairCode() {
+  /**
+   * 签发一次性配对码。
+   *
+   * `ttlMs: 0` = **不过期**，只在「首次启动的引导码」这一处使用：启动日志里打印的 5 分钟码
+   * 对运维不现实（部署完过一会儿再去看日志，码早废了，而页面此时还没有 token、签不出新码，
+   * 会形成死锁）。引导码一经兑换即删除，之后永不再出现。
+   * 暴露面与「把长期 token 打进日志」相当（都需要服务器登录/日志权限），但码是一次性的。
+   *
+   * @param {number} [ttlMs] 有效期（毫秒）；传 0 = 不过期（仅引导码用）
+   */
+  function mintPairCode(ttlMs = PAIR_TTL_MS) {
     const now = Date.now()
     for (const [k, v] of pairCodes) if (now > v.expiresAt) pairCodes.delete(k)
     let code = ''
     do {
       code = Array.from({ length: 6 }, () => PAIR_ALPHABET[randomInt(PAIR_ALPHABET.length)]).join('')
     } while (pairCodes.has(code))
-    const expiresAt = now + PAIR_TTL_MS
+    const expiresAt = ttlMs > 0 ? now + ttlMs : Number.POSITIVE_INFINITY
     pairCodes.set(code, { expiresAt })
     return { code, expiresAt }
   }

@@ -71,8 +71,14 @@ declare module '@relay/server.mjs' {
     handleUpgrade(req: import('node:http').IncomingMessage, socket: import('node:stream').Duplex, head?: Buffer): void
     /** HTTP 传输入口（`<path>/mcp` 远程 Agent 直连、`<path>/pair*` 配对码）；true = 已处理 */
     handleHttp(req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse): boolean
-    /** 签发一次性配对码（5 分钟、仅可兑换一次） */
-    mintPairCode(): { code: string; expiresAt: number }
+    /**
+     * 签发一次性配对码。
+     *
+     * @param ttlMs 有效期（毫秒）。传 `0` = **不过期**，只给「启动引导码」用
+     *   （部署完过一阵再翻日志是常态，5 分钟的码早废了，而页面此时没有 token、签不出新码 → 死锁）。
+     *   省缺走 `PAIR_TTL_MS`（5 分钟）。
+     */
+    mintPairCode(ttlMs?: number): { code: string; expiresAt: number }
     attachStdio(input?: NodeJS.ReadStream, output?: NodeJS.WriteStream): void
     close(): void
     issueConfirm(meta: Record<string, unknown>): { confirmToken: string; expiresAt: number }
