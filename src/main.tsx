@@ -26,7 +26,12 @@ function Bootstrap() {
         if (!granted) console.warn('[storage] 持久化存储未获批，数据可能被浏览器回收')
       })
     }
-    void seedIfEmpty()
+    // ⚠️ 演示种子**只在开发模式**写入（2026-10-28 用户拍板）。
+    // `seedIfEmpty()` 的判据只有「customers 为空」——生产里跑它，等于每次清库都被灌回来，
+    // 正式站永远回不到空库。注意：后面的存量兜底与同源自动同步在所有环境都要跑，
+    // 所以只把 seed 这一步换成 dev 分支，不要把整条链塞进 if。
+    const seeding = import.meta.env.DEV ? seedIfEmpty() : Promise.resolve(false)
+    void seeding
       .then((seeded) => {
         if (seeded) console.info('[seed] 演示数据写入完成')
       })

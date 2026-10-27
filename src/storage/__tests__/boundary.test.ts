@@ -12,8 +12,8 @@ import { describe, expect, it } from 'vitest'
  *
  * 口径（故意从宽到窄只锁执行链，不做全仓禁令）：
  * - `src/repositories/index.ts` **豁免**：settingsRepo / focusSessionRepo /
- *   restoreFromJson / resetAndSeedLocalData 是浏览器本地管理功能（设置读写、存档导入、
- *   清库重播种），不在 AI 执行链上，服务端执行器也不会调用它们；
+ *   restoreFromJson / resetLocalData 是浏览器本地管理功能（设置读写、存档导入、
+ *   清空本地库），不在 AI 执行链上，服务端执行器也不会调用它们；
  * - `src/storage/browser.ts` 豁免：它是 DexieAdapter 的**注册入口**（全仓唯一允许
  *   import @/db/db 的 storage 文件）；`storage/dexie.ts` 已是纯工厂（依赖注入，零 db）；
  * - `src/storage/pocketbase.ts` / `src/sync/remoteNormalize.ts` 豁免：服务端 adapter 与

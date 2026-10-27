@@ -10,7 +10,7 @@ import { eventBus } from '@/shared/eventBus'
 /**
  * 浏览器本地管理仓储（agentOps 服务端化 P3 自 repositories/index.ts 拆出）
  *
- * 拆出动机：settingsRepo / focusSessionRepo / resetAndSeedLocalData / restoreFromJson
+ * 拆出动机：settingsRepo / focusSessionRepo / resetLocalData / restoreFromJson
  * 直用 Dexie（db.*），而 index.ts 的执行链部分（repo 工厂 + 复合函数）必须保持零 db——
  * 服务端执行器 bundle（agent/serverReads.ts → executor → repositories）不能拖 Dexie。
  * 本文件**只在浏览器侧被引用**（UI/设置页/存档导入导出）；AI 执行链绝不 import 它。
@@ -124,14 +124,21 @@ export const settingsRepo = {
 }
 
 /**
- * 危险区：清空本地数据库并重新写入演示种子（设置页「数据与安全」用）
+ * 危险区：清空本地数据库（设置页「数据与安全」用）
  * 契约修复（审计 Phase 6 P2-8）：
  * 1. settings 表豁免清空 —— 保留同步配置（serverUrl/账号）与外观偏好，清空后无需重新配置；
  * 2. 若同步队列存在未推送条目，先执行一次 syncNow 清空队列再重置，
  *    避免尚未推送的本地增量随库被清（配置同步后丢数据）；推送后仍有积压则中止清空。
+ *
+ * ⚠️ 2026-10-28 改动（用户拍板）：**清空后不再写入演示种子**。
+ * 原先末尾会调 `seedIfEmpty()`，结果「点清空 → 立刻又长回 5 个演示客户」，
+ * 正式站永远回不到空库。演示数据现在只在开发模式（`import.meta.env.DEV`）
+ * 首次启动时由 `main.tsx` 写入；生产构建不写。函数名也随之从
+ * `resetAndSeedLocalData` 改为 `resetLocalData` —— 名字里带 seed 就是在骗调用方。
+ *
  * 动态 import 规避 db.ts ↔ seed.ts 的模块环；调用方负责自行 reload 刷新界面态
  */
-export async function resetAndSeedLocalData(): Promise<void> {
+export async function resetLocalData(): Promise<void> {
   const pendingBefore = await db.syncQueue.filter((p) => !p.sentAt).count()
   if (pendingBefore > 0) {
     // 浏览器本地管理功能（豁免清单）：动态 import 保持本文件服务端 bundle 可加载
@@ -146,8 +153,6 @@ export async function resetAndSeedLocalData(): Promise<void> {
   }
   // 逐表清空（settings 豁免），替代整库 delete，保留设置 singleton
   await Promise.all(db.tables.filter((t) => t.name !== 'settings').map((t) => t.clear()))
-  const { seedIfEmpty } = await import('@/db/seed')
-  await seedIfEmpty()
 }
 
 

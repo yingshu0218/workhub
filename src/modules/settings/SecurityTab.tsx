@@ -3,7 +3,7 @@ import { Section, Toggle, Segmented, toCsv, blobToDataUrl } from './settingsUi'
 import { Button } from '@/design-system/ui'
 import { Icon } from '@/design-system/Icon'
 import { useToast } from '@/design-system/Toast'
-import { resetAndSeedLocalData, restoreFromJson, focusSessionRepo } from '@/repositories/localAdmin'
+import { resetLocalData, restoreFromJson, focusSessionRepo } from '@/repositories/localAdmin'
 import {
   workspaceRepo,
   customerRepo,
@@ -281,17 +281,17 @@ export function SecurityTab({
     })
   }
 
-  // ── 危险区：清空本地数据并重新种子 ──
+  // ── 危险区：清空本地数据（不写演示种子，清完就是空库） ──
   const resetAll = () => {
     askConfirm({
       title: '清空本地数据',
       message:
-        '将清空本地全部数据（IndexedDB）并重新写入演示种子，云端副本不受影响。该操作不可撤销，确定继续？',
+        '将清空本地全部数据（IndexedDB），云端副本不受影响。清空后是空库，不会再自动写入演示数据。该操作不可撤销，确定继续？',
       danger: true,
-      confirmText: '清空并重置',
+      confirmText: '清空',
       run: () => {
         setResetting(true)
-        void resetAndSeedLocalData()
+        void resetLocalData()
           .then(() => window.location.reload())
           .catch((err) => {
             console.error('[settings] 清空失败', err)
