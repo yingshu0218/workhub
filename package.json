@@ -20,6 +20,7 @@
     "gen:skills": "node scripts/gen-skills.mjs",
     "agent:setup": "node scripts/agent-setup.mjs",
     "serve": "node scripts/serve.mjs",
+    "tauri": "tauri",
     "app:dev": "tauri dev",
     "app:build": "tauri build",
     "app:android": "tauri android build"

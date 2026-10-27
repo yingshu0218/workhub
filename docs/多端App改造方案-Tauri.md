@@ -219,7 +219,7 @@ apps/web/  apps/desktop/  apps/mobile/
 
 1. **Agent 桥（relay）在桌面端不可用**：`relay` 由 Vite dev server / `scripts/serve.mjs` 提供，而 Tauri 生产包从 `tauri://localhost` 提供静态资源，**没有 HTTP 服务** → `/relay` 不存在。桥默认关闭（`settings.ai` 缺省关），所以不会报错，但桌面端若要保留桥，就得单独给它起一个本地 HTTP/WS 端点。**待拍板**。
 2. ~~**`.dmg` 未打**~~ → **已打（2026-10-12）**：`npm run app:build -- --bundles dmg` 在图形会话下**一次成功**（3.76 MiB，`hdiutil verify` 通过）。注意**打 dmg 会把 `bundle/macos/` 下的 `.app` 清掉**，之后需补跑一次 `--bundles app`。详见 §11。
-3. **Android 未构建**：需要 JDK 17 + Android SDK/NDK（尚未安装）。属**本轮范围外**（只交付 macOS）。
+3. ~~**Android 未构建**~~ → **已构建（2026-10-27）**：release APK 已出包并验签，工程落盘与适配口径见 **§12**；仍**未真机验收**（构建机无设备、无 KVM）。
 4. ~~**未提交**~~ → **已于 2026-10-10 提交并推送**（`20dac51`）。该 commit 同时含「Tauri 加壳」与「同步中心连通性探测」两条独立工作线 —— 违反 AGENTS.md §7「一次提交只做一件事」，系**并发会话合并工作区所致**；已推送，故不改写历史。
 5. `productName` 用 ASCII `Nexus Workspace`（窗口标题与 PWA 名仍是中文）；若要让访达/程序坞显示中文名，需后续做本地化。
 
@@ -337,3 +337,77 @@ npm run app:build -- --bundles app        # ← 补回被 dmg 清理掉的 .app
 
 
 
+
+---
+
+## 12. Android 客户端实施记录（2026-10-27，B 范围）
+
+> 用户拍板：**走正式站 `https://team.fpigeon.fun`**（HTTPS，因此**不**放行明文 HTTP）、范围 = 「构建链 + 平台适配 + 可安装 APK」，**存储迁移（阶段 2）不在本轮**。
+
+### 12.1 产物与判据（实测）
+
+| 项 | 结果 |
+|---|---|
+| 产物 | `src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk` |
+| 体积 | **11 MB**（debug 包 141 MB，差异来自未裁剪符号与未优化） |
+| 包名 / 版本 | `fun.fpigeon.nexus`（release 无 `.debug` 后缀）/ versionName `0.1.0`（取自 `package.json`）/ versionCode `1000` |
+| SDK | minSdk **24** / targetSdk **37** / compileSdk **37** |
+| ABI | 仅 `arm64-v8a`（未出 armv7 / x86_64） |
+| 签名 | APK Signature Scheme **v2 通过**（自签 release 证书）；`apksigner verify` 输出 `Verifies` |
+| 对齐 | `zipalign -c -v 4` → `Verification successful` |
+| 资源新鲜度 | 包内 `.so` 内嵌 `assets/index-CaN84uyD.js` 与 `dist/assets/` **同名同哈希**（与 macOS 的判据一致） |
+
+### 12.2 工具链（本机实测版本）
+
+JDK **17**（Dragonwell 17.0.19）· Android SDK：`platforms;android-37.0` + `build-tools;37.0.0` + `platform-tools` · NDK **27.0.12077973** · Rust **1.96.0** + `aarch64-linux-android` / `armv7-linux-androideabi` / `i686-linux-android` / `x86_64-linux-android` · Gradle **9.6.1**（Tauri 模板自带 wrapper）。
+
+```bash
+export JAVA_HOME=/usr/lib/jvm/java-17-...
+export ANDROID_HOME=$HOME/Android/Sdk        # 或 /opt/android-sdk
+export NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973
+
+npm run app:android -- --target aarch64 --apk   # release
+npm run app:android -- --target aarch64 --debug # debug（包名带 .debug，可与正式包共存）
+```
+
+### 12.3 工程落盘
+
+`src-tauri/gen/android/` **入库**（这是后续定制图标、Manifest、签名的唯一入口）。已被 `.gitignore` 挡掉、不会入库的：`build/`、`src/main/**/generated`、`src/main/jniLibs/**/*.so`、`assets/tauri.conf.json`、`keystore.properties`、`tauri.properties`。
+
+### 12.4 必须改的一处（否则 Gradle 报错看不懂）
+
+Gradle 的 `:app:rustBuildArm64Release` 执行的是 **`npm run -- tauri android android-studio-script`**，读根 `package.json` 的 `tauri` 脚本。本仓是**手工加壳**，原本没有这个脚本 → 失败信息只有 `Process 'command 'npm'' finished with non-zero exit value 1`，真正的 `Missing script: "tauri"` 藏在上面几十行。已补：
+
+```json
+"tauri": "tauri"
+```
+
+⚠️ 另一个坑：`tauri android android-studio-script` **不能脱离 `tauri android build` 单独跑**（它要读 `gen/android/.tauri/cli-options-server.json`）。所以**不要**指望用 `./gradlew app:assembleRelease` 绕开 CLI —— 要么走 `npm run app:android`，要么在 Android Studio 里由 CLI 会话拉起。
+
+### 12.5 平台适配清单（B 范围）
+
+| 项 | 做法 | 为什么 |
+|---|---|---|
+| 安全区 | `MainActivity` 给 `android.R.id.content` 监听 `systemBars + displayCutout` 并加 padding | `targetSdk 35+` **强制 edge-to-edge**，WebView 会铺到状态栏/手势条下；`env(safe-area-inset-*)` 在 Android WebView 不可靠，故原生侧兜底 |
+| 键盘 | Manifest `android:windowSoftInputMode="adjustResize"` | 不加则输入框会被键盘遮挡（登录页首当其冲） |
+| 返回键 | **零代码**：Wry 的 `OnBackPressedCallback` 已实现 `canGoBack() → goBack()`，栈底才交回系统退出 | 与 react-router 的 history 天然一致；不要重复注册回调 |
+| 文件选择 | **零代码**：`RustWebChromeClient.onShowFileChooser` 已实现 | 附件/凭证上传直接可用 |
+| 明文 HTTP | **刻意不做**：release `usesCleartextTraffic=false` | 走正式站 HTTPS；测试站是明文 HTTP，真要联调请出 **debug** 包（模板已默认放行 debug） |
+| 图标 | `tauri icon` 已生成全套 mipmap | 未改视觉 |
+| 闪屏 | 用 Android 12+ 默认（图标 + windowBackground） | 未引入额外依赖；深色模式下与 App 内主题可能不一致，属已知小瑕疵 |
+
+### 12.6 签名与分发口径
+
+- 密钥与口令**只在仓库外**：`~/.workhub/android/nexus-release.jks` + `keystore.properties`（`chmod 600`）。
+- `gen/android/keystore.properties`（gitignore）不存在时，**release 仍能构建，但产物未签名**（装不上）。这是刻意的：CI / 别人的机器不会因为缺密钥而挂。
+- 安装：`adb install -r app-universal-release.apk`；或拷到手机点击安装（需允许「未知来源」）。
+- 分发走**自用**，不做 AAB、不上架、不做 Play 签名托管。
+
+### 12.7 未验证 / 已知限制（如实标注）
+
+1. **未做真机验收**：构建机无 Android 设备、无 `/dev/kvm`（模拟器起不来）→ **安装、首启、登录、同步四项都还没被真机点过**。下一步必须在一台 arm64 真机上走一遍：设置 → 同步中心填 `https://team.fpigeon.fun` → 登录 → 新建一条记录 → Web 端确认。
+2. **系统返回键栈底会退出 App**（Wry 默认行为）；若将来要「栈底二次确认退出」，需在前端监听 `back-button` 事件（Wry 已预留）。
+3. **后台同步不可靠**：Android 会冻后台 WebView，30s 心跳在后台基本停摆；打开 App 时会补拉，属已知取舍（与「移动端不保留 Agent 桥」同源）。
+4. **仅 arm64**：老设备（armeabi-v7a）与 x86_64 模拟器装不上；需要时加 `--target` 重出。
+5. **存储仍是 Dexie**：阶段 2 的 SQLite 迁移未做，WebView 的 IndexedDB 仍可用（macOS 已实证）。
+6. **构建很慢**：2 核构建机首次 release 约 30~40 分钟（Rust 全量 + Gradle 依赖），增量 2~5 分钟；Gradle 发行包下载**不会自动续传**（中断即从 0 开始），必要时用 `curl -C -` 预置到 wrapper 缓存。
