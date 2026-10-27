@@ -69,15 +69,26 @@ declare module '@relay/server.mjs' {
     protocolVersion: string
     /** 把宿主的 http server 'upgrade' 事件交进来即可（同源挂载） */
     handleUpgrade(req: import('node:http').IncomingMessage, socket: import('node:stream').Duplex, head?: Buffer): void
+    /** HTTP 传输入口（`<path>/mcp` 远程 Agent 直连、`<path>/pair*` 配对码）；true = 已处理 */
+    handleHttp(req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse): boolean
+    /** 签发一次性配对码（5 分钟、仅可兑换一次） */
+    mintPairCode(): { code: string; expiresAt: number }
     attachStdio(input?: NodeJS.ReadStream, output?: NodeJS.WriteStream): void
     close(): void
     issueConfirm(meta: Record<string, unknown>): { confirmToken: string; expiresAt: number }
     confirmStore: import('@relay/mcp-relay.mjs').ConfirmTokenStore
+    isBrowserOnline(): boolean
+    handle(msg: unknown, ctx?: { authed?: boolean }): Promise<unknown>
   }
   export function createRelay(opts?: {
     token?: string
     autoIssueConfirm?: boolean
     path?: string
     log?: (msg: string) => void
+    serverExecutor?: {
+      listTools: () => Array<{ name: string; description?: string; inputSchema?: unknown }>
+      callTool: (name: string, args: unknown, meta?: unknown) => Promise<{ ok: boolean; data?: unknown; error?: string }>
+      handles: (name: string) => boolean
+    } | null
   }): RelayHandle
 }

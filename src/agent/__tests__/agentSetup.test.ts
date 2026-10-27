@@ -237,6 +237,31 @@ describe('参数解析', () => {
     expect(o.transport).toBe('')
     expect(o.dryRun).toBe(true)
   })
+
+  /**
+   * `npm run agent:setup --url …`（少了 `--`）时 npm 会把裸参数当自己的配置吃掉：
+   * 真地址变成位置参数、`--url` 变成 `url=true`、`--dry-run` 变成 `dry_run=true`。
+   * 危险的是后者 —— 「预览」会静默变成真写。这两条都必须能取回。
+   */
+  it('npm 转手的参数能取回，且布尔开关照样生效', () => {
+    const o = parseArgs(['wss://x/relay'], { npm_config_url: 'true', npm_config_dry_run: 'true' })
+    expect(o.url).toBe('wss://x/relay') // 位置参数里的地址
+    expect(o.dryRun).toBe(true) // dry-run 没被吞
+    expect(o.swallowedByNpm).toBe(true) // 要告警，不许静默采用
+  })
+
+  it('npm 的 `url=true` 占位不会被当成地址', () => {
+    const o = parseArgs([], { npm_config_url: 'true' })
+    expect(o.url).toBe('')
+    expect(o.swallowedByNpm).toBe(false)
+  })
+
+  it('正常写法不报警（`-- --url …`）', () => {
+    const o = parseArgs(['--url', 'wss://x/relay', '--token', 'abc'], {})
+    expect(o.url).toBe('wss://x/relay')
+    expect(o.token).toBe('abc')
+    expect(o.swallowedByNpm).toBe(false)
+  })
 })
 
 /* ============================ ⑤ 真实落盘：集成（临时 HOME） ============================ */
@@ -405,6 +430,38 @@ describe('集成：真实写入 / 幂等 / 回退（临时 HOME + 临时项目�
     const r = run(['--only', 'codex'])
     expect(r.status).toBe(1)
     expect(r.stdout).toContain('AGENTS.md')
+  })
+
+  it('CodeBuddy 写用户级 mcp.json 且带 type: stdio（其文档示例的必需形状）', () => {
+    expect(run(['--only', 'codebuddy']).status).toBe(0)
+    const cfg = JSON.parse(readFileSync(path.join(home, '.codebuddy', 'mcp.json'), 'utf8')) as {
+      mcpServers: Record<string, { type?: string; command?: string; args?: string[] }>
+    }
+    expect(cfg.mcpServers[SERVER_NAME]?.type).toBe('stdio')
+    expect(cfg.mcpServers[SERVER_NAME]?.command).toBeTruthy()
+    expect(cfg.mcpServers[SERVER_NAME]?.args?.length).toBe(1)
+
+    expect(run(['--only', 'codebuddy', '--uninstall']).status).toBe(0)
+    expect(existsSync(path.join(home, '.codebuddy', 'mcp.json'))).toBe(false)
+  })
+
+  /**
+   * 「一条指令」的取值标准：**整段复制给任意 Agent 也不算泄密，且不依赖本机**。
+   * 三条都必须锁住：无长期 token（只有一次性码）、无本机路径、不写任何文件。
+   */
+  it('--print-prompt 输出的是「远程直连」指令：MCP over HTTP + 一次性码，零长期凭证、零本机路径', () => {
+    const r = run(['--print-prompt'])
+    expect(r.status).toBe(0)
+    // 长期 token 绝不出现（本用例的 token 就在命令行里，最容易漏出去）
+    expect(r.stdout).not.toContain('test-token-abcdefghijklmnop')
+    // 连的是服务器端点，不是本机 shim
+    expect(r.stdout).toContain('/relay/mcp')
+    expect(r.stdout).toContain('/relay/pair')
+    // 不再出现仓库路径（上一版就是因为这个被判定为「让它连本地」）
+    expect(r.stdout).not.toContain(REPO_ROOT)
+    // 只打印，不落盘
+    expect(existsSync(path.join(home, '.workhub', 'relay.json'))).toBe(false)
+    expect(existsSync(path.join(home, '.codebuddy', 'mcp.json'))).toBe(false)
   })
 
   it('目标表里每个目标的 MCP 落点格式都被实现覆盖（防止加了 target 忘了写 writer）', () => {

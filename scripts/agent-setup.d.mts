@@ -21,7 +21,7 @@ export interface AgentTarget {
   id: string
   label: string
   detect: { dirs?: string[]; bins?: string[] }
-  mcp: { path: string; format?: string; write?: unknown; scope: string }
+  mcp: { path: string; format?: string; write?: unknown; scope: string; type?: 'stdio' }
   rules: { path: string; mode: 'native' | 'pointer' } | null
   skills: { dir: string } | null
   note?: string
@@ -67,14 +67,24 @@ export interface CliOptions {
   check: boolean
   uninstall: boolean
   help: boolean
+  printPrompt: boolean
   only: string[]
   transport: string
   url: string
   token: string
+  /** 地址/凭证是 npm 转手进来的（用户漏写了 `--`）—— 调用方须显式告警 */
+  swallowedByNpm: boolean
   port: string
   skills: string
   opencodeSchema: string
   node: string
 }
 
-export declare function parseArgs(argv: string[]): CliOptions
+/** `env` 可注入（测试用）：npm 会把裸 `--url` / `--dry-run` 吞成 `npm_config_*` */
+export declare function parseArgs(argv: string[], env?: Record<string, string | undefined>): CliOptions
+
+/** 渲染「一条指令」：远程 Agent 直连服务器，只带一次性配对码，**不含长期 token / 本机路径** */
+export declare function renderPrompt(opts?: { code?: string; site?: string }): string
+
+/** 由凭据里的 wss:// 反推站点地址（仅用于提示「去哪个页面启用桥」） */
+export declare function siteFromCred(cred: { url?: string } | null | undefined): string

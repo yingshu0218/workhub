@@ -19,6 +19,7 @@ dist/
 .opencode/
 .claude/skills/
 .workbuddy/skills/
+.codebuddy/skills/
 opencode.json
 .mcp.json
 CLAUDE.md

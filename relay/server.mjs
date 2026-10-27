@@ -14,6 +14,7 @@
  * 边界保持不变（方案 §四.1 / §7.4）：relay 不持有数据、不 import repositories，
  * 只转发「工具调用请求 / 结果」；token 鉴权、白名单、确认票据三道闸门原样保留。
  */
+import { randomInt } from 'node:crypto'
 import { acceptKey } from './ws-server.mjs'
 import { createMcpRouter, generateToken, MCP_PROTOCOL_VERSION, argsFingerprint, safeEqual } from './mcp-relay.mjs'
 
@@ -350,6 +351,215 @@ export function createRelay({ token = generateToken(), autoIssueConfirm = false,
     })
   }
 
+  /* ------------------------- HTTP 传输：远程 Agent 直连 ------------------------- */
+
+  /**
+   * 为什么要有这一段：MCP 客户端只实现 **stdio** 与 **Streamable HTTP** 两种标准传输，
+   * 没有一家支持裸 WebSocket。此前远程 Agent 只能在自己机器上跑 `relay/mcp-stdio-shim.mjs`
+   * 做 WS→stdio 转换 —— 于是「想连服务器上的工作台」变成「先在本机装一份仓库」，
+   * 这正是接入一直绕不开本地路径的根因。
+   *
+   * 把标准 MCP over HTTP 直接挂在 relay 上之后：远程 Agent 只需要
+   * `url = https://<站点>/relay/mcp` + `Authorization: Bearer <token>`，零本地依赖。
+   * 鉴权、白名单、确认票据三道闸门**全部沿用 router**（这里只换传输，不换语义）。
+   */
+  const PAIR_TTL_MS = 5 * 60 * 1000
+  /** 去掉 0/O/1/I/B 等易混字符：配对码是**人手抄/嘴念**的，歧义字符等于可用性事故 */
+  const PAIR_ALPHABET = 'ACDEFGHJKLMNPQRSTUVWXYZ23456789'
+  const MAX_BODY = 1 << 20
+  /** 一次性配对码：code → 过期时间。刻意不落库 —— 重启即全体失效，符合「短期凭证」语义 */
+  const pairCodes = new Map()
+  /** 兑换限速：ip → { count, resetAt }，防枚举爆破（6 位码 + 5 分钟 + 每分钟 10 次） */
+  const pairAttempts = new Map()
+
+  const sendJson = (res, status, body) => {
+    const text = JSON.stringify(body)
+    res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' })
+    res.end(text)
+  }
+
+  function readBody(req) {
+    return new Promise((resolve, reject) => {
+      let size = 0
+      const chunks = []
+      req.on('data', (c) => {
+        size += c.length
+        if (size > MAX_BODY) {
+          reject(new Error('请求体过大'))
+          req.destroy()
+          return
+        }
+        chunks.push(c)
+      })
+      req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')))
+      req.on('error', reject)
+    })
+  }
+
+  /** 取请求携带的 token：`Authorization: Bearer`（标准）或 `?token=`（部分客户端只能配 url） */
+  function authToken(req, url) {
+    const m = /^Bearer\s+(.+)$/i.exec(String(req.headers.authorization ?? ''))
+    return m ? m[1].trim() : String(url?.searchParams.get('token') ?? '')
+  }
+
+  const authOk = (req, url) => Boolean(token) && safeEqual(authToken(req, url), token)
+
+  function mintPairCode() {
+    const now = Date.now()
+    for (const [k, v] of pairCodes) if (now > v.expiresAt) pairCodes.delete(k)
+    let code = ''
+    do {
+      code = Array.from({ length: 6 }, () => PAIR_ALPHABET[randomInt(PAIR_ALPHABET.length)]).join('')
+    } while (pairCodes.has(code))
+    const expiresAt = now + PAIR_TTL_MS
+    pairCodes.set(code, { expiresAt })
+    return { code, expiresAt }
+  }
+
+  /** 限速：每分钟每 IP 10 次；超限返回 false（响应 429） */
+  function allowPairAttempt(ip) {
+    const now = Date.now()
+    const rec = pairAttempts.get(ip)
+    if (!rec || now > rec.resetAt) {
+      pairAttempts.set(ip, { count: 1, resetAt: now + 60_000 })
+      return true
+    }
+    rec.count += 1
+    return rec.count <= 10
+  }
+
+  const mcpUrlOf = (req, url) => {
+    const proto = String(req.headers['x-forwarded-proto'] ?? '').split(',')[0].trim() || (req.socket.encrypted ? 'https' : 'http')
+    const host = String(req.headers['x-forwarded-host'] ?? req.headers.host ?? url.host)
+    return `${proto}://${host}${path}/mcp`
+  }
+
+  /** `POST <path>/pair/new`：**必须持 token**（即页面/已配对的本机）才能签发一次性码 */
+  function handlePairNew(req, res, url) {
+    if (req.method !== 'POST') return sendJson(res, 405, { error: '只接受 POST' })
+    if (!authOk(req, url)) return sendJson(res, 401, { error: '接入 token 无效：签发配对码需要 Bearer token' })
+    const { code, expiresAt } = mintPairCode()
+    log('[relay] 已签发一次性配对码（5 分钟、仅可兑换一次）')
+    return sendJson(res, 200, { code, expiresAt, ttlSeconds: Math.round(PAIR_TTL_MS / 1000), url: mcpUrlOf(req, url) })
+  }
+
+  /** `POST <path>/pair`：`{ code }` → `{ token }`。码兑换即作废，长期 token 只回给持有码的那一方 */
+  async function handlePairRedeem(req, res, url) {
+    if (req.method !== 'POST') return sendJson(res, 405, { error: '只接受 POST' })
+    const ip = req.socket.remoteAddress ?? 'unknown'
+    if (!allowPairAttempt(ip)) return sendJson(res, 429, { error: '尝试过于频繁，请稍后再试' })
+    let code = ''
+    try {
+      code = String(JSON.parse((await readBody(req)) || '{}')?.code ?? '').trim().toUpperCase()
+    } catch {
+      return sendJson(res, 400, { error: '请求体不是合法 JSON' })
+    }
+    const rec = pairCodes.get(code)
+    // 无效/过期/已兑换一律同一句：不给枚举者任何「这个码曾经存在过」的区分信息
+    if (!rec || Date.now() > rec.expiresAt) {
+      pairCodes.delete(code)
+      return sendJson(res, 401, { error: '配对码无效或已过期（5 分钟有效、仅可兑换一次）' })
+    }
+    pairCodes.delete(code)
+    log('[relay] 配对码已兑换，长期 token 已下发（码已作废）')
+    return sendJson(res, 200, { token, url: mcpUrlOf(req, url), protocolVersion: MCP_PROTOCOL_VERSION })
+  }
+
+  /** `POST <path>/mcp`：标准 MCP over HTTP（stateless）。GET/DELETE 按规范回可接受的响应 */
+  async function handleMcpHttp(req, res, url) {
+    if (req.method === 'GET') {
+      // 规范里 GET 用于建服务端→客户端的 SSE 流；本实现不推送，明确告知而不是挂住连接
+      res.writeHead(405, { Allow: 'POST, DELETE', 'Content-Type': 'application/json; charset=utf-8' })
+      res.end(JSON.stringify({ error: '本端点不支持服务端推送流，请用 POST 发送 JSON-RPC' }))
+      return
+    }
+    if (req.method === 'DELETE') {
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' }).end('{}')
+      return
+    }
+    if (req.method !== 'POST') {
+      res.writeHead(405, { Allow: 'POST, DELETE' }).end()
+      return
+    }
+    if (!authOk(req, url)) {
+      sendJson(res, 401, {
+        jsonrpc: '2.0',
+        id: null,
+        error: { code: -32001, message: '接入 token 无效：请在 Authorization: Bearer 头携带 relay 的接入 token' },
+      })
+      return
+    }
+    let msg
+    try {
+      msg = JSON.parse((await readBody(req)) || 'null')
+    } catch {
+      sendJson(res, 400, { jsonrpc: '2.0', id: null, error: { code: -32700, message: 'Parse error' } })
+      return
+    }
+    // HTTP 无会话：每个请求都自带凭证，因此进来的连接等价于「已 initialize 过」
+    const ctx = { authed: true }
+    const once = async (m) => {
+      // initialize 的参数校验在 router 内（accessToken）；HTTP 侧凭证在头上，这里补进参数，
+      // 保证「同一个 token 只能走同一条校验路径」——不在传输层另开一套鉴权。
+      const withToken = m?.method === 'initialize' ? { ...m, params: { ...(m.params ?? {}), accessToken: token } } : m
+      return router.handle(withToken, ctx)
+    }
+    if (Array.isArray(msg)) {
+      const out = (await Promise.all(msg.map(once))).filter(Boolean)
+      if (!out.length) {
+        res.writeHead(202).end()
+        return
+      }
+      sendJson(res, 200, out)
+      return
+    }
+    const out = await once(msg)
+    if (!out) {
+      res.writeHead(202).end()
+      return
+    }
+    sendJson(res, 200, out)
+  }
+
+  /**
+   * HTTP 入口：宿主（serve.mjs / vite 插件）在每个请求上调用一次。
+   * 返回 true 表示「已由 relay 处理」，宿主不应再走静态资源逻辑。
+   */
+  function handleHttp(req, res) {
+    let url
+    try {
+      url = new URL(req.url ?? '/', 'http://127.0.0.1')
+    } catch {
+      return false
+    }
+    const p = url.pathname.replace(/\/+$/, '')
+    const safe = (fn) => {
+      const onError = (e) => {
+        log(`[relay] HTTP 处理异常：${e?.message ?? e}`)
+        if (!res.headersSent) sendJson(res, 500, { error: 'relay 内部错误' })
+        else res.end()
+      }
+      try {
+        Promise.resolve(fn()).catch(onError)
+      } catch (e) {
+        onError(e)
+      }
+    }
+    if (p === `${path}/mcp`) {
+      safe(() => handleMcpHttp(req, res, url))
+      return true
+    }
+    if (p === `${path}/pair`) {
+      safe(() => handlePairRedeem(req, res, url))
+      return true
+    }
+    if (p === `${path}/pair/new`) {
+      safe(() => handlePairNew(req, res, url))
+      return true
+    }
+    return false
+  }
+
   /** 断开所有连接（进程退出 / 宿主关停时调用） */
   function close() {
     for (const c of connections) c.close()
@@ -362,7 +572,22 @@ export function createRelay({ token = generateToken(), autoIssueConfirm = false,
     browserConn = null
   }
 
-  return { token, path, protocolVersion: MCP_PROTOCOL_VERSION, handleUpgrade, attachStdio, close, issueConfirm: router.issueConfirm, confirmStore: router.confirmStore, isBrowserOnline, handle: router.handle }
+  return {
+    token,
+    path,
+    protocolVersion: MCP_PROTOCOL_VERSION,
+    handleUpgrade,
+    /** HTTP 传输（远程 Agent 直连）：`<path>/mcp` · `<path>/pair` · `<path>/pair/new` */
+    handleHttp,
+    /** 供宿主/CLI 直接签发一次性配对码（与 HTTP 的 /pair/new 同一实现） */
+    mintPairCode,
+    attachStdio,
+    close,
+    issueConfirm: router.issueConfirm,
+    confirmStore: router.confirmStore,
+    isBrowserOnline,
+    handle: router.handle,
+  }
 }
 
 /** @typedef {ReturnType<typeof createRelay>} RelayHandle */

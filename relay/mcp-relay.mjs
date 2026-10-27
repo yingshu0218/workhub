@@ -12,8 +12,18 @@
  */
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 
-/** MCP 协议版本（首版跟随 2024-11-05 稳定版） */
+/** MCP 协议版本（缺省回这个版本，与既有 WS / stdio 客户端一致） */
 export const MCP_PROTOCOL_VERSION = '2024-11-05'
+
+/**
+ * 支持的协议版本，按「客户端请求什么就回什么」协商。
+ *
+ * 为什么必须带上 `2025-03-26`：**Streamable HTTP 是这个版本才引入的传输**。
+ * 若服务端一律回 2024-11-05，严格按版本走的客户端会以为对面是老的 HTTP+SSE 双端点协议
+ * （先 GET 拿 endpoint 再 POST），于是 `POST /relay/mcp` 直接连不上 —— 表现是
+ * 「url 配对了却连不通」，比报错更难查。回请求方要的版本，才能让它走对分支。
+ */
+export const SUPPORTED_PROTOCOL_VERSIONS = ['2024-11-05', '2025-03-26']
 
 /** 中风险操作的 confirmToken 有效期（毫秒）；超时作废 */
 export const CONFIRM_TTL_MS = 5 * 60 * 1000
@@ -158,10 +168,16 @@ export function createMcpRouter({
     if (!safeEqual(provided ?? '', token)) {
       return { error: rpcError(null, -32001, '接入 token 无效：Agent 连接必须携带 relay 启动时生成的 token') }
     }
+    // 版本协商：客户端要的版本受支持就照回（否则回缺省），让 Streamable HTTP 客户端走对分支
+    const requested = typeof params?.protocolVersion === 'string' ? params.protocolVersion : ''
+    const negotiated = SUPPORTED_PROTOCOL_VERSIONS.includes(requested) ? requested : MCP_PROTOCOL_VERSION
     return {
       result: {
-        protocolVersion: MCP_PROTOCOL_VERSION,
-        capabilities: { tools: { listChanged: true } },
+        protocolVersion: negotiated,
+        // `listChanged: false` 是**如实声明**：没有任何传输实现推送 tools/list_changed
+        //（HTTP 是 stateless、WS/stdio 也没有主动下发路径）。声明 true 会让客户端等一个
+        // 永远不会来的通知，从而不刷新工具清单 —— 虚报能力比不声明更糟。
+        capabilities: { tools: { listChanged: false } },
         serverInfo: { name: 'workhub-agentops-relay', version: '0.1.0' },
       },
     }

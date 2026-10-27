@@ -47,6 +47,9 @@ export function relayPlugin(opts = {}) {
       httpServer = server.httpServer
       if (!httpServer) return
       httpServer.on('upgrade', upgradeHandler)
+      // HTTP 传输（`/relay/mcp` 远程 Agent 直连、`/relay/pair*` 配对码）在 dev 也挂上，
+      // 否则「本地能连、线上不能连」这类传输差异只会在部署后才暴露
+      server.middlewares.use((req, res, next) => (relay?.handleHttp(req, res) ? undefined : next()))
       server.config.logger.info(`[relay] 已内嵌于 dev server：${path}（同源，无需额外端口/进程）`)
       server.config.logger.info(`[relay] 接入 token：${relay.token}`)
       server.config.logger.info(`[relay] 浏览器侧：「AI Agent 桥」地址留空即用当前站点（推荐），或填 ws://<本机>${path}`)
@@ -60,6 +63,7 @@ export function relayPlugin(opts = {}) {
       httpServer = server.httpServer
       if (!httpServer) return
       httpServer.on('upgrade', upgradeHandler)
+      server.middlewares.use((req, res, next) => (relay?.handleHttp(req, res) ? undefined : next()))
       server.config.logger.info(`[relay] 已内嵌于 preview server：${path}`)
       server.config.logger.info(`[relay] 接入 token：${relay.token}`)
     },

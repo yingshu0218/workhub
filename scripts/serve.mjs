@@ -156,7 +156,13 @@ function serveStatic(req, res) {
   createReadStream(filePath).pipe(res)
 }
 
-const server = createServer((req, res) => serveStatic(req, res))
+const server = createServer((req, res) => {
+  // relay 的 HTTP 传输先接管：/relay/mcp（远程 Agent 直连）与 /relay/pair*（一次性配对码）。
+  // 返回 false 才是静态资源/SPA 回退 —— 顺序不能反，否则这些路径会被 SPA 回退成 index.html
+  // （200 + HTML，Agent 侧表现为「握手失败」而不是「端点不存在」，极难排查）。
+  if (relay.handleHttp(req, res)) return
+  serveStatic(req, res)
+})
 server.on('upgrade', (req, socket, head) => relay.handleUpgrade(req, socket, head))
 
 server.once('error', (e) => {

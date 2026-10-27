@@ -114,8 +114,14 @@ npm run serve          # 生产形态：同进程托管 dist + relay（同源 ws
 本项目把 **37 个业务工具**（客户 / 流水 / 待办 / 笔记 / 习惯 / 账本 / 关联…；`tools/list` 另含 `confirm_preview` 共 38 条）通过 MCP 暴露给外部 Agent，
 数据始终留在浏览器 IndexedDB，relay 只转发、零特权。
 
+**接入点（2026-10-27 起）**：远程 Agent 直连 **`https://<站点>/relay/mcp`**（标准 MCP over HTTP，
+`Authorization: Bearer <token>`），**不需要本仓库、不需要本机进程**。本机的 `relay/mcp-stdio-shim.mjs`
+（WS→stdio）只是另一条可选路径。一次性配对码：`POST /relay/pair/new` 签发（须持 token，5 分钟、一次）、
+`POST /relay/pair` 兑换。⚠️ 别再把它接成 `cd <仓库> && npm run agent:setup` 那一套 —— 那是本机接法。
+
 ```bash
 npm run agent:setup                    # 探测本机 Agent 工具并写好 MCP + 规则 + skills
+npm run agent:setup -- --print-prompt  # 打印「一条指令」：零凭证，可整段复制给任意 Agent
 npm run agent:setup -- --check         # 连通性自检
 npm run agent:setup -- --dry-run       # 只预览改动，不落盘
 ```

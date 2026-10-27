@@ -96,6 +96,10 @@ const usage = () => `寻鸽工作台 · Agent 一键接入
 
 用法：npm run agent:setup -- [选项]
 
+接入（推荐：把这一段原样复制给任意 Agent）
+  --print-prompt             打印「一条指令」：让**远程** Agent 直连服务器（含一枚 5 分钟
+                             一次性配对码，长期 token 不出现）
+
 选址（不设默认地址：站点地址随环境变化，写死等于埋隐性依赖）
   --transport local          指向本地 relay（默认 ws://127.0.0.1:9001/relay）
   --port <n>                 配合 --transport local 指定端口（dev 通常 5173，serve 默认 9001）
@@ -241,13 +245,17 @@ function pickNodePath() {
 /** 由 main() 注入（--node 可覆盖）；缺省时惰性挑选 */
 let NODE_BIN = ''
 
-/** 通用的 stdio 服务器定义（JSON 系工具都用这个形状） */
-function stdioServerDef() {
-  return { command: NODE_BIN || pickNodePath(), args: [SHIM] }
+/**
+ * 通用的 stdio 服务器定义（JSON 系工具都用这个形状）。
+ * `type: 'stdio'` 只有部分工具（CodeBuddy）的文档明确要求，故按 target 可选注入 ——
+ * 统一加给所有工具属于「顺手改别人的配置」，一旦哪家不认这个键就是整条 MCP 加载失败。
+ */
+function stdioServerDef({ type } = {}) {
+  return { ...(type ? { type } : {}), command: NODE_BIN || pickNodePath(), args: [SHIM] }
 }
 
-/** Claude Code / Cursor / Gemini / WorkBuddy：`{ "mcpServers": { "<name>": {...} } }` */
-function writeMcpJsonServers(file, { uninstall }) {
+/** Claude Code / Cursor / Gemini / WorkBuddy / CodeBuddy：`{ "mcpServers": { "<name>": {...} } }` */
+function writeMcpJsonServers(file, { uninstall, type }) {
   const obj = readJson(file)
   // 文件存在但不是合法 JSON：不动它（可能是 JSONC 或用户手写坏了），显式报错交给用户处理
   if (obj === null && existsSync(file)) {
@@ -257,7 +265,7 @@ function writeMcpJsonServers(file, { uninstall }) {
   const next = obj && typeof obj === 'object' ? obj : {}
   next.mcpServers = next.mcpServers && typeof next.mcpServers === 'object' ? next.mcpServers : {}
   if (uninstall) delete next.mcpServers[SERVER_NAME]
-  else next.mcpServers[SERVER_NAME] = stdioServerDef()
+  else next.mcpServers[SERVER_NAME] = stdioServerDef({ type })
   if (Object.keys(next.mcpServers).length === 0) delete next.mcpServers
   // uninstall 后整个对象空了 = 这个文件当初就是为本脚本创建的 → 一并删掉，不留一个 `{}` 空壳
   if (uninstall && Object.keys(next).length === 0) {
@@ -406,6 +414,17 @@ const TARGETS = [
     rules: { path: 'AGENTS.md', mode: 'native' },
     skills: { dir: '.workbuddy/skills' },
     note: '用户级配置（WorkBuddy 的 MCP 只读 ~/.workbuddy/mcp.json）',
+  },
+  {
+    id: 'codebuddy',
+    label: 'CodeBuddy',
+    detect: { dirs: ['~/.codebuddy'], bins: ['codebuddy'] },
+    // `type: 'stdio'` 是 CodeBuddy 官方示例的写法，其余 JSON 系目标不带这个键
+    mcp: { path: '~/.codebuddy/mcp.json', write: writeMcpJsonServers, scope: 'user', type: 'stdio' },
+    // CodeBuddy 自己会扫描仓库根的 AGENTS.md（并据此生成 project guidance），无需额外规则壳
+    rules: { path: 'AGENTS.md', mode: 'native' },
+    skills: { dir: '.codebuddy/skills' },
+    note: '用户级配置 ~/.codebuddy/mcp.json；AGENTS.md 由 CodeBuddy 原生读取，加完可点 MCP 面板的 Try to Run 验证',
   },
   {
     id: 'codex',
@@ -580,24 +599,134 @@ function collectToolSkills() {
   return out
 }
 
+/* ============================ 一条指令（给 Agent 的可复制文本） ============================ */
+
+/** 凭据里的 wss:// 反推站点地址：只用于提示「去哪个页面启用桥」，不参与连接 */
+function siteFromCred(cred) {
+  const u = cred?.url ?? ''
+  if (!u) return ''
+  return u.replace(/^wss:/, 'https:').replace(/^ws:/, 'http:').replace(/\/relay\/?$/, '')
+}
+
+/**
+ * 向站点签发一枚**一次性配对码**。
+ *
+ * 为什么是「签发」而不是「把 token 打印出来」：这段文本要被整段复制给任意 Agent，
+ * 一旦写着长期 token，聊天记录、剪贴板、工单、截图全都成了凭证副本。
+ * 短码 5 分钟、只能换一次 —— 泄露的代价被压到「5 分钟内被人抢先兑换」，
+ * 而兑换者拿到的 token 还能在站点侧轮换掉。
+ */
+async function mintPairCode(cred) {
+  const site = siteFromCred(cred)
+  if (!site) throw new Error('凭据里没有站点地址')
+  const url = `${site}/relay/pair/new`
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${cred.token}` },
+    signal: AbortSignal.timeout(10_000),
+  })
+  if (!res.ok) {
+    const hint =
+      res.status === 404
+        ? '（站点镜像还没有 HTTP 端点：需要先部署带 /relay/mcp 的版本）'
+        : res.status === 401
+          ? '（凭据里的 token 与该站点不一致，先重跑一次配对）'
+          : ''
+    throw new Error(`${url} 返回 ${res.status}${hint}`)
+  }
+  const j = await res.json()
+  if (!j?.code) throw new Error('站点响应里没有 code')
+  return j.code
+}
+
+/**
+ * 生成「一条指令」：整段复制给任意 Agent，它自己就能连上**服务器上的**工作台。
+ *
+ * 三个硬约束（改这段文字前先读一遍）：
+ * 1. **不出现长期 token**：只放一枚 5 分钟一次性配对码，Agent 自己用它换 token；
+ * 2. **不出现本机路径**：Agent 连的是 `https://<站点>/relay/mcp`（标准 MCP over HTTP），
+ *    不需要本仓库、不需要 node、不需要 shim —— 这正是「远程接入」与「本地接入」的分界；
+ * 3. **不给 wss://**：裸 WebSocket 不是 MCP 标准传输，写进配置只会得到 426/连不上。
+ */
+function renderPrompt({ code = '', site = 'https://<你的站点>' } = {}) {
+  const mcpUrl = `${site}/relay/mcp`
+  const pairUrl = `${site}/relay/pair`
+  const codeShown = code || '<在此填一次性配对码>'
+  const cfgHttp = JSON.stringify({
+    mcpServers: {
+      [SERVER_NAME]: { type: 'streamableHttp', url: mcpUrl, headers: { Authorization: 'Bearer <上一步拿到的 token>' } },
+    },
+  })
+  return [
+    '【任务】把「寻鸽工作台」挂进你自己的工具列表。它是标准 MCP over HTTP，',
+    '不需要任何本地文件、本地进程或本仓库 —— 数据在服务器上，你只需要连它。',
+    '',
+    '【三步，照做，不要发挥】',
+    '1) 用一次性配对码换接入 token（码 5 分钟内有效、只能换一次）：',
+    `   curl -sS -X POST ${pairUrl} -H 'content-type: application/json' -d '{"code":"${codeShown}"}'`,
+    '   返回 {"token":"…"}。**这个 token 只写进你自己的配置或密钥存储，不要贴回聊天**。',
+    '2) 把 workhub 加进你的 MCP 配置（键名 mcpServers），url 用下面这个：',
+    `   ${mcpUrl}`,
+    '   并带上请求头 Authorization: Bearer <token>。多数工具的写法形如：',
+    `   ${cfgHttp}`,
+    '   （有的工具用 "type":"http" 而不是 "streamableHttp"，按你自己的文档来，url 与头不变。）',
+    '3) 重载/重启你自己，再列一次工具：应看到 38 个（37 个业务工具 + confirm_preview）。',
+    '',
+    '【纪律】',
+    '1. 不要把 url 改成 wss:// —— 裸 WebSocket 不是 MCP 标准传输，客户端会按 HTTP POST 发、被拒。',
+    '2. 若列工具时报「工具清单不可用：寻鸽工作台未连接 relay」，那不是配置错误、也别改参数：',
+    `   是服务器上那个浏览器页面没打开或没启用「设置 → AI Agent 桥」。让用户去开 ${site} 启用桥。`,
+    '3. 中风险写操作（记账、改客户等）第一次只回预览：先把预览转述用户并取得确认，',
+    '   再调 confirm_preview 取一次性票据（票据绑定参数指纹，改参数就必须重新预览）。',
+    '4. 业务数据在服务器的浏览器 IndexedDB 里，relay 只转发、不持有副本：',
+    '   桥离线时任何重试都不会成功，唯一解法是让用户打开页面。',
+  ].join('\n')
+}
+
 /* ================================ 主流程 ================================ */
 
 let DRY_RUN = false
 
-function parseArgs(argv) {
+function parseArgs(argv, env = process.env) {
   const get = (name, fallback) => {
     const i = argv.indexOf(name)
     return i >= 0 && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[i + 1] : fallback
   }
+  /**
+   * npm 会把脚本入口后的**裸** `--url` / `--token` 当成自己的配置项取走
+   * （正确写法是 `npm run agent:setup -- --url …`）。此时脚本一个参数都收不到，
+   * 于是静默复用旧凭据 —— 现象是「它没识别出我给的地址」，实际是根本没传进来。
+   * 这里把 npm 转手的值取回来，并让调用方**显式告警**（不许静默采用）。
+   */
+  const isWsUrl = (s) => /^wss?:\/\//i.test(s)
+  const fromNpm = (name) => env[`npm_config_${name}`] || ''
+  const cliUrl = get('--url', '')
+  const cliToken = get('--token', '')
+  // npm 会把 `--url` 记成 `url=true` 这种布尔配置，同时把真地址当**位置参数**传给脚本。
+  // 所以两边都要认，但都要形似：地址必须 wss?:// 开头，token 不能是 'true' 这类占位。
+  const npmUrl = cliUrl || !isWsUrl(fromNpm('url')) ? '' : fromNpm('url')
+  const npmToken = cliToken || fromNpm('token') === 'true' ? '' : fromNpm('token')
+  const positionalUrl = cliUrl || npmUrl ? '' : argv.find((a) => isWsUrl(a)) || ''
+  const url = cliUrl || npmUrl || positionalUrl
+  /**
+   * npm 会把**已知**的布尔 flag（`--dry-run` / `--check` …）也当自己的配置项取走：
+   * 脚本一个都收不到，于是「预览」会变成**真写**（本轮实测：`npm run agent:setup --url … --dry-run`
+   * 少了 `--`，结果 dry-run 失效、凭据地址被真的改掉）。所有布尔开关都必须认 npm 转手的那份。
+   */
+  const npmFlag = (name) => ['true', '1'].includes(env[`npm_config_${name.replace(/^--/, '').replace(/-/g, '_')}`])
+  const flag = (name) => argv.includes(name) || npmFlag(name)
   return {
-    dryRun: argv.includes('--dry-run'),
-    check: argv.includes('--check'),
-    uninstall: argv.includes('--uninstall'),
-    help: argv.includes('--help') || argv.includes('-h'),
+    dryRun: flag('--dry-run'),
+    check: flag('--check'),
+    uninstall: flag('--uninstall'),
+    help: flag('--help') || flag('-h'),
+    printPrompt: flag('--print-prompt'),
     only: (get('--only', '') || '').split(',').map((s) => s.trim()).filter(Boolean),
     transport: get('--transport', ''),
-    url: get('--url', ''),
-    token: get('--token', ''),
+    url,
+    token: cliToken || npmToken,
+    /** 有值 = 地址/凭证不是 `--url`/`--token` 传进来的，是 npm 转手的（多半是 npm 吞了裸参数） */
+    swallowedByNpm: url !== cliUrl || (Boolean(npmToken) && !cliToken),
     port: get('--port', '9001'),
     env: get('--env', ''),
     skills: get('--skills', 'meta'),
@@ -642,7 +771,7 @@ function runCheck(resolvedCred) {
   process.exitCode = r.status ?? 1
 }
 
-function main() {
+async function main() {
   const opts = parseArgs(process.argv.slice(2))
   DRY_RUN = opts.dryRun
   NODE_BIN = opts.node ? path.resolve(opts.node) : ''
@@ -654,9 +783,35 @@ function main() {
 
   applyEnv(opts.env)
 
+  // 只打印「一条指令」：不读写任何 Agent 配置，文本里只带一枚一次性配对码（不含长期 token）
+  if (opts.printPrompt) {
+    const cred = readJson(activeCredFile) ?? {}
+    let code = ''
+    if (cred.url && cred.token) {
+      try {
+        code = await mintPairCode(cred)
+      } catch (e) {
+        // 告警走 stderr：stdout 必须干净（这一段是要被整段复制的）
+        process.stderr.write(`[agent:setup] ⚠️ 签发配对码失败：${e?.message ?? e}\n`)
+      }
+    } else {
+      process.stderr.write('[agent:setup] ⚠️ 本机还没有凭据，先在终端配对一次：npm run agent:setup -- --url wss://… --token …\n')
+    }
+    process.stdout.write(`${renderPrompt({ code, site: siteFromCred(cred) || 'https://<你的站点>' })}\n`)
+    return
+  }
+
   const prefix = DRY_RUN ? c.yellow('[dry-run] ') : ''
   process.stdout.write(`\n${prefix}${c.bold('寻鸽工作台 · Agent 一键接入')}\n`)
   process.stdout.write(`${prefix}仓库：${REPO_ROOT}\n\n`)
+
+  // 参数被 npm 转手 = 用户漏写了 `--`。必须说出来：静默采用会让人以为「命令没识别出地址」
+  if (opts.swallowedByNpm) {
+    process.stdout.write(
+      c.yellow('⚠️  --url / --token 是 npm 转手进来的：你的命令少了 `--` 分隔符。\n') +
+        '   已按 npm_config_* 采用；正确写法是 `npm run agent:setup -- --url … --token …`。\n\n',
+    )
+  }
 
   /* ---- 1. 凭据 ---- */
   const changes = []
@@ -735,7 +890,7 @@ function main() {
         r = writeMcpOpencode(mcpPath, { uninstall: opts.uninstall, opencodeSchema: schema })
         if (r.changed) perTarget.push(`schema=${schema}`)
       } else {
-        r = t.mcp.write(mcpPath, { uninstall: opts.uninstall })
+        r = t.mcp.write(mcpPath, { uninstall: opts.uninstall, type: t.mcp.type })
       }
       if (r.changed) perTarget.push(`MCP → ${rel(mcpPath)}`)
 
@@ -877,7 +1032,13 @@ function detectOpencodeSchema() {
   return 'v1'
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) main()
+if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
+  // main 是 async（签发配对码要发一次 HTTPS 请求）：错误必须落到进程退出码，不能变成未处理的 rejection
+  main().catch((e) => {
+    process.stderr.write(`\n❌ ${e?.message ?? e}\n`)
+    process.exitCode = 1
+  })
+}
 
 /* 供测试直接取用的纯函数（渲染与合并都不落盘，因此可以放心在断言里反复调用） */
 export {
@@ -891,6 +1052,8 @@ export {
   renderCodexBlock,
   renderHermesEntry,
   renderMetaSkill,
+  renderPrompt,
+  siteFromCred,
   renderToolSkill,
   collectToolSkills,
   pickNodePath,
