@@ -5,6 +5,7 @@ import dayjs from 'dayjs'
 // 浏览器端 StorageAdapter 注册（Dexie）：eager 加载，保证执行链首个 storage 调用前已就绪
 import './storage/browser'
 import AppRouter from './app/router'
+import { AuthGate } from './app/AuthGate'
 import './styles/index.css'
 import { backfillDemoRelations, seedIfEmpty } from './db/seed'
 import { backfillTodoCompletedAt, backfillTodoVoidedAt } from './modules/todo/backfill'
@@ -93,7 +94,10 @@ function Bootstrap() {
 
   return (
     <IdentityProvider>
-      <AppRouter />
+      {/* 登录守卫：容器配了管理员才启用（未配置时 fail-open，不挡人） */}
+      <AuthGate>
+        <AppRouter />
+      </AuthGate>
     </IdentityProvider>
   )
 }

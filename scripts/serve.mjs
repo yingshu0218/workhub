@@ -133,6 +133,15 @@ function resolveRelayToken() {
 
 const { token: relayToken, source: tokenSource } = resolveRelayToken()
 
+/**
+ * 页面是否启用登录（2026-10-28）。
+ *
+ * 判据只有一条：容器里配了管理员账号/密码（`entrypoint.mjs#ensureAppUser` 据此创建账号）。
+ * 刻意只回布尔，不回账号名、不需要鉴权 —— 这点信息不构成风险，而**fail-open** 很关键：
+ * 配错 env 时如果页面仍强制登录，唯一的管理员会被锁在门外，且没有任何自救入口。
+ */
+const authEnabled = Boolean((process.env.WORKHUB_ADMIN_USER || '').trim() && process.env.WORKHUB_ADMIN_PASSWORD)
+
 const relay = createRelay({
   token: relayToken,
   autoIssueConfirm,
@@ -197,6 +206,13 @@ const server = createServer((req, res) => {
   // relay 的 HTTP 传输先接管：/relay/mcp（远程 Agent 直连）与 /relay/pair*（一次性配对码）。
   // 返回 false 才是静态资源/SPA 回退 —— 顺序不能反，否则这些路径会被 SPA 回退成 index.html
   // （200 + HTML，Agent 侧表现为「握手失败」而不是「端点不存在」，极难排查）。
+  // 页面登录开关：前端据此决定是否显示登录页（2026-10-28）。
+  // 必须放在 relay 接管之前 —— 否则这个路径会被 SPA 回退成 200 + HTML，前端拿到的是网页。
+  if (req.url === `${relayPath}/auth-status`) {
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' })
+    res.end(JSON.stringify({ enabled: authEnabled }))
+    return
+  }
   if (relay.handleHttp(req, res)) return
   serveStatic(req, res)
 })

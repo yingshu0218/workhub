@@ -56,6 +56,13 @@ services:
       # ⚠️ 不能按「有没有非 `_` 开头的集合」判 —— PocketBase 首启会自动建一个 `users` 集合，
       #    那样会把空库误判成「已有业务集合」而跳过导入（2026-10-09 首次部署实测踩到）。
       PB_IMPORT_COLLECTIONS: "1"
+      # ── 应用内登录（2026-10-28）──
+      # 页面是否要登录，只看这两个变量是否**同时**提供：给了，entrypoint 启动时会幂等创建
+      # 该账号（users 集合 createRule 是 Locked，只有容器里的超管凭据建得出来）；
+      # 没给，`/relay/auth-status` 回 enabled:false，页面 fail-open 不挡人。
+      # ⚠️ 这是容器侧配置 —— 页面上不需要任何「初始化管理员」操作。
+      WORKHUB_ADMIN_USER: ${WORKHUB_ADMIN_USER:-}
+      WORKHUB_ADMIN_PASSWORD: ${WORKHUB_ADMIN_PASSWORD:-}
       # ── agentOps 服务端执行器（P3/P4，docs/agentOps服务端化方案.md）──
       # 显式开启三件套（+可选白名单）：缺省**全关**（方案 §7.5 拍板：服务端能力默认全关）。
       #   WORKHUB_SERVER_EXECUTOR=1            总开关（缺 dist-server 时降级启动并告警）

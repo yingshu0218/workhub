@@ -17,6 +17,15 @@
 ⚠️ 顺带一条硬事实（只读统计正式站 `data.db` 全表）：**PB 业务表全为 0 条**（`customers`/`todos`/`transactions`… 皆 0），演示数据一直只存在**浏览器 IndexedDB** 且写入时标记 `synced: 1`，从未上行 —— 所以「清服务端」本身是空操作，真要清的是浏览器本地。
 > **补充验证**：新增 `src/repositories/__tests__/localReset.test.ts` **2 条**（清完业务表全空 / settings 豁免），并做变异校验：把 `seedIfEmpty()` 加回清空流程 → `workspaces 应为空: expected 1 to be +0` 红（已还原）。`npm run check:all` 全绿 —— **1093 passed / 0 failed / 7 skipped**（133 文件，+2 条）。
 
+**⑦ 页面登录（第 1 步：守卫 + 管理员账号，代码已改，未推）**：此前页面**完全匿名**，同步身份藏在一个没人知道的 `demo@nexus.local` 上 —— 既无访问控制，也让「换设备」变成摸配置。本轮先把门装上：
+- `deploy/docker/entrypoint.mjs`：新增 `ensureAppUser()`，PB 就绪后用**已有的超管凭据**幂等创建 `WORKHUB_ADMIN_USER`（`users.createRule` 是 Locked，页面侧建不出来）。失败只告警不阻断启动。
+- `scripts/serve.mjs`：新增 `GET /relay/auth-status` → `{enabled:boolean}`，判据只看管理员 env 是否配齐；**只回布尔、不回账号名**。
+- `src/app/AuthGate.tsx`：守卫组件。**fail-open** —— 服务端说未启用就放行（配错 env 不能把唯一管理员锁在门外）；启用则必须过 `auth-refresh`，本地残留 token 不采信，续期后的 token 写回。
+- compose 增 `WORKHUB_ADMIN_USER` / `WORKHUB_ADMIN_PASSWORD` 两个变量（**容器侧配置，页面无需任何初始化操作**）。
+⚠️ 与旧镜像的兼容性：旧 serve.mjs 没有该端点 → 前端 `res.json()` 抛错 → 按未启用处理 → 放行，不会因为前后端版本错位把人挡在外面。
+> **补充验证**：新增 `src/app/__tests__/authGate.test.tsx` **4 条**（未启用放行 / 启用无 token 显示登录页且不渲染业务内容 / 有效 token 放行并写回续期 token / 失效 token 回登录页）。`npm run check:all` 全绿 —— **1097 passed / 0 failed / 7 skipped**（134 文件，+4 条）。
+⚠️ **本轮只装门，尚未打通同步身份**：登录后同步仍走设置里原有的 `demo@nexus.local`（第 2 步要做的正是「登录态即同步身份」，并顺带把页面↔relay 的自动对接补上），别把「能登录」误当成「账号已统一」。
+
 **上一轮**：2026-10-27（**远程接入打通：relay 新增标准 MCP over HTTP + 一次性配对码，Agent 不再需要本机 shim/本仓库**。⚠️ 本轮前半段曾把「接入」做成「本机仓库工程」（`cd <仓库> && npm run agent:setup`、写本机 `mcp.json`），被用户当场打回：**AI Agent 要连的是 VPS 上的版本**。真因是 relay 此前只有裸 WebSocket，而 MCP 客户端只支持 stdio / Streamable HTTP —— 所以任何人都只能在本机挂 shim，看起来就像「连本地」。本轮把那层补齐）。
 **① `POST <path>/mcp`：标准 MCP over HTTP（stateless）**：`Authorization: Bearer <token>`（兼容 `?token=`），复用同一个 `router.handle` —— 鉴权、能力白名单、中风险确认票据三道闸门**一处没放宽**，只换了传输层。GET 回 405（不建 SSE 流）、通知回 202、非 relay 路径返回 false 交回宿主。⚠️ 为什么必须接在宿主最前面：`serve.mjs` 原先直接走静态资源，`/relay/mcp` 会被 SPA 回退成 **200 + HTML**，Agent 侧只看到「握手失败」而非「端点不存在」，是那种查一整天的错。
 **①b 协议版本协商 + 能力如实声明**：支持 `2024-11-05` / `2025-03-26`，**回客户端请求的那个版本**。⚠️ 原先一律回 `2024-11-05` 是个真坑：Streamable HTTP 是 `2025-03-26` 才引入的传输，严格按版本走的客户端会据此退回老的 HTTP+SSE 双端点协议（GET 拿 endpoint 再 POST），表现是「url 配对了却连不通」。同时把 `capabilities.tools.listChanged` 由 `true` 改 **`false`** —— 没有任何传输实现推送工具变更，虚报会让客户端等一个永不来的通知、不刷新清单。

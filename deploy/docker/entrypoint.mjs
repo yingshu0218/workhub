@@ -97,8 +97,7 @@ function bootstrapSuperuser() {
   if (r.status !== 0) throw new Error(`superuser upsert 失败，退出码 ${r.status}`)
 }
 
-async function pbToken() {
-  const res = await fetch(`http://${PB_HTTP}/api/collections/_superusers/auth-with-password`, {
+async function pbToken() {  const res = await fetch(`http://${PB_HTTP}/api/collections/_superusers/auth-with-password`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ identity: PB_SUPERUSER, password: PB_SUPERUSER_PASSWORD }),
@@ -107,6 +106,54 @@ async function pbToken() {
   const body = await res.json()
   if (!body?.token) throw new Error('超管登录成功但响应里没有 token')
   return body.token
+}
+
+/**
+ * 确保「应用内登录」的管理员账号存在（2026-10-28）。
+ *
+ * 为什么必须由容器做：`users` 集合的 createRule 是 Locked（禁止自助注册），而首个账号
+ * 总得有人创建 —— 超管凭据只存在于容器环境变量里，页面拿不到，也不该拿到。
+ *
+ * 幂等：账号已存在就跳过。未配置账号/密码则整体跳过，此时 serve 的 `/relay/auth-status`
+ * 回 `enabled:false`，页面**不启用登录**（fail-open）—— 宁可先不挡，也不能因为 env 配错
+ * 把唯一的管理员锁在门外。
+ *
+ * 失败只告警不阻断启动：站点起不来比少一道门更糟。
+ */
+async function ensureAppUser() {
+  const user = (process.env.WORKHUB_ADMIN_USER || '').trim()
+  const pass = process.env.WORKHUB_ADMIN_PASSWORD || ''
+  if (!user || !pass) {
+    log('未配置 WORKHUB_ADMIN_USER / WORKHUB_ADMIN_PASSWORD，跳过应用管理员创建（页面登录不启用）')
+    return
+  }
+  try {
+    const token = await pbToken()
+    const headers = { authorization: token, 'content-type': 'application/json' }
+    const filter = encodeURIComponent(`email = "${user}" || username = "${user}"`)
+    const res = await fetch(`http://${PB_HTTP}/api/collections/users/records?perPage=1&filter=${filter}`, { headers })
+    const list = await res.json().catch(() => ({}))
+    if (Array.isArray(list?.items) && list.items.length > 0) {
+      log(`应用管理员已存在：${user}`)
+      return
+    }
+    const created = await fetch(`http://${PB_HTTP}/api/collections/users/records`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        // 登录时 identity 可填用户名或邮箱；这里两者都对齐成同一个值，少一处踩坑
+        email: user.includes('@') ? user : `${user}@workhub.local`,
+        username: user,
+        password: pass,
+        passwordConfirm: pass,
+        verified: true,
+      }),
+    })
+    if (!created.ok) throw new Error(`HTTP ${created.status} ${await created.text()}`)
+    log(`已创建应用管理员：${user}`)
+  } catch (e) {
+    log(`⚠️ 应用管理员创建失败：${e?.message ?? e}（页面登录仍会启用，可能无人能登录）`)
+  }
 }
 
 async function waitFor(url, timeoutMs, label) {
@@ -299,6 +346,7 @@ async function main() {
 
   await waitFor(`http://${PB_HTTP}/api/health`, 60_000, 'PocketBase')
   log('PocketBase 已就绪')
+  await ensureAppUser()
   await waitFor(`http://${WEB_HOST}:${WEB_PORT}/`, 30_000, '站点')
   log('站点已就绪')
 
