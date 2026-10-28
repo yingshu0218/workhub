@@ -467,6 +467,7 @@ ANDROID_KEY_PASSWORD: "<keystore.properties 里的 password>"
 
 #### 未验证项（如实标注）
 
-- **本机未完成 SDK36 的 release 重打**：2 核 3.5G 构建机上 Gradle/R8 每次在工具单次时限内跑不完。**现有本地 APK 仍是 targetSdk 37 的旧包**；36 的包将由 CI 首次 tag 产出，或在一台正常配置的机器上打。
+- **本地打包只走单 ABI**：`assembleUniversalRelease` 会逐个编 4 个 ABI（arm/arm64/x86/x86_64），2 核机上 >20 分钟；单 ABI 实测 **6 分 17 秒**。Rust 产物已存在时用
+  `./gradlew app:assembleArm64Release -x rustBuildArm64Release`（`-x` 的前提是 `jniLibs` 里已有 `.so`，否则会打出没有原生库的空壳）。
 - **CNB 网络未实测**：镜像站可达性是在本机（阿里云）验证的，与 CNB 构建节点可能不同；首次镜像构建若卡在 `sdkmanager`，把 `ANDROID_SDK_MIRROR` 换成清华/阿里源再试。
 - **Release 附件需要 release 已存在**：流水线已加 `git:release` 在前，顺序不要调换。
