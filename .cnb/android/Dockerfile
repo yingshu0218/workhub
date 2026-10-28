@@ -20,6 +20,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     NDK_HOME=/opt/android-sdk/ndk/27.0.12077973 \
     ANDROID_SDK_MIRROR=https://mirrors.cloud.tencent.com/AndroidSDK/ \
     RUSTUP_DIST_SERVER=https://mirrors.aliyun.com/rustup \
+    JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 \
     PATH=/opt/android-sdk/cmdline-tools/latest/bin:/opt/android-sdk/platform-tools:/root/.cargo/bin:$PATH
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -46,6 +47,20 @@ RUN yes | sdkmanager --sdk_root="$ANDROID_HOME" --licenses > /dev/null \
 # Rust + Android target。rustup 走阿里云镜像（官方源在 CI 上常被限速）
 RUN curl -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal --no-modify-path \
     && rustup target add aarch64-linux-android
+
+# cargo 走 rsproxy 稀疏索引：crates.io 在国内 CI 上常被限速到几 KB/s，
+# 首次构建要拉几百个 crate，不限速会把 2 小时的单任务预算吃光。
+# ⚠️ 构建任务**不要**挂 /root/.cargo 缓存卷 —— 空卷会盖掉这份配置。
+RUN mkdir -p /root/.cargo && cat > /root/.cargo/config.toml <<'EOF'
+[source.crates-io]
+replace-with = 'rsproxy-sparse'
+
+[source.rsproxy-sparse]
+registry = "sparse+https://rsproxy.cn/index/"
+
+[net]
+git-fetch-with-cli = true
+EOF
 
 # 自检：镜像构建阶段就暴露缺件，而不是等到 tag 那天才发现
 RUN java -version && node -v && rustc -V \
