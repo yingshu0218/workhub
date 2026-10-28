@@ -142,6 +142,26 @@ const { token: relayToken, source: tokenSource } = resolveRelayToken()
  */
 const authEnabled = Boolean((process.env.WORKHUB_ADMIN_USER || '').trim() && process.env.WORKHUB_ADMIN_PASSWORD)
 
+/**
+ * 「管理员已改过初始密码」标记（2026-10-28）。
+ *
+ * 为什么需要它：初始密码是 compose 里的默认值 `password`（公开可知），所以必须
+ * **强制首改**；改完之后这个标记落盘，页面不再弹改密、也证明初始密码已被弃用。
+ * 用文件而不是 PB 字段：users 是 PB 内置集合，加字段要走 schema 变更；
+ * 而标记跟着数据卷走、重建容器不丢，语义也够。
+ */
+const adminMarker = join(dataDir, '.admin-initialized')
+
+/** 用 PB 校验一个 users 登录态（只用于「写首改标记」这一步） */
+async function verifyPbUserToken(pbTokenValue) {
+  const pbBase = process.env.WORKHUB_PB_URL || `http://${process.env.PB_HTTP || '127.0.0.1:8090'}`
+  const res = await fetch(`${pbBase}/api/collections/users/auth-refresh`, {
+    method: 'POST',
+    headers: { Authorization: pbTokenValue },
+  })
+  return res.ok
+}
+
 const relay = createRelay({
   token: relayToken,
   autoIssueConfirm,
@@ -210,7 +230,31 @@ const server = createServer((req, res) => {
   // 必须放在 relay 接管之前 —— 否则这个路径会被 SPA 回退成 200 + HTML，前端拿到的是网页。
   if (req.url === `${relayPath}/auth-status`) {
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' })
-    res.end(JSON.stringify({ enabled: authEnabled }))
+    res.end(JSON.stringify({ enabled: authEnabled, initialized: existsSync(adminMarker) }))
+    return
+  }
+  // 首改完成后的回调：写标记，之后不再强制改密。
+  // 必须验登录态 —— 否则谁都能把标记写掉，强制首改就成了一句空话。
+  if (req.url === `${relayPath}/admin-initialized` && req.method === 'POST') {
+    void (async () => {
+      const provided = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim()
+      const ok = provided ? await verifyPbUserToken(provided).catch(() => false) : false
+      if (!ok) {
+        res.writeHead(401, { 'Content-Type': 'application/json; charset=utf-8' })
+        res.end(JSON.stringify({ error: '需要有效的登录态' }))
+        return
+      }
+      try {
+        mkdirSync(dirname(adminMarker), { recursive: true })
+        writeFileSync(adminMarker, `${new Date().toISOString()}\n`, { mode: 0o600 })
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' })
+        res.end(JSON.stringify({ error: `写入标记失败：${e?.message ?? e}` }))
+        return
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' })
+      res.end(JSON.stringify({ ok: true }))
+    })()
     return
   }
   if (relay.handleHttp(req, res)) return

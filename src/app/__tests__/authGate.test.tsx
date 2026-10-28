@@ -56,7 +56,7 @@ describe('AuthGate', () => {
   it('启用且有有效 token：auth-refresh 通过即进业务页面', async () => {
     localStorage.setItem('workhub.auth.token', 'valid-token')
     stubFetch({
-      '/relay/auth-status': { status: 200, body: { enabled: true } },
+      '/relay/auth-status': { status: 200, body: { enabled: true, initialized: true } },
       '/api/collections/users/auth-refresh': { status: 200, body: { token: 'renewed' } },
     })
     render(
@@ -72,7 +72,7 @@ describe('AuthGate', () => {
   it('启用但 token 已失效：回到登录页（不信任本地残留 token）', async () => {
     localStorage.setItem('workhub.auth.token', 'stale-token')
     stubFetch({
-      '/relay/auth-status': { status: 200, body: { enabled: true } },
+      '/relay/auth-status': { status: 200, body: { enabled: true, initialized: true } },
       '/api/collections/users/auth-refresh': { status: 401, body: { message: 'expired' } },
     })
     render(
@@ -81,5 +81,20 @@ describe('AuthGate', () => {
       </AuthGate>,
     )
     await waitFor(() => expect(screen.getByText(/请使用管理员账号登录/)).toBeTruthy())
+  })
+
+  it('初始密码还没换掉（initialized:false）：已登录也必须先改密，进不了业务页面', async () => {
+    localStorage.setItem('workhub.auth.token', 'valid-token')
+    stubFetch({
+      '/relay/auth-status': { status: 200, body: { enabled: true, initialized: false } },
+      '/api/collections/users/auth-refresh': { status: 200, body: { token: 'valid-token' } },
+    })
+    render(
+      <AuthGate>
+        <div>业务页面</div>
+      </AuthGate>,
+    )
+    await waitFor(() => expect(screen.getByText('设置你的密码')).toBeTruthy())
+    expect(screen.queryByText('业务页面')).toBeNull()
   })
 })

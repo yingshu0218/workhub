@@ -20,10 +20,10 @@
 **⑦ 页面登录（第 1 步：守卫 + 管理员账号，代码已改，未推）**：此前页面**完全匿名**，同步身份藏在一个没人知道的 `demo@nexus.local` 上 —— 既无访问控制，也让「换设备」变成摸配置。本轮先把门装上：
 - `deploy/docker/entrypoint.mjs`：新增 `ensureAppUser()`，PB 就绪后用**已有的超管凭据**幂等创建 `WORKHUB_ADMIN_USER`（`users.createRule` 是 Locked，页面侧建不出来）。失败只告警不阻断启动。
 - `scripts/serve.mjs`：新增 `GET /relay/auth-status` → `{enabled:boolean}`，判据只看管理员 env 是否配齐；**只回布尔、不回账号名**。
-- `src/app/AuthGate.tsx`：守卫组件。**fail-open** —— 服务端说未启用就放行（配错 env 不能把唯一管理员锁在门外）；启用则必须过 `auth-refresh`，本地残留 token 不采信，续期后的 token 写回。
-- compose 增 `WORKHUB_ADMIN_USER` / `WORKHUB_ADMIN_PASSWORD` 两个变量（**容器侧配置，页面无需任何初始化操作**）。
+- `src/app/AuthGate.tsx`：守卫组件。**fail-open** —— 服务端说未启用就放行（配错 env 不能把唯一管理员锁在门外）；启用则必须过 `auth-refresh`，本地残留 token 不采信，续期后的 token 写回。另有**强制首改**：`auth-status` 的 `initialized:false`（`/data/.admin-initialized` 不存在）时，登录后只能停在「设置你的密码」，改完调 `POST /relay/admin-initialized` 落标记（该端点要验 users 登录态，否则谁都能把标记写掉）。
+- compose 默认值直接写死：`WORKHUB_ADMIN_USER:-admin` / `WORKHUB_ADMIN_PASSWORD:-password`（按用户要求「改的人自己改文件」）。⚠️ 初始密码公开可知，所以首改必须短窗口完成。
 ⚠️ 与旧镜像的兼容性：旧 serve.mjs 没有该端点 → 前端 `res.json()` 抛错 → 按未启用处理 → 放行，不会因为前后端版本错位把人挡在外面。
-> **补充验证**：新增 `src/app/__tests__/authGate.test.tsx` **4 条**（未启用放行 / 启用无 token 显示登录页且不渲染业务内容 / 有效 token 放行并写回续期 token / 失效 token 回登录页）。`npm run check:all` 全绿 —— **1097 passed / 0 failed / 7 skipped**（134 文件，+4 条）。
+> **补充验证**：新增 `src/app/__tests__/authGate.test.tsx` **5 条**（未启用放行 / 启用无 token 显示登录页且不渲染业务内容 / 有效 token 放行并写回续期 token / 失效 token 回登录页 / `initialized:false` 时已登录也必须先改密）。`npm run check:all` 全绿 —— **1098 passed / 0 failed / 7 skipped**（134 文件，+5 条）。
 ⚠️ **本轮只装门，尚未打通同步身份**：登录后同步仍走设置里原有的 `demo@nexus.local`（第 2 步要做的正是「登录态即同步身份」，并顺带把页面↔relay 的自动对接补上），别把「能登录」误当成「账号已统一」。
 
 **上一轮**：2026-10-27（**远程接入打通：relay 新增标准 MCP over HTTP + 一次性配对码，Agent 不再需要本机 shim/本仓库**。⚠️ 本轮前半段曾把「接入」做成「本机仓库工程」（`cd <仓库> && npm run agent:setup`、写本机 `mcp.json`），被用户当场打回：**AI Agent 要连的是 VPS 上的版本**。真因是 relay 此前只有裸 WebSocket，而 MCP 客户端只支持 stdio / Streamable HTTP —— 所以任何人都只能在本机挂 shim，看起来就像「连本地」。本轮把那层补齐）。
