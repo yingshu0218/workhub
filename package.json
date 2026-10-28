@@ -23,7 +23,7 @@
     "tauri": "tauri",
     "app:dev": "tauri dev",
     "app:build": "tauri build",
-    "app:android": "tauri android build"
+    "app:android": "tauri android build --target aarch64"
   },
   "dependencies": {
     "@codemirror/commands": "^6.11.0",
