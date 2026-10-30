@@ -33,7 +33,15 @@ import { SYNC_TABLES } from '@/sync/remoteNormalize'
 const DONE_KEY = 'reconcile_done_at'
 export const RECONCILE_BATCH_REASON = 'reconcile' as const
 
-export async function reconcileOrphansOnce(): Promise<number> {
+export async function reconcileOrphansOnce(
+  /**
+   * 远端 id 列表注入点。默认走真实 `listRemoteIds`；测试传假实现即可，
+   * **不要**用 `vi.mock` 整模块替换 `@/sync/pocketbaseAdapter` —— 那样会把
+   * `pocketBaseAdapter/isSyncConfigured` 等一并变成 undefined，全量跑时挂住（实测 17 分钟无输出）。
+   */
+  opts: { listIds?: (table: string) => Promise<Set<string>> } = {},
+): Promise<number> {
+  const listIds = opts.listIds ?? listRemoteIds
   const done = await db.meta.get(DONE_KEY)
   if (done) return 0
 
@@ -44,7 +52,7 @@ export async function reconcileOrphansOnce(): Promise<number> {
   for (const table of SYNC_TABLES) {
     let remote: Set<string>
     try {
-      remote = await listRemoteIds(table)
+      remote = await listIds(table)
     } catch (e) {
       // 单表失败（离线/401/权限）不阻断其余表，但也不写完成标记
       console.warn('[reconcile] 拉取远端 id 失败，本轮跳过该表：', table, e)

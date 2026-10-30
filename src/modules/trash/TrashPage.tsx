@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import dayjs from 'dayjs'
+import { db } from '@/db/db'
 import { Icon } from '@/design-system/Icon'
 import { Button, Card, Chip, ConfirmDialog, EmptyState, PageHeader, inputCls } from '@/design-system/ui'
 import { useToast } from '@/design-system/Toast'
@@ -89,11 +90,16 @@ function iconOf(item: TrashItem): string {
 }
 
 const DAY = 24 * 60 * 60 * 1000
-const RETENTION_DAYS = 30
+/**
+ * 保留期兜底值。**实际值读设置** `security.trashRetentionDays`（7/15/30，默认 30）。
+ * 2026-10-30 之前这里是写死的常量，只用于展示、且没有任何执行者 —— 展示与行为必须是同一来源，
+ * 否则「设置里改成 7 天」和「界面显示剩余 30 天」会当面打架。
+ */
+const FALLBACK_RETENTION_DAYS = 30
 const EMPTY: TrashItem[] = []
 
-function remainingDays(item: TrashItem): number {
-  return Math.max(0, Math.ceil((RETENTION_DAYS * DAY - (Date.now() - item.deletedAt)) / DAY))
+function remainingDays(item: TrashItem, retentionDays: number): number {
+  return Math.max(0, Math.ceil((retentionDays * DAY - (Date.now() - item.deletedAt)) / DAY))
 }
 
 function keyOf(item: TrashItem): string {
@@ -104,6 +110,11 @@ export default function TrashPage() {
   const toast = useToast()
   const queried = useLiveQuery(() => listTrash(), [])
   const items = queried ?? EMPTY
+  /** 保留期与「冲突删除」批次都来自本地库：前者是设置项，后者是对账写的本地表 */
+  const settings = useLiveQuery(() => db.settings.get('singleton'), [])
+  const retentionDays = settings?.security?.trashRetentionDays ?? FALLBACK_RETENTION_DAYS
+  const batches = useLiveQuery(() => db.trashBatches.orderBy('createdAt').reverse().toArray(), [], [])
+  const [activeBatch, setActiveBatch] = useState<string | null>(null)
   const [filter, setFilter] = useState<FilterKey>('all')
   const [keyword, setKeyword] = useState('')
   const [confirmItem, setConfirmItem] = useState<TrashItem | null>(null)
@@ -115,12 +126,16 @@ export default function TrashPage() {
 
   const visible = useMemo(() => {
     const kw = keyword.trim().toLowerCase()
+    // 选中某个「冲突删除」批次时，只看那一批（members 里存的是 table:id）
+    const batch = activeBatch ? batches.find((b) => b.id === activeBatch) : undefined
+    const inBatch = batch ? new Set(batch.members.map((m) => `${m.table}:${m.id}`)) : null
     return items.filter((i) => {
+      if (inBatch && !inBatch.has(keyOf(i))) return false
       if (filter !== 'all' && categoryOf(i) !== filter) return false
       if (!kw) return true
       return [i.title, i.subtitle, i.parentTitle].filter(Boolean).join(' ').toLowerCase().includes(kw)
     })
-  }, [items, filter, keyword])
+  }, [items, filter, keyword, activeBatch, batches])
 
   const roots = useMemo(() => {
     const visibleKeys = new Set(visible.map(keyOf))
@@ -217,7 +232,7 @@ export default function TrashPage() {
           <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[0.8214rem] text-on-surface-variant">
             <span>删除于 {dayjs(item.deletedAt).format('YYYY-MM-DD HH:mm')}</span>
             {item.parentTitle && <span>· 所属 {item.parentTitle}</span>}
-            {item.canRestore && <span>· 剩余 {remainingDays(item)} 天</span>}
+            {item.canRestore && <span>· 剩余 {remainingDays(item, retentionDays)} 天</span>}
           </div>
           {!item.canRestore && item.blockedReason && (
             <div className="mt-1 text-[0.7857rem] text-warning">{item.blockedReason}</div>
@@ -255,7 +270,7 @@ export default function TrashPage() {
         actions={
           <>
             <Chip tone="gray" icon="schedule">
-              已启用同步时保留 {RETENTION_DAYS} 天
+              保留期 {retentionDays} 天
             </Chip>
             <Button
               size="sm"
@@ -295,6 +310,33 @@ export default function TrashPage() {
           />
         </div>
       </Card>
+
+      {batches.length > 0 && (
+        <Card className="mb-4 p-4">
+          <div className="mb-2 text-[0.8571rem] font-medium text-on-surface-variant">
+            冲突删除
+            <span className="ml-2 font-normal text-outline">
+              系统对账发现「服务端已不存在」的记录，已移入回收站，可恢复
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {batches.map((b) => (
+              <button
+                key={b.id}
+                type="button"
+                className={`rounded-full border px-3 py-1.5 text-[0.8571rem] transition-colors ${
+                  activeBatch === b.id
+                    ? 'border-primary bg-primary-fixed font-medium text-primary'
+                    : 'border-outline-variant/60 text-on-surface-variant hover:border-primary/50 hover:text-primary'
+                }`}
+                onClick={() => setActiveBatch(activeBatch === b.id ? null : b.id)}
+              >
+                {b.label}（{b.members.length} 条）
+              </button>
+            ))}
+          </div>
+        </Card>
+      )}
 
       {roots.length === 0 ? (
         <EmptyState

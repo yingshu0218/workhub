@@ -8,17 +8,18 @@
  *  - 远端存在 → 不动
  *  - 不往同步队列里塞删除（远端本就没有，推了只是噪音）
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import 'fake-indexeddb/auto'
-
-// `vi.mock` 会被提升到 import 之前，所以状态必须用 vi.hoisted 创建，否则 TDZ 报错
-const remote = vi.hoisted(() => new Map<string, Set<string>>())
-vi.mock('@/sync/pocketbaseAdapter', () => ({
-  listRemoteIds: async (table: string) => remote.get(table) ?? new Set<string>(),
-}))
-
 import { db } from '@/db/db'
 import { reconcileOrphansOnce } from '@/sync/reconcile'
+
+/**
+ * 远端 id 假实现。**刻意不用 `vi.mock` 整模块替换**：那会把 `@/sync/pocketbaseAdapter`
+ * 里的 `pocketBaseAdapter / isSyncConfigured` 等一并抹成 undefined，
+ * 全量并发跑时会让别处的调用挂住（实测 17 分钟无输出）。注入点更稳。
+ */
+const remote = new Map<string, Set<string>>()
+const listIds = async (table: string) => remote.get(table) ?? new Set<string>()
 
 const base = (id: string, synced: number) => ({
   id,
@@ -40,7 +41,7 @@ describe('对账：孤儿进回收站', () => {
   it('远端没有且 synced=1 → 软删进回收站，并写一条「冲突删除」批次', async () => {
     await db.customers.put(base('orphan-1', 1) as never)
 
-    const n = await reconcileOrphansOnce()
+    const n = await reconcileOrphansOnce({ listIds })
 
     expect(n).toBe(1)
     const row = await db.customers.get('orphan-1')
@@ -58,7 +59,7 @@ describe('对账：孤儿进回收站', () => {
   it('synced=0（待上传）绝不动', async () => {
     await db.customers.put(base('pending-1', 0) as never)
 
-    await reconcileOrphansOnce()
+    await reconcileOrphansOnce({ listIds })
 
     const row = await db.customers.get('pending-1')
     expect(row?.deleted).toBe(0)
@@ -69,7 +70,7 @@ describe('对账：孤儿进回收站', () => {
     await db.customers.put(base('kept-1', 1) as never)
     remote.set('customers', new Set(['kept-1']))
 
-    await reconcileOrphansOnce()
+    await reconcileOrphansOnce({ listIds })
 
     expect((await db.customers.get('kept-1'))?.deleted).toBe(0)
     expect(await db.trashBatches.count()).toBe(0)
@@ -77,7 +78,7 @@ describe('对账：孤儿进回收站', () => {
 
   it('只跑一次：完成标记写入后再次调用直接 0', async () => {
     await db.customers.put(base('orphan-2', 1) as never)
-    expect(await reconcileOrphansOnce()).toBe(1)
-    expect(await reconcileOrphansOnce()).toBe(0)
+    expect(await reconcileOrphansOnce({ listIds })).toBe(1)
+    expect(await reconcileOrphansOnce({ listIds })).toBe(0)
   })
 })
