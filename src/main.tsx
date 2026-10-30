@@ -8,6 +8,9 @@ import AppRouter from './app/router'
 import { AuthGate } from './app/AuthGate'
 import './styles/index.css'
 import { backfillDemoRelations, seedIfEmpty } from './db/seed'
+import { purgeSeedLeftoversOnce } from './db/seedCleanup'
+import { sweepExpiredTrash } from './modules/trash/retention'
+import { reconcileOrphansOnce } from './sync/reconcile'
 import { backfillTodoCompletedAt, backfillTodoVoidedAt } from './modules/todo/backfill'
 import { syncEngine } from './sync/engine'
 import { autoConfigureSameOriginSync } from './sync/pocketbaseAdapter'
@@ -36,6 +39,17 @@ function Bootstrap() {
       .then((seeded) => {
         if (seeded) console.info('[seed] 演示数据写入完成')
       })
+      // 一次性清掉历史遗留的演示种子残留（本地库不会自己变空：同步只合并不删除）。
+      // 放在同步之前 —— 否则会先把这些「无主」记录当成本地增量推上去。
+      .then(() => purgeSeedLeftoversOnce())
+      .then((n) => {
+        if (n) console.info(`[migrate] 清掉 ${n} 条演示种子残留`)
+      })
+      // 回收站保留期清扫：与同步无关（本地模式也要清），24h 节流在模块内部
+      .then(() => sweepExpiredTrash())
+      .then((n) => {
+        if (n) console.info(`[trash] ${n} 条超过保留期的记录已彻底删除`)
+      })
       // 存量兜底：done 无 completedAt 的待办补盖完成时间（幂等，Issue #74 口径统一）
       .then(() => backfillTodoCompletedAt())
       .then((n) => {
@@ -58,7 +72,14 @@ function Bootstrap() {
       .then((configured) => {
         if (configured) {
           console.info('[sync] 检测到同源 PocketBase，已自动启用同步')
-          void syncEngine.syncNow('auto-config') // 立即拉一轮，首屏数据即刻收敛
+          void syncEngine
+            .syncNow('auto-config') // 立即拉一轮，首屏数据即刻收敛
+            // 首轮拉完再对账：远端没有的本地「已同步」行 = 孤儿 → 送进回收站（不物理删）
+            .then(() => reconcileOrphansOnce())
+            .then((n) => {
+              if (n) console.info(`[reconcile] ${n} 条孤儿记录已移入回收站（冲突删除）`)
+            })
+            .catch((err) => console.warn('[reconcile] 对账失败（不影响正常同步）', err))
         }
       })
       .catch((err) => console.warn('[sync] 同源自动同步检测失败（本地模式照常）', err))

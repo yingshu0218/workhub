@@ -26,6 +26,14 @@
 > **补充验证**：新增 `src/app/__tests__/authGate.test.tsx` **5 条**（未启用放行 / 启用无 token 显示登录页且不渲染业务内容 / 有效 token 放行并写回续期 token / 失效 token 回登录页 / `initialized:false` 时已登录也必须先改密）。`npm run check:all` 全绿 —— **1098 passed / 0 failed / 7 skipped**（134 文件，+5 条）。
 ⚠️ **本轮只装门，尚未打通同步身份**：登录后同步仍走设置里原有的 `demo@nexus.local`（第 2 步要做的正是「登录态即同步身份」，并顺带把页面↔relay 的自动对接补上），别把「能登录」误当成「账号已统一」。
 
+**⑧ 冲突删除归组 + 可配置保留期（逻辑层完成，UI 未做，未部署）**：同步只合并不删除，导致「本地以为已同步、远端却没有」的行永不消失（演示种子就是这一类）。
+- `pocketbaseAdapter` 新增 `listRemoteIds(table)`：`fields=id`、`perPage=200`、沿用 `totalPages` 终止（**刻意不用 `skipTotal`**，否则无 `totalPages`、终止条件得另写）、401 走 `pbAuthedFetch` 自动重登。
+- 新增 `src/sync/reconcile.ts`：判据**只认** `synced===1 && 远端无此 id`；孤儿写 `deleted=1/deletedAt` **软删进回收站**（可恢复），**不写 `trashSnapshot`**（`canRestore` 不依赖它，见 `trash.ts:212`）、**不入同步队列**（远端本就没有）。单表拉取失败不写完成标记，留待下轮重试。
+- 新增 `src/modules/trash/retention.ts`：按 `settings.security.trashRetentionDays`（7/15/30，默认 30）到期 `purgeTrashRecord`，逐条 try/catch（`purgeTargets` 推送失败会抛）、`db.meta` 24h 节流、**不依赖 `isSyncConfigured`**（本地模式也要清）。
+- 数据层：`SettingsSecurity.trashRetentionDays`；Dexie v17 新增**纯本地**表 `trashBatches`（存批次 label/members）——**不进 `collections.json`**，它不同步。
+> **本轮验证**：`src/sync/__tests__/reconcile.test.ts` 4 条、`src/modules/trash/__tests__/retention.test.ts` 3 条全绿。⚠️ 踩到一个测试坑：`vi.mock` 提升到 import 之前，mock 工厂里引用普通 `const` 会 TDZ 超时（表现为 60s 无输出），必须用 `vi.hoisted`。
+⚠️ **未完成**：回收站「冲突删除」分组 UI、设置里的 7/15/30 下拉、`回收站设计方案` 文档口径、`check:all` 全绿、部署。
+
 **上一轮**：2026-10-27（**远程接入打通：relay 新增标准 MCP over HTTP + 一次性配对码，Agent 不再需要本机 shim/本仓库**。⚠️ 本轮前半段曾把「接入」做成「本机仓库工程」（`cd <仓库> && npm run agent:setup`、写本机 `mcp.json`），被用户当场打回：**AI Agent 要连的是 VPS 上的版本**。真因是 relay 此前只有裸 WebSocket，而 MCP 客户端只支持 stdio / Streamable HTTP —— 所以任何人都只能在本机挂 shim，看起来就像「连本地」。本轮把那层补齐）。
 **① `POST <path>/mcp`：标准 MCP over HTTP（stateless）**：`Authorization: Bearer <token>`（兼容 `?token=`），复用同一个 `router.handle` —— 鉴权、能力白名单、中风险确认票据三道闸门**一处没放宽**，只换了传输层。GET 回 405（不建 SSE 流）、通知回 202、非 relay 路径返回 false 交回宿主。⚠️ 为什么必须接在宿主最前面：`serve.mjs` 原先直接走静态资源，`/relay/mcp` 会被 SPA 回退成 **200 + HTML**，Agent 侧只看到「握手失败」而非「端点不存在」，是那种查一整天的错。
 **①b 协议版本协商 + 能力如实声明**：支持 `2024-11-05` / `2025-03-26`，**回客户端请求的那个版本**。⚠️ 原先一律回 `2024-11-05` 是个真坑：Streamable HTTP 是 `2025-03-26` 才引入的传输，严格按版本走的客户端会据此退回老的 HTTP+SSE 双端点协议（GET 拿 endpoint 再 POST），表现是「url 配对了却连不通」。同时把 `capabilities.tools.listChanged` 由 `true` 改 **`false`** —— 没有任何传输实现推送工具变更，虚报会让客户端等一个永不来的通知、不刷新清单。

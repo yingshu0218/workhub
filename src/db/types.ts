@@ -465,6 +465,11 @@ export interface SettingsSecurity {
   /** AES-256-GCM 端侧加密（预留位，本期不实装） */
   encryption: boolean
   syncFrequency: 'realtime' | '5min' | 'manual'
+  /**
+   * 回收站保留期（天）。到期后**自动彻底删除**（含「冲突删除」分组）。
+   * 2026-10-30 由「固定 30 天」改为可选 —— 用户要求在设置里选 7/15/30。
+   */
+  trashRetentionDays?: 7 | 15 | 30
   /** 高性能缓存持久化（IndexedDB） */
   persistCache: boolean
 }
@@ -568,7 +573,7 @@ export const DEFAULT_SETTINGS: Settings = {
     monthEndReconcile: true,
     customerStaleAlert: true,
   },
-  security: { encryption: false, syncFrequency: 'realtime', persistCache: true },
+  security: { encryption: false, syncFrequency: 'realtime', persistCache: true, trashRetentionDays: 30 },
   sync: { serverUrl: '', username: '', password: '', token: '', tokenUserId: '' },
   notes: {},
   ai: { bridgeEnabled: false },

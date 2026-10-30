@@ -413,6 +413,42 @@ async function pbListAll(
   return out
 }
 
+/**
+ * 拉取远端某集合的**全部记录 id**（对账用，2026-10-30）。
+ *
+ * 为什么不塞进 `pull()`：对账是低频运维动作，pull 是每轮心跳；把它加进 `SyncAdapter`
+ * 接口会连带改 `stubAdapter` 与引擎的类型面，收益为零。
+ *
+ * 只取 id（`fields=id`）：对账只判「在不在」，不需要字段内容。
+ * 分页终止沿用上面的 `totalPages` 口径，**刻意不用 `skipTotal`** —— 那样响应里就没有
+ * `totalPages`，终止条件得另写一套，纯属给自己挖坑。
+ */
+export async function listRemoteIds(table: string): Promise<Set<string>> {
+  const cfg = await readSyncSettings()
+  const ids = new Set<string>()
+  // 未配置同步 = 本地模式，没有"远端"，谈不上对账
+  if (!isSyncConfigured(cfg)) return ids
+  for (let page = 1; page <= 500; page++) {
+    const params = new URLSearchParams({
+      page: String(page),
+      perPage: '200',
+      sort: 'id',
+      fields: 'id',
+    })
+    // 401 → 自动重登一次（pbAuthedFetch 内建），匿名模式下则原样返回错误
+    const res = await pbAuthedFetch(cfg, `/api/collections/${pbCollection(table)}/records?${params}`, {
+      method: 'GET',
+    })
+    if (!res.ok) throw new Error(`对账拉取 ${table} 失败（HTTP ${res.status}）`)
+    const data = (await res.json()) as { items?: Array<{ id?: string }>; totalPages?: number }
+    for (const it of data.items ?? []) if (it?.id) ids.add(it.id)
+    if (!data.totalPages || page >= data.totalPages) return ids
+  }
+  // 兜底：不静默假装拉全 —— 截断时必须留下可查的痕迹
+  console.warn(`[sync] 对账拉取 ${table} 超过 500 页，结果已截断`)
+  return ids
+}
+
 /** pull 附件：下载 pb file 字段还原本地 Blob（失败不阻塞该记录元数据落库） */
 async function downloadAttachmentFile(
   cfg: SyncSettingsView,

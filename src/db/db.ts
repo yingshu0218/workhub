@@ -27,6 +27,22 @@ export interface SyncQueueItem {
   sentAt?: number
 }
 
+/**
+ * 回收站批次（v17 起的**纯本地**表，不参与同步）。
+ *
+ * 记录「哪一次对账把哪些记录送进了回收站」，供回收站页面按事件分组展示
+ * （文件夹名由事件时间生成）。别的设备拉到的墓碑不在这张表里 —— 这是刻意的：
+ * 冲突删除是本机视角的处置结果，不该在另一台设备上显示成同一批。
+ */
+export interface TrashBatch {
+  id: string
+  /** 「冲突删除 · 2026-10-30 15:07」——由事件时间生成 */
+  label: string
+  reason: 'reconcile'
+  createdAt: number
+  members: Array<{ table: string; id: string }>
+}
+
 export interface MetaEntry {
   key: string
   value: unknown
@@ -91,6 +107,14 @@ export class NexusDB extends Dexie {
   projectMilestones!: Table<import('./types').ProjectMilestone, string>
   focusSessions!: Table<FocusSession, string>
   settings!: Table<Settings, string>
+  /**
+   * 回收站批次（纯本地表，**不参与同步**）。
+   *
+   * 为什么单开表而不是给业务表加字段：加字段 = schema 变更，要同步改
+   * `pb_setup/collections.json` 并走服务端升级流程；而「这批删除属于哪次对账」
+   * 只是本机展示需求（别的设备拉到的墓碑不该显示成本机的冲突删除）。
+   */
+  trashBatches!: Table<TrashBatch, string>
   moduleConfigs!: Table<ModuleConfig, string>
   customerGroups!: Table<import('./types').CustomerGroup, string>
   links!: Table<import('./types').Link, string>
@@ -273,6 +297,18 @@ export class NexusDB extends Dexie {
       .upgrade(async (tx) => {
         await migrateLegacyLinks((name) => tx.table(name) as never)
       })
+
+    /**
+     * v17（2026-10-30 · 冲突删除归组）：新增**纯本地**表 `trashBatches`，
+     * 记录「哪次对账把哪些记录送进了回收站」。
+     *
+     * ⚠️ **不要**把这张表加进 `pb_setup/collections.json`：它不同步。
+     * （AGENTS §6.6 的「新 version/新表必须同步服务端」针对的是参与同步的业务表；
+     *  这里加进去反而会在服务端多出一个永远为空的集合。）
+     */
+    this.version(17).stores({
+      trashBatches: 'id, createdAt',
+    })
   }
 }
 
