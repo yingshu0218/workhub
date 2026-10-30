@@ -30,7 +30,9 @@ const tombstone = (id: string, deletedAgoDays: number) => ({
 
 describe('回收站到期清扫', () => {
   beforeEach(async () => {
-    await Promise.all(db.tables.map((t) => t.clear()))
+    // ⚠️ 只清用到的表：`db.tables` 会迫使 Dexie 打开全部 20+ 张表，
+    // 在 CI/并发下把 worker 启动拖到超时（实测 "Timeout waiting for worker to respond"）。
+    await Promise.all([db.customers.clear(), db.todos.clear(), db.settings.clear(), db.meta.clear()])
   })
 
   it('保留期读设置：7 天设置下清 8 天的、留 6 天的', async () => {

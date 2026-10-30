@@ -34,7 +34,8 @@ const base = (id: string, synced: number) => ({
 
 describe('对账：孤儿进回收站', () => {
   beforeEach(async () => {
-    await Promise.all(db.tables.map((t) => t.clear()))
+    // 只清用到的表：`db.tables.clear()` 会打开全部表，并发下拖垮 worker 启动
+    await Promise.all([db.customers.clear(), db.syncQueue.clear(), db.trashBatches.clear(), db.meta.clear()])
     remote.clear()
   })
 
