@@ -8,7 +8,6 @@ import AppRouter from './app/router'
 import { AuthGate } from './app/AuthGate'
 import './styles/index.css'
 import { backfillDemoRelations, seedIfEmpty } from './db/seed'
-import { purgeSeedLeftoversOnce } from './db/seedCleanup'
 import { sweepExpiredTrash } from './modules/trash/retention'
 import { reconcileOrphansOnce } from './sync/reconcile'
 import { backfillTodoCompletedAt, backfillTodoVoidedAt } from './modules/todo/backfill'
@@ -41,10 +40,6 @@ function Bootstrap() {
       })
       // 一次性清掉历史遗留的演示种子残留（本地库不会自己变空：同步只合并不删除）。
       // 放在同步之前 —— 否则会先把这些「无主」记录当成本地增量推上去。
-      .then(() => purgeSeedLeftoversOnce())
-      .then((n) => {
-        if (n) console.info(`[migrate] 清掉 ${n} 条演示种子残留`)
-      })
       // 回收站保留期清扫：与同步无关（本地模式也要清），24h 节流在模块内部
       .then(() => sweepExpiredTrash())
       .then((n) => {
