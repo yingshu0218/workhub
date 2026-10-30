@@ -32,7 +32,7 @@
 - 新增 `src/modules/trash/retention.ts`：按 `settings.security.trashRetentionDays`（7/15/30，默认 30）到期 `purgeTrashRecord`，逐条 try/catch（`purgeTargets` 推送失败会抛）、`db.meta` 24h 节流、**不依赖 `isSyncConfigured`**（本地模式也要清）。
 - 数据层：`SettingsSecurity.trashRetentionDays`；Dexie v17 新增**纯本地**表 `trashBatches`（存批次 label/members）——**不进 `collections.json`**，它不同步。
 > **本轮验证**：`src/sync/__tests__/reconcile.test.ts` 4 条、`src/modules/trash/__tests__/retention.test.ts` 3 条全绿。⚠️ 踩到一个测试坑：`vi.mock` 提升到 import 之前，mock 工厂里引用普通 `const` 会 TDZ 超时（表现为 60s 无输出），必须用 `vi.hoisted`。
-⚠️ **未完成**：回收站「冲突删除」分组 UI、设置里的 7/15/30 下拉、`回收站设计方案` 文档口径、`check:all` 全绿、部署。
+⚠️ **未完成**：回收站「冲突删除」分组 UI、`回收站设计方案` 文档口径、`check:all` 全绿、部署。（设置页「回收站保留期 7/15/30」下拉**已做**，走 `Segmented`，保存时整段展开 `security`。）
 
 **上一轮**：2026-10-27（**远程接入打通：relay 新增标准 MCP over HTTP + 一次性配对码，Agent 不再需要本机 shim/本仓库**。⚠️ 本轮前半段曾把「接入」做成「本机仓库工程」（`cd <仓库> && npm run agent:setup`、写本机 `mcp.json`），被用户当场打回：**AI Agent 要连的是 VPS 上的版本**。真因是 relay 此前只有裸 WebSocket，而 MCP 客户端只支持 stdio / Streamable HTTP —— 所以任何人都只能在本机挂 shim，看起来就像「连本地」。本轮把那层补齐）。
 **① `POST <path>/mcp`：标准 MCP over HTTP（stateless）**：`Authorization: Bearer <token>`（兼容 `?token=`），复用同一个 `router.handle` —— 鉴权、能力白名单、中风险确认票据三道闸门**一处没放宽**，只换了传输层。GET 回 405（不建 SSE 流）、通知回 202、非 relay 路径返回 false 交回宿主。⚠️ 为什么必须接在宿主最前面：`serve.mjs` 原先直接走静态资源，`/relay/mcp` 会被 SPA 回退成 **200 + HTML**，Agent 侧只看到「握手失败」而非「端点不存在」，是那种查一整天的错。

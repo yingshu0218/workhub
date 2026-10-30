@@ -495,6 +495,22 @@ export function SecurityTab({
                 onChange={(v) => save({ security: { ...settings.security, syncFrequency: v } })}
               />
             </div>
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <div className="text-[0.9286rem] font-medium">回收站保留期</div>
+                <div className="mt-0.5 text-[0.8214rem] text-on-surface-variant">
+                  到期自动彻底删除，含「冲突删除」分组。改小保留期会立刻作用于已有条目。
+                </div>
+              </div>
+              <Segmented
+                options={['7', '15', '30'] as const}
+                value={String(settings.security.trashRetentionDays ?? 30) as '7' | '15' | '30'}
+                format={(v) => `${v} 天`}
+                onChange={(v) =>
+                  save({ security: { ...settings.security, trashRetentionDays: Number(v) as 7 | 15 | 30 } })
+                }
+              />
+            </div>
           </Section>
 
           <Section
