@@ -392,7 +392,7 @@ export function AiBridgeSection({
           <div className="flex-1">
             <h3 className="text-[1.0357rem] font-semibold">能力白名单</h3>
             <p className="mt-0.5 text-[0.8214rem] text-on-surface-variant">
-              关闭的域，Agent 的工具清单里**直接不出现**（不是调用时才拒绝）——任何 Agent 一视同仁
+              关闭的域，Agent 的工具清单里直接不出现（不是调用时才拒绝）——任何 Agent 一视同仁
             </p>
           </div>
         </div>

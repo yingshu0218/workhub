@@ -146,7 +146,7 @@ export function GroupEditorDrawer({
       </Field>
       {mode === 'manual' && (
         <div className="mb-4 rounded-lg bg-surface-container-low px-3 py-2.5 text-[0.9286rem] text-on-surface-variant">
-          手动分组的成员在**客户详情页**手动选择归属（单选）；创建后到客户详情里把客户加入本组。
+          手动分组的成员在客户详情页手动选择归属（单选）；创建后到客户详情里把客户加入本组。
         </div>
       )}
       {mode === 'rule' && (
