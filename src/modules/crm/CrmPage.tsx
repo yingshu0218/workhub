@@ -12,12 +12,14 @@ import {
   Card,
   EmptyState,
   PageHeader,
+  StatCard,
   inputCls,
 } from '@/design-system/ui'
+import { FilterChip } from '@/design-system/FilterChip'
 import CustomerFormDrawer from './CustomerFormDrawer'
 import { CustomerGroupNav } from './CustomerGroupNav'
 import { GroupEditorDrawer } from './GroupEditorDrawer'
-import { CustomerRow, CustomerCard, StatCard, IntimacyFilterMenu } from './CrmListParts'
+import { CustomerRow, CustomerCard, IntimacyFilterMenu } from './CrmListParts'
 import { tagsForGroupJoin } from './shared'
 import { fmtMoney } from './timeline'
 import { filterBlacklisted, useIntimacyConfig, resolveIntimacyLevel } from './intimacy'
@@ -29,15 +31,6 @@ import {
   STALE_FOLLOW_UP_DAYS,
   useCustomerScoreRows,
 } from './hooks'
-
-/**
- * 窄屏筛选 chips 的胶囊外形（只留「选中态」差异给调用处拼）：
- * 两个调用处（全部 / 各档位）必须同一外形，否则一行横滑里会出现高矮不齐。
- */
-const filterChip =
-  'shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-[0.9286rem] transition-colors'
-const filterChipIdle =
-  'border-outline-variant bg-surface-container-lowest text-on-surface-variant'
 
 /** 客户管理主页面（对齐原型 08-crm-list） */
 export default function CrmPage() {
@@ -262,26 +255,18 @@ export default function CrmPage() {
               {/* 横向滚动而不是 flex-wrap：档位数由配置决定（可能 7 档），换行会把工具栏
                   挤成三四排、把列表压到屏幕外。滚动条在触摸端没有操作价值，一并隐藏。 */}
               <div className="mt-2.5 -mx-4 flex gap-2 overflow-x-auto px-4 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                <button
-                  type="button"
-                  onClick={() => setLevelFilter('all')}
-                  className={`${filterChip} ${
-                    levelFilter === 'all'
-                      ? 'border-primary bg-primary-fixed font-medium text-primary'
-                      : filterChipIdle
-                  }`}
-                >
+                <FilterChip active={levelFilter === 'all'} onClick={() => setLevelFilter('all')}>
                   全部 · {visibleCustomers.length}
-                </button>
+                </FilterChip>
                 {intimacyCfg.levels.map((lv) => {
                   const on = levelFilter === lv.key
                   return (
-                    <button
+                    <FilterChip
                       key={lv.key}
-                      type="button"
+                      active={on}
                       onClick={() => setLevelFilter(lv.key)}
                       /* 选中态沿用图谱圈层色（INTIMACY_VISUAL）：档位→颜色是同一个语义，
-                         在此另写一套色板必然与图谱漂移 */
+                         在此另写一套色板必然与图谱漂移。内联样式优先级高于选中态的三个 color 类 */
                       style={
                         on
                           ? {
@@ -291,10 +276,9 @@ export default function CrmPage() {
                             }
                           : undefined
                       }
-                      className={`${filterChip} ${on ? 'font-medium' : filterChipIdle}`}
                     >
                       {lv.name} · {counts[lv.key] ?? 0}
-                    </button>
+                    </FilterChip>
                   )
                 })}
               </div>

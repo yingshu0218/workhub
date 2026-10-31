@@ -285,6 +285,12 @@ export default function CrmIntimacyConfig() {
             onChange={(v) => void saveAlgorithm({ enabled: v })}
           />
         </div>
+        {/* 规则约束（不是页面旁白）：用户必须知道手动设置优先、算法封顶 T2，
+            否则会以为算法能把人推到 T1/I6/I7。按控件帮助就近置于「算法兜底」下方 */}
+        <p className="mb-4 text-[0.8214rem] text-on-surface-variant">
+          未手动设置健康分的客户由算法兜底分档；手动设置始终最优先。硬约束：算法最多推到 T2，永不给出
+          T1/I6/I7
+        </p>
         <div className="space-y-3">
           {weightRows.map((row) => (
             <div key={row.key} className="flex items-center gap-3">

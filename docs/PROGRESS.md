@@ -55,6 +55,15 @@
 ⚠️ 删文案后做了 3 处**布局补偿**（否则视觉会塌）：`cards.tsx` 速记卡标题 `mb-1 → mb-3`；`CustomerDetailPage` 时间线 `justify-between → justify-end`；`StatCard.sub` / `parts.Section.desc` 改可选 + 条件渲染，避免留空壳。
 > 验证：`npm run build` exit 0、`eslint` 干净、全量 `vitest` **1105 passed / 7 skipped**；`src/modules/trash/**`、`src/sync/**` 零改动。
 
+**⑬ 重复组件合并 + 两处遗留（2026-10-31）**：审计第三批。
+- **Toggle / Section**：`moduleConfig/parts.tsx` 改为从 `settings/settingsUi.tsx` 转出（单实现）；`CrmIntimacyConfig` 调用点零改动。
+- **统计卡**：`SummaryCard` 提升为 `design-system/ui.tsx` 的 `StatCard`，CRM 与财务共用；`CustomerDetailPage` 那个 `<button>` 可下钻的同名卡改名 `DrillDownStatCard`（语义不同，**刻意不合并**）。
+- **胶囊筛选**：新建 `design-system/FilterChip.tsx`，替换 5 处（CRM 档位、3 处时间线筛选、账本）。
+- ⚠️ **两处越界已回退**：「账本 chip」原本是**实心填充**、明细 Tab 原本是**纯文字页签**，合并时被改成描边胶囊 —— 那是改设计不是去重。前者加 `variant="filled"` 还原，后者撤销为内联纯文字（**页签 ≠ chip**）。
+- 遗留补齐：`CrmIntimacyConfig` 恢复「算法最多推到 T2，永不给出 T1/I6/I7」这条**硬规则**（以控件帮助形式，不是说明卡）；`NotificationsTab` 7 个开关加 `disabled`（代码里零消费方），仅 `todoDueWarning` 保持可操作。
+- 刻意不做：`Segmented` 两份（2026-10-21 已裁定视觉不同）、`EntitySummary`/`MentionEntitySummary`（需单独一轮 + 交互测试）。
+> 仍有可见差异（已裁定接受）：CRM 档位 chip 未选中态由浅填充改透明、描边 /60；时间线 chip 选中字重 `semibold→medium`；CRM 统计卡 `<768px` 值字号 22→18px（换响应式口径，防长金额撑破列）。
+
 **上一轮**：2026-10-27（**远程接入打通：relay 新增标准 MCP over HTTP + 一次性配对码，Agent 不再需要本机 shim/本仓库**。⚠️ 本轮前半段曾把「接入」做成「本机仓库工程」（`cd <仓库> && npm run agent:setup`、写本机 `mcp.json`），被用户当场打回：**AI Agent 要连的是 VPS 上的版本**。真因是 relay 此前只有裸 WebSocket，而 MCP 客户端只支持 stdio / Streamable HTTP —— 所以任何人都只能在本机挂 shim，看起来就像「连本地」。本轮把那层补齐）。
 **① `POST <path>/mcp`：标准 MCP over HTTP（stateless）**：`Authorization: Bearer <token>`（兼容 `?token=`），复用同一个 `router.handle` —— 鉴权、能力白名单、中风险确认票据三道闸门**一处没放宽**，只换了传输层。GET 回 405（不建 SSE 流）、通知回 202、非 relay 路径返回 false 交回宿主。⚠️ 为什么必须接在宿主最前面：`serve.mjs` 原先直接走静态资源，`/relay/mcp` 会被 SPA 回退成 **200 + HTML**，Agent 侧只看到「握手失败」而非「端点不存在」，是那种查一整天的错。
 **①b 协议版本协商 + 能力如实声明**：支持 `2024-11-05` / `2025-03-26`，**回客户端请求的那个版本**。⚠️ 原先一律回 `2024-11-05` 是个真坑：Streamable HTTP 是 `2025-03-26` 才引入的传输，严格按版本走的客户端会据此退回老的 HTTP+SSE 双端点协议（GET 拿 endpoint 再 POST），表现是「url 配对了却连不通」。同时把 `capabilities.tools.listChanged` 由 `true` 改 **`false`** —— 没有任何传输实现推送工具变更，虚报会让客户端等一个永不来的通知、不刷新清单。

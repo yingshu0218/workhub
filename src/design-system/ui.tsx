@@ -232,6 +232,57 @@ export function Card({
   )
 }
 
+/**
+ * 统计卡（审计第三批 C 组 · 2026-11-01）。
+ *
+ * 合并自两处曾独立演化的实现：`modules/crm/CrmListParts.tsx` 的 `StatCard`
+ * 与 `modules/finance/FinancePage.tsx` 的 `SummaryCard`。除「金额窄屏降一档字号」
+ * 与 `min-w-0 overflow-hidden` 外，两者逐类等价（同为 `card p-4` + 同款
+ * label/icon/value/sub 骨架），故以 finance 版为底（它是超集）提到这里共用。
+ *
+ * - 值字号 1.2857rem → md:1.5714rem：窄屏换「一行放得下」，而不是换行撑破容器。
+ * - `min-w-0`：栅格项默认 `min-width: auto`，金额不断行会把列顶宽 → 窄屏横向溢出；
+ *   `overflow-hidden`：真撑不下时裁掉，也不许外溢到相邻卡或页面滚动区。
+ */
+export function StatCard({
+  label,
+  icon,
+  iconCls,
+  value,
+  sub,
+  valueCls = '',
+}: {
+  label: string
+  icon: string
+  iconCls: string
+  /** 计数或已格式化金额（如「¥120,000」） */
+  value: number | string
+  sub?: string
+  /** 值的前景色等附加类（如 `text-success` / `text-danger`） */
+  valueCls?: string
+}) {
+  return (
+    <Card className="min-w-0 overflow-hidden p-4">
+      <div className="flex items-center justify-between">
+        <span className="text-[0.8571rem] font-medium uppercase tracking-wide text-on-surface-variant">
+          {label}
+        </span>
+        <Icon
+          name={icon}
+          className={`flex h-8 w-8 items-center justify-center rounded-xl ${iconCls}`}
+          size={18}
+        />
+      </div>
+      <div
+        className={`mt-1 whitespace-nowrap text-[1.2857rem] font-bold tracking-tight md:text-[1.5714rem] ${valueCls}`}
+      >
+        {value}
+      </div>
+      {sub && <div className="mt-0.5 text-[0.7857rem] text-outline">{sub}</div>}
+    </Card>
+  )
+}
+
 const chipTones = {
   blue: 'bg-primary-fixed text-primary',
   green: 'bg-success-container/60 text-success',

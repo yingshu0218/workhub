@@ -14,6 +14,7 @@ import type { SkinStyleId } from '@/shared/theme'
  * `modules/moduleConfig/parts.tsx` 一份（`translate-x`）。后者已按 DESIGN.md 规则 1
  * 改为位移（`left` 每帧触发 layout，`translate` 只走合成层）。
  * 本文件**采用 translate 版本**，两份实现据此统一（视觉等价：44px 容器 − 20px 滑块 = 24px 行程）。
+ * 审计第三批（2026-11-01）起本文件是**唯一实现**，`moduleConfig/parts.tsx` 仅 `export { Toggle }` 转出。
  *
  * ⚠️ **Segmented 未与 finance 版合并**：`modules/finance/FinancePage.tsx` 另有同名组件，
  * 但两者**视觉与签名都不同**（本版 `nav-item` 风格 + 泛型 `format`；finance 版

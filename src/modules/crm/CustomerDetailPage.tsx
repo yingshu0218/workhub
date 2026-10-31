@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Icon } from '@/design-system/Icon'
+import { FilterChip } from '@/design-system/FilterChip'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useCollection, useQuery, useRecord } from '@/queries/hooks'
 import { linksTo } from '@/repositories/links'
@@ -304,7 +305,7 @@ export default function CustomerDetailPage() {
 
       {/* ③ 概览区：只给数字，点击下钻到对应 Tab（杜绝与明细区双份记录） */}
       <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
+        <DrillDownStatCard
           icon="payments"
           tone="text-success"
           label="资金往来"
@@ -312,7 +313,7 @@ export default function CustomerDetailPage() {
           hint={`收 ${fmtMoney(income)} · 支 ${fmtMoney(expense)}`}
           onClick={() => setTab('finance')}
         />
-        <StatCard
+        <DrillDownStatCard
           icon="hub"
           tone="text-primary"
           label="名下项目"
@@ -327,7 +328,7 @@ export default function CustomerDetailPage() {
           }
           onClick={() => setTab('project')}
         />
-        <StatCard
+        <DrillDownStatCard
           icon="call"
           tone="text-primary"
           label="沟通次数"
@@ -335,7 +336,7 @@ export default function CustomerDetailPage() {
           hint={`近 7 天 ${recentInteractionCount} 次`}
           onClick={() => setTab('timeline')}
         />
-        <StatCard
+        <DrillDownStatCard
           icon="description"
           tone="text-primary"
           label="关联笔记"
@@ -363,6 +364,8 @@ export default function CustomerDetailPage() {
               ['profile', '资料', customerNotes.length],
             ] as [DetailTab, string, number][]
           ).map(([key, label, n]) => (
+            /* 明细 Tab 是**页签**不是筛选项：无边框纯文字（选中只加重字重 + 浅底），
+               与时间线上的 chip 语义不同，故不复用 `FilterChip`（复用会把页签做成胶囊）。 */
             <button
               key={key}
               onClick={() => setTab(key)}
@@ -385,18 +388,15 @@ export default function CustomerDetailPage() {
             <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
               <div className="flex gap-1">
                 {TIMELINE_FILTERS.map((f) => (
-                  <button
+                  <FilterChip
                     key={f.key}
+                    size="sm"
+                    active={timelineFilter === f.key}
                     onClick={() => setTimelineFilter(f.key)}
-                    className={`rounded-full border px-2.5 py-0.5 text-[0.7857rem] transition-colors ${
-                      timelineFilter === f.key
-                        ? 'border-primary bg-primary-fixed font-semibold text-primary'
-                        : 'border-outline-variant text-on-surface-variant hover:text-on-surface'
-                    }`}
                   >
                     {f.label}
                     {f.key !== 'all' ? ` ${counts[f.key as keyof typeof counts]}` : ''}
-                  </button>
+                  </FilterChip>
                 ))}
               </div>
             </div>
@@ -498,8 +498,15 @@ export default function CustomerDetailPage() {
   )
 }
 
-/** 概览数字卡：只给数字，点击下钻到对应明细 Tab */
-function StatCard({
+/**
+ * 概览数字卡：只给数字，点击下钻到对应明细 Tab。
+ *
+ * ⚠️ 名字里的 `DrillDown` 是刻意的（审计第三批 · 2026-11-01 改名）：本组件与
+ * `@/design-system/ui` 的 `StatCard` **同名但语义不同** —— 它是 `<button>`、点击要
+ * 下钻到别的 Tab，结构与统计卡（静态 `<div class="card">`）不是同一个东西，
+ * 所以**不参与合并**。原名两份 `StatCard` 并存时，看代码的人极易以为二者应统一。
+ */
+function DrillDownStatCard({
   icon,
   tone,
   label,

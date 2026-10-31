@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useRecord } from '@/queries/hooks'
 import type { Customer } from '@/db/types'
 import { Button, Card, Chip, EmptyState, PageHeader } from '@/design-system/ui'
+import { FilterChip } from '@/design-system/FilterChip'
 import { Icon } from '@/design-system/Icon'
 import dayjs from 'dayjs'
 import {
@@ -191,18 +192,15 @@ export default function CustomerTimelinePage() {
       {/* 过滤 chips：与详情页「深度跟进与沟通日志」同一组常量 */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
         {TIMELINE_FILTERS.map((f) => (
-          <button
+          <FilterChip
             key={f.key}
+            size="sm"
+            active={filter === f.key}
             onClick={() => setFilter(f.key)}
-            className={`rounded-full border px-2.5 py-0.5 text-[0.7857rem] transition-colors ${
-              filter === f.key
-                ? 'border-primary bg-primary-fixed font-semibold text-primary'
-                : 'border-outline-variant text-on-surface-variant hover:text-on-surface'
-            }`}
           >
             {f.label}
             {f.key !== 'all' ? ` ${counts[f.key as keyof typeof counts]}` : ''}
-          </button>
+          </FilterChip>
         ))}
       </div>
 

@@ -12,10 +12,13 @@ import type { useIntimacyConfig } from './intimacy'
 /**
  * 客户列表的展示层零件（**自 CrmPage.tsx 拆出** · 审计 C-7 · 2026-10-21）
  *
- * 四个纯展示组件（`IntimacyFilterMenu` / `StatCard` / `CustomerRow` / `CustomerCard`）
+ * 三个纯展示组件（`IntimacyFilterMenu` / `CustomerRow` / `CustomerCard`）
  * 全部是 props 驱动、不依赖页面 state，且**全仓无第二处 import**（实测；
- * `stagger.ts` 只在注释里提过 `CustomerRow` 这个名字，`CustomerDetailPage` 有它自己的
- * 同名 `StatCard` 实现 —— 不共用）。
+ * `stagger.ts` 只在注释里提过 `CustomerRow` 这个名字）。
+ *
+ * 统计卡 `StatCard` 已于审计第三批（2026-11-01）提到 `@/design-system/ui`，
+ * 与 finance 的 `SummaryCard` 合并为一份实现 —— 原先两份只是「同款骨架各自演化」，
+ * 保留两份只会让窄屏字号口径继续分叉。
  *
  * ⚠️ 因此本文件不含任何业务逻辑，只负责渲染与本地交互态（浮层开合 / 拖拽发起）。
  * 语义与拆分前逐行一致（仅移动代码 + 补齐 import）。
@@ -142,38 +145,6 @@ export function IntimacyFilterMenu({
           )}
         </div>
       )}
-    </div>
-  )
-}
-
-export function StatCard({
-  label,
-  icon,
-  iconCls,
-  value,
-  sub,
-}: {
-  label: string
-  icon: string
-  iconCls: string
-  /** 计数或已格式化金额（如「¥120,000」） */
-  value: number | string
-  sub?: string
-}) {
-  return (
-    <div className="card p-4">
-      <div className="flex items-center justify-between">
-        <span className="text-[0.8571rem] font-medium uppercase tracking-wide text-on-surface-variant">
-          {label}
-        </span>
-        <Icon
-          name={icon}
-          className={`flex h-8 w-8 items-center justify-center rounded-xl ${iconCls}`}
-          size={18}
-        />
-      </div>
-      <div className="mt-1 text-[1.5714rem] font-bold tracking-tight">{value}</div>
-      {sub && <div className="mt-0.5 text-[0.7857rem] text-outline">{sub}</div>}
     </div>
   )
 }

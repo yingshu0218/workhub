@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useCollection } from '@/queries/hooks'
 import type { Customer } from '@/db/types'
 import { Button, Card, Chip, EmptyState, PageHeader } from '@/design-system/ui'
+import { FilterChip } from '@/design-system/FilterChip'
 import { Icon } from '@/design-system/Icon'
 import dayjs from 'dayjs'
 import { TIMELINE_FILTERS, filterTimeline, type TimelineFilter, useAllTimelines } from './timeline'
@@ -131,45 +132,28 @@ export default function AllTimelinesPage() {
       {/* 过滤 chips：与单客户鱼骨同一组常量 + 客户筛选 */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
         {TIMELINE_FILTERS.map((f) => (
-          <button
-            key={f.key}
-            onClick={() => setFilter(f.key)}
-            className={`rounded-full border px-2.5 py-0.5 text-[0.7857rem] transition-colors ${
-              filter === f.key
-                ? 'border-primary bg-primary-fixed font-semibold text-primary'
-                : 'border-outline-variant text-on-surface-variant hover:text-on-surface'
-            }`}
-          >
+          <FilterChip key={f.key} size="sm" active={filter === f.key} onClick={() => setFilter(f.key)}>
             {f.label}
-          </button>
+          </FilterChip>
         ))}
         <span className="mx-1 h-4 w-px bg-outline-variant/40" />
-        <button
-          onClick={() => setCustomerFilter('all')}
-          className={`rounded-full border px-2.5 py-0.5 text-[0.7857rem] transition-colors ${
-            customerFilter === 'all'
-              ? 'border-primary bg-primary-fixed font-semibold text-primary'
-              : 'border-outline-variant text-on-surface-variant hover:text-on-surface'
-          }`}
-        >
+        <FilterChip size="sm" active={customerFilter === 'all'} onClick={() => setCustomerFilter('all')}>
           全部客户
-        </button>
+        </FilterChip>
         {eventCustomers.map((c, i) => (
-          <button
+          <FilterChip
             key={c.id}
+            size="sm"
+            className="inline-flex items-center gap-1"
+            active={customerFilter === c.id}
             onClick={() => setCustomerFilter(customerFilter === c.id ? 'all' : c.id)}
-            className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[0.7857rem] transition-colors ${
-              customerFilter === c.id
-                ? 'border-primary bg-primary-fixed font-semibold text-primary'
-                : 'border-outline-variant text-on-surface-variant hover:text-on-surface'
-            }`}
           >
             <span
               className="h-2 w-2 rounded-full"
               style={{ background: laneColor(laneMap.get(c.id) ?? i) }}
             />
             {c.name}
-          </button>
+          </FilterChip>
         ))}
       </div>
 

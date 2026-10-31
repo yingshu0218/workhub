@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Icon } from '@/design-system/Icon'
+import { FilterChip } from '@/design-system/FilterChip'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useCollection, useRecord } from '@/queries/hooks'
 import { downloadBlob } from '@/shared/download'
@@ -14,6 +15,7 @@ import {
   Drawer,
   EmptyState,
   PageHeader,
+  StatCard,
   inputCls,
 } from '@/design-system/ui'
 import dayjs from 'dayjs'
@@ -257,7 +259,7 @@ export default function FinancePage() {
         <div className="min-w-0 flex-1">
           {/* 汇总卡 4 张。窄屏保持等分 2 列（原型 05 口径），仅把间距收紧一点给金额让位 */}
           <div className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-4">
-            <SummaryCard
+            <StatCard
               label={`累计收入${currency !== 'CNY' ? `（${currency}）` : ''}`}
               icon="trending_up"
               iconCls="bg-success-container/60 text-success"
@@ -265,7 +267,7 @@ export default function FinancePage() {
               valueCls="text-success"
               sub={`共 ${scoped.filter((t) => t.type === 'income').length} 笔流入${scopeNote}`}
             />
-            <SummaryCard
+            <StatCard
               label={`累计支出${currency !== 'CNY' ? `（${currency}）` : ''}`}
               icon="trending_down"
               iconCls="bg-danger-container/60 text-danger"
@@ -273,7 +275,7 @@ export default function FinancePage() {
               valueCls="text-danger"
               sub={`共 ${scoped.filter((t) => t.type === 'expense').length} 笔流出${scopeNote}`}
             />
-            <SummaryCard
+            <StatCard
               label={`净结余${currency !== 'CNY' ? `（${currency}）` : ''}`}
               icon="account_balance"
               iconCls="bg-surface-container-high text-primary"
@@ -308,26 +310,33 @@ export default function FinancePage() {
           </div>
 
           {/* 账本 chips（仅窄屏）：左栏账本树已隐藏，scope 切换挪到这里。
-              负边距 + 同值内边距让这一条横向滚到屏幕边缘，不用换行挤成两排 */}
+              负边距 + 同值内边距让这一条横向滚到屏幕边缘，不用换行挤成两排。
+              外形用 `FilterChip variant="filled"`（无边框实心填充）—— 这是账本行
+              的**原始设计**，与 CrmPage 的描边筛选项语义不同，不要合并成同一种外观。
+              右侧「新建账本」是动作按钮不是筛选项，尺寸维持原样（py-1 + 0.8571rem） */}
           <div className="-mx-4 mt-4 flex gap-2 overflow-x-auto px-4 pb-0.5 md:hidden">
-            <LedgerChip
-              label="全部账本"
+            <FilterChip
+              variant="filled"
               active={scope === 'all'}
               onClick={() => {
                 setScope('all')
                 setLedgerError('')
               }}
-            />
+            >
+              全部账本
+            </FilterChip>
             {sortedLedgers.map((l) => (
-              <LedgerChip
+              <FilterChip
                 key={l.id}
-                label={l.name}
+                variant="filled"
                 active={scope === l.id}
                 onClick={() => {
                   setScope(l.id)
                   setLedgerError('')
                 }}
-              />
+              >
+                {l.name}
+              </FilterChip>
             ))}
             <button
               className="flex shrink-0 items-center gap-0.5 rounded-full border border-primary/40 px-3 py-1 text-[0.8571rem] font-medium text-primary"
@@ -539,68 +548,6 @@ function LedgerNode({
         <span className="hidden shrink-0 text-[0.7857rem] text-outline group-hover:hidden">{count}</span>
       )}
     </div>
-  )
-}
-
-function SummaryCard({
-  label,
-  icon,
-  iconCls,
-  value,
-  valueCls,
-  sub,
-}: {
-  label: string
-  icon: string
-  iconCls: string
-  value: string
-  valueCls: string
-  sub: string
-}) {
-  return (
-    /* min-w-0：栅格项默认 min-width:auto，金额不断行会把列顶宽 → 窄屏横向溢出。
-       overflow-hidden：真撑不下时裁掉，也不许外溢到相邻卡或页面滚动区 */
-    <Card className="min-w-0 overflow-hidden p-4">
-      <div className="flex items-center justify-between">
-        <span className="text-[0.8571rem] font-medium uppercase tracking-wide text-on-surface-variant">
-          {label}
-        </span>
-        <Icon
-          name={icon}
-          className={`flex h-8 w-8 items-center justify-center rounded-xl ${iconCls}`}
-          size={18}
-        />
-      </div>
-      {/* 金额窄屏降一档字号（14px 根字号下 22px→18px）换「一行放得下」，而非换行撑破容器 */}
-      <div
-        className={`mt-1 whitespace-nowrap text-[1.2857rem] font-bold tracking-tight md:text-[1.5714rem] ${valueCls}`}
-      >
-        {value}
-      </div>
-      <div className="mt-0.5 text-[0.7857rem] text-outline">{sub}</div>
-    </Card>
-  )
-}
-
-/** 窄屏账本筛选 chip（单行横向滚动用，故 shrink-0 不参与压缩） */
-function LedgerChip({
-  label,
-  active,
-  onClick,
-}: {
-  label: string
-  active: boolean
-  onClick: () => void
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-[0.8571rem] font-medium transition-colors ${
-        active ? 'bg-primary text-on-primary' : 'bg-surface-container-high text-on-surface-variant'
-      }`}
-    >
-      {label}
-    </button>
   )
 }
 

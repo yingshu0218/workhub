@@ -8,6 +8,13 @@ import type { Settings } from '@/db/types'
  * `settings` 与 `save` 两个入参，是最独立的一块。
  * 语义与拆分前逐行一致（仅移动代码 + 补齐 import）。
  */
+/**
+ * 已接通的开关：只有「任务逾期预警」在 `modules/todo/TodoPage.tsx` 被真实读取
+ * （`settings.notifications.todoDueWarning`）。其余 7 项全仓零消费方 ——
+ * 开关照旧可存偏好，但必须禁用，否则界面上「看起来能用」就是在骗人。
+ */
+const WIRED_KEYS = new Set<string>(['todoDueWarning'])
+
 export function NotificationsTab({
   settings,
   save,
@@ -20,7 +27,7 @@ export function NotificationsTab({
           <Section
             icon="notifications_active"
           title="通知推送与业务联动提醒"
-          desc="开关即时持久化 · 本期仅存本地偏好，真实推送通道后续版本接入"
+          desc="通知推送尚未接入，以下开关暂不生效（仅保存偏好，任务逾期预警除外）；真实推送通道后续版本接入"
         >
           <div className="space-y-1">
             {(
@@ -77,6 +84,7 @@ export function NotificationsTab({
                 </div>
                 <Toggle
                   checked={settings.notifications[item.key]}
+                  disabled={!WIRED_KEYS.has(item.key)}
                   onChange={(v) =>
                     save({ notifications: { ...settings.notifications, [item.key]: v } })
                   }
