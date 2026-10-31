@@ -45,6 +45,11 @@
 ⚠️ 复核方法教训：`grep -rn "\b符号\b"` 在 macOS BSD grep 下**不支持 `\b`**，会把「有引用」误判成「零引用」（本次首轮复核全部假阴性）—— 判死必须用 ripgrep，并以「命中数 == 1（仅定义行）」为准。
 > 验证：`tsc -b --force` 0 错、`eslint src --max-warnings=0` 0 报错、`vitest` **1105 passed / 7 skipped**（136 文件）。
 
+**⑪ 图标瘦身 + 反向检查（2026-10-31）**：删 8 个基名零引用的 svg（`drag_indicator` / `my_location` / `more_vert` / `add_circle` / `location_on` / `more_horiz` / `summarize` / `directions_walk`），`assets/icons` 243 → 235；`check-icons.mjs` 新增**反向检查**（多余图标），输出 **warning 不 exit 1** —— 它属于构建门禁，硬失败会把构建卡死。
+⚠️ **`-fill` 变体一个都没删**：`Icon.tsx:37` 是 `(fill && ICONS[name + '-fill']) || ICONS[name]` 的后缀推导，按字面量判"未引用"会误删 `check_circle-fill` 这类深色/选中态图标（全仓 `check_circle-fill` 命中 0，但 `AppLayout` 传的是 `name="check_circle" fill`）。
+⚠️ 四条**动态引用**通道不能只靠 grep `name=`：`HABIT_ICONS`（习惯图标数组）、`KIND_ICONS`（客户详情）、`registry.ts` 模块 icon 字段、`db/seed.ts` 的 `trophies[].icon` + `poster.ts` 的模板字符串 glob；`agent/schema.ts:440` 还允许 AI 下发任意图标名 —— 这也是反向检查只敢 warning 的原因。
+> 实测：`npm run build` 通过（`✅ 图标校验通过：138 个引用全部存在（可用 235 个）`），主包 js **1,869,102 → 1,861,692 B（−7,410 B）**，`index-*.js` gzip 117.60 → 116.13 kB。
+
 **上一轮**：2026-10-27（**远程接入打通：relay 新增标准 MCP over HTTP + 一次性配对码，Agent 不再需要本机 shim/本仓库**。⚠️ 本轮前半段曾把「接入」做成「本机仓库工程」（`cd <仓库> && npm run agent:setup`、写本机 `mcp.json`），被用户当场打回：**AI Agent 要连的是 VPS 上的版本**。真因是 relay 此前只有裸 WebSocket，而 MCP 客户端只支持 stdio / Streamable HTTP —— 所以任何人都只能在本机挂 shim，看起来就像「连本地」。本轮把那层补齐）。
 **① `POST <path>/mcp`：标准 MCP over HTTP（stateless）**：`Authorization: Bearer <token>`（兼容 `?token=`），复用同一个 `router.handle` —— 鉴权、能力白名单、中风险确认票据三道闸门**一处没放宽**，只换了传输层。GET 回 405（不建 SSE 流）、通知回 202、非 relay 路径返回 false 交回宿主。⚠️ 为什么必须接在宿主最前面：`serve.mjs` 原先直接走静态资源，`/relay/mcp` 会被 SPA 回退成 **200 + HTML**，Agent 侧只看到「握手失败」而非「端点不存在」，是那种查一整天的错。
 **①b 协议版本协商 + 能力如实声明**：支持 `2024-11-05` / `2025-03-26`，**回客户端请求的那个版本**。⚠️ 原先一律回 `2024-11-05` 是个真坑：Streamable HTTP 是 `2025-03-26` 才引入的传输，严格按版本走的客户端会据此退回老的 HTTP+SSE 双端点协议（GET 拿 endpoint 再 POST），表现是「url 配对了却连不通」。同时把 `capabilities.tools.listChanged` 由 `true` 改 **`false`** —— 没有任何传输实现推送工具变更，虚报会让客户端等一个永不来的通知、不刷新清单。

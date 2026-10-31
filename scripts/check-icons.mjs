@@ -9,8 +9,8 @@
  *
  * 用法：node scripts/check-icons.mjs
  */
-import { readdirSync, readFileSync, statSync } from 'node:fs'
-import { join, relative } from 'node:path'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import { extname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 // 注意：必须用 fileURLToPath 解码，直接用 new URL(...).pathname 会把中文路径
@@ -108,6 +108,66 @@ for (const [name, refs] of used) {
   const base = name.replace(/-fill$/, '')
   if (available.has(name) || available.has(base)) continue
   missing.push({ name, refs })
+}
+
+/**
+ * 反向检查（多余图标）：列出「文件存在、但基名在全仓零引用」的图标。
+ *
+ * ⚠️ 只输出 warning、**不退出 1**：check:icons 是 `npm run build` 的门禁（build = check-icons && tsc && vite build），
+ * 这里加硬失败会让构建直接卡死。且「零字符串引用 ≠ 一定可删」——图标名还可能来自
+ * 运行时数据（db/seed.ts 的 trophies[].icon、习惯/模块配置里保存的图标名），静态扫不到。
+ *
+ * 判定口径：基名（去掉 `-fill`）须在 src/**、index.html、public/、scripts/ 中命中 0 次；
+ * 且 `-fill` 变体一律不作为可删候选（Icon 组件用 `${name}-fill` 推导，基名在用即可能被用到）。
+ */
+const SCAN_EXTS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.css', '.html', '.json'])
+const SELF = fileURLToPath(import.meta.url)
+
+function walkAll(dir, out = []) {
+  if (!existsSync(dir)) return out
+  for (const entry of readdirSync(dir)) {
+    const full = join(dir, entry)
+    if (statSync(full).isDirectory()) {
+      if (full === ICON_DIR) continue
+      walkAll(full, out)
+    } else if (SCAN_EXTS.has(extname(entry)) && full !== SELF) {
+      out.push(full)
+    }
+  }
+  return out
+}
+
+const scanSources = [
+  ...walkAll(SRC),
+  ...walkAll(join(ROOT, 'public')),
+  ...walkAll(join(ROOT, 'scripts')),
+  ...(existsSync(join(ROOT, 'index.html')) ? [join(ROOT, 'index.html')] : []),
+].map((f) => readFileSync(f, 'utf8'))
+
+const orphanBases = new Map() // 基名 -> 该基名下的 svg 文件名列表（含 -fill）
+for (const file of available) {
+  const base = file.replace(/-fill$/, '')
+  const list = orphanBases.get(base) ?? []
+  list.push(file)
+  orphanBases.set(base, list)
+}
+for (const base of [...orphanBases.keys()]) {
+  if (scanSources.some((src) => src.includes(base))) orphanBases.delete(base)
+}
+
+if (orphanBases.size) {
+  console.warn(
+    `\n⚠️ 反向检查：${orphanBases.size} 个图标基名在 src/index.html/public/scripts 中零引用（候选，不是错误）：\n`,
+  )
+  for (const [base, files] of [...orphanBases].sort(([a], [b]) => a.localeCompare(b))) {
+    const tail = files.every((f) => f.endsWith('-fill')) ? '（仅剩 -fill 变体，按规则不删）' : ''
+    console.warn(`  • ${base}  →  ${files.map((f) => `${f}.svg`).join(', ')}${tail}`)
+  }
+  console.warn(
+    '\n如何确认可删：`grep -rF "<基名>" src index.html public scripts`（排除 src/assets/icons/）命中 0 次，' +
+      '且该名不在任何图标候选数组/常量表（HABIT_ICONS、trophies[].icon 等）里 —— 两条同时满足才可删。\n' +
+      '注意：`-fill` 变体一律保留（Icon 组件按 `${name}-fill` 推导，基名一旦回到源码即被用到）。\n',
+  )
 }
 
 if (missing.length) {
