@@ -40,6 +40,11 @@
 - `AiBridgeSection` / `GroupEditorDrawer`：残留 Markdown `**` 直出成星号
 > 剩余按序推进：死代码删除 → 图标瘦身（98 个未引用 svg，当前 243 个全量 `eager` 进主包）→ 旁白分批删（一页一提交）→ 重复组件合并（会改视觉，最后做）。
 
+**⑩ 死代码清除（2026-10-31，净 -191 行）**：删 `modules/placeholder/` 整目录；删 16 个零引用导出（`customerGroupRepo` / `TRASH_ROOT_TABLES` / `toolOf` / `MOBILE_MAX_WIDTH` / `DEFAULT_BRIDGE_URL` / `resolveMany` / `eventsOf` / `SYNC_META_DEFAULT` / `useCustomerInteractions` / `useProject` / `todayKey` / `todoUpdateFailedMessage` / `formatUnlockedAt` / `markdownToPlain` / `hasCrossTabLock`）+ 5 个零引用类型；移除 3 个未用依赖（`@tauri-apps/api` / `source-map-js` / `@types/dompurify`）。
+⚠️ 两处**审计误判已纠正（不要按旧结论再删）**：① `resolveDefaultLedgerId` **不是**仅测试引用 —— `domain/index.ts:95` 的 `recordTransaction()` 在用它做缺省账本策略；② `eslint-plugin-react-refresh` 被 `eslint.config.js:3` import，依赖不能删。
+⚠️ 复核方法教训：`grep -rn "\b符号\b"` 在 macOS BSD grep 下**不支持 `\b`**，会把「有引用」误判成「零引用」（本次首轮复核全部假阴性）—— 判死必须用 ripgrep，并以「命中数 == 1（仅定义行）」为准。
+> 验证：`tsc -b --force` 0 错、`eslint src --max-warnings=0` 0 报错、`vitest` **1105 passed / 7 skipped**（136 文件）。
+
 **上一轮**：2026-10-27（**远程接入打通：relay 新增标准 MCP over HTTP + 一次性配对码，Agent 不再需要本机 shim/本仓库**。⚠️ 本轮前半段曾把「接入」做成「本机仓库工程」（`cd <仓库> && npm run agent:setup`、写本机 `mcp.json`），被用户当场打回：**AI Agent 要连的是 VPS 上的版本**。真因是 relay 此前只有裸 WebSocket，而 MCP 客户端只支持 stdio / Streamable HTTP —— 所以任何人都只能在本机挂 shim，看起来就像「连本地」。本轮把那层补齐）。
 **① `POST <path>/mcp`：标准 MCP over HTTP（stateless）**：`Authorization: Bearer <token>`（兼容 `?token=`），复用同一个 `router.handle` —— 鉴权、能力白名单、中风险确认票据三道闸门**一处没放宽**，只换了传输层。GET 回 405（不建 SSE 流）、通知回 202、非 relay 路径返回 false 交回宿主。⚠️ 为什么必须接在宿主最前面：`serve.mjs` 原先直接走静态资源，`/relay/mcp` 会被 SPA 回退成 **200 + HTML**，Agent 侧只看到「握手失败」而非「端点不存在」，是那种查一整天的错。
 **①b 协议版本协商 + 能力如实声明**：支持 `2024-11-05` / `2025-03-26`，**回客户端请求的那个版本**。⚠️ 原先一律回 `2024-11-05` 是个真坑：Streamable HTTP 是 `2025-03-26` 才引入的传输，严格按版本走的客户端会据此退回老的 HTTP+SSE 双端点协议（GET 拿 endpoint 再 POST），表现是「url 配对了却连不通」。同时把 `capabilities.tools.listChanged` 由 `true` 改 **`false`** —— 没有任何传输实现推送工具变更，虚报会让客户端等一个永不来的通知、不刷新清单。

@@ -14,9 +14,6 @@ import { useEffect, useState } from 'react'
  */
 const QUERY = '(max-width: 47.99rem)'
 
-/** 人眼可读的分界值，仅供注释与测试断言引用，**不参与查询** */
-export const MOBILE_MAX_WIDTH = 768
-
 function matches(): boolean {
   // 测试环境（happy-dom / jsdom）与 SSG 场景可能没有 matchMedia，退化到桌面形态而不是抛错
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false

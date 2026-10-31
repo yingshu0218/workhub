@@ -29,11 +29,6 @@ export function useProjects(): Project[] {
   return useCollection<Project>('projects')
 }
 
-/** 订阅单个项目（useRecord 已过滤软删） */
-export function useProject(id: string | undefined): Project | undefined {
-  return useCollection<Project>('projects').find((p) => p.id === id)
-}
-
 /** 某项目的全部里程碑（sortOrder 稳定排序） */
 export function useProjectMilestones(projectId: string | undefined): ProjectMilestone[] {
   const list = useQuery<ProjectMilestone[]>(
@@ -145,13 +140,6 @@ export function useProjectProgress(projectId: string | undefined): {
     return { percent: Math.round((done / todos.length) * 100), source: 'todo' }
   }
   return { percent: 0, source: 'none' }
-}
-
-/** 项目表单用：客户选项投影 */
-export interface ProjectCustomerOption {
-  id: string
-  name: string
-  company: string
 }
 
 /** 新建/编辑项目 */

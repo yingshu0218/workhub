@@ -7,7 +7,6 @@ import { nextSortOrder, reorderBySortOrder } from '@/repositories/sortOrder'
 import type { TodoList, Todo, TrashSnapshot } from '@/db/types'
 import { useQuery } from '@/queries/hooks'
 import { isTodoOpen } from './domain'
-import dayjs from 'dayjs'
 
 /**
  * 待办清单数据层（模块内查询层，组件不直连存储）
@@ -131,9 +130,6 @@ export function useTodoListOptions(): { id: string; name: string }[] {
   const lists = useTodoLists()
   return lists.map((l) => ({ id: l.id, name: l.name }))
 }
-
-/** 供类型引用（防 dayjs 未用告警的占位导出不必要——保留工具函数） */
-export const todayKey = () => dayjs().format('YYYY-MM-DD')
 
 /** 类型 占位（Todo 引用防 tree-shake 误报） */
 export type { Todo }

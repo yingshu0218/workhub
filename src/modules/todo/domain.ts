@@ -15,8 +15,6 @@
 import dayjs from 'dayjs'
 import type { Todo } from '@/db/types'
 
-export type TodoStatus = Todo['status']
-
 /** 未完成判定：所有「未完成」口径的唯一入口（界面上就是「未完成」，无额外状态位） */
 export function isTodoOpen(t: Pick<Todo, 'status'>): boolean {
   return t.status === 'todo'

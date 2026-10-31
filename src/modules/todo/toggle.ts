@@ -1,6 +1,5 @@
 import { todoRepo } from '@/repositories'
 import type { Todo } from '@/db/types'
-import { todoStatusLabel } from './domain'
 
 /**
  * 待办状态变更入口（唯一）—— Issue #74 / Issue #128
@@ -62,9 +61,4 @@ export function voidTodo(todo: Todo): Promise<Todo> {
 /** 一键恢复（已作废列表行「恢复」按钮入口）：回到未完成 */
 export function restoreTodo(todo: Todo): Promise<Todo> {
   return setTodoVoided(todo, false)
-}
-
-/** 状态变更失败时的统一提示文案（UI 侧 alert / Toast 复用，避免各写一份） */
-export function todoUpdateFailedMessage(status: Todo['status']): string {
-  return `更新待办状态为「${todoStatusLabel({ status })}」失败，请稍后重试。`
 }

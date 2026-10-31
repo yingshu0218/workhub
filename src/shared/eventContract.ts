@@ -80,11 +80,6 @@ export type EventPayload<K extends EventName = EventName> = z.infer<
 /** 事件名运行期清单（replay 白名单的派生源——防「加事件忘登记 replay」） */
 export const EVENT_NAMES = Object.keys(EVENT_DECLARATIONS) as EventName[]
 
-/** 事件 → 绑定的写工具（domain 事件才有；local 事件 undefined） */
-export function toolOf(event: EventName): string | undefined {
-  return EVENT_DECLARATIONS[event].tool
-}
-
 /** 事件是否已下沉 repositories 层（agentOps 不得重复 emit） */
 export function isSunk(event: EventName): boolean {
   return EVENT_DECLARATIONS[event].sunk

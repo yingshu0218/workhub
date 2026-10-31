@@ -1,9 +1,4 @@
-import type {
-  Customer,
-  IntimacyLevel,
-  ModuleConfigIntimacy,
-  RelationCategory,
-} from '@/db/types'
+import type { Customer, IntimacyLevel, ModuleConfigIntimacy } from '@/db/types'
 import { isCustomerBlacklisted } from './direct'
 import { isTodoOpen, isTodoDone } from '@/modules/todo/domain'
 import type { CanvasGraph } from '../hooks'
@@ -148,9 +143,6 @@ export function buildScoreInput(
     lastContactAt: customer?.lastContactAt ?? 0,
   }
 }
-
-/** 亲密度聚合统计信息（边渲染/分类统计复用） */
-export type RelationCategoryCount = Partial<Record<RelationCategory, number>>
 
 // ── 配置层 re-export（barrel：消费方统一从 intimacy 导入） ──
 // getIntimacyConfig（纯读取）已收口 `./direct`（服务端 bundle 可用）；响应式/写路径仍在 './config'

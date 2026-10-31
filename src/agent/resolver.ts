@@ -220,20 +220,3 @@ function labelOfType(type: ResolvableType): string {
     noteFolder: '笔记文件夹',
   }[type]
 }
-
-/** 批量消解（多工具链用；任一歧义即整体 ambiguous，由调用方逐条反问） */
-export async function resolveMany(
-  queries: { query: string; type: ResolvableType; key: string }[],
-): Promise<{
-  resolved: Record<string, string>
-  ambiguous: { key: string; result: ResolveResult }[]
-}> {
-  const resolved: Record<string, string> = {}
-  const ambiguous: { key: string; result: ResolveResult }[] = []
-  for (const item of queries) {
-    const r = await resolveEntity(item.query, item.type)
-    if (r.status === 'resolved' && r.id) resolved[item.key] = r.id
-    else ambiguous.push({ key: item.key, result: r })
-  }
-  return { resolved, ambiguous }
-}

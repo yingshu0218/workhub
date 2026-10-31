@@ -54,20 +54,6 @@ export const TRASH_TABLE_LABEL: Record<TrashTable, string> = {
   customerGroups: '客户分组',
 }
 
-/** 只作为根记录展示的表（子记录默认挂在父项下） */
-export const TRASH_ROOT_TABLES: readonly TrashTable[] = [
-  'customers',
-  'ledgers',
-  'transactions',
-  'todos',
-  'todoLists',
-  'notes',
-  'noteFolders',
-  'projects',
-  'habits',
-  'customerGroups',
-]
-
 interface ChildParent {
   table: TrashTable
   field: string

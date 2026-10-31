@@ -8,7 +8,6 @@ import { useQuery } from '@/queries/hooks'
 import { newId } from '@/repositories'
 import type {
   Customer,
-  Interaction,
   Note,
   Project,
   RelationCategory,
@@ -393,23 +392,6 @@ export function useCustomerListStats(visible: Customer[]): CustomerListStats {
       topReceivable: top ? `${nameOf.get(top.customerId) ?? '未知客户'} · ${top.summary}` : null,
     }
   }, [visible, receivables])
-}
-
-/** 某客户的沟通日志（按时间倒序） */
-export function useCustomerInteractions(customerId: string | undefined): Interaction[] {
-  const list = useQuery<Interaction[]>(
-    () =>
-      customerId
-        ? db.interactions
-            .where('customerId')
-            .equals(customerId)
-            .filter((i) => !i.deleted)
-            .reverse()
-            .sortBy('at')
-        : Promise.resolve([]),
-    [customerId],
-  )
-  return list ?? []
 }
 
 /** 某客户关联的交易流水（按时间倒序） */

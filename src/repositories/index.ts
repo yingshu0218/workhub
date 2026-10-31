@@ -56,8 +56,6 @@ export const projectMilestoneRepo =
   createRepository<import('@/db/types').ProjectMilestone>('projectMilestones')
 export const attachmentRepo = createRepository<Attachment>('attachments')
 export const moduleConfigRepo = createRepository<ModuleConfig>('moduleConfigs')
-export const customerGroupRepo =
-  createRepository<import('@/db/types').CustomerGroup>('customerGroups')
 
 export { newId }
 // 关联层（原子化一期）：模块统一从这里拿 links 的读写入口，与其它仓储同口径

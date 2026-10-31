@@ -579,18 +579,6 @@ export const DEFAULT_SETTINGS: Settings = {
   ai: { bridgeEnabled: false },
 }
 
-export const SYNC_META_DEFAULT: SyncMeta = {
-  updatedAt: 0,
-  deleted: 0,
-  rev: 0,
-}
-
-export interface CustomerOption {
-  id: string
-  name: string
-  company: string
-}
-
 // ─────────────────────────── 客户亲密度体系（Issue #34 收敛稿） ───────────────────────────
 
 /**

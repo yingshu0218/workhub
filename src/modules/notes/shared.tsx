@@ -59,16 +59,6 @@ export function renderMarkdown(md: string): string {
   return DOMPurify.sanitize(raw)
 }
 
-/** 剥掉 markdown 语法后的纯文本（列表摘要用） */
-export function markdownToPlain(md: string): string {
-  return md
-    .replace(/```[\s\S]*?```/g, ' ')
-    .replace(MENTION_RE, (_m, label) => `@${label}`)
-    .replace(/[#>*`~_\-[\]()!|]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
 /** 字数（不含空白字符） */
 export function wordCount(md: string): number {
   return md.replace(/\s/g, '').length

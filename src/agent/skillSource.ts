@@ -56,8 +56,6 @@ import {
  * 边界：本模块只描述「工具面」，不含任何落库实现。
  */
 
-export type ToolDomain = keyof typeof DEFAULT_AI_DOMAINS
-
 export interface ToolSkillMeta {
   /** 域前缀命名（§2.3） */
   name: string
@@ -437,11 +435,6 @@ export const READ_TOOL_SKILLS: ToolSkillMeta[] = [
 
 /** 全量工具 skill 元数据 */
 export const ALL_TOOL_SKILLS: ToolSkillMeta[] = [...WRITE_TOOL_SKILLS, ...READ_TOOL_SKILLS]
-
-/** 工具 → 声明事件（从 schema 常量取，保证与实现同源） */
-export function eventsOf(name: string): string[] {
-  return TOOL_EVENTS[name] ?? []
-}
 
 /** 直接再导出，便于生成器（esbuild inlined bundle）取用 */
 export { TOOL_RISK, TOOL_DOMAIN, TOOL_EVENTS, DEFAULT_AI_DOMAINS }

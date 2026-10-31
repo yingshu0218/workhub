@@ -1,5 +1,4 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import dayjs from 'dayjs'
 import { db, type FocusSession } from '@/db/db'
 import { useCollection } from '@/queries/hooks'
 import { calcStreak, calcLongestStreak } from '@/shared/streak'
@@ -167,9 +166,4 @@ export const CONDITION_LABELS: Record<TrophyConditionType, string> = {
   habit_checks_total: '累计打卡次数',
   transactions_total: '累计交易笔数',
   customers_total: '累计客户数',
-}
-
-/** 相对时间展示（如「3 天前」） */
-export function formatUnlockedAt(ts: number): string {
-  return dayjs(ts).format('YYYY-MM-DD')
 }

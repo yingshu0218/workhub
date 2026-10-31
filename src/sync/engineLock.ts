@@ -25,11 +25,6 @@ function lockManager(): LockManagerLike | null {
   return typeof nav.locks?.request === 'function' ? nav.locks : null
 }
 
-/** 是否具备跨标签页排他能力（不支持时引擎退回单标签页语义） */
-export function hasCrossTabLock(): boolean {
-  return lockManager() !== null
-}
-
 /**
  * 尝试独占执行一次同步任务；拿到锁返回任务结果，未拿到（其他标签页正在同步）返回 undefined。
  * 任务抛错时锁仍会被释放（浏览器在回调 promise 结束后自动释放）。
