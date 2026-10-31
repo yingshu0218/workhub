@@ -225,14 +225,12 @@ export default function CrmPage() {
               icon="group"
               iconCls="bg-primary-fixed text-primary"
               value={stats.total}
-              sub="全部活跃档案"
             />
             <StatCard
               label="本月新增"
               icon="trending_up"
               iconCls="bg-success-container/60 text-success"
               value={stats.newThisMonth}
-              sub="本月建立档案"
             />
             <StatCard
               label="待跟进"

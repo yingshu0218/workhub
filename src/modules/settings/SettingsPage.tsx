@@ -251,7 +251,6 @@ export default function SettingsPage() {
           <Section
             icon="texture"
             title="界面风格"
-            desc="第一层选择：造型语言（卡片形状 / 描边 / 投影 / 标题字体 / 纹理装饰），与配色独立、可任意叠加"
             badge="实时生效"
           >
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
@@ -293,7 +292,6 @@ export default function SettingsPage() {
           <Section
             icon="auto_awesome"
             title="配色主题"
-            desc="第二层选择：底色基调、容器色阶与情绪色（含明暗推荐），与上方界面风格自由组合"
             badge="实时生效"
           >
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -335,7 +333,6 @@ export default function SettingsPage() {
           <Section
             icon="palette"
             title="外观显示模式"
-            desc="选择工作台的基础底色方案，切换实时生效"
             badge="实时生效"
           >
             <div className="grid grid-cols-3 gap-3">

@@ -382,10 +382,7 @@ export default function CustomerDetailPage() {
           /* tab 分支是条件渲染：切换 = 旧分支卸载、新分支新挂载 → anim-enter 自动重播，
              无需 key、无需 presence、无需新增状态。 */
           <div className="anim-enter">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <div className="text-[0.8571rem] text-on-surface-variant">
-                手写沟通 + 关联动态投影，交易/待办详列见对应 Tab
-              </div>
+            <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
               <div className="flex gap-1">
                 {TIMELINE_FILTERS.map((f) => (
                   <button

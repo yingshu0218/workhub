@@ -237,7 +237,6 @@ export default function CrmIntimacyConfig() {
       <Section
         icon="block"
         title="黑名单全局屏蔽"
-        desc="黑名单（I7）在各功能面的屏蔽范围。关系画布不参与屏蔽（画布与健康分已解耦，谁都不会被画布隐藏）；档案页/关联区始终保留，不丢数据"
       >
         <div className="space-y-3">
           {(
@@ -273,7 +272,6 @@ export default function CrmIntimacyConfig() {
       <Section
         icon="tune"
         title="算法兜底与权重"
-        desc="未手动设置健康分的客户由算法兜底分档；手动设置始终最优先。硬约束：算法最多推到 T2，永不给出 T1/I6/I7"
       >
         <div className="mb-4 flex items-center justify-between">
           <div>

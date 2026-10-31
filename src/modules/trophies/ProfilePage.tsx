@@ -64,7 +64,6 @@ export default function ProfilePage() {
                 style={{ width: `${levelPct}%` }}
               />
             </div>
-            <div className="mt-1 text-[0.7857rem] text-outline">专注分钟×2 + 打卡×10 + 奖杯×50</div>
           </div>
         </div>
       </Card>

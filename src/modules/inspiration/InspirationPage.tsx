@@ -352,9 +352,6 @@ export default function InspirationPage() {
                         ⌘J
                       </kbd>
                     </div>
-                    <p className="mt-1 max-w-[520px] text-[0.8571rem] leading-relaxed text-on-surface-variant">
-                      从待办事项、久未跟进客户、待对账流水与今日日程中，综合截止时限与商务权重，抽出当下最值得推进的事。
-                    </p>
                   </div>
                 </div>
                 <button

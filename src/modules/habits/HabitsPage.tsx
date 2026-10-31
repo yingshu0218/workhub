@@ -187,15 +187,6 @@ export default function HabitsPage() {
           })}
         </div>
 
-        {/* flex-wrap 只在放不下时才生效：窄屏把「点击查看明细」换到下一行，宽屏与原来同排 */}
-        <div className="mt-3 flex flex-wrap items-center gap-2 text-[0.7857rem] text-outline">
-          <span>少</span>
-          <span className="h-3 w-3 rounded bg-surface-container" />
-          <span className="h-3 w-3 rounded bg-secondary-container" />
-          <span className="h-3 w-3 rounded bg-secondary" />
-          <span>多 · 点击某日查看完成明细</span>
-        </div>
-
         {selectedDate && (
           <div className="mt-4 rounded-lg bg-surface-container-low p-4">
             <div className="mb-2 flex items-center justify-between">

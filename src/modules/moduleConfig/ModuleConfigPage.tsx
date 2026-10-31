@@ -92,7 +92,6 @@ export default function ModuleConfigPage() {
                   {activeModule.label}
                   <Icon name="chevron_right" size={16} className="text-outline" />
                   <span className="font-semibold text-on-surface">{activeItem.label}</span>
-                  <span className="ml-1 text-[0.8214rem] text-outline">{activeItem.desc}</span>
                 </div>
               )}
               <ActivePanel />

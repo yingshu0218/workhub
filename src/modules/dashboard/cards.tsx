@@ -524,9 +524,6 @@ export function HabitLoopCard() {
       <div className="mb-1 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-[1.0714rem] font-semibold">每日习惯闭环</h2>
-          <p className="mt-0.5 text-[0.8571rem] text-on-surface-variant">
-            自律即自由 · 每一个微习惯都在塑造长期壁垒
-          </p>
         </div>
         {habits.length > 0 && (
           <div className="shrink-0 text-right">
@@ -696,7 +693,7 @@ export function QuickNoteCard() {
 
   return (
     <Card className="flex flex-1 flex-col p-5">
-      <div className="mb-1 flex items-center justify-between gap-2">
+      <div className="mb-3 flex items-center justify-between gap-2">
         <h2 className="flex items-center gap-2 text-[1.0714rem] font-semibold">
           <Icon name="edit_note" className="text-primary" />
           随手速记暂存便签
@@ -706,9 +703,6 @@ export function QuickNoteCard() {
           <Chip tone="gray">AUTO-SAVED</Chip>
         </div>
       </div>
-      <p className="mb-3 text-[0.8571rem] text-on-surface-variant">
-        无需归类与层级的瞬时灵感、临时纪要或剪贴板文本，一键转存。
-      </p>
 
       {/* 常驻大文本框：可纵向拖高，随列宽自适应（对齐原型 01 的 rows=4 输入域） */}
       <textarea

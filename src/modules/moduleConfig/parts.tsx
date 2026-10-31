@@ -14,7 +14,7 @@ export function Section({
 }: {
   icon: string
   title: string
-  desc: string
+  desc?: string
   children: React.ReactNode
 }) {
   return (
@@ -25,7 +25,7 @@ export function Section({
         </div>
         <div className="flex-1">
           <h3 className="text-[1.0357rem] font-semibold">{title}</h3>
-          <p className="mt-0.5 text-[0.8214rem] text-on-surface-variant">{desc}</p>
+          {desc && <p className="mt-0.5 text-[0.8214rem] text-on-surface-variant">{desc}</p>}
         </div>
       </div>
       {children}

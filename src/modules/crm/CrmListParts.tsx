@@ -158,7 +158,7 @@ export function StatCard({
   iconCls: string
   /** 计数或已格式化金额（如「¥120,000」） */
   value: number | string
-  sub: string
+  sub?: string
 }) {
   return (
     <div className="card p-4">
@@ -173,7 +173,7 @@ export function StatCard({
         />
       </div>
       <div className="mt-1 text-[1.5714rem] font-bold tracking-tight">{value}</div>
-      <div className="mt-0.5 text-[0.7857rem] text-outline">{sub}</div>
+      {sub && <div className="mt-0.5 text-[0.7857rem] text-outline">{sub}</div>}
     </div>
   )
 }

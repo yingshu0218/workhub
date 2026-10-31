@@ -50,6 +50,11 @@
 ⚠️ 四条**动态引用**通道不能只靠 grep `name=`：`HABIT_ICONS`（习惯图标数组）、`KIND_ICONS`（客户详情）、`registry.ts` 模块 icon 字段、`db/seed.ts` 的 `trophies[].icon` + `poster.ts` 的模板字符串 glob；`agent/schema.ts:440` 还允许 AI 下发任意图标名 —— 这也是反向检查只敢 warning 的原因。
 > 实测：`npm run build` 通过（`✅ 图标校验通过：138 个引用全部存在（可用 235 个）`），主包 js **1,869,102 → 1,861,692 B（−7,410 B）**，`index-*.js` gzip 117.60 → 116.13 kB。
 
+**⑫ 页面级旁白清理（2026-10-31，23 处）**：按 2026-10-14 裁决删掉页面副标题 / 宣导横幅 / 色阶图例 / 公式图例 / 标语副标题 / 重复 label 的 `StatCard sub`。删得最多的：`SecurityTab` 的「数据主权保障已激活」整块绿横幅、`InspirationPage` 副标题、`cards.tsx` 的「自律即自由…」、`HabitsPage` 色阶图例、`ProfilePage` 的 EXP 公式。
+**刻意保留**（判断依据写在这里，避免以后被当漏网之鱼再删一遍）：`EmptyState` 的 description（含 `ProjectsPage:97` 那段"项目用来承载长期事项"）、危险区风险告知（覆盖同 id / 彻底重置）、`AiBridgeSection` 的中风险确认说明与「必须重启 Agent」接入步骤、`FinancePage` 的筛选状态文案、`AppearanceTabs` 里作为字体样张的那段正文。
+⚠️ 删文案后做了 3 处**布局补偿**（否则视觉会塌）：`cards.tsx` 速记卡标题 `mb-1 → mb-3`；`CustomerDetailPage` 时间线 `justify-between → justify-end`；`StatCard.sub` / `parts.Section.desc` 改可选 + 条件渲染，避免留空壳。
+> 验证：`npm run build` exit 0、`eslint` 干净、全量 `vitest` **1105 passed / 7 skipped**；`src/modules/trash/**`、`src/sync/**` 零改动。
+
 **上一轮**：2026-10-27（**远程接入打通：relay 新增标准 MCP over HTTP + 一次性配对码，Agent 不再需要本机 shim/本仓库**。⚠️ 本轮前半段曾把「接入」做成「本机仓库工程」（`cd <仓库> && npm run agent:setup`、写本机 `mcp.json`），被用户当场打回：**AI Agent 要连的是 VPS 上的版本**。真因是 relay 此前只有裸 WebSocket，而 MCP 客户端只支持 stdio / Streamable HTTP —— 所以任何人都只能在本机挂 shim，看起来就像「连本地」。本轮把那层补齐）。
 **① `POST <path>/mcp`：标准 MCP over HTTP（stateless）**：`Authorization: Bearer <token>`（兼容 `?token=`），复用同一个 `router.handle` —— 鉴权、能力白名单、中风险确认票据三道闸门**一处没放宽**，只换了传输层。GET 回 405（不建 SSE 流）、通知回 202、非 relay 路径返回 false 交回宿主。⚠️ 为什么必须接在宿主最前面：`serve.mjs` 原先直接走静态资源，`/relay/mcp` 会被 SPA 回退成 **200 + HTML**，Agent 侧只看到「握手失败」而非「端点不存在」，是那种查一整天的错。
 **①b 协议版本协商 + 能力如实声明**：支持 `2024-11-05` / `2025-03-26`，**回客户端请求的那个版本**。⚠️ 原先一律回 `2024-11-05` 是个真坑：Streamable HTTP 是 `2025-03-26` 才引入的传输，严格按版本走的客户端会据此退回老的 HTTP+SSE 双端点协议（GET 拿 endpoint 再 POST），表现是「url 配对了却连不通」。同时把 `capabilities.tools.listChanged` 由 `true` 改 **`false`** —— 没有任何传输实现推送工具变更，虚报会让客户端等一个永不来的通知、不刷新清单。

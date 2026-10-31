@@ -84,7 +84,6 @@ export function ShortcutsTab({
           <Section
             icon="tune"
             title="通用偏好设定"
-            desc="General Preferences & Regional Formatting"
           >
             <div className="grid grid-cols-2 gap-x-6 gap-y-3">
               <label className="block">
@@ -122,7 +121,7 @@ export function ShortcutsTab({
           <Section
             icon="description"
             title="笔记偏好"
-            desc="侧栏快速便签保存笔记时的默认目录（数据流 Issue #70）"
+            desc="侧栏快速便签保存笔记时的默认目录"
             badge="实时生效"
           >
             <label className="block max-w-md">
@@ -156,7 +155,7 @@ export function ShortcutsTab({
           <Section
             icon="keyboard_command_key"
             title="全局高频热键映射"
-            desc="Global Hotkeys Map · 快捷键走统一注册表（listShortcuts 实时读取，Phase 6 只读展示）"
+            desc="本期只读展示"
           >
             <table className="w-full text-[0.9286rem]">
               <thead>

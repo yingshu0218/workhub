@@ -57,7 +57,7 @@ export function DensityTab({
           <Section
             icon="rounded_corner"
             title="圆角与信息密度"
-            desc="调整卡片圆角档位与全局间距基数，营造工作台氛围"
+            desc="调整卡片圆角档位与全局间距基数"
           >
             <div className="mb-4 flex items-center justify-between">
               <span className="text-[0.9286rem] font-medium">卡片圆角</span>
@@ -188,7 +188,6 @@ export function TypographyTab({
             <Section
               icon="visibility"
               title="实时排版预览"
-              desc="下方预览块即当前全局生效值"
               badge="Live Rendering"
             >
               <div

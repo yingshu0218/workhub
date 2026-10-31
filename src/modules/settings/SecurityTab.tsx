@@ -302,23 +302,9 @@ export function SecurityTab({
   }
   return (
         <div className="anim-enter space-y-4">
-          <div className="flex items-start gap-3 rounded-xl border border-success/30 bg-success-container/30 px-5 py-4">
-            <Icon name="verified_user" fill className="text-[1.4286rem] text-success" />
-            <div>
-              <div className="text-[0.9643rem] font-semibold">
-                数据主权保障已激活 (Sovereignty Protocol v2.4)
-              </div>
-              <div className="mt-0.5 text-[0.8214rem] leading-relaxed text-on-surface-variant">
-                本地优先 (Local-First)
-                原则：全部文案与档案数据优先存放于您受控的本地资源池中，云端请求不迁移、厂商脱敏托管。
-              </div>
-            </div>
-          </div>
-
           <Section
             icon="archive"
             title="数据导出与多格式打包"
-            desc="您的所有数据归您所有，可随时打包导出成无锁定迁移其他工具生态"
           >
             <div className="grid grid-cols-3 gap-3">
               {[
@@ -412,7 +398,6 @@ export function SecurityTab({
           <Section
             icon="settings_backup_restore"
             title="本地数据持久化状态"
-            desc="启动时已自动申请 Persistent Storage，防浏览器回收 IndexedDB"
           >
             <div className="flex items-center justify-between">
               <div className="flex-1">

@@ -20,7 +20,7 @@ export function NotificationsTab({
           <Section
             icon="notifications_active"
           title="通知推送与业务联动提醒"
-          desc="开关即时持久化 · 本期仅存本地偏好，真实推送通道 Phase 7 接入"
+          desc="开关即时持久化 · 本期仅存本地偏好，真实推送通道后续版本接入"
         >
           <div className="space-y-1">
             {(
