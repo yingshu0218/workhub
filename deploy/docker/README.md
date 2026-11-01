@@ -11,13 +11,7 @@ docker.cnb.cool/blueteam0715/workhub:<短提交SHA>      # 对应某个提交（
 docker.cnb.cool/blueteam0715/workhub:v1.2.2          # 打 v* tag 时产的固定版本
 ```
 
-制品库可见性跟随仓库：仓库是 Private，**未登录 `docker pull` 会失败**。
-登录方式（用户名必须是 `cnb` 这个固定值，不是个人账号名）：
-
-```bash
-AT=$(python3 -c "import json,os;print(json.load(open(os.path.expanduser('~/.cnb/token')))['access_token'])")
-printf '%s' "$AT" | sudo docker login docker.cnb.cool -u cnb --password-stdin
-```
+仓库已设为**公开**，Docker 制品的可见性随仓库公开 —— **`docker pull` 无需登录**，服务器上不需要保存任何凭据。
 
 ## 怎么跑
 

@@ -95,10 +95,7 @@ cnb registries list-package-tags --slug blueteam0715/workhub --type docker --nam
 ### 5.2 部署步骤
 
 ```bash
-# ① 登录制品库（用户名必须是 cnb 这个固定值；填个人账号名会被拒且报错为空原因）
-#    凭据不要经命令行参数传（会进 shell 历史与进程表）—— 走 stdin 管道
-AT=$(python3 -c "import json,os;print(json.load(open(os.path.expanduser('~/.cnb/token')))['access_token'])")
-printf '%s' "$AT" | ssh <host> 'sudo docker login docker.cnb.cool -u cnb --password-stdin'
+# ① 无需登录：制品库随仓库公开，服务器直接 pull（若日后把仓库改回私有，pull 会 401）
 
 # ② 落地编排文件与凭据（仅首次）
 ssh <host> 'sudo mkdir -p /opt/workhub/data'
@@ -181,8 +178,5 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST https://<域名>/api/collection
 | 现象 | 多半是 |
 |---|---|
 | CNB 流水线不触发 | 顶层键写成了 `main: tag_push:` —— 那匹配的是「名叫 main 的 Tag」 |
-| `docker login` 报 404 | 地址写成 `cnb.cool` 了，正确是 `docker.cnb.cool` |
-| `docker login` 报**空原因**的 `unauthorized` | 用户名填成了个人账号名，必须用 `-u cnb` |
-| 服务器拉镜像 **401 Unauthorized** | 机器上 `/root/.docker/config.json` 里的凭据**会反复过期**（2026-10-10 实测：凌晨登录、当天中午再次 401；且**同机其它站点会一起 401**）→ 重新 `-u cnb` 登录即可。⚠️ 别去查仓库可见性，也**别以为是一次性问题** —— 建议把登录固定成每次部署的第一步：`AT=$(python3 -c "import json,os;print(json.load(open(os.path.expanduser('~/.cnb/token')))['access_token'])"); printf '%s' "$AT" \| ssh <host> 'sudo docker login docker.cnb.cool -u cnb --password-stdin'` |
-| `permission denied … docker.sock` | 当前用户不在 docker 组，加 `sudo`（`login` 与 `pull` 要用同一个 sudo 上下文） |
+| `permission denied … docker.sock` | 当前用户不在 docker 组，加 `sudo` |
 | 页面开了但 `/api` 全 404 | 容器外又套了只转发 `/` 的反代，把 `/api` 也带走了 —— 别套 |
