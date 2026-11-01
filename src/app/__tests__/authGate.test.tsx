@@ -153,6 +153,11 @@ describe('AuthGate', () => {
     expect(localStorage.getItem('workhub.auth.token')).toBe('fresh-token')
     expect(localStorage.getItem('workhub.auth.identity')).toBe('alice')
     const loginCall = fetchFn.mock.calls.find(([url]) => String(url).includes('auth-with-password'))
-    expect(JSON.parse(String(loginCall?.[1]?.body))).toEqual({ identity: 'alice', password: 'password1' })
+    // 用户名在登录时被映射成 <用户名>@workhub.local：PB 的 auth 标识仍是 email，
+    // 用户侧无感（只填 gundam23 这类用户名即可）
+    expect(JSON.parse(String(loginCall?.[1]?.body))).toEqual({
+      identity: 'alice@workhub.local',
+      password: 'password1',
+    })
   })
 })

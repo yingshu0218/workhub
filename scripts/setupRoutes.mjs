@@ -292,11 +292,14 @@ export function createSetupService({
     // 空库判据在写入前再确认一次：并发两个请求时后到的那个必须落 409，不能建出第二个账号
     if (total > 0) return { status: 409, body: { error: '已完成初始化' } }
 
+    // 用户名**不做** PB 的登录标识：0.40 的 text 字段无法声明 UNIQUE 约束，
+    // identityFields 里加 username 必被 PB 拒（validation_missing_unique_constraint）。
+    // 改为前端把「用户名」映射成 `<用户名>@workhub.local` 再走 email 登录 —— 用户无感。
+    // 这里只尽力补一个 username 字段用于展示，失败**不影响建号**。
     try {
       await ensureUsernameIdentity(token)
     } catch (e) {
-      // 写不进去就不建账号：否则用户拿用户名登不进来，首启直接锁死且没有任何提示
-      return { status: 400, body: { error: e?.message ?? String(e) } }
+      console.warn('[setup] 补 username 字段失败（不影响建号）：', e?.message ?? e)
     }
 
     const created = await fetchImpl(`${base}/api/collections/users/records`, {

@@ -61,8 +61,8 @@ services:
       # entrypoint 启动时按它幂等创建账号（users 集合 createRule 是 Locked，只有容器里的超管凭据建得出来）。
       # ⚠️ 初始密码 password only 用于「首次登录 → 强制改密」这一段，改完即失效；
       #    部署后请立刻完成首改，别让它过夜（站点是公网可达的）。
-      WORKHUB_ADMIN_USER: ${WORKHUB_ADMIN_USER:-admin}
-      WORKHUB_ADMIN_PASSWORD: ${WORKHUB_ADMIN_PASSWORD:-password}
+      WORKHUB_ADMIN_USER: ${WORKHUB_ADMIN_USER:-}
+      WORKHUB_ADMIN_PASSWORD: ${WORKHUB_ADMIN_PASSWORD:-}
       # ── agentOps 服务端执行器（P3/P4，docs/agentOps服务端化方案.md）──
       # 显式开启三件套（+可选白名单）：缺省**全关**（方案 §7.5 拍板：服务端能力默认全关）。
       #   WORKHUB_SERVER_EXECUTOR=1            总开关（缺 dist-server 时降级启动并告警）

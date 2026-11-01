@@ -29,6 +29,17 @@ const IDENTITY_KEY = 'workhub.auth.identity'
 const USERID_KEY = 'workhub.auth.userid'
 
 /** 供后续步骤（同步身份、relay 自动配对）复用 */
+/**
+ * 登录标识归一化：用户只填「用户名」（如 gundam23）也能登录。
+ * PB 的 auth 集合标识仍是 email（0.40 无法给 text 字段加 UNIQUE，
+ * 所以 identityFields 里不能放 username），建号时邮箱就是 <用户名>@workhub.local。
+ * 含 @ 的原样返回，兼容直接用邮箱登录。
+ */
+function toIdentity(raw: string): string {
+  const v = raw.trim()
+  return v.includes('@') ? v : `${v}@workhub.local`
+}
+
 export function getAuthToken(): string {
   try {
     return localStorage.getItem(TOKEN_KEY) ?? ''
@@ -140,7 +151,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
         const res = await fetch('/api/collections/users/auth-with-password', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ identity: identity.trim(), password }),
+          body: JSON.stringify({ identity: toIdentity(identity), password }),
         })
         const body = (await res.json().catch(() => ({}))) as {
           token?: string
@@ -252,7 +263,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
         const res = await fetch('/setup/user', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ identity: user, password: setupPw }),
+          body: JSON.stringify({ identity: toIdentity(user), password: setupPw }),
         })
         const body = (await res.json().catch(() => ({}))) as { error?: string; ok?: boolean }
         if (!res.ok) {
@@ -269,7 +280,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
         const login = await fetch('/api/collections/users/auth-with-password', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ identity: user, password: setupPw }),
+          body: JSON.stringify({ identity: toIdentity(user), password: setupPw }),
         })
         const auth = (await login.json().catch(() => ({}))) as {
           token?: string
