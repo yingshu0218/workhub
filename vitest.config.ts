@@ -12,7 +12,11 @@ export default defineConfig({
     // 默认 node 环境跑纯数据/纯函数用例；组件用例（Issue #140 EntityLinkField / EntityHoverCard）
     // 通过文件头 `// @vitest-environment jsdom` 按文件切换，避免全量用例背上 DOM 环境开销。
     environment: 'node',
-    include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+    /**
+     * `scripts/**` 也要收：首启自助注册（`scripts/setupRoutes.mjs`）是纯 node 逻辑，
+     * 不 import 任何前端代码 —— 放进 src 下会污染 web 包，所以就地测试。
+     */
+    include: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'scripts/**/*.test.mjs'],
     // 全局测试基线（等待预算与 testTimeout 的理由见该文件头注释）
     setupFiles: ['./src/test/setup.ts'],
     /**

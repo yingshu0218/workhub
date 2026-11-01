@@ -48,9 +48,15 @@ cp pb_setup/backup.sh /opt/nexus/pocketbase/
 >
 > | 项 | 线上实测值 |
 > |---|---|
-> | `passwordAuth` | `{ enabled: true, identityFields: ["email"] }` |
+> | `passwordAuth` | `{ enabled: true, identityFields: ["email", "username"] }`（2026-11-01 起加 `username`：登录框文案是「用户名或邮箱」） |
 > | `listRule` / `viewRule` / `updateRule` / `deleteRule` | `id = @request.auth.id`（仅本人可读写） |
-> | `createRule` | 空（不允许自行注册） |
+> | `createRule` | 空（不允许自行注册；首个账号由首启引导 `/setup/user` 用**超管凭据**创建） |
+>
+> ⚠️ **`identityFields` 改了要单独生效**：这条改动不在 `collections.json` 里，`PUT /api/collections/import`
+> 不会带上它。已有部署请跑一次 `npm run patch:users-auth`（读 `PB_SUPERUSER` / `PB_SUPERUSER_PASSWORD`，
+> 幂等），或在管理台 Collections → `users` → Options → Auth 里勾上 `username`。
+> 全新空库不用手动做：首启引导建号前会自动补这一步（见 `scripts/setupRoutes.mjs`），
+> 否则用户拿用户名登不进来、首启即锁死。
 >
 > 演示账号 `demo@nexus.local` 与各成员的同步账号都落在这一集合里。
 >

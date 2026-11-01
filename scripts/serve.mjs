@@ -25,6 +25,7 @@ import { createHash, randomBytes } from 'node:crypto'
 import { dirname, join, extname, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createRelay } from '../relay/server.mjs'
+import { createSetupService } from './setupRoutes.mjs'
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)))
 const dist = join(root, 'dist')
@@ -142,6 +143,9 @@ const { token: relayToken, source: tokenSource } = resolveRelayToken()
  */
 const authEnabled = Boolean((process.env.WORKHUB_ADMIN_USER || '').trim() && process.env.WORKHUB_ADMIN_PASSWORD)
 
+/** 容器内 PocketBase 基址（setup 与登录态校验共用） */
+const pbBase = (process.env.WORKHUB_PB_URL || `http://${process.env.PB_HTTP || '127.0.0.1:8090'}`).replace(/\/+$/, '')
+
 /**
  * 「管理员已改过初始密码」标记（2026-10-28）。
  *
@@ -152,9 +156,28 @@ const authEnabled = Boolean((process.env.WORKHUB_ADMIN_USER || '').trim() && pro
  */
 const adminMarker = join(dataDir, '.admin-initialized')
 
+/**
+ * 首启自助注册（2026-11-01）。
+ *
+ * 为什么判据是「users 为空」而不是「标记文件不存在」：账号是自己建的还是容器建的，
+ * 只看数据本身即可 —— 建出第一个账号后接口自动 409，不存在「忘了关开关」的窗口。
+ *
+ * 超管凭据从环境变量继承（entrypoint 已注入），**不落盘、不下发页面**。
+ * 建号成功顺手写 `.admin-initialized`：用户刚设的密码不是 compose 默认值，
+ * 再让页面逼他「首改」纯属自找麻烦。
+ */
+const setup = createSetupService({
+  pbBase,
+  superuser: process.env.PB_SUPERUSER || '',
+  superuserPassword: process.env.PB_SUPERUSER_PASSWORD || '',
+  onUserCreated: () => {
+    mkdirSync(dirname(adminMarker), { recursive: true })
+    writeFileSync(adminMarker, `${new Date().toISOString()}\n`, { mode: 0o600 })
+  },
+})
+
 /** 用 PB 校验一个 users 登录态（只用于「写首改标记」这一步） */
 async function verifyPbUserToken(pbTokenValue) {
-  const pbBase = process.env.WORKHUB_PB_URL || `http://${process.env.PB_HTTP || '127.0.0.1:8090'}`
   const res = await fetch(`${pbBase}/api/collections/users/auth-refresh`, {
     method: 'POST',
     headers: { Authorization: pbTokenValue },
@@ -223,16 +246,29 @@ function serveStatic(req, res) {
 }
 
 const server = createServer((req, res) => {
-  // relay 的 HTTP 传输先接管：/relay/mcp（远程 Agent 直连）与 /relay/pair*（一次性配对码）。
-  // 返回 false 才是静态资源/SPA 回退 —— 顺序不能反，否则这些路径会被 SPA 回退成 index.html
-  // （200 + HTML，Agent 侧表现为「握手失败」而不是「端点不存在」，极难排查）。
   // 页面登录开关：前端据此决定是否显示登录页（2026-10-28）。
   // 必须放在 relay 接管之前 —— 否则这个路径会被 SPA 回退成 200 + HTML，前端拿到的是网页。
+  //
+  // 2026-11-01 补一条判据：`users` 里**已有账号**也算启用。否则自助注册完（没配
+  // WORKHUB_ADMIN_* 的部署）页面会因为 enabled:false 直接放行 —— 用户刚设的密码形同虚设。
+  // 这次多查一次 PB（本机回环），PB 不可用时仍按未启用处理（fail-open 不变）。
   if (req.url === `${relayPath}/auth-status`) {
-    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' })
-    res.end(JSON.stringify({ enabled: authEnabled, initialized: existsSync(adminMarker) }))
+    void (async () => {
+      let registered = false
+      try {
+        registered = await setup.hasUsers()
+      } catch {
+        /* 拿不到就维持旧判据 */
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' })
+      res.end(JSON.stringify({ enabled: authEnabled || registered, initialized: existsSync(adminMarker) }))
+    })()
     return
   }
+  // 首启自助注册：`/setup/status` + `/setup/user`（实现与判据见 scripts/setupRoutes.mjs）。
+  // 必须在这里（relay 与静态站之前）：否则会被 SPA 回退成 index.html，前端只拿到网页。
+  // 刻意不用 `/api` 前缀 —— 那条路径被 entrypoint 整体转给了 PocketBase。
+  if (setup.handleRequest(req, res)) return
   // 首改完成后的回调：写标记，之后不再强制改密。
   // 必须验登录态 —— 否则谁都能把标记写掉，强制首改就成了一句空话。
   if (req.url === `${relayPath}/admin-initialized` && req.method === 'POST') {
@@ -257,6 +293,9 @@ const server = createServer((req, res) => {
     })()
     return
   }
+  // relay 的 HTTP 传输最后接管：/relay/mcp（远程 Agent 直连）与 /relay/pair*（一次性配对码）。
+  // 返回 false 才是静态资源/SPA 回退 —— 顺序不能反，否则这些路径会被 SPA 回退成 index.html
+  // （200 + HTML，Agent 侧表现为「握手失败」而不是「端点不存在」，极难排查）。
   if (relay.handleHttp(req, res)) return
   serveStatic(req, res)
 })

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { Button, Card } from '@/design-system/ui'
 
 /**
  * 登录守卫 + 强制首改（2026-10-28 第 1 步）。
@@ -16,6 +17,11 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react'
  *    `initialized:false` 时必须先改密；改完回调 `/relay/admin-initialized` 落盘标记。
  *    注意这是**体验层**的强制 —— 真正的安全来自「改完之后初始密码就登不进来了」。
  * 4. 不碰业务数据：本组件只做「挡住/放行」，不读也不写任何业务表。
+ *
+ * 2026-11-01 补「首启引导」：`users` 为空时后端 `/setup/status` 回 `needsSetup:true`，
+ * 这里改成初始化表单（用户名 / 密码 / 确认），建号后直接用该账号登录 —— 取代了原先
+ * 「账号由容器按 env 写死创建」的唯一入口。判据在服务端（空库），前端只是按结果分支，
+ * 所以不存在「页面自己决定要不要初始化」的两份实现。
  */
 
 const TOKEN_KEY = 'workhub.auth.token'
@@ -57,7 +63,10 @@ async function refreshToken(token: string): Promise<boolean> {
   }
 }
 
-type Phase = 'checking' | 'open' | 'login' | 'change'
+type Phase = 'checking' | 'open' | 'login' | 'change' | 'setup'
+
+/** 与服务端 `scripts/setupRoutes.mjs#parseSetupInput` 同口径（客户端先拦，省一次往返） */
+const IDENTITY_PATTERN = /^[A-Za-z0-9_][A-Za-z0-9_.-]*$/
 
 export function AuthGate({ children }: { children: ReactNode }) {
   const [phase, setPhase] = useState<Phase>('checking')
@@ -67,10 +76,30 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const [confirmPw, setConfirmPw] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  // 初始化引导用独立状态：它与登录表单不是同一件事，共用 state 会让「切到登录页」时残留半截密码
+  const [setupIdentity, setSetupIdentity] = useState('')
+  const [setupPw, setSetupPw] = useState('')
+  const [setupConfirm, setSetupConfirm] = useState('')
+  const [setupError, setSetupError] = useState('')
+  const [setupBusy, setSetupBusy] = useState(false)
 
   useEffect(() => {
     let cancelled = false
     void (async () => {
+      // 首启引导优先于一切：空库时登录页毫无意义（没有任何账号可登）。
+      // 走 env 建号的部署在 entrypoint 阶段就先建好了账号，所以这里只在真正空库时命中。
+      try {
+        const res = await fetch('/setup/status', { cache: 'no-store' })
+        const body = (await res.json()) as { needsSetup?: boolean }
+        if (body?.needsSetup) {
+          if (!cancelled) setPhase('setup')
+          return
+        }
+      } catch {
+        // 旧版 serve.mjs 没有这个端点（404）→ 按普通流程继续
+      }
+      if (cancelled) return
+
       let enabled = false
       let initialized = true
       try {
@@ -189,6 +218,82 @@ export function AuthGate({ children }: { children: ReactNode }) {
     [busy, confirmPw, newPw, password],
   )
 
+  /**
+   * 首启初始化：建号 → 直接用新账号登录 → 进应用。
+   *
+   * 为什么要「建完立刻登录」而不是回登录页让用户再输一遍：这是首次启动，
+   * 用户刚把账号密码定下来，再让他抄一遍纯属折腾；而失败路径（409 = 已被初始化）
+   * 会切回登录页并说明原因，不会让人卡在一个永远失败的按钮上。
+   */
+  const submitSetup = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault()
+      if (setupBusy) return
+      setSetupError('')
+      const user = setupIdentity.trim()
+      if (user.length < 3 || user.length > 32) {
+        setSetupError('用户名需 3–32 位')
+        return
+      }
+      if (!IDENTITY_PATTERN.test(user)) {
+        setSetupError('用户名只能用字母、数字、下划线、点、横线，且不能以点或横线开头')
+        return
+      }
+      if (setupPw.length < 8) {
+        setSetupError('密码至少 8 位')
+        return
+      }
+      if (setupPw !== setupConfirm) {
+        setSetupError('两次输入的密码不一致')
+        return
+      }
+      setSetupBusy(true)
+      try {
+        const res = await fetch('/setup/user', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ identity: user, password: setupPw }),
+        })
+        const body = (await res.json().catch(() => ({}))) as { error?: string; ok?: boolean }
+        if (!res.ok) {
+          if (res.status === 409) {
+            // 别人先初始化了：让位给登录页，别让用户对着一个必然失败的按钮反复点
+            setIdentity(user)
+            setError(body.error || '已完成初始化，请直接登录')
+            setPhase('login')
+            return
+          }
+          throw new Error(body.error || `创建账号失败（HTTP ${res.status}）`)
+        }
+
+        const login = await fetch('/api/collections/users/auth-with-password', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ identity: user, password: setupPw }),
+        })
+        const auth = (await login.json().catch(() => ({}))) as {
+          token?: string
+          record?: { id?: string }
+          message?: string
+        }
+        if (!login.ok || !auth.token) {
+          throw new Error(auth.message || `账号已创建，但自动登录失败（HTTP ${login.status}），请到登录页手动登录`)
+        }
+        localStorage.setItem(TOKEN_KEY, auth.token)
+        localStorage.setItem(IDENTITY_KEY, user)
+        if (auth.record?.id) localStorage.setItem(USERID_KEY, auth.record.id)
+        setSetupPw('')
+        setSetupConfirm('')
+        setPhase('open')
+      } catch (err) {
+        setSetupError(err instanceof Error ? err.message : String(err))
+      } finally {
+        setSetupBusy(false)
+      }
+    },
+    [setupBusy, setupConfirm, setupIdentity, setupPw],
+  )
+
   const box = 'w-full max-w-sm rounded-xl border border-outline-variant bg-surface-container-lowest p-6'
   const label = 'mt-3 block text-[0.8214rem] font-medium text-on-surface-variant'
   const input =
@@ -200,6 +305,64 @@ export function AuthGate({ children }: { children: ReactNode }) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-surface text-on-surface-variant">
         <span className="text-[0.9286rem]">正在检查登录状态…</span>
+      </div>
+    )
+  }
+
+  if (phase === 'setup') {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-surface px-4">
+        <Card className="w-full max-w-sm p-6">
+          <form onSubmit={submitSetup}>
+            <h1 className="text-[1.1429rem] font-semibold text-on-surface">初始化工作台</h1>
+            <p className="mt-1 text-[0.8214rem] text-on-surface-variant">这是第一次启动，请设置你的账号</p>
+
+            <label className={label}>
+              用户名
+              <input
+                className={input}
+                value={setupIdentity}
+                onChange={(e) => setSetupIdentity(e.target.value)}
+                autoComplete="username"
+                autoFocus
+                placeholder="3–32 位，字母/数字/下划线/点/横线"
+              />
+            </label>
+            <label className={label}>
+              密码（至少 8 位）
+              <input
+                type="password"
+                className={input}
+                value={setupPw}
+                onChange={(e) => setSetupPw(e.target.value)}
+                autoComplete="new-password"
+              />
+            </label>
+            <label className={label}>
+              确认密码
+              <input
+                type="password"
+                className={input}
+                value={setupConfirm}
+                onChange={(e) => setSetupConfirm(e.target.value)}
+                autoComplete="new-password"
+              />
+            </label>
+
+            {setupError && (
+              <p role="alert" className="mt-3 text-[0.8214rem] text-error">
+                {setupError}
+              </p>
+            )}
+
+            <Button
+              className="mt-4 w-full justify-center"
+              disabled={setupBusy || !setupIdentity.trim() || !setupPw || !setupConfirm}
+            >
+              {setupBusy ? '创建中…' : '创建并进入'}
+            </Button>
+          </form>
+        </Card>
       </div>
     )
   }
@@ -237,11 +400,6 @@ export function AuthGate({ children }: { children: ReactNode }) {
           <button type="submit" disabled={busy || !identity.trim() || !password} className={primary}>
             {busy ? '登录中…' : '登录'}
           </button>
-
-          <p className="mt-3 text-[0.7857rem] leading-relaxed text-outline">
-            账号由容器启动时创建（<code>WORKHUB_ADMIN_USER</code> / <code>WORKHUB_ADMIN_PASSWORD</code>），
-            页面不提供自助注册。
-          </p>
         </form>
       </div>
     )

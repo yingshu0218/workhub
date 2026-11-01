@@ -40,6 +40,7 @@ docker run -d --name workhub \
 | `PB_DATA_DIR` | `/data/pb_data` | PB 数据库目录 —— **必须挂卷**，否则重建即丢数据 |
 | `PB_HTTP` | `127.0.0.1:8090` | PB 监听地址（容器内回环，不对外） |
 | `PORT` / `HOST` | `9001` / `127.0.0.1` | 内部 serve.mjs 的端口/地址（不对外） |
+| `WORKHUB_ADMIN_USER` / `WORKHUB_ADMIN_PASSWORD` | `admin` / `password`（compose 默认） | **兜底管理员**：容器启动时幂等创建该账号（`createRule` 是 Locked，只能由服务端建）。⚠️ **两者一配齐，首启自助注册就不会出现**（账号已存在）—— 想让用户在页面上自己设账号就把这两项留空。初始密码 `password` 公开可知，登录后会被强制改密 |
 
 ### 卷
 
@@ -52,10 +53,26 @@ docker run -d --name workhub \
 |---|---|
 | `/api` 、`/api/**` | PocketBase |
 | `/_` 、`/_/**` | PocketBase（管理台） |
+| `/setup/status` 、`/setup/user` | `scripts/serve.mjs`（首启自助注册，见下节） |
 | 其余（含 `/relay` 与 WebSocket 升级） | `scripts/serve.mjs`（`dist/` 静态站 + 同源 relay） |
 
 **同源是硬要求**：前端用相对路径请求 `/api/...`，PB 与页面不同源会跨域并撞 CSP。
 所以不要在容器外再套一层只转发 `/` 的反代 —— 那会把 `/api` 也带走。
+
+## 首启初始化（自助设账号）
+
+全新空库（`users` 集合 0 条）第一次打开站点，页面显示「初始化工作台」：填用户名（3–32 位，
+字母/数字/下划线/点/横线）、密码（≥8 位）、确认密码 →「创建并进入」，建完直接登录。
+
+- **只在首启窗口可用**：判据是「`users` 为空」。建出第一个账号后 `/setup/user` 一律 409，
+  接口自动失效，没有额外开关要关。
+- 创建动作走**超管凭据**（`PB_SUPERUSER` / `PB_SUPERUSER_PASSWORD`，容器内继承，页面拿不到）。
+  这两项没配 → 接口回 503，页面回落到普通登录表单。
+- 建号前会自动把 `users` 的 `identityFields` 补成 `["email","username"]`（否则用户名登不进去）。
+  **已有部署**（库里早就有账号）不会走这条路径，需要单独跑一次 `npm run patch:users-auth`
+  或在 PB 管理台手工勾上 `username`。
+- 与 `WORKHUB_ADMIN_USER/PASSWORD` **不冲突，但前者优先**：配了就会先建出 `admin` 账号，
+  首启引导随即不再出现。二者取一的建议见上一节环境变量表。
 
 ## 排错
 

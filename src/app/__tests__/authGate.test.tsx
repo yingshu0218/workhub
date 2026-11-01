@@ -8,11 +8,12 @@
  *  3. 启用且 token 有效（auth-refresh 200）→ 直接进业务页面。
  */
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthGate, clearAuth } from '../AuthGate'
 
 function stubFetch(routes: Record<string, { status: number; body: unknown }>) {
-  const fn = vi.fn(async (input: RequestInfo | URL) => {
+  const fn = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
     const url = String(input)
     const hit = Object.entries(routes).find(([k]) => url.includes(k))
     const r = hit?.[1] ?? { status: 404, body: {} }
@@ -96,5 +97,62 @@ describe('AuthGate', () => {
     )
     await waitFor(() => expect(screen.getByText('设置你的密码')).toBeTruthy())
     expect(screen.queryByText('业务页面')).toBeNull()
+  })
+
+  it('首启（needsSetup:true）：显示初始化引导，不出现登录表单与业务内容', async () => {
+    stubFetch({ '/setup/status': { status: 200, body: { needsSetup: true } } })
+    render(
+      <AuthGate>
+        <div>业务页面</div>
+      </AuthGate>,
+    )
+    await waitFor(() => expect(screen.getByText('初始化工作台')).toBeTruthy())
+    expect(screen.getByText('这是第一次启动，请设置你的账号')).toBeTruthy()
+    expect(screen.queryByText(/请使用管理员账号登录/)).toBeNull()
+    expect(screen.queryByText('业务页面')).toBeNull()
+  })
+
+  it('首启：两次密码不一致就地报错，且不提交创建请求', async () => {
+    const fetchFn = stubFetch({ '/setup/status': { status: 200, body: { needsSetup: true } } })
+    render(
+      <AuthGate>
+        <div>业务页面</div>
+      </AuthGate>,
+    )
+    await waitFor(() => expect(screen.getByText('初始化工作台')).toBeTruthy())
+
+    await userEvent.type(screen.getByLabelText('用户名'), 'alice')
+    await userEvent.type(screen.getByLabelText('密码（至少 8 位）'), 'password1')
+    await userEvent.type(screen.getByLabelText('确认密码'), 'password2')
+    await userEvent.click(screen.getByRole('button', { name: '创建并进入' }))
+
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('两次输入的密码不一致'))
+    expect(fetchFn.mock.calls.some(([url]) => String(url).includes('/setup/user'))).toBe(false)
+    expect(screen.queryByText('业务页面')).toBeNull()
+  })
+
+  it('首启：创建成功后用新账号登录并直接进入应用', async () => {
+    const fetchFn = stubFetch({
+      '/setup/status': { status: 200, body: { needsSetup: true } },
+      '/setup/user': { status: 200, body: { ok: true } },
+      '/api/collections/users/auth-with-password': { status: 200, body: { token: 'fresh-token', record: { id: 'u1' } } },
+    })
+    render(
+      <AuthGate>
+        <div>业务页面</div>
+      </AuthGate>,
+    )
+    await waitFor(() => expect(screen.getByText('初始化工作台')).toBeTruthy())
+
+    await userEvent.type(screen.getByLabelText('用户名'), 'alice')
+    await userEvent.type(screen.getByLabelText('密码（至少 8 位）'), 'password1')
+    await userEvent.type(screen.getByLabelText('确认密码'), 'password1')
+    await userEvent.click(screen.getByRole('button', { name: '创建并进入' }))
+
+    await waitFor(() => expect(screen.getByText('业务页面')).toBeTruthy())
+    expect(localStorage.getItem('workhub.auth.token')).toBe('fresh-token')
+    expect(localStorage.getItem('workhub.auth.identity')).toBe('alice')
+    const loginCall = fetchFn.mock.calls.find(([url]) => String(url).includes('auth-with-password'))
+    expect(JSON.parse(String(loginCall?.[1]?.body))).toEqual({ identity: 'alice', password: 'password1' })
   })
 })
