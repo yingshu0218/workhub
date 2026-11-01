@@ -78,7 +78,10 @@ COPY --from=web /app/dist-server ./dist-server
 
 # 运行时真正会被执行的文件
 COPY relay ./relay
+# ⚠️ 这里按文件名逐个拷：**新增被 serve.mjs import 的脚本必须同步加一行**，
+# 否则运行期 ERR_MODULE_NOT_FOUND，容器直接退出（2026-11-01 已踩：setupRoutes.mjs）。
 COPY scripts/serve.mjs ./scripts/serve.mjs
+COPY scripts/setupRoutes.mjs ./scripts/setupRoutes.mjs
 COPY deploy/docker/entrypoint.mjs ./entrypoint.mjs
 
 # PocketBase 的初始化物料（hooks 生效；collections 供首次启动按需导入）
