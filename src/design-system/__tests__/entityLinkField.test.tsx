@@ -57,6 +57,10 @@ async function seedCustomer(id: string, name: string) {
 }
 
 beforeEach(async () => {
+  // ⚠️ 必须先恢复真实定时器再碰 Dexie：上一个用例若残留 fake timers，
+  // IndexedDB 的异步调度会被冻住，这行 clear 会一直等不到回调 ——
+  // 表现为 `Hook timed out in 15000ms`（2026-11-01 CI 实测；本地调度快，侥幸通过）。
+  vi.useRealTimers()
   await Promise.all(db.tables.map((t) => t.clear()))
 })
 
