@@ -2,13 +2,13 @@
  * 线上功能性遍历探针
  *
  * 用同一份用例库（`./sweep.cases`）跑**线上环境**：
- *   Agent（本机）→ ws://8.153.19.221:9001/relay（nginx 反代 → serve.mjs）→ 线上浏览器内的桥 → agentOps
+ *   Agent（本机）→ ws://192.0.2.10:9001/relay（nginx 反代 → serve.mjs）→ 线上浏览器内的桥 → agentOps
  *
  * 前置（人工一次）：
  *   在**线上站点**打开「设置 → AI Agent 桥」→ 启用 → relay 地址**留空** → token 填与 relay 一致的值
  *
  * 运行（两个环境变量都必须给，否则本文件自动 skip，不污染默认 CI）：
- *   WORKHUB_ONLINE_URL=ws://8.153.19.221:9001/relay \
+ *   WORKHUB_ONLINE_URL=ws://192.0.2.10:9001/relay \
  *   WORKHUB_ONLINE_TOKEN=<relay token> \
  *   npx vitest run src/agent/__tests__/functional.sweep.online.test.ts
  *

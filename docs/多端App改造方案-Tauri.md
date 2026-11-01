@@ -329,7 +329,7 @@ npm run app:build -- --bundles app        # ← 补回被 dmg 清理掉的 .app
 - [ ] 点关闭按钮 → 窗口收起、**应用不退出**（Dock 与托盘图标仍在）；点 **Dock 图标** → 窗口唤回；菜单退出 → 进程真退出
 - [ ] 原生端**未注册 Service Worker**：`find ~/Library/WebKit ~/Library/Containers ~/Library/Application\ Support -iname '*ServiceWorker*' -path '*fpigeon*'` 期望**无输出**
 - [ ] 原生端 IndexedDB 可用（`fun.fpigeon.nexus` 数据目录下有 `IndexedDB.sqlite3` 且含对象库）
-- [ ] **一次真实同步**：设置 → 同步中心填 **`https://team.fpigeon.fun`**（**正式站，不是测试站** `http://8.153.19.221:9001`；且**地址每台设备本地各填一次、无编译期默认值**）→ 用正式站账号登录 → 新建/改一条记录 → 在 Web 端确认已落地
+- [ ] **一次真实同步**：设置 → 同步中心填 **`https://team.fpigeon.fun`**（**正式站，不是测试站** `http://<TEST_HOST>:9001`；且**地址每台设备本地各填一次、无编译期默认值**）→ 用正式站账号登录 → 新建/改一条记录 → 在 Web 端确认已落地
 
 ### 本机环境插曲（**非项目缺陷**）
 

@@ -76,7 +76,7 @@ describe('classifySyncTarget —— 同步中心在哪', () => {
   it('远端地址 → remote', () => {
     for (const url of [
       'https://team.fpigeon.fun',
-      'http://8.153.19.221:9001',
+      'http://192.0.2.10:9001',
       'https://sync.example.com/pb',
     ]) {
       expect(classifySyncTarget(url), url).toBe('remote')
@@ -146,7 +146,7 @@ describe('页面协议推导 —— HTTPS 页面不再探测明文 HTTP（混合
   it('【核心回归】https 页面探测明文 HTTP 远端 → 直接给可操作错误，且**一个请求都不发**', async () => {
     vi.stubGlobal('location', { protocol: 'https:' })
     let called = false
-    const r = await probeSyncCenter('http://8.153.19.221:9001', {
+    const r = await probeSyncCenter('http://192.0.2.10:9001', {
       fetchImpl: (() => {
         called = true
         throw new Error('不该被调用')

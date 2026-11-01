@@ -72,7 +72,7 @@ DEPLOY_SSH=devtest
 DEPLOY_REMOTE_DIR=/opt/pocketbase
 DEPLOY_SUPERUSER=deploy@nexus.local
 DEPLOY_SUPERUSER_PASSWORD=xxx
-DEPLOY_PUBLIC_URL=http://8.153.19.221:9001
+DEPLOY_PUBLIC_URL=http://192.0.2.10:9001
 `)
   process.exit(1)
 }

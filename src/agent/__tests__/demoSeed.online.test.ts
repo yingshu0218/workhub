@@ -7,7 +7,7 @@
  * 未提供环境变量时自动 skip，不污染默认 CI。
  *
  * 运行：
- *   WORKHUB_ONLINE_URL=ws://8.153.19.221:9001/relay WORKHUB_ONLINE_TOKEN=<token> \
+ *   WORKHUB_ONLINE_URL=ws://192.0.2.10:9001/relay WORKHUB_ONLINE_TOKEN=<token> \
  *   npx vitest run src/agent/__tests__/demoSeed.online.test.ts
  *
  * 覆盖不到的：**习惯 / 习惯打卡 / 待办清单** —— habit 与 todoList 没有对应的 agentOps 工具，

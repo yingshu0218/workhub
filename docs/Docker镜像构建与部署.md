@@ -84,7 +84,7 @@ cnb registries list-package-tags --slug blueteam0715/workhub --type docker --nam
 | 项 | 值 |
 |---|---|
 | 站点 | **https://team.fpigeon.fun** |
-| 主机 | `1204pigeon` = `124.221.74.170`（`srv124`）。⚠️ 与测试环境 `devtest`（8.153.19.221）是**两台不同机器** |
+| 主机 | `1204pigeon` = `<PROD_HOST>`（`srv124`）。⚠️ 与测试环境 `devtest`（<TEST_HOST>）是**两台不同机器** |
 | 落点 | `/opt/workhub/`：`docker-compose.yml` + `.env`(权限 600) + `data/` |
 | 端口 | 只绑回环 **`127.0.0.1:8790`**（宿主端口 = 容器端口，内外一致）；对外由宿主 nginx 负责 TLS |
 | TLS | `/etc/nginx/certs/team.fpigeon.fun.crt` —— acme.sh **单独签发**（本域不属于 `*.honeypani.fun`，**不能复用那张泛域名证书**；且 acme.sh 无 DNS API 凭据 → 走 HTTP-01 + webroot `/var/www/acme`） |

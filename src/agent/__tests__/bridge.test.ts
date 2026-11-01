@@ -191,8 +191,8 @@ describe('Relay 端到端：浏览器连出 × MCP 客户端（进程外 WS）',
 describe('桥地址同源推导（Issue #33 整合：relay 内嵌进项目）', () => {
   it('留空 → 用当前站点同源 /relay（http 页面用 ws:）', async () => {
     const { resolveBridgeBase, SAME_ORIGIN_RELAY_PATH } = await import('../bridge')
-    const base = resolveBridgeBase('', { protocol: 'http:', host: '8.153.19.221:9001' } as Location)
-    expect(base).toBe(`ws://8.153.19.221:9001${SAME_ORIGIN_RELAY_PATH}`)
+    const base = resolveBridgeBase('', { protocol: 'http:', host: '192.0.2.10:9001' } as Location)
+    expect(base).toBe(`ws://192.0.2.10:9001${SAME_ORIGIN_RELAY_PATH}`)
   })
 
   it('留空 + https 页面 → 自动 wss:（规避混合内容，不必改构建）', async () => {

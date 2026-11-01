@@ -126,7 +126,7 @@ export function isNetworkFailure(err: unknown): boolean {
 /**
  * 判断响应体是不是 PocketBase 的健康响应。
  *
- * **为什么不能只看 HTTP 状态码**：本项目线上实测（2026-10-09，`8.153.19.221:9001`）——
+ * **为什么不能只看 HTTP 状态码**：本项目线上实测（2026-10-09，`192.0.2.10:9001`）——
  * 未知路径 `/api/definitely-not-here` 会落到 SPA 回退，返回 **`200` + `text/html`
  * 的 index.html（1704 字节）**；而真正的 `/api/health` 是 `application/json`
  * 的 `{"message":"API is healthy.","code":200,"data":{}}`。
