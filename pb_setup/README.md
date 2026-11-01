@@ -56,8 +56,8 @@ cp pb_setup/backup.sh /opt/nexus/pocketbase/
 > ⚠️ **不要给 `identityFields` 加 `username`**（2026-11-02 修正）：PB 0.40 的文本字段没有 UNIQUE 约束，
 > 加进去会被 `validation_missing_unique_constraint` 拒绝。登录走邮箱映射，所以登录框写「用户名或邮箱」
 > 仍然成立；`username` 字段只用于展示，不参与登录。
-> **已有部署无需做任何 patch**；`npm run patch:users-auth` 仍按旧口径写 `identityFields`，在 0.40 上会失败，
-> 不要再执行（脚本待清理）。
+> **已有部署无需做任何 patch**；旧的 `patch:users-auth` 脚本已删除（它按旧口径写 `identityFields`，
+> 在 0.40 上会失败）。
 >
 > 演示账号 `demo@nexus.local` 与各成员的同步账号都落在这一集合里。
 >

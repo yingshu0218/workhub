@@ -70,7 +70,7 @@ docker run -d --name workhub \
   这两项没配 → 接口回 503，页面回落到普通登录表单。
 - 登录标识始终是**邮箱**：前端把用户名补成 `<用户名>@workhub.local` 再登录，`identityFields` **不需要**改动。
   首启时后端会 best-effort 补一个 `username` 展示字段，补不上也不影响建号。
-  已有部署无需跑 `patch:users-auth`（该脚本按旧口径写 `identityFields`，在 PB 0.40 上会失败）。
+  已有部署无需任何配置（旧的 `patch-users-auth` 脚本已删除）。
 - 与 `WORKHUB_ADMIN_USER/PASSWORD` **不冲突，但前者优先**：配了就会先建出 `admin` 账号，
   首启引导随即不再出现。二者取一的建议见上一节环境变量表。
 

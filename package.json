@@ -14,7 +14,6 @@
     "format": "prettier --write src",
     "check:icons": "node scripts/check-icons.mjs",
     "check:schema": "node scripts/check-schema.mjs",
-    "patch:users-auth": "node scripts/patch-users-auth.mjs",
     "test": "vitest run",
     "relay": "node relay/index.mjs",
     "relay:stdio": "node relay/index.mjs --stdio",

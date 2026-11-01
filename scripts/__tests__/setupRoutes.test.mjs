@@ -6,7 +6,8 @@
  *  2. 非空库 → 409「已完成初始化」，且**不发**创建请求（空库判据是唯一的开关）；
  *  3. 弱密码 → 400 且一次 PB 请求都不发（在校验层拦住，不靠服务端兜）；
  *  4. PB 的 400 原话必须透传（重复用户名若被吞成「创建失败」，用户不知道改什么）；
- *  5. PB 拒绝把 username 加进 identityFields（0.40 无 UNIQUE 约束）时，**不能**连带阻断建号。
+ *  5. 补 username 展示字段失败时，建号必须继续，且请求体不能再带 username（老库带上去会 400）；
+ *     同时锁住「不再改 identityFields」—— 0.40 上加 username 必被拒。
  */
 import { describe, expect, it, vi } from 'vitest'
 import { createSetupService, parseSetupInput } from '../setupRoutes.mjs'
@@ -18,8 +19,8 @@ function jsonResponse(status, body) {
 function stubPb(overrides = {}) {
   const {
     totalItems = 0,
-    identityFields = ['email'],
-    identityFieldsStatus = 200,
+    hasUsernameField = true,
+    addUsernameFieldStatus = 200,
     createStatus = 200,
     createBody = { id: 'u1' },
   } = overrides
@@ -42,19 +43,13 @@ function stubPb(overrides = {}) {
       return jsonResponse(createStatus, createBody)
     }
     if (u.endsWith('/api/collections/users') && method === 'PATCH') {
-      // 只有「改登录标识」这一步会被 PB 拒；补字段那一步仍成功
-      if (init.body && JSON.parse(String(init.body)).passwordAuth) {
-        return jsonResponse(identityFieldsStatus, {
-          message: 'Failed to update collection.',
-          data: { 'passwordAuth.identityFields': { message: 'Invalid or missing unique constraint.' } },
-        })
-      }
-      return jsonResponse(200, {})
+      // 现在唯一会发的 PATCH 是「补 username 展示字段」，不再碰 passwordAuth
+      return jsonResponse(addUsernameFieldStatus, { message: 'Failed to update collection.' })
     }
     if (u.endsWith('/api/collections/users')) {
       return jsonResponse(200, {
-        fields: [{ name: 'email' }, { name: 'username' }],
-        passwordAuth: { enabled: true, identityFields },
+        fields: hasUsernameField ? [{ name: 'email' }, { name: 'username' }] : [{ name: 'email' }],
+        passwordAuth: { enabled: true, identityFields: ['email'] },
       })
     }
     return jsonResponse(404, {})
@@ -100,17 +95,30 @@ describe('setupRoutes.createUser', () => {
       password: 'password1',
       passwordConfirm: 'password1',
     })
+    // 登录标识始终只有 email：任何请求都不许再写 passwordAuth（0.40 加 username 必被拒）
+    expect(calls.some((c) => c.body?.passwordAuth)).toBe(false)
   })
 
-  it('PB 拒绝把 username 加进 identityFields：不阻断建号（0.40 无 UNIQUE 约束）', async () => {
-    // 这一步失败是预期内的：登录标识保持 email，username 只是展示字段。
-    // 若哪天有人把这里的 catch 改成 return 400，首启会直接锁死 —— 这条用例就是锁它的。
+  it('老库没有 username 字段且补字段失败：仍能建号，请求体不带 username', async () => {
+    // 补字段是 best-effort：失败时若还把 username 发上去，PB 会以「未知字段」拒绝建号 —— 首启锁死。
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const { service, calls } = stubPb({ identityFieldsStatus: 400 })
+    const { service, calls } = stubPb({ hasUsernameField: false, addUsernameFieldStatus: 400 })
     const result = await service.createUser({ identity: 'alice', password: 'password1' })
     warn.mockRestore()
 
     expect(result).toEqual({ status: 200, body: { ok: true } })
+    const created = calls.find((c) => c.method === 'POST' && c.url.endsWith('/api/collections/users/records'))
+    expect(created?.body).toMatchObject({ email: 'alice@workhub.local' })
+    expect(created?.body).not.toHaveProperty('username')
+  })
+
+  it('老库没有 username 字段：补成功后再写入（展示字段）', async () => {
+    const { service, calls } = stubPb({ hasUsernameField: false })
+    const result = await service.createUser({ identity: 'alice', password: 'password1' })
+
+    expect(result).toEqual({ status: 200, body: { ok: true } })
+    const patched = calls.find((c) => c.method === 'PATCH' && c.url.endsWith('/api/collections/users'))
+    expect(patched?.body?.fields?.some((f) => f.name === 'username')).toBe(true)
     const created = calls.find((c) => c.method === 'POST' && c.url.endsWith('/api/collections/users/records'))
     expect(created?.body).toMatchObject({ username: 'alice', email: 'alice@workhub.local' })
   })

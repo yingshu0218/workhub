@@ -117,8 +117,8 @@ function writeJson(res, status, payload) {
 /**
  * 超管登录，拿一次性 token。
  *
- * 为什么不做缓存：这个模块只在「首启窗口」与 `npm run patch:users-auth` 里被调用，
- * 每次 1–2 个请求，缓存省不下什么，反而要处理 PB 的 token 过期。
+ * 为什么不做缓存：这个模块只在「首启窗口」被调用（每次 1–2 个请求），
+ * 缓存省不下什么，反而要处理 PB 的 token 过期。
  */
 export async function pbSuperuserToken({
   pbBase,
@@ -144,17 +144,18 @@ export async function pbSuperuserToken({
 }
 
 /**
- * 把 `users` 的登录 identity 扩成「邮箱或用户名」（幂等）。
+ * 确保 `users` 有 `username` 字段（幂等）。
  *
- * 为什么服务端要顺手做：`users` 集合刻意不在 `pb_setup/collections.json` 里
- * （见 `pb_setup/README.md` §2，避免部署时把线上登录设置冲掉），所以没有一条
- * 「导入即生效」的通道。而自助注册的用户名如果登不进去，等于首启就锁死 ——
- * 这一步只在空库窗口执行一次，代价是一次 PATCH。已有部署用
- * `npm run patch:users-auth` 补同一份改动。
+ * 只补字段、**不动 `passwordAuth.identityFields`**：0.40 的文本字段没有 UNIQUE 约束，
+ * 把 username 加进登录标识必被拒（validation_missing_unique_constraint）；登录始终走邮箱，
+ * username 只是展示字段，因此也不需要 `unique`（该选项在 PB 文本字段上不存在，会被忽略）。
  *
- * @returns {Promise<{changed: boolean, identityFields: string[], hasUsernameField: boolean}>}
+ * 为什么服务端要顺手补：`users` 刻意不在 `pb_setup/collections.json` 里（见 `pb_setup/README.md` §2），
+ * 没有「导入即生效」的通道。补不上时调用方会跳过 username 字段继续建号，不阻断首启。
+ *
+ * @returns {Promise<{changed: boolean, hasUsernameField: boolean}>}
  */
-export async function ensureUsersUsernameIdentity({
+async function ensureUsersUsernameField({
   pbBase,
   superuser = '',
   superuserPassword = '',
@@ -172,53 +173,30 @@ export async function ensureUsersUsernameIdentity({
   if (!res.ok) throw new Error(col?.message || `读取 users 集合失败（HTTP ${res.status}）`)
 
   const fields = Array.isArray(col?.fields) ? col.fields : []
-  const hasUsernameField = fields.some((f) => f?.name === 'username')
-  const current = Array.isArray(col?.passwordAuth?.identityFields) ? col.passwordAuth.identityFields : []
-  const next = [...new Set([...current, 'username'].filter((f) => f === 'email' || f === 'username'))]
-  if (hasUsernameField && current.includes('username')) {
-    return { changed: false, identityFields: current, hasUsernameField }
-  }
+  if (fields.some((f) => f?.name === 'username')) return { changed: false, hasUsernameField: true }
 
-  // ⚠️ 必须分两步：PB 在**同一个 PATCH** 里会先校验 passwordAuth.identityFields 引用的字段
-  // 是否已存在，再应用 fields 变更 —— 合并提交必然报
-  // `validation_missing_field: Invalid or missing field username`（2026-11-01 线上实测）。
-  if (!hasUsernameField) {
-    const addField = await fetchImpl(`${base}/api/collections/users`, {
-      method: 'PATCH',
-      headers: { authorization: auth, 'content-type': 'application/json' },
-      body: JSON.stringify({
-        fields: [
-          ...fields,
-          {
-            name: 'username',
-            type: 'text',
-            required: false,
-            presentable: true,
-            unique: true,
-            options: { min: IDENTITY_MIN, max: IDENTITY_MAX, pattern: '^[A-Za-z0-9_][A-Za-z0-9_.-]*$' },
-          },
-        ],
-      }),
-      signal: AbortSignal.timeout(STATUS_TIMEOUT_MS),
-    })
-    if (!addField.ok) {
-      const body = await addField.json().catch(() => ({}))
-      throw new Error(pbErrorMessage(body, `为 users 添加 username 字段失败（HTTP ${addField.status}）`))
-    }
-  }
-
-  const patch = { passwordAuth: { enabled: true, identityFields: next } }
-  const patched = await fetchImpl(`${base}/api/collections/users`, {
+  const addField = await fetchImpl(`${base}/api/collections/users`, {
     method: 'PATCH',
     headers: { authorization: auth, 'content-type': 'application/json' },
-    body: JSON.stringify(patch),
+    body: JSON.stringify({
+      fields: [
+        ...fields,
+        {
+          name: 'username',
+          type: 'text',
+          required: false,
+          presentable: true,
+          options: { min: IDENTITY_MIN, max: IDENTITY_MAX, pattern: '^[A-Za-z0-9_][A-Za-z0-9_.-]*$' },
+        },
+      ],
+    }),
     signal: AbortSignal.timeout(STATUS_TIMEOUT_MS),
   })
-  if (!patched.ok) {
-    const body = await patched.json().catch(() => ({}))
-    throw new Error(pbErrorMessage(body, `写入 users 登录配置失败（HTTP ${patched.status}）`))
+  if (!addField.ok) {
+    const body = await addField.json().catch(() => ({}))
+    throw new Error(pbErrorMessage(body, `为 users 添加 username 字段失败（HTTP ${addField.status}）`))
   }
-  return { changed: true, identityFields: next, hasUsernameField: true }
+  return { changed: true, hasUsernameField: true }
 }
 
 /**
@@ -260,16 +238,9 @@ export function createSetupService({
     return (await countUsers(token)) > 0
   }
 
-  /**
-   * 把 `users` 的登录 identity 扩成「邮箱或用户名」。
-   *
-   * 为什么由服务端顺手做：`users` 集合刻意不在 `pb_setup/collections.json` 里
-   * （见 `pb_setup/README.md` §2，避免部署时把线上登录设置冲掉），所以没有一条
-   * 「导入即生效」的通道。而自助注册的用户名如果登不进去，等于首启就锁死 ——
-   * 这一步只在空库窗口执行一次，代价是一次 PATCH。
-   */
-  async function ensureUsernameIdentity(token) {
-    return ensureUsersUsernameIdentity({ pbBase: base, fetchImpl, token })
+  /** 补 username 展示字段；失败由 createUser 兜住，不阻断建号 */
+  async function ensureUsernameField(token) {
+    return ensureUsersUsernameField({ pbBase: base, fetchImpl, token })
   }
 
   async function createUser(raw) {
@@ -294,24 +265,28 @@ export function createSetupService({
 
     // 用户名**不做** PB 的登录标识：0.40 的 text 字段无法声明 UNIQUE 约束，
     // identityFields 里加 username 必被 PB 拒（validation_missing_unique_constraint）。
-    // 改为前端把「用户名」映射成 `<用户名>@workhub.local` 再走 email 登录 —— 用户无感。
-    // 这里只尽力补一个 username 字段用于展示，失败**不影响建号**。
+    // 登录走前端映射的 `<用户名>@workhub.local` 邮箱 —— 用户无感。
+    // username 只用于展示：补得上就一并写入，补不上（老库没这个字段 / PATCH 失败）就不带，
+    // 绝不能因为它让首启建号失败。
+    let hasUsernameField = false
     try {
-      await ensureUsernameIdentity(token)
+      hasUsernameField = (await ensureUsernameField(token)).hasUsernameField
     } catch (e) {
-      console.warn('[setup] 补 username 字段失败（不影响建号）：', e?.message ?? e)
+      console.warn('[setup] 补 username 展示字段失败（不影响建号）：', e?.message ?? e)
     }
+
+    const payload = {
+      email: parsed.email,
+      password: parsed.password,
+      passwordConfirm: parsed.password,
+      verified: true,
+    }
+    if (hasUsernameField) payload.username = parsed.identity
 
     const created = await fetchImpl(`${base}/api/collections/users/records`, {
       method: 'POST',
       headers: { authorization: token, 'content-type': 'application/json' },
-      body: JSON.stringify({
-        email: parsed.email,
-        username: parsed.identity,
-        password: parsed.password,
-        passwordConfirm: parsed.password,
-        verified: true,
-      }),
+      body: JSON.stringify(payload),
       signal: AbortSignal.timeout(10_000),
     })
     if (!created.ok) {
@@ -376,5 +351,5 @@ export function createSetupService({
     return false
   }
 
-  return { hasUsers, createUser, ensureUsernameIdentity, handleRequest }
+  return { hasUsers, createUser, ensureUsernameField, handleRequest }
 }

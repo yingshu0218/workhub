@@ -130,7 +130,10 @@ async function ensureAppUser() {
   try {
     const token = await pbToken()
     const headers = { authorization: token, 'content-type': 'application/json' }
-    const filter = encodeURIComponent(`email = "${user}" || username = "${user}"`)
+    const email = user.includes('@') ? user : `${user}@workhub.local`
+    // 只按 email 查：username 只是展示字段，老库/新库都可能还没有这个字段 ——
+    // 把它写进 filter 会因 unknown field 直接 400，表现成「应用管理员创建失败」。
+    const filter = encodeURIComponent(`email = "${email}"`)
     const res = await fetch(`http://${PB_HTTP}/api/collections/users/records?perPage=1&filter=${filter}`, { headers })
     const list = await res.json().catch(() => ({}))
     if (Array.isArray(list?.items) && list.items.length > 0) {
@@ -141,9 +144,9 @@ async function ensureAppUser() {
       method: 'POST',
       headers,
       body: JSON.stringify({
-        // 登录时 identity 可填用户名或邮箱；这里两者都对齐成同一个值，少一处踩坑
-        email: user.includes('@') ? user : `${user}@workhub.local`,
-        username: user,
+        // 登录时 identity 走 email：用户名由前端映射成同一个占位邮箱，这里不再写 username
+        //（它不参与登录，且新库可能还没有该字段，写上去反而可能被 PB 拒）。
+        email,
         password: pass,
         passwordConfirm: pass,
         verified: true,

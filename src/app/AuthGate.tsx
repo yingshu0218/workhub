@@ -368,8 +368,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
               </p>
             )}
 
-            {/* 必须是原生 <button type="submit">：设计系统的 Button 组件不透传 type，
-                默认 type="button" 不会触发表单提交 —— 表现就是「点了没反应」（线上踩过）。 */}
+            {/* 与登录 / 改密表单保持同一写法：原生 <button type="submit">。
+                设计系统的 Button 不透传 type —— HTML 缺省虽然是 submit，但提交意图只能靠默认值；
+                这里显式声明，避免日后给 Button 补默认 type="button" 时静默失效。 */}
             <button type="submit" className={primary} disabled={setupBusy || !setupIdentity.trim() || !setupPw || !setupConfirm}>
               {setupBusy ? '创建中…' : '创建并进入'}
             </button>
