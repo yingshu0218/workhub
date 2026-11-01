@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
-import { Button, Card } from '@/design-system/ui'
+import { Card } from '@/design-system/ui'
 
 /**
  * 登录守卫 + 强制首改（2026-10-28 第 1 步）。
@@ -263,7 +263,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
         const res = await fetch('/setup/user', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ identity: toIdentity(user), password: setupPw }),
+          // ⚠️ 这里必须传**原始用户名**：后端 parseSetupInput 会校验「不能含 @」并自行拼
+          // `<用户名>@workhub.local` 作为 PB 的 email。传 toIdentity(user) 会被判非法。
+          body: JSON.stringify({ identity: user, password: setupPw }),
         })
         const body = (await res.json().catch(() => ({}))) as { error?: string; ok?: boolean }
         if (!res.ok) {
@@ -366,12 +368,11 @@ export function AuthGate({ children }: { children: ReactNode }) {
               </p>
             )}
 
-            <Button
-              className="mt-4 w-full justify-center"
-              disabled={setupBusy || !setupIdentity.trim() || !setupPw || !setupConfirm}
-            >
+            {/* 必须是原生 <button type="submit">：设计系统的 Button 组件不透传 type，
+                默认 type="button" 不会触发表单提交 —— 表现就是「点了没反应」（线上踩过）。 */}
+            <button type="submit" className={primary} disabled={setupBusy || !setupIdentity.trim() || !setupPw || !setupConfirm}>
               {setupBusy ? '创建中…' : '创建并进入'}
-            </Button>
+            </button>
           </form>
         </Card>
       </div>
