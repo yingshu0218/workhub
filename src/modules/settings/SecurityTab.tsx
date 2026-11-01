@@ -300,6 +300,38 @@ export function SecurityTab({
       },
     })
   }
+  const [restoring, setRestoring] = useState(false)
+
+  // ── 危险区：以服务端为准（本地清空 → 从同步中心全量拉回）──
+  // 为什么需要它：本项目是 Local-First，本地库是渲染的数据源，服务端只是多端汇聚点。
+  // 于是「服务端已经清空 / 另一端删过东西」时，本地旧数据不会自己消失 —— 用户需要一次
+  // 显式对齐，否则会一直看到早已不存在于云端的记录，并误以为清理没生效。
+  // 安全性：resetLocalData() 自带守卫（有未推送变更先尝试推送，推不成功就抛错中止），
+  // 所以不会在离线时把唯一副本抹掉。
+  const restoreFromServer = () => {
+    askConfirm({
+      title: '以服务端为准',
+      message:
+        '本地数据将被清空，随后从同步中心重新拉取全量数据。用于「本地与云端不一致」或「换设备」。未推送的变更会先尝试上传，失败则中止（不会丢数据）。确定继续？',
+      danger: true,
+      confirmText: '覆盖本地',
+      run: () => {
+        setRestoring(true)
+        void (async () => {
+          const { isSyncConfigured } = await import('@/sync/pocketbaseAdapter')
+          if (!(await Promise.resolve(isSyncConfigured()))) throw new Error('尚未配置同步中心')
+          if (!navigator.onLine) throw new Error('当前离线，无法从服务端拉取')
+          await resetLocalData()
+          const { syncEngine } = await import('@/sync/engine')
+          await syncEngine.syncNow('server-override')
+          window.location.reload()
+        })().catch((err: unknown) => {
+          console.error('[settings] 以服务端为准失败', err)
+          setRestoring(false)
+        })
+      },
+    })
+  }
   return (
         <div className="anim-enter space-y-4">
           <Section
@@ -533,11 +565,24 @@ export function SecurityTab({
                   清空本地缓存 (Clear Local Cache)
                 </div>
                 <div className="mt-0.5 text-[0.8214rem] text-on-surface-variant">
-                  清空本地 IndexedDB 数据库（**不写入任何演示数据**），清完就是一个空库。此操作不可撤销。
+                  清空本地 IndexedDB 数据库（不写入任何演示数据），清完就是一个空库。此操作不可撤销。
                 </div>
               </div>
               <Button variant="danger" size="sm" onClick={resetAll} disabled={resetting}>
                 {resetting ? '清空中…' : '清空所有数据'}
+              </Button>
+            </div>
+
+            <div className="mt-3 flex items-center gap-4 rounded-xl border border-outline-variant/60 px-5 py-4">
+              <div className="flex-1">
+                <div className="text-[0.9643rem] font-semibold">以服务端为准 (Restore From Server)</div>
+                <div className="mt-0.5 text-[0.8214rem] text-on-surface-variant">
+                  清空本地库后从同步中心重新拉取全量数据。用于本地与云端不一致、或换设备。
+                  未推送的变更会先尝试上传，失败即中止。
+                </div>
+              </div>
+              <Button variant="tonal" size="sm" onClick={restoreFromServer} disabled={restoring}>
+                {restoring ? '对齐中…' : '覆盖本地'}
               </Button>
             </div>
           </Section>
