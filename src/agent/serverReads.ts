@@ -106,20 +106,39 @@ function describeTool(name: string, risk: string): string {
 }
 
 /** 服务端工具清单（MCP tools/list 条目；risk/domain 与 schema.ts 的声明表同源） */
-export function serverToolsList(): Array<{
+export function serverToolsList(domains: Record<string, boolean> = {}): Array<{
   name: string
   description: string
   risk: string
   domain: string
   inputSchema: unknown
 }> {
-  return (Object.keys(SERVER_READ_TOOLS) as ServerReadToolName[]).map((name) => ({
+  const read = (Object.keys(SERVER_READ_TOOLS) as ServerReadToolName[]).map((name) => ({
     name,
     description: describeTool(name, TOOL_RISK[name] ?? 'low'),
     risk: TOOL_RISK[name] ?? 'low',
     domain: TOOL_DOMAIN[name] ?? 'read',
     inputSchema: zodToJsonSchema(SERVER_READ_TOOLS[name].schema),
   }))
+  // P3 写工具必须出现在清单里：MCP 客户端只会调用 tools/list 列出的工具。
+  // 只实现 handles() 而不广告 = 工具"存在但永远调不到"（2026-11-01 正式站实测踩到：
+  // 白名单全开、写工具能按名字调通，但 tools/list 只有 12 个读工具，Agent 看不到）。
+  const write = (Object.keys(AGENT_TOOLS) as Array<keyof typeof AGENT_TOOLS>)
+    .filter((name) => {
+      const domain = TOOL_DOMAIN[name as string]
+      return domain ? domains[domain] === true : false
+    })
+    .map((name) => {
+      const tool = AGENT_TOOLS[name]
+      return {
+        name: name as string,
+        description: describeTool(name as string, tool.risk ?? 'low'),
+        risk: tool.risk ?? 'low',
+        domain: TOOL_DOMAIN[name as string] ?? '',
+        inputSchema: zodToJsonSchema(tool.schema),
+      }
+    })
+  return [...read, ...write]
 }
 
 /** 是否服务端读工具（旧导出保留：测试与文档引用；路由判定已统一到 initServerExecutor.handles） */
@@ -186,7 +205,7 @@ export function initServerExecutor(opts: ServerExecutorOptions): {
   }
 
   return {
-    listTools: serverToolsList,
+    listTools: () => serverToolsList(domains),
     handles: (name: string) =>
       (Object.hasOwn(SERVER_READ_TOOLS, name) || Object.hasOwn(AGENT_TOOLS, name)) && domainAllowed(name),
     callTool: async (name, input, meta) => {
