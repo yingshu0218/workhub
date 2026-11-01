@@ -416,6 +416,13 @@ Gradle 的 `:app:rustBuildArm64Release` 执行的是 **`npm run -- tauri android
 
 > 目标：不用本机也能出 APK。**只在 `v*` tag 触发**——一次构建约 1~1.5 核时，每次 push 都跑会吃掉 160 核时/月 的免费额度。
 
+> ⚠️ **本节描述的 CNB 出包链路已于 2026-11-01 停用，实际构建改到 GitHub Actions**
+> （`.github/workflows/android.yml`）。签名密钥改放 GitHub 仓库 Secrets
+> （`ANDROID_KEYSTORE_B64` / `ANDROID_KEY_ALIAS` / `ANDROID_KEY_PASSWORD`）。
+> **CNB → GitHub 的镜像同步同期停用**，GitHub 副本改由本地双推维护。
+> 下面的内容作为记录保留：CNB 那套 `android-builder` 镜像与 `.android-apk` job 还留在文件里，
+> 但触发已摘除；要回退可照本节重做。
+
 #### 三个文件
 
 | 文件 | 作用 |

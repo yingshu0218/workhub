@@ -1,0 +1,159 @@
+# GitHub Actions：Android APK 构建
+#
+# 为什么放 GitHub 而不是 CNB：CNB 的现成 node 镜像没有 JDK / SDK / NDK，要为它自建
+# 约 3GB 的 android-builder 镜像，且 compileSdk 被腾讯镜像站的同步范围绑在 36。
+# GitHub 的 ubuntu-latest 预装 Android SDK、Google 源直连，这套维护成本直接消失。
+#
+# ⚠️ 仓库定位（2026-11-01 起变更）：本仓库从此是「构建副本」，CNB → GitHub 的镜像同步
+#    已停用（.cnb.yml 里 mirror job 的触发已摘掉），代码靠本地手动双推
+#    （origin 与 github 各推一次）。**它不会自动跟上 CNB**，别默认它是最新的。
+#
+# 签名密钥在本仓库 Secrets：ANDROID_KEYSTORE_B64 / ANDROID_KEY_ALIAS / ANDROID_KEY_PASSWORD
+# 缺密钥时 release 仍能构建，只是产物未签名、装不上 —— 与本地行为一致（见 build.gradle.kts）。
+
+name: android-apk
+
+on:
+  workflow_dispatch:
+    inputs:
+      abi:
+        description: "目标架构（universal 要编 4 个 ABI，慢 3~4 倍）"
+        type: choice
+        options: [arm64, universal]
+        default: arm64
+      build_type:
+        description: "构建类型（debug 免签名即可安装，包名带 .debug 可与正式包共存）"
+        type: choice
+        options: [release, debug]
+        default: release
+  push:
+    tags: ["v*"]
+
+# 构建很贵（约 1~1.5 核时），同一 ref 上排队而不是互相取消
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write # tag 触发时要往 Release 传产物
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      ABI: ${{ inputs.abi || 'arm64' }}
+      BUILD_TYPE: ${{ inputs.build_type || 'release' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 腾磁盘
+        run: |
+          echo "--- 清理前 ---"
+          df -h /
+          # 免费 runner 可用磁盘约 14GB，Android 全链路要吃 8~10GB，不清理会中途 ENOSPC。
+          # 只删与本构建无关的预装工具链；**不能删** /usr/local/lib/android ——
+          # 那是预装的 SDK，删了要重新下，反而更慢。
+          sudo rm -rf \
+            /usr/share/dotnet \
+            /usr/local/share/boost \
+            /opt/ghc \
+            /opt/hostedtoolcache/CodeQL \
+            /usr/local/lib/android/sdk/system-images || true
+          echo "--- 清理后 ---"
+          df -h /
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+
+      - name: 装 SDK 组件
+        run: |
+          # 版本与 gen/android/app/build.gradle.kts 的 compileSdk=36、以及文档记录的本机
+          # 验证环境（NDK 27.0.12077973）保持一致。
+          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0" "ndk;27.0.12077973"
+          echo "--- 已装 NDK ---"
+          ls "$ANDROID_SDK_ROOT/ndk" || true
+          echo "--- 已装 platforms ---"
+          ls "$ANDROID_SDK_ROOT/platforms" || true
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - name: 环境自检
+        run: |
+          echo "node    $(node -v) / npm $(npm -v)"
+          echo "java    $(java -version 2>&1 | head -1)"
+          echo "rust    $(rustc --version)"
+          echo "SDK     $ANDROID_SDK_ROOT"
+          df -h /
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 写入签名配置
+        if: env.BUILD_TYPE == 'release'
+        env:
+          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "${ANDROID_KEYSTORE_B64:-}" ]; then
+            echo "::warning title=产物未签名::缺少 ANDROID_KEYSTORE_B64，APK 将无法直接安装"
+            exit 0
+          fi
+          echo "$ANDROID_KEYSTORE_B64" | base64 -d > /tmp/nexus-release.jks
+          printf 'keyAlias=%s\npassword=%s\nstoreFile=/tmp/nexus-release.jks\n' \
+            "$ANDROID_KEY_ALIAS" "$ANDROID_KEY_PASSWORD" \
+            > src-tauri/gen/android/keystore.properties
+          echo "签名配置已写入 → /tmp/nexus-release.jks"
+
+      - name: 构建 APK
+        run: |
+          set -e
+          # 这里直接用 npx tauri 而不是 package.json 的 app:android ——
+          # 后者已经把 --target aarch64 写死了，再传一次会撞参数。
+          if [ "$BUILD_TYPE" = "debug" ]; then
+            npx tauri android build --target aarch64 --debug
+          elif [ "$ABI" = "universal" ]; then
+            npx tauri android build --apk
+          else
+            npx tauri android build --target aarch64 --apk
+          fi
+
+      - name: 列出产物
+        run: |
+          find src-tauri/gen/android/app/build/outputs -name '*.apk' -o -name '*.aab' | while read -r f; do
+            echo "$(du -h "$f" | cut -f1)  $f"
+          done
+
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexus-android-${{ env.BUILD_TYPE }}-${{ env.ABI }}
+          path: |
+            src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+            src-tauri/gen/android/app/build/outputs/bundle/**/*.aab
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: 附到 Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 \
+            || gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" \
+                 --notes "Android 客户端安装包（arm64-v8a）。安装前需允许「未知来源」。"
+          find src-tauri/gen/android/app/build/outputs/apk -name '*.apk' \
+            -exec gh release upload "$GITHUB_REF_NAME" {} --clobber \;
