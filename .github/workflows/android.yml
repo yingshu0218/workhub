@@ -74,24 +74,42 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - uses: android-actions/setup-android@v3
-
+      # ⚠️ 刻意**不用** android-actions/setup-android@v3：它内部固定执行 `sdkmanager tools`，
+      # 而新版 cmdline-tools（16.x）已移除 tools 包 → 报 "Failed to find package 'tools'"
+      # 并以退出码 1 结束，整个 job 28 秒就挂（2026-11-01 实测）。
+      # runner 镜像本来就预装 SDK + cmdline-tools，直接用，只补装缺的组件。
       - name: 装 SDK 组件
         run: |
+          SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          if [ -d "$SDK_ROOT/cmdline-tools/latest/bin" ]; then
+            CMDLINE="$SDK_ROOT/cmdline-tools/latest"
+          else
+            CMDLINE="$(ls -d "$SDK_ROOT"/cmdline-tools/*/ 2>/dev/null | head -1)"
+            CMDLINE="${CMDLINE%/}"
+          fi
+          export PATH="$CMDLINE/bin:$PATH"
+          echo "SDK_ROOT = $SDK_ROOT"
+          echo "sdkmanager = $(command -v sdkmanager)"
+
+          yes | sdkmanager --sdk_root="$SDK_ROOT" --licenses > /dev/null 2>&1 || true
           # 版本与 gen/android/app/build.gradle.kts 的 compileSdk=36、以及文档记录的本机
           # 验证环境（NDK 27.0.12077973）保持一致。
-          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0" "ndk;27.0.12077973"
+          sdkmanager --sdk_root="$SDK_ROOT" \
+            "platform-tools" "platforms;android-36" "build-tools;36.0.0" "ndk;27.0.12077973"
+
           # 预装镜像里通常还有别的 NDK 版本，而 Tauri CLI 是按目录名**取最大版本号**，
           # 不清掉就可能编到非 27 的版本上；顺手也省几 GB 磁盘（每个 NDK 2~4GB）。
-          for d in "$ANDROID_SDK_ROOT"/ndk/*; do
+          for d in "$SDK_ROOT"/ndk/*; do
             [ "$(basename "$d")" = "27.0.12077973" ] || sudo rm -rf "$d"
           done
-          # 显式钉住，不依赖 CLI 的版本探测
-          echo "NDK_HOME=$ANDROID_SDK_ROOT/ndk/27.0.12077973" >> "$GITHUB_ENV"
+          # 显式钉住，不依赖 CLI 的版本探测；同时把 SDK 路径写进后续步骤的环境
+          echo "NDK_HOME=$SDK_ROOT/ndk/27.0.12077973" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
           echo "--- 保留的 NDK ---"
-          ls "$ANDROID_SDK_ROOT/ndk"
+          ls "$SDK_ROOT/ndk"
           echo "--- 已装 platforms ---"
-          ls "$ANDROID_SDK_ROOT/platforms"
+          ls "$SDK_ROOT/platforms"
 
       - uses: dtolnay/rust-toolchain@stable
         with:
