@@ -40,7 +40,7 @@ docker run -d --name workhub \
 | `PB_DATA_DIR` | `/data/pb_data` | PB 数据库目录 —— **必须挂卷**，否则重建即丢数据 |
 | `PB_HTTP` | `127.0.0.1:8090` | PB 监听地址（容器内回环，不对外） |
 | `PORT` / `HOST` | `9001` / `127.0.0.1` | 内部 serve.mjs 的端口/地址（不对外） |
-| `WORKHUB_ADMIN_USER` / `WORKHUB_ADMIN_PASSWORD` | `admin` / `password`（compose 默认） | **兜底管理员**：容器启动时幂等创建该账号（`createRule` 是 Locked，只能由服务端建）。⚠️ **两者一配齐，首启自助注册就不会出现**（账号已存在）—— 想让用户在页面上自己设账号就把这两项留空。初始密码 `password` 公开可知，登录后会被强制改密 |
+| `WORKHUB_ADMIN_USER` / `WORKHUB_ADMIN_PASSWORD` | 空 / 空（compose 默认） | **兜底管理员**：容器启动时幂等创建该账号（`createRule` 是 Locked，只能由服务端建）。⚠️ **两者一配齐，首启自助注册就不会出现**（账号已存在）—— 默认留空即走页面自助注册；要用兜底就显式填这两项，密码自定 |
 
 ### 卷
 
@@ -68,9 +68,9 @@ docker run -d --name workhub \
   接口自动失效，没有额外开关要关。
 - 创建动作走**超管凭据**（`PB_SUPERUSER` / `PB_SUPERUSER_PASSWORD`，容器内继承，页面拿不到）。
   这两项没配 → 接口回 503，页面回落到普通登录表单。
-- 建号前会自动把 `users` 的 `identityFields` 补成 `["email","username"]`（否则用户名登不进去）。
-  **已有部署**（库里早就有账号）不会走这条路径，需要单独跑一次 `npm run patch:users-auth`
-  或在 PB 管理台手工勾上 `username`。
+- 登录标识始终是**邮箱**：前端把用户名补成 `<用户名>@workhub.local` 再登录，`identityFields` **不需要**改动。
+  首启时后端会 best-effort 补一个 `username` 展示字段，补不上也不影响建号。
+  已有部署无需跑 `patch:users-auth`（该脚本按旧口径写 `identityFields`，在 PB 0.40 上会失败）。
 - 与 `WORKHUB_ADMIN_USER/PASSWORD` **不冲突，但前者优先**：配了就会先建出 `admin` 账号，
   首启引导随即不再出现。二者取一的建议见上一节环境变量表。
 

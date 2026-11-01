@@ -152,6 +152,10 @@ describe('AuthGate', () => {
     await waitFor(() => expect(screen.getByText('业务页面')).toBeTruthy())
     expect(localStorage.getItem('workhub.auth.token')).toBe('fresh-token')
     expect(localStorage.getItem('workhub.auth.identity')).toBe('alice')
+    // ⚠️ /setup/user 必须收到**原始用户名**：后端会校验「不能含 @」再自己拼占位邮箱。
+    // 这条断言不能省 —— 曾经误传 toIdentity(user) 时，下面的登录断言照样是全绿的。
+    const setupCall = fetchFn.mock.calls.find(([url]) => String(url).includes('/setup/user'))
+    expect(JSON.parse(String(setupCall?.[1]?.body))).toEqual({ identity: 'alice', password: 'password1' })
     const loginCall = fetchFn.mock.calls.find(([url]) => String(url).includes('auth-with-password'))
     // 用户名在登录时被映射成 <用户名>@workhub.local：PB 的 auth 标识仍是 email，
     // 用户侧无感（只填 gundam23 这类用户名即可）

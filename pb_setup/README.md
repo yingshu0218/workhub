@@ -41,22 +41,23 @@ cp pb_setup/backup.sh /opt/nexus/pocketbase/
 3. 粘贴 `collections.json` 全文 → 确认导入（会列出新增的 **19 张业务表**，confirm 后落库）。
 
 > ⚠️ **`collections.json` 只含业务集合（19 张），不含认证集合 `users`** —— 而前端登录用的就是这个 `users`（见第 3 节）。
-> 它不在文件里的原因是：它是 PocketBase 的**标准认证集合**（`type: auth`），字段全是内置的
-> （`email` / `password` / `tokenKey` / `verified` …），没有项目自定义字段，故当初没有纳入快照。
+> 它不在文件里的原因是：它是 PocketBase 的**标准认证集合**（`type: auth`），字段基本是内置的
+> （`email` / `password` / `tokenKey` / `verified` …）；`username` 是首启时 best-effort 补的**展示字段**，
+> 不参与登录。故当初没有纳入快照。
 > **重建环境时务必先建它**（管理后台 → New collection → **Auth**，名称填 `users`），
 > 并按下表核对四项设置 —— 少一项都会让登录链路断掉：
 >
 > | 项 | 线上实测值 |
 > |---|---|
-> | `passwordAuth` | `{ enabled: true, identityFields: ["email", "username"] }`（2026-11-01 起加 `username`：登录框文案是「用户名或邮箱」） |
+> | `passwordAuth` | `{ enabled: true, identityFields: ["email"] }`（登录标识**只有 email**；用户名在前端补成 `<用户名>@workhub.local` 再提交） |
 > | `listRule` / `viewRule` / `updateRule` / `deleteRule` | `id = @request.auth.id`（仅本人可读写） |
 > | `createRule` | 空（不允许自行注册；首个账号由首启引导 `/setup/user` 用**超管凭据**创建） |
 >
-> ⚠️ **`identityFields` 改了要单独生效**：这条改动不在 `collections.json` 里，`PUT /api/collections/import`
-> 不会带上它。已有部署请跑一次 `npm run patch:users-auth`（读 `PB_SUPERUSER` / `PB_SUPERUSER_PASSWORD`，
-> 幂等），或在管理台 Collections → `users` → Options → Auth 里勾上 `username`。
-> 全新空库不用手动做：首启引导建号前会自动补这一步（见 `scripts/setupRoutes.mjs`），
-> 否则用户拿用户名登不进来、首启即锁死。
+> ⚠️ **不要给 `identityFields` 加 `username`**（2026-11-02 修正）：PB 0.40 的文本字段没有 UNIQUE 约束，
+> 加进去会被 `validation_missing_unique_constraint` 拒绝。登录走邮箱映射，所以登录框写「用户名或邮箱」
+> 仍然成立；`username` 字段只用于展示，不参与登录。
+> **已有部署无需做任何 patch**；`npm run patch:users-auth` 仍按旧口径写 `identityFields`，在 0.40 上会失败，
+> 不要再执行（脚本待清理）。
 >
 > 演示账号 `demo@nexus.local` 与各成员的同步账号都落在这一集合里。
 >

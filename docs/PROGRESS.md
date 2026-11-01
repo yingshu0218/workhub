@@ -4,15 +4,15 @@
 >
 > ⚠️ **环境口径（读下面历史轮次前必看）**：**测试环境已于 2026-10-31 下线** —— devtest 上的 `/opt/pocketbase`、systemd 单元、nginx 9001 站点与备份**全部删除**，`npm run deploy` 那条源码部署通道**不再存在**；**当前唯一环境 = 正式站 `https://team.fpigeon.fun`**（CNB 出镜像 → 服务器 `docker compose pull && up -d`）。域名 **`dev.fpigeon.fun` 已作废**（2026-10-09 全仓清理）——**本文正文中凡出现该域名，一律是历史轮次记述，不代表当前环境**。权威口径见 `docs/开发测试环境说明.md`。
 
-**最后更新**：2026-11-01（**首启自助注册：用户名与密码由用户自己设**）
+**最后更新**：2026-11-02（**首启自助注册：用户名与密码由用户自己设**；同日复核：放弃「用户名当登录标识」）
 **背景**：账号此前只能由容器按 `WORKHUB_ADMIN_USER/PASSWORD` 写死创建（`admin` + 公开默认密码 `password`），既不是用户自己的账号，还得靠「强制首改」补救。
 **① 后端 `/setup/*`**（新增 `scripts/setupRoutes.mjs`，`scripts/serve.mjs` 挂载）：`GET /setup/status` 用超管凭据查 `users.totalItems === 0`；`POST /setup/user` 仅在空库时建号（否则 **409「已完成初始化」**），identity 3–32 位、密码 ≥8 位，PB 的 400 原话**透传**（重复用户名不吞成「创建失败」）。两条路由**刻意不用 `/api` 前缀** —— 那条被 entrypoint 整体转给 PB。页面无 token 也能调，但建出第一个账号后接口自动失效（判据是空库，不需要另加开关）。
-**② `users` 允许「邮箱或用户名」登录**：建号前把 `passwordAuth.identityFields` 补成 `["email","username"]`；已有部署跑 `npm run patch:users-auth`（新增脚本，幂等）。⚠️ 这条**不在** `pb_setup/collections.json` 里（`users` 是 PB 内置集合，`pb_setup/README.md` §2 明确不入快照），所以 `PUT /api/collections/import` **带不动它** —— 必须脚本或管理台手工改，否则用了用户名登不进来、首启即锁死。
+**② 登录标识 = 邮箱，用户名只作展示**（2026-11-02 复核修正，覆盖 11-01 的旧口径）：PB 0.40 的文本字段没有 UNIQUE 约束，把 `username` 加进 `passwordAuth.identityFields` 必被拒（`validation_missing_unique_constraint`），补字段也压不住。现口径：**建号邮箱 = `<用户名>@workhub.local`**（`scripts/setupRoutes.mjs#parseSetupInput`），**登录时前端把不含 `@` 的输入补成同一邮箱**（`AuthGate.toIdentity`）—— 所以登录框写「用户名或邮箱」仍然成立；`username` 只用于展示、不参与登录，首启时 best-effort 补、补不上不影响建号。⚠️ 已有部署**不需要**任何 patch；`npm run patch:users-auth` 仍按旧口径写 `identityFields`，在 0.40 上会失败，**不要跑**（脚本待清理）。这条也不再涉及 `pb_setup/collections.json` 的 schema 变更。
 **③ 前端 `AuthGate`**：挂载先问 `/setup/status`，`needsSetup:true` 出「初始化工作台」（用户名 / 密码 / 确认密码，两次不一致就地报错），建号后**直接用该账号登录**进应用；`needsSetup:false` 保持原登录页。顺手删掉登录页那句「页面不提供自助注册」（已不成立，也属页面旁白）。
 **④ `/relay/auth-status` 的启用判据**多一条「`users` 已有账号」：否则没配 `WORKHUB_ADMIN_*` 的部署在自助注册完仍回 `enabled:false` 直接放行，用户刚设的密码形同虚设。PB 不可用时仍按未启用处理，**fail-open 不变**。
-⚠️ **与兜底管理员的关系**：`WORKHUB_ADMIN_*` 保留（env 配错/服务器异常时的自救入口，`entrypoint.mjs` 逻辑未动），但**两者取一** —— 配了它容器启动就建出 `admin`，首启引导随即不再出现。compose 默认值仍是 `admin/password`，要走页面自助注册需显式留空（已写进 `deploy/docker/README.md`）。
-> **本轮验证**：新增 `scripts/__tests__/setupRoutes.test.mjs` **12 条**（空库可建 / 非空 409 / 弱密码 400 且一次 PB 请求都不发 / 重复用户名透传 PB 原话 / 补 `identityFields` / 无超管凭据 503 / 回调只触发一次 / 路由接管与不接管）+ `authGate.test.tsx` **+3 条**（引导渲染 / 两次密码不一致报错且不提交 / 成功后用新账号登录并进应用）。`npx tsc -b` 0 错、`eslint src --max-warnings=0` 0 报错。
-⚠️ **未提交、未部署**：schema 那一条要等维护窗口手工 patch；本轮只落代码。
+⚠️ **与兜底管理员的关系**：`WORKHUB_ADMIN_*` 保留（env 配错/服务器异常时的自救入口，`entrypoint.mjs` 逻辑未动），但**两者取一** —— 配了它容器启动就建出 `admin`，首启引导随即不再出现。compose 的默认值已改为**空**（`6277aa4`），开箱即走页面自助注册；要用兜底管理员就显式填这两项（见 `deploy/docker/README.md`）。
+> **本轮验证**：新增 `scripts/__tests__/setupRoutes.test.mjs` **12 条**（空库可建 / 非空 409 / 弱密码 400 且一次 PB 请求都不发 / 重复用户名透传 PB 原话 / PB 拒绝 identityFields 也不阻断建号 / 无超管凭据 503 / 回调只触发一次 / 路由接管与不接管）+ `authGate.test.tsx` **+3 条**（引导渲染 / 两次密码不一致报错且不提交 / 成功后用新账号登录并进应用）。`npx tsc -b` 0 错、`eslint src --max-warnings=0` 0 报错。**2026-11-02 复核**：`setupRoutes.test.mjs` 那条「补 `identityFields`」改为「PB 拒绝也不阻断建号」；`authGate.test.tsx` 补上 `/setup/user` 请求体必须为**原始用户名**的断言 —— 此前缺这条，误传 `toIdentity` 的 bug 可以无声回归（已做变异校验：还原旧写法该用例变红）。
+⚠️ **状态**：本轮代码已提交（`a556c62` 等）；② 的旧口径已取消，因此**不再有需要手工 patch 的 `identityFields`**。线上是否已部署以发布记录为准。
 
 **上一轮**：2026-11-01（**Android 包改由 GitHub Actions 构建；CNB → GitHub 镜像同步停用**）
 **背景（均为实测，非推断）**：① CNB 侧虽已写好 `.android-builder-image` + `.android-apk` 两个 job，但那套要自建约 3GB 的 android-builder 镜像，且 `compileSdk` 被腾讯镜像站绑死在 36；② **本机直接出包也不成** —— 实测 JDK / Android SDK / NDK / rust android target **全都没有**（`java` 都找不到、`ANDROID_HOME` 为空），10-27 那个 APK 不是在当前这台 Mac 上编的；③ GitHub 的 `ubuntu-latest` 预装 Android SDK、Google 源直连，整套镜像维护成本直接消失。

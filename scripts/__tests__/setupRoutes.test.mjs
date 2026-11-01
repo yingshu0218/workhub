@@ -1,11 +1,12 @@
 /**
  * 首启自助注册的行为锁（2026-11-01）
  *
- * 锁四条判据（都是「错了会静默出事」的那类）：
- *  1. 空库 → 能建出账号，且 username 就是用户填的那个（否则登录页「用户名或邮箱」是句空话）；
+ * 锁五条判据（都是「错了会静默出事」的那类）：
+ *  1. 空库 → 能建出账号；username 只作展示，登录走 `<用户名>@workhub.local` 邮箱映射；
  *  2. 非空库 → 409「已完成初始化」，且**不发**创建请求（空库判据是唯一的开关）；
  *  3. 弱密码 → 400 且一次 PB 请求都不发（在校验层拦住，不靠服务端兜）；
- *  4. PB 的 400 原话必须透传（重复用户名若被吞成「创建失败」，用户不知道改什么）。
+ *  4. PB 的 400 原话必须透传（重复用户名若被吞成「创建失败」，用户不知道改什么）；
+ *  5. PB 拒绝把 username 加进 identityFields（0.40 无 UNIQUE 约束）时，**不能**连带阻断建号。
  */
 import { describe, expect, it, vi } from 'vitest'
 import { createSetupService, parseSetupInput } from '../setupRoutes.mjs'
@@ -18,6 +19,7 @@ function stubPb(overrides = {}) {
   const {
     totalItems = 0,
     identityFields = ['email'],
+    identityFieldsStatus = 200,
     createStatus = 200,
     createBody = { id: 'u1' },
   } = overrides
@@ -40,6 +42,13 @@ function stubPb(overrides = {}) {
       return jsonResponse(createStatus, createBody)
     }
     if (u.endsWith('/api/collections/users') && method === 'PATCH') {
+      // 只有「改登录标识」这一步会被 PB 拒；补字段那一步仍成功
+      if (init.body && JSON.parse(String(init.body)).passwordAuth) {
+        return jsonResponse(identityFieldsStatus, {
+          message: 'Failed to update collection.',
+          data: { 'passwordAuth.identityFields': { message: 'Invalid or missing unique constraint.' } },
+        })
+      }
       return jsonResponse(200, {})
     }
     if (u.endsWith('/api/collections/users')) {
@@ -93,12 +102,17 @@ describe('setupRoutes.createUser', () => {
     })
   })
 
-  it('空库：建号前把 users 的 identityFields 扩成「邮箱或用户名」', async () => {
-    const { service, calls } = stubPb()
-    await service.createUser({ identity: 'alice', password: 'password1' })
+  it('PB 拒绝把 username 加进 identityFields：不阻断建号（0.40 无 UNIQUE 约束）', async () => {
+    // 这一步失败是预期内的：登录标识保持 email，username 只是展示字段。
+    // 若哪天有人把这里的 catch 改成 return 400，首启会直接锁死 —— 这条用例就是锁它的。
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { service, calls } = stubPb({ identityFieldsStatus: 400 })
+    const result = await service.createUser({ identity: 'alice', password: 'password1' })
+    warn.mockRestore()
 
-    const patched = calls.find((c) => c.method === 'PATCH' && c.url.endsWith('/api/collections/users'))
-    expect(patched?.body?.passwordAuth?.identityFields).toEqual(['email', 'username'])
+    expect(result).toEqual({ status: 200, body: { ok: true } })
+    const created = calls.find((c) => c.method === 'POST' && c.url.endsWith('/api/collections/users/records'))
+    expect(created?.body).toMatchObject({ username: 'alice', email: 'alice@workhub.local' })
   })
 
   it('非空库：409，且不发创建请求', async () => {
