@@ -533,7 +533,7 @@ export function SecurityTab({
                   清空本地缓存 (Clear Local Cache)
                 </div>
                 <div className="mt-0.5 text-[0.8214rem] text-on-surface-variant">
-                  彻底重置本地 IndexedDB 数据库并重新写入演示种子，用于恢复出厂演示状态。
+                  清空本地 IndexedDB 数据库（**不写入任何演示数据**），清完就是一个空库。此操作不可撤销。
                 </div>
               </div>
               <Button variant="danger" size="sm" onClick={resetAll} disabled={resetting}>
