@@ -81,10 +81,17 @@ jobs:
           # 版本与 gen/android/app/build.gradle.kts 的 compileSdk=36、以及文档记录的本机
           # 验证环境（NDK 27.0.12077973）保持一致。
           sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0" "ndk;27.0.12077973"
-          echo "--- 已装 NDK ---"
-          ls "$ANDROID_SDK_ROOT/ndk" || true
+          # 预装镜像里通常还有别的 NDK 版本，而 Tauri CLI 是按目录名**取最大版本号**，
+          # 不清掉就可能编到非 27 的版本上；顺手也省几 GB 磁盘（每个 NDK 2~4GB）。
+          for d in "$ANDROID_SDK_ROOT"/ndk/*; do
+            [ "$(basename "$d")" = "27.0.12077973" ] || sudo rm -rf "$d"
+          done
+          # 显式钉住，不依赖 CLI 的版本探测
+          echo "NDK_HOME=$ANDROID_SDK_ROOT/ndk/27.0.12077973" >> "$GITHUB_ENV"
+          echo "--- 保留的 NDK ---"
+          ls "$ANDROID_SDK_ROOT/ndk"
           echo "--- 已装 platforms ---"
-          ls "$ANDROID_SDK_ROOT/platforms" || true
+          ls "$ANDROID_SDK_ROOT/platforms"
 
       - uses: dtolnay/rust-toolchain@stable
         with:
