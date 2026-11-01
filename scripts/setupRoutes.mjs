@@ -179,20 +179,35 @@ export async function ensureUsersUsernameIdentity({
     return { changed: false, identityFields: current, hasUsernameField }
   }
 
-  const patch = { passwordAuth: { enabled: true, identityFields: next } }
+  // ⚠️ 必须分两步：PB 在**同一个 PATCH** 里会先校验 passwordAuth.identityFields 引用的字段
+  // 是否已存在，再应用 fields 变更 —— 合并提交必然报
+  // `validation_missing_field: Invalid or missing field username`（2026-11-01 线上实测）。
   if (!hasUsernameField) {
-    patch.fields = [
-      ...fields,
-      {
-        name: 'username',
-        type: 'text',
-        required: false,
-        presentable: true,
-        unique: true,
-        options: { min: IDENTITY_MIN, max: IDENTITY_MAX, pattern: '^[A-Za-z0-9_][A-Za-z0-9_.-]*$' },
-      },
-    ]
+    const addField = await fetchImpl(`${base}/api/collections/users`, {
+      method: 'PATCH',
+      headers: { authorization: auth, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        fields: [
+          ...fields,
+          {
+            name: 'username',
+            type: 'text',
+            required: false,
+            presentable: true,
+            unique: true,
+            options: { min: IDENTITY_MIN, max: IDENTITY_MAX, pattern: '^[A-Za-z0-9_][A-Za-z0-9_.-]*$' },
+          },
+        ],
+      }),
+      signal: AbortSignal.timeout(STATUS_TIMEOUT_MS),
+    })
+    if (!addField.ok) {
+      const body = await addField.json().catch(() => ({}))
+      throw new Error(pbErrorMessage(body, `为 users 添加 username 字段失败（HTTP ${addField.status}）`))
+    }
   }
+
+  const patch = { passwordAuth: { enabled: true, identityFields: next } }
   const patched = await fetchImpl(`${base}/api/collections/users`, {
     method: 'PATCH',
     headers: { authorization: auth, 'content-type': 'application/json' },
