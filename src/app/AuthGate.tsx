@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { Button, Card } from '@/design-system/ui'
+import { isServerFirstWeb } from '@/platform/env'
 
 /**
  * 登录守卫 + 强制首改（2026-10-28 第 1 步）。
@@ -24,9 +25,13 @@ import { Button, Card } from '@/design-system/ui'
  * 所以不存在「页面自己决定要不要初始化」的两份实现。
  */
 
-const TOKEN_KEY = 'workhub.auth.token'
-const IDENTITY_KEY = 'workhub.auth.identity'
-const USERID_KEY = 'workhub.auth.userid'
+// 键名与读取口收口在 shared/authToken（服务端唯一真源的写入适配器也要读同一份 token）
+import {
+  AUTH_TOKEN_KEY as TOKEN_KEY,
+  AUTH_IDENTITY_KEY as IDENTITY_KEY,
+  AUTH_USERID_KEY as USERID_KEY,
+  getAuthToken as readAuthToken,
+} from '@/shared/authToken'
 
 /** 供后续步骤（同步身份、relay 自动配对）复用 */
 /**
@@ -44,11 +49,7 @@ function toIdentity(raw: string): string {
 }
 
 export function getAuthToken(): string {
-  try {
-    return localStorage.getItem(TOKEN_KEY) ?? ''
-  } catch {
-    return ''
-  }
+  return readAuthToken()
 }
 
 export function clearAuth(): void {
@@ -96,6 +97,19 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const [setupConfirm, setSetupConfirm] = useState('')
   const [setupError, setSetupError] = useState('')
   const [setupBusy, setSetupBusy] = useState(false)
+
+  /**
+   * 放行后立刻以服务端为准对齐一次（2026-11-03，配合「服务端唯一真源」）。
+   *
+   * 为什么不在启动时对齐：这一步需要 token，而 token 只在登录成功后才有。
+   * 动态 import 是为了不让登录页静态依赖存储/同步层（未登录时根本用不上）。
+   */
+  useEffect(() => {
+    if (phase !== 'open' || !isServerFirstWeb()) return
+    void import('@/sync/convergeFromServer')
+      .then((m) => m.convergeFromServer())
+      .catch((err) => console.warn('[server-first] 登录后对齐失败', err))
+  }, [phase])
 
   useEffect(() => {
     let cancelled = false

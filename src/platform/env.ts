@@ -29,3 +29,16 @@ export function isTauri(): boolean {
 export function isWeb(): boolean {
   return !isTauri()
 }
+
+/**
+ * 「服务端唯一真源」模式：**生产构建 + 浏览器**（2026-11-03 用户裁决）。
+ *
+ * 语义：Web 版就是服务器上的那一套 —— 写直达 PocketBase、启动以服务端为准全量对齐、
+ * 不做离线兜底（离线由桌面端承担）。桌面端与开发服务器仍走本地库 + 同步队列。
+ *
+ * 为什么用 `import.meta.env.PROD` 而不是域名判断：开发服务器必须能跑种子与假数据，
+ * 而正式产物只有一种身份。测试（vitest）里 PROD 为 false，故既有用例全部走 Dexie 路径。
+ */
+export function isServerFirstWeb(): boolean {
+  return import.meta.env.PROD && !isTauri()
+}

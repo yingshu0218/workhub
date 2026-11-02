@@ -11,6 +11,7 @@ import { pbPing, isSyncConfigured, enqueueAllForPush } from '@/sync/pocketbaseAd
 import { syncEngine } from '@/sync/engine'
 import { useSyncStore } from '@/sync/store'
 import { deriveSyncBadge, SYNC_TONE_TEXT_CLASS } from '@/sync/badge'
+import { isServerFirstWeb } from '@/platform/env'
 // 共享基础件已抽到 ./settingsUi（审计 C-7/C-10）：Section/Toggle/Segmented/SkinThumb + toCsv/blobToDataUrl
 import { Section, SkinThumb } from './settingsUi'
 import { NotificationsTab } from './NotificationsTab'
@@ -37,6 +38,59 @@ const TABS = [
 ] as const
 
 type TabId = (typeof TABS)[number]['id']
+
+/**
+ * 「服务端唯一真源」模式下的同步卡片（2026-11-03）。
+ *
+ * 为什么不复用原来的同步中心表单：那一整套（服务器地址 / 同步账号 / 全量推送）描述的是
+ * 「本地库 + 手动接中心」的旧模型。Web 生产的真源就是当前站点，既没有第二个地址要填，
+ * 也没有「待推送」可推 —— 留着只会让人以为数据还在本地兜着。
+ */
+function ServerFirstSyncCard() {
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+
+  const realign = async () => {
+    setBusy(true)
+    setMsg(null)
+    try {
+      // 动态 import：对齐模块会把 Dexie + 同步协议拖进来，设置页首屏不需要它
+      const { convergeFromServer } = await import('@/sync/convergeFromServer')
+      const r = await convergeFromServer()
+      setMsg(`已按服务器重建：写入 ${r.upserted} 条、清理本地多余 ${r.removed} 条`)
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : '对齐失败')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="anim-enter space-y-4">
+      <Section
+        icon="cloud_done"
+        title="数据在服务器上"
+        desc="Web 版直接读写当前站点的 PocketBase；浏览器不保存离线副本，断网时无法读写（离线请用桌面客户端）"
+        badge="服务端唯一真源"
+      >
+        <div className="flex items-center gap-4 surface-card-low rounded-xl/60 px-5 py-4">
+          <div className="flex-1">
+            <div className="text-[0.9643rem] font-semibold">以服务器为准重新对齐</div>
+            <div className="mt-0.5 text-[0.8214rem] leading-relaxed text-on-surface-variant">
+              丢弃浏览器镜像里的残留，按服务器现有数据重建。页面每 60 秒也会自动对齐一次。
+            </div>
+            {msg && (
+              <div className="mt-2 text-[0.8214rem] leading-relaxed text-on-surface-variant">{msg}</div>
+            )}
+          </div>
+          <Button size="sm" variant="ghost" onClick={realign} disabled={busy}>
+            {busy ? '对齐中…' : '重新对齐'}
+          </Button>
+        </div>
+      </Section>
+    </div>
+  )
+}
 
 export default function SettingsPage() {
   const navigate = useNavigate()
@@ -403,7 +457,9 @@ export default function SettingsPage() {
       {tab === 'notifications' && <NotificationsTab settings={settings} save={save} />}
 
       {/* ── 云端同步 ── */}
-      {tab === 'sync' && syncForm && (
+      {/* 服务端唯一真源（Web 生产）：没有要填的地址与账号，只有「以服务器为准对齐」 */}
+      {tab === 'sync' && isServerFirstWeb() && <ServerFirstSyncCard />}
+      {tab === 'sync' && syncForm && !isServerFirstWeb() && (
         <div className="anim-enter space-y-4">
           <Section
             icon="cloud_sync"

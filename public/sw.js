@@ -8,8 +8,20 @@
  * 版本：缓存名随发布 bump（nexus-static-vN），activate 时清理旧缓存；
  * SW 文件更新会触发 install → skipWaiting → clients.claim 的自动接管。
  */
-const CACHE = 'nexus-static-v2'
+const CACHE = 'nexus-static-v3'
 const PRECACHE = ['/', '/index.html', '/favicon.svg', '/manifest.webmanifest']
+
+/** 断网导航的提示页（不再回退缓存壳：见 fetch 里的注释） */
+const OFFLINE_HTML = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>无法连接服务器</title>
+<style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
+background:#f8f9ff;color:#191c23;font:14px/1.7 Inter,"Noto Sans SC",system-ui,sans-serif}
+main{max-width:420px;padding:32px;text-align:center}h1{font-size:18px;margin:0 0 8px}
+p{margin:0;color:#5a6070}</style></head><body><main>
+<h1>无法连接服务器</h1>
+<p>工作台的数据在服务器上，需要联网打开。请检查网络后重试。</p>
+</main></body></html>`
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -38,16 +50,19 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // 页面导航：network-first，失败回退缓存壳
+  // 页面导航：**只走网络**（2026-11-03 起 Web 端不做离线兜底）
+  // 旧行为是失败回退缓存壳 → 断网也能打开旧页面、再读本地库 → 出现「服务器是空的、
+  // 页面却是满的」这种自相矛盾的状态。服务端唯一真源下页面必须在线打开；
+  // 断网就直说打不开，不装作能用（离线场景由桌面端承担）。
   if (req.mode === 'navigate') {
     event.respondWith(
-      fetch(req)
-        .then((res) => {
-          const copy = res.clone()
-          void caches.open(CACHE).then((c) => c.put('/index.html', copy))
-          return res
-        })
-        .catch(() => caches.match('/index.html')),
+      fetch(req).catch(
+        () =>
+          new Response(OFFLINE_HTML, {
+            status: 503,
+            headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' },
+          }),
+      ),
     )
     return
   }

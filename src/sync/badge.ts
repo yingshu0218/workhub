@@ -35,6 +35,13 @@ export interface SyncBadgeInput {
   serverUrl: string
   /** 注入「现在」以便相对时间可测 */
   now: number
+  /**
+   * 数据模式（2026-11-03）：`server` = 服务端唯一真源（Web 生产版）。
+   *
+   * 为什么要单列：server 模式下浏览器**没有**独立的本地库，把徽章继续写成
+   * 「仅本机／待推送 N 条」是在描述一个不存在的东西 —— 用户会据此以为数据还在本地兜着。
+   */
+  mode?: 'local' | 'server'
 }
 
 export interface SyncBadgeView {
@@ -60,6 +67,20 @@ export function describeLastSync(lastSyncAt: number | null, now: number): string
 
 function buildTitle(i: SyncBadgeInput): string {
   const lines: string[] = []
+  if (i.mode === 'server') {
+    // server 模式没有「同步中心」这回事：本页与服务器同源，数据就在服务器上
+    lines.push('数据位置：当前站点服务器（本页不留离线副本）')
+    lines.push(
+      i.reachability === 'online'
+        ? '连接状态：已连接'
+        : i.reachability === 'offline'
+          ? '连接状态：无法连接（断网时页面无法读写）'
+          : '连接状态：检测中',
+    )
+    if (i.lastSyncAt) lines.push(`上次对齐：${describeLastSync(i.lastSyncAt, i.now)}`)
+    if (i.lastError) lines.push(`最近错误：${i.lastError}`)
+    return lines.join('\n')
+  }
   if (i.target === 'none') {
     lines.push('同步中心：未配置（数据只保存在本机）')
   } else {
@@ -90,6 +111,32 @@ function buildTitle(i: SyncBadgeInput): string {
  */
 export function deriveSyncBadge(i: SyncBadgeInput): SyncBadgeView {
   const title = buildTitle(i)
+
+  // server 模式（Web 生产）：先判连通性，再谈「同步」——这里根本没有本地副本可推
+  if (i.mode === 'server') {
+    if (i.reachability === 'offline') {
+      return {
+        tone: 'red',
+        icon: 'cloud_off',
+        label: '无法连接',
+        summary: '无法连接服务器：读取与保存都不可用',
+        title,
+      }
+    }
+    if (i.reachability === 'unknown' || i.reachability === 'checking') {
+      return { tone: 'gray', icon: 'progress_activity', label: '检测连接…', summary: '正在检测服务器…', title }
+    }
+    if (i.status === 'syncing') {
+      return { tone: 'blue', icon: 'sync', label: '对齐中', summary: '正在与服务器对齐数据…', title }
+    }
+    return {
+      tone: 'green',
+      icon: 'cloud_done',
+      label: '服务器',
+      summary: '数据在服务器上（本页不保存离线副本）',
+      title,
+    }
+  }
 
   if (i.status === 'syncing') {
     return { tone: 'blue', icon: 'sync', label: '同步中', summary: '正在与同步中心交换数据…', title }

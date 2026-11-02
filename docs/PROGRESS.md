@@ -4,7 +4,20 @@
 >
 > ⚠️ **环境口径（读下面历史轮次前必看）**：**测试环境已于 2026-10-31 下线** —— devtest 上的 `/opt/pocketbase`、systemd 单元、nginx 9001 站点与备份**全部删除**，`npm run deploy` 那条源码部署通道**不再存在**；**当前唯一环境 = 正式站 `https://team.fpigeon.fun`**（CNB 出镜像 → 服务器 `docker compose pull && up -d`）。域名 **`dev.fpigeon.fun` 已作废**（2026-10-09 全仓清理）——**本文正文中凡出现该域名，一律是历史轮次记述，不代表当前环境**。权威口径见 `docs/开发测试环境说明.md`。
 
-**最后更新**：2026-11-02（**认证口径复核与收尾**：用户名退成展示字段）
+**最后更新**：2026-11-03（**Web 端改为「服务端唯一真源」：浏览器不再持有第二份真源**）
+**背景（正式站实况）**：镜像部署后服务端 8 个业务集合全 0，浏览器打开却仍是 ¥18.5 万演示数据。根因是 Local-First 下浏览器本地库**本身就是一份真源**，同步只做 LWW 合并、从不删除本地多余行，于是「服务器被清空」在页面上不可见，两端都以为对方错。用户裁决：**Web 版就是服务器上的那一套；离线由桌面端承担，Web 不做离线兜底。**
+**① 写入直达 PB**：新增 `storage/serverFirst.ts`（`createServerFirstAdapter`）—— `put/update/delete` 先打 PocketBase，**服务端成功后才落 Dexie**（Dexie 从此只是镜像）；`enqueue` 变 no-op（没有队列，也就没有「攒着等同步」的窗口）。被 LWW 判为过期或远端是墓碑时**不写镜像**，2s 去抖触发一次对齐，让镜像跟随服务端。
+**② 启动与周期全量对齐**：新增 `sync/convergeFromServer.ts` —— 逐表拉服务端全量，**远端没有的本地行物理删除**；远端有的行**先删本地再 `mergeRemoteRecord`**（必然走「新建」分支 ⇒ 绕开 LWW 的「本地更新则不覆盖」，实现远端必胜）。复用既有归一化，不自写第二套（json 三形态、墓碑、localId 还原、link 派生都在那里）。`attachments` 一并纳入，但**内容没变就跳过重下**（比对 `updatedAt` + 本地是否已有文件）——否则每 60 秒把所有附件重下一遍。
+**③ 只对 Web 生产生效**：`platform/env.ts#isServerFirstWeb()` = `import.meta.env.PROD && !isTauri()`。`main.tsx` 覆盖适配器注册，并跳过 seed / backfillDemoRelations / `autoConfigureSameOriginSync` / `syncEngine.start`；`AuthGate` 放行后动态 import 对齐一次（token 只有登录后才有，启动时对齐必然失败）。**桌面端与 dev 完全不变**。
+**④ 摘掉 Web 的离线壳**：`public/sw.js` 导航从「network-first + 回退缓存 `index.html`」改为**只走网络**，断网返回 503 提示页；缓存名 bump 到 `nexus-static-v3`。旧行为是断网也能打开旧页面、再读本地库 —— 正是这次事故的复现路径。
+**⑤ token 键收口**：新增 `shared/authToken.ts`（`AuthGate` 与服务端直连适配器共用同一份键与读取口），避免存储层反向依赖 React 组件。
+**⑥ 徽章改说人话**：`sync/badge.ts` 增加 `mode: 'server'` 分支 —— Web 生产显示「服务器／无法连接／对齐中」，不再出现「仅本机／待推送 N 条」这种描述不存在对象的文案；`AppLayout` 按 `isServerFirstWeb()` 传 mode。
+**⑦ 设置页换掉旧的同步表单**：server-first 下「云端同步」页签改为一张卡片（数据在服务器上 + 「以服务器为准重新对齐」按钮），隐藏服务器地址/同步账号/全量推送 —— 那套是「本地库 + 手动接中心」的旧模型。
+**⑧ 补齐用例**：新增 `storage/__tests__/serverFirst.test.ts`（8 条）+ `sync/__tests__/convergeFromServer.test.ts`（5 条），锁住「先服务端后镜像／跳过不写镜像／失败抛错不落库／本地专属表不上行／远端必胜／附件未变不重下／未登录抛错」。⚠️ 两个坑记下来：① 测试里**不能 `vi.mock('@/sync/pocketbaseAdapter')`**（会把同模块其他导出抹成 undefined 拖挂并发用例），改用依赖注入；② **fake-indexeddb 不能可靠往返 Blob**，附件用例用「有 `size` 的对象」这个最小等价形状，实现侧的判据也据此写成鸭子类型（不用 `instanceof Blob`，跨 realm 会假阴性）。
+> **本轮验证**：`npx tsc -b` 与 `eslint` 干净；新增 13 条用例全过；`writeThroughStorage` + `authGate.test.tsx` 通过；`npm run check:all` **全绿 —— 1136 passed / 0 failed / 7 skipped（140 个文件）**，较上轮 +13 条。
+⚠️ **仍待办**：`docs/多端App改造方案-Tauri.md` 里「桌面端是否要连服务器」还没定（当前按纯本地实现）；server-first 只覆盖业务表，`focusSessions`／`trashBatches` 仍是纯本地（设计如此，不参与对齐）。
+
+**上一轮**：2026-11-02（**认证口径复核与收尾**：用户名退成展示字段）
 **范围**：接下面的「首启自助注册」，只补测试锁、统一文档口径、清理旧脚本，不新增功能。
 **① 首启请求必须传原始用户名**：`/setup/user` 收用户输入，后端校验「不能含 @」并自行拼 `<用户名>@workhub.local`；只有登录端做映射（`AuthGate.toIdentity`）。`authGate.test.tsx` 补了请求体断言 —— 此前误传映射值也能全绿（已做变异校验：还原旧写法该用例变红）。
 **② username 退成可选展示字段**：`passwordAuth.identityFields` 固定只有 `email`（0.40 文本字段无 UNIQUE，加 username 必被拒）；首启只 best-effort 补字段，**补不上就不往建号请求里带**（否则 PB 以未知字段 400，首启锁死）。旧的 `patch:users-auth` 脚本与 npm 命令已删除，已有部署无需任何 patch。

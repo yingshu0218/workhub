@@ -17,9 +17,24 @@ import { installKeyboardListener } from './shared/shortcuts'
 import { installModuleEffects } from './shared/effects'
 import { installAgentBridge } from './agent/install'
 import { IdentityProvider } from './modules/identity'
-import { isTauri } from './platform/env'
+import { isTauri, isServerFirstWeb } from './platform/env'
+import { setStorageAdapter } from './storage'
+import { createServerFirstAdapter } from './storage/serverFirst'
+import { convergeFromServer, startServerFirstLoop, stopServerFirstLoop } from './sync/convergeFromServer'
 
 dayjs.locale('zh-cn')
+
+/**
+ * 服务端唯一真源（2026-11-03 用户裁决）：Web 生产环境把写入适配器换成「直写 PB」。
+ *
+ * ⚠️ 必须在模块体里换、且晚于 `./storage/browser` 的副作用注册（import 提升保证顺序）：
+ * 早于任何 `storage.*` 调用，晚于 Dexie 注册，才能「覆盖」而不是「未注册」。
+ */
+const SERVER_FIRST = isServerFirstWeb()
+if (SERVER_FIRST) {
+  setStorageAdapter(createServerFirstAdapter())
+  console.info('[server-first] Web 端启用「服务端唯一真源」：写直达 PocketBase，本地仅镜像')
+}
 
 function Bootstrap() {
   useEffect(() => {
@@ -33,7 +48,7 @@ function Bootstrap() {
     // `seedIfEmpty()` 的判据只有「customers 为空」——生产里跑它，等于每次清库都被灌回来，
     // 正式站永远回不到空库。注意：后面的存量兜底与同源自动同步在所有环境都要跑，
     // 所以只把 seed 这一步换成 dev 分支，不要把整条链塞进 if。
-    const seeding = import.meta.env.DEV ? seedIfEmpty() : Promise.resolve(false)
+    const seeding = !SERVER_FIRST && import.meta.env.DEV ? seedIfEmpty() : Promise.resolve(false)
     void seeding
       .then((seeded) => {
         if (seeded) console.info('[seed] 演示数据写入完成')
@@ -63,7 +78,7 @@ function Bootstrap() {
       // 同源自动同步（2026-10-15 用户拍板）：Web 版与 PB 同源部署时打开即自动启用。
       // ⚠️ 必须挂在 seed 链尾部——2026-10-16 实测：与 seed 并发时 settings 未建档，
       // autoConfigure 永远早退 → 用户停在「仅本机」看不到服务端数据。
-      .then(() => autoConfigureSameOriginSync())
+      .then(() => (SERVER_FIRST ? false : autoConfigureSameOriginSync()))
       .then((configured) => {
         if (configured) {
           console.info('[sync] 检测到同源 PocketBase，已自动启用同步')
@@ -78,7 +93,17 @@ function Bootstrap() {
         }
       })
       .catch((err) => console.warn('[sync] 同源自动同步检测失败（本地模式照常）', err))
-    syncEngine.start()
+    if (SERVER_FIRST) {
+      // 服务端唯一真源：没有队列、没有 LWW，改为「启动对齐 + 周期对齐」（convergeFromServer）
+      void convergeFromServer()
+        .then((r) =>
+          console.info(`[server-first] 已与服务端对齐：写入 ${r.upserted} 条、清理 ${r.removed} 条`),
+        )
+        .catch((err) => console.warn('[server-first] 首轮对齐失败（未登录/未连通，登录后自动重试）', err))
+      startServerFirstLoop()
+    } else {
+      syncEngine.start()
+    }
     installKeyboardListener()
     installModuleEffects()
     // AI Agent 桥：按 settings `ai` 段决定是否连出本地 relay（缺省关，零影响）
@@ -103,6 +128,7 @@ function Bootstrap() {
       else window.addEventListener('load', registerSW, { once: true })
     }
     return () => {
+      stopServerFirstLoop()
       syncEngine.stop()
       disposeBridge?.()
     }

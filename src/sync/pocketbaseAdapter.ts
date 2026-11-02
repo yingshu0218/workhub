@@ -1,5 +1,6 @@
 import { db } from '@/db/db'
 import { storage } from '@/storage'
+import { getAuthToken } from '@/shared/authToken'
 import type { Settings } from '@/db/types'
 import { DEFAULT_SETTINGS } from '@/db/types'
 import { SETTINGS_KEY } from '@/db/types'
@@ -883,4 +884,74 @@ export async function forgetTombstoneMarks(
   for (const { table, recordId } of entries) {
     await db.meta.delete(tombstonePushedKey(table, recordId))
   }
+}
+
+// ─────────────────────── 服务端唯一真源：Web 端直连读写（2026-11-03） ───────────────────────
+//
+// 背景（用户 2026-11-03 裁决）：Web 版就是「服务器上的那一套」，浏览器副本只是镜像缓存，
+// 不是第二份真源。因此 Web 生产环境不再走「本地先写 + 队列后推 + LWW 合并」，
+// 而是**写直达 PB、读由镜像兜住、启动以服务端为准全量对齐**：
+//   - 写：`upsertRemoteRecord` / `deleteRemoteRecord`（服务端成功才落镜像）
+//   - 对齐：`convergeFromServer()`（先删本地再按远端重建 ⇒ 远端必胜）
+//   - 不再需要离线队列：断网时写入直接失败并抛错，这是「Web 端不做离线」的应有行为
+// 桌面端（Tauri）保持纯本地，不经过这里。
+
+/**
+ * 服务端唯一真源模式下的连接配置：**同源 + 页面会话 token**。
+ *
+ * 为什么不复用 `settings.sync.*`：那套是「同步账号」，与页面登录是两套凭据
+ * （2026-11-03 之前因此出现「能登录但写不进服务端」）。Web 端既然与 PB 同源，
+ * 直接用当前会话 token 即可，不引入第二份账号。
+ */
+export function serverFirstCfg(): SyncSettingsView {
+  return {
+    serverUrl: typeof location !== 'undefined' ? location.origin : '',
+    username: '',
+    password: '',
+    token: getAuthToken(),
+    tokenUserId: '',
+  }
+}
+
+/** 该表是否参与同步（服务端有同名/映射集合）；本地专属表（settings/focusSessions…）不推 */
+export function isSyncedTable(table: string): boolean {
+  return SYNC_TABLE_SET.has(table)
+}
+
+/** 拉某集合全量（对齐用；分页与终止条件沿用 pbListAll 的既有实现） */
+export async function listRemoteAll(table: string): Promise<PbRecord[]> {
+  const cfg = serverFirstCfg()
+  return pbListAll(cfg, table, '')
+}
+
+/**
+ * 单条直写服务端。
+ *
+ * 返回 `written` 表示已落服务端；`skipped` 表示本轮被 LWW 判为过期（远端更新）或远端是墓碑——
+ * 调用方据此**不要**把本地值写进镜像，改为触发一次对齐，让镜像跟随服务端。
+ */
+export async function upsertRemoteRecord(
+  table: string,
+  rec: Record<string, unknown> & { id: string },
+): Promise<'written' | 'skipped'> {
+  const cfg = serverFirstCfg()
+  const outcome = await pbUpsert(cfg, table, rec)
+  return outcome.outcome === 'written' ? 'written' : 'skipped'
+}
+
+/** 单条物理删除服务端（墓碑收敛后的清理与直删共用；404 视为已删） */
+export async function deleteRemoteRecord(table: string, localId: string): Promise<void> {
+  const cfg = serverFirstCfg()
+  await pbDeleteRemote(cfg, table, localId)
+}
+
+/**
+ * 对齐时下载附件 Blob（委托同步侧的既有下载实现，避免第二套文件 URL 拼接）。
+ *
+ * 为什么要暴露出来：`mergeRemoteRecord` 对 attachments 表要求一个 `AttachmentBlobLoader`，
+ * 不传就只能拿到元数据（列表可见、点开打不开）。对齐是「按服务端重建」，必须把文件也带上。
+ */
+export async function fetchAttachmentBlob(remote: PbRecord): Promise<Blob | undefined> {
+  const cfg = serverFirstCfg()
+  return downloadAttachmentFile(cfg, remote)
 }

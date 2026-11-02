@@ -4,6 +4,7 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { Avatar, Chip } from '@/design-system/ui'
 import { useSyncStore } from '@/sync/store'
 import { deriveSyncBadge } from '@/sync/badge'
+import { isServerFirstWeb } from '@/platform/env'
 import { registerShortcut } from '@/shared/shortcuts'
 import CommandPalette from './CommandPalette'
 import MobileTabBar from './MobileTabBar'
@@ -105,6 +106,8 @@ function SyncBadge() {
     lastError,
     serverUrl,
     now: Date.now(),
+    // Web 生产 = 服务端唯一真源：徽章讲「服务器/断线」，不讲「仅本机/待推送」
+    mode: isServerFirstWeb() ? 'server' : 'local',
   })
   return (
     <span title={view.title} className="cursor-default">
