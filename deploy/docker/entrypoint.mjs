@@ -130,9 +130,10 @@ async function ensureAppUser() {
   try {
     const token = await pbToken()
     const headers = { authorization: token, 'content-type': 'application/json' }
-    const email = user.includes('@') ? user : `${user}@workhub.local`
     // 只按 email 查：username 只是展示字段，老库/新库都可能还没有这个字段 ——
     // 把它写进 filter 会因 unknown field 直接 400，表现成「应用管理员创建失败」。
+    // 占位邮箱统一小写，与 AuthGate.toIdentity / setupRoutes.parseSetupInput 同一规则。
+    const email = user.includes('@') ? user : `${user.toLowerCase()}@workhub.local`
     const filter = encodeURIComponent(`email = "${email}"`)
     const res = await fetch(`http://${PB_HTTP}/api/collections/users/records?perPage=1&filter=${filter}`, { headers })
     const list = await res.json().catch(() => ({}))

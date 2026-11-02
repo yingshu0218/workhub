@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
-import { Card } from '@/design-system/ui'
+import { Button, Card } from '@/design-system/ui'
 
 /**
  * 登录守卫 + 强制首改（2026-10-28 第 1 步）。
@@ -37,7 +37,10 @@ const USERID_KEY = 'workhub.auth.userid'
  */
 function toIdentity(raw: string): string {
   const v = raw.trim()
-  return v.includes('@') ? v : `${v}@workhub.local`
+  // 用户名映射出的占位邮箱统一小写：PB 0.40 不会归一化邮箱大小写（实测 "Alice@..." 与
+  // "alice@..." 是两个值），不统一规则会让「注册时大写、登录时小写」直接认证失败。
+  // 含 @ 的真实邮箱原样保留，避免动到既有账号。
+  return v.includes('@') ? v : `${v.toLowerCase()}@workhub.local`
 }
 
 export function getAuthToken(): string {
@@ -311,8 +314,6 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const label = 'mt-3 block text-[0.8214rem] font-medium text-on-surface-variant'
   const input =
     'mt-1 w-full rounded-lg border border-outline-variant bg-surface px-3 py-2 text-[0.9286rem] text-on-surface'
-  const primary =
-    'mt-4 w-full rounded-lg bg-primary px-4 py-2 text-[0.9286rem] font-medium text-on-primary disabled:opacity-50'
 
   if (phase === 'checking') {
     return (
@@ -368,12 +369,11 @@ export function AuthGate({ children }: { children: ReactNode }) {
               </p>
             )}
 
-            {/* 与登录 / 改密表单保持同一写法：原生 <button type="submit">。
-                设计系统的 Button 不透传 type —— HTML 缺省虽然是 submit，但提交意图只能靠默认值；
-                这里显式声明，避免日后给 Button 补默认 type="button" 时静默失效。 */}
-            <button type="submit" className={primary} disabled={setupBusy || !setupIdentity.trim() || !setupPw || !setupConfirm}>
+            {/* 必须显式 type="submit"：Button 刻意不设默认 type（缺省值虽是 submit，
+                但依赖默认值会让「点了没反应」这类故障极难排查）。 */}
+            <Button type="submit" className="mt-4 w-full justify-center" disabled={setupBusy || !setupIdentity.trim() || !setupPw || !setupConfirm}>
               {setupBusy ? '创建中…' : '创建并进入'}
-            </button>
+            </Button>
           </form>
         </Card>
       </div>
@@ -410,9 +410,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
           {error && <p className="mt-3 text-[0.8214rem] text-error">{error}</p>}
 
-          <button type="submit" disabled={busy || !identity.trim() || !password} className={primary}>
+          <Button type="submit" disabled={busy || !identity.trim() || !password} className="mt-4 w-full justify-center">
             {busy ? '登录中…' : '登录'}
-          </button>
+          </Button>
         </form>
       </div>
     )
@@ -461,9 +461,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
           {error && <p className="mt-3 text-[0.8214rem] text-error">{error}</p>}
 
-          <button type="submit" disabled={busy || !password || !newPw || !confirmPw} className={primary}>
+          <Button type="submit" disabled={busy || !password || !newPw || !confirmPw} className="mt-4 w-full justify-center">
             {busy ? '提交中…' : '设置并进入'}
-          </button>
+          </Button>
         </form>
       </div>
     )

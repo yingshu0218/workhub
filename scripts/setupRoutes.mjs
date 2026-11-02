@@ -65,7 +65,9 @@ export function parseSetupInput(body) {
 
   // 没给邮箱时按容器既有约定合成一个占位邮箱：PB 的 auth 集合要求 email 必填，
   // 而登录 identity 走 username，占位邮箱只是为了让记录能落库。
-  return { identity, password, email: email || `${identity}@workhub.local` }
+  // ⚠️ 占位邮箱必须与登录端（`AuthGate.toIdentity`）用同一套小写规则：PB 0.40 不归一化
+  // 邮箱大小写，否则「注册 Alice、登录 alice」会直接认证失败。username 保留用户输入（展示用）。
+  return { identity, password, email: email || `${identity.toLowerCase()}@workhub.local` }
 }
 
 /** 把 PB 的 400 摊平成一句人话（保留原始 message，不吞原因） */

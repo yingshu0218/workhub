@@ -144,21 +144,22 @@ describe('AuthGate', () => {
     )
     await waitFor(() => expect(screen.getByText('初始化工作台')).toBeTruthy())
 
-    await userEvent.type(screen.getByLabelText('用户名'), 'alice')
+    await userEvent.type(screen.getByLabelText('用户名'), 'Alice')
     await userEvent.type(screen.getByLabelText('密码（至少 8 位）'), 'password1')
     await userEvent.type(screen.getByLabelText('确认密码'), 'password1')
     await userEvent.click(screen.getByRole('button', { name: '创建并进入' }))
 
     await waitFor(() => expect(screen.getByText('业务页面')).toBeTruthy())
     expect(localStorage.getItem('workhub.auth.token')).toBe('fresh-token')
-    expect(localStorage.getItem('workhub.auth.identity')).toBe('alice')
+    expect(localStorage.getItem('workhub.auth.identity')).toBe('Alice')
     // ⚠️ /setup/user 必须收到**原始用户名**：后端会校验「不能含 @」再自己拼占位邮箱。
     // 这条断言不能省 —— 曾经误传 toIdentity(user) 时，下面的登录断言照样是全绿的。
     const setupCall = fetchFn.mock.calls.find(([url]) => String(url).includes('/setup/user'))
-    expect(JSON.parse(String(setupCall?.[1]?.body))).toEqual({ identity: 'alice', password: 'password1' })
+    expect(JSON.parse(String(setupCall?.[1]?.body))).toEqual({ identity: 'Alice', password: 'password1' })
     const loginCall = fetchFn.mock.calls.find(([url]) => String(url).includes('auth-with-password'))
     // 用户名在登录时被映射成 <用户名>@workhub.local：PB 的 auth 标识仍是 email，
-    // 用户侧无感（只填 gundam23 这类用户名即可）
+    // 用户侧无感（只填 gundam23 这类用户名即可）。占位邮箱统一小写，
+    // 否则注册 Alice、登录 alice 会认证失败（PB 0.40 不归一化邮箱大小写）。
     expect(JSON.parse(String(loginCall?.[1]?.body))).toEqual({
       identity: 'alice@workhub.local',
       password: 'password1',

@@ -215,8 +215,10 @@ describe('待办列表行点击 → 详情抽屉（Issue #162）', () => {
     // 深链语义就是「定位到这一条」：直接打开详情，正文全文可见
     expect(await screen.findByText('待办详情')).toBeTruthy()
     expect(await waitDrawerBody()).toBeTruthy()
-    // 消费后清参数，避免返回/刷新重复触发
-    expect(document.querySelector('[data-testid=loc]')?.textContent).toBe('/todo')
+    // 消费后清参数，避免返回/刷新重复触发。
+    // ⚠️ 清参是路由导航，落到 DOM 上晚于抽屉回填；直接同步断言会在全量并发下假红
+    // （单跑必过、CI 偶发）。必须等导航落地。
+    await waitFor(() => expect(document.querySelector('[data-testid=loc]')?.textContent).toBe('/todo'))
   })
 
   it('⑨ 深链指向已完成条目 → 切「已完成」视图并直达详情', async () => {

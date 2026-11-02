@@ -80,6 +80,16 @@ describe('setupRoutes.parseSetupInput', () => {
       email: 'alice@workhub.local',
     })
   })
+
+  it('大写用户名：占位邮箱归一化小写，username 保留原样', () => {
+    // PB 0.40 不归一化邮箱大小写；登录端 toIdentity 也按小写映射，两边必须一致，
+    // 否则「注册 Alice、登录 alice」会认证失败（2026-11-02 真机实测）。
+    expect(parseSetupInput({ identity: 'Alice', password: 'password1' })).toEqual({
+      identity: 'Alice',
+      password: 'password1',
+      email: 'alice@workhub.local',
+    })
+  })
 })
 
 describe('setupRoutes.createUser', () => {

@@ -173,6 +173,7 @@ export function Button({
   onClick,
   className = '',
   disabled,
+  type,
 }: {
   children?: ReactNode
   variant?: 'primary' | 'ghost' | 'tonal' | 'danger'
@@ -182,6 +183,11 @@ export function Button({
   onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void
   className?: string
   disabled?: boolean
+  /**
+   * 表单提交必须显式传 `submit`。刻意**不设默认值**：`<button>` 缺省在表单内就是 submit，
+   * 若这里默认成 button，会把现有依赖默认行为的表单静默改坏。
+   */
+  type?: 'button' | 'submit' | 'reset'
 }) {
   const base =
     // ⚠️ 刻意**不写** `transition-colors`：`.press` 是无层级声明，它的 transition
@@ -200,6 +206,7 @@ export function Button({
       className={`${base} ${sizes} ${variants} ${className}`}
       onClick={onClick}
       disabled={disabled}
+      type={type}
     >
       {icon && <Icon name={icon} size={18} />}
       {children}
