@@ -20,7 +20,7 @@ import { IdentityProvider } from './modules/identity'
 import { isTauri, isServerFirstWeb } from './platform/env'
 import { setStorageAdapter } from './storage'
 import { createServerFirstAdapter } from './storage/serverFirst'
-import { convergeFromServer, startServerFirstLoop, stopServerFirstLoop } from './sync/convergeFromServer'
+import { runConverge, startServerFirstLoop, stopServerFirstLoop } from './sync/convergeFromServer'
 
 dayjs.locale('zh-cn')
 
@@ -95,7 +95,7 @@ function Bootstrap() {
       .catch((err) => console.warn('[sync] 同源自动同步检测失败（本地模式照常）', err))
     if (SERVER_FIRST) {
       // 服务端唯一真源：没有队列、没有 LWW，改为「启动对齐 + 周期对齐」（convergeFromServer）
-      void convergeFromServer()
+      void runConverge()
         .then((r) =>
           console.info(`[server-first] 已与服务端对齐：写入 ${r.upserted} 条、清理 ${r.removed} 条`),
         )

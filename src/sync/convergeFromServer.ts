@@ -1,6 +1,8 @@
 import { db } from '@/db/db'
 import { buildPendingUpsertIndex, mergeRemoteRecord } from '@/sync/mergeRemote'
 import { SYNC_TABLES } from '@/sync/remoteNormalize'
+import { classifySyncTarget } from '@/sync/connectivity'
+import { useSyncStore } from '@/sync/store'
 import { fetchAttachmentBlob, listRemoteAll, serverFirstCfg } from '@/sync/pocketbaseAdapter'
 import { installConvergeRunner } from '@/storage/serverFirst'
 
@@ -155,16 +157,60 @@ export async function convergeFromServer(
 let loopTimer: ReturnType<typeof setInterval> | undefined
 
 /**
+ * 带状态上报的对齐——**生产路径一律走这个**，不要直接调 `convergeFromServer`。
+ *
+ * 为什么必须包一层：server-first 模式下同步引擎没启动（没有队列、没有心跳），
+ * 而顶栏徽章读的是 `syncStore` 的连通性 —— 没人写它，徽章就永远停在「检测连接…」
+ * （2026-11-03 真机验收实测）。所以对齐本身必须兼作连通性探测：成功即在线、失败即离线。
+ */
+export async function runConverge(overrides: Partial<ConvergeDeps> = {}): Promise<ConvergeResult> {
+  const origin = typeof location !== 'undefined' ? location.origin : ''
+  const sync = useSyncStore.getState()
+  sync.setStatus('syncing')
+  sync.setConnectivity({
+    serverUrl: origin,
+    target: classifySyncTarget(origin),
+    reachability: 'checking',
+    lastCheckedAt: Date.now(),
+  })
+  try {
+    const result = await convergeFromServer(overrides)
+    const done = useSyncStore.getState()
+    done.setStatus('synced')
+    done.setConnectivity({
+      serverUrl: origin,
+      target: classifySyncTarget(origin),
+      reachability: 'online',
+      lastCheckedAt: Date.now(),
+    })
+    done.setLastSync(Date.now())
+    done.setLastError(null)
+    return result
+  } catch (err) {
+    const failed = useSyncStore.getState()
+    failed.setStatus('offline')
+    failed.setConnectivity({
+      serverUrl: origin,
+      target: classifySyncTarget(origin),
+      reachability: 'offline',
+      lastCheckedAt: Date.now(),
+    })
+    failed.setLastError(err instanceof Error ? err.message : String(err))
+    throw err
+  }
+}
+
+/**
  * 启动周期对齐（默认 60s）。
  *
  * 为什么还需要轮询：Web 端没有推送通道，另一台设备改完不会主动通知本端。
  * 代价是一次全量 GET（当前数据量下毫秒级），换来「刷新不刷新都看到同一份数据」。
  */
 export function startServerFirstLoop(intervalMs = 60_000): void {
-  installConvergeRunner(() => convergeFromServer())
+  installConvergeRunner(() => runConverge())
   if (loopTimer) return
   loopTimer = setInterval(() => {
-    void convergeFromServer().catch((err) => {
+    void runConverge().catch((err) => {
       // 断网 / token 失效时只告警：不阻塞 UI，下一轮自动重试
       console.warn('[server-first] 周期对齐失败', err)
     })

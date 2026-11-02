@@ -11,7 +11,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import 'fake-indexeddb/auto'
 import { db } from '@/db/db'
-import { convergeFromServer } from '@/sync/convergeFromServer'
+import { convergeFromServer, runConverge } from '@/sync/convergeFromServer'
+import { useSyncStore } from '@/sync/store'
 
 type RemoteRow = { id: string } & Record<string, unknown>
 
@@ -138,5 +139,37 @@ describe('convergeFromServer：远端必胜', () => {
 
     expect(loadAttachment).toHaveBeenCalledTimes(1)
     expect(await db.attachments.get('a2')).toBeTruthy()
+  })
+})
+
+describe('runConverge：对齐兼作连通性探测', () => {
+  beforeEach(async () => {
+    await Promise.all([db.customers.clear(), db.syncQueue.clear(), db.meta.clear(), db.links.clear()])
+    useSyncStore.setState({ reachability: 'unknown', status: 'synced', lastSyncAt: null, lastError: null })
+  })
+
+  it('成功 → online/synced 并记录对齐时间（徽章才不会永远停在「检测连接…」）', async () => {
+    const r = await runConverge({ hasToken: () => true, listRemote: remoteOf({}) })
+    const s = useSyncStore.getState()
+    expect(r.upserted).toBe(0)
+    expect(s.reachability).toBe('online')
+    expect(s.status).toBe('synced')
+    expect(s.lastSyncAt).not.toBeNull()
+    expect(s.lastError).toBeNull()
+  })
+
+  it('失败 → offline 且把原因写进 lastError', async () => {
+    await expect(
+      runConverge({
+        hasToken: () => true,
+        listRemote: async () => {
+          throw new Error('network down')
+        },
+      }),
+    ).rejects.toThrow('network down')
+    const s = useSyncStore.getState()
+    expect(s.reachability).toBe('offline')
+    expect(s.status).toBe('offline')
+    expect(s.lastError).toContain('network down')
   })
 })

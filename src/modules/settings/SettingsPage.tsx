@@ -55,8 +55,8 @@ function ServerFirstSyncCard() {
     setMsg(null)
     try {
       // 动态 import：对齐模块会把 Dexie + 同步协议拖进来，设置页首屏不需要它
-      const { convergeFromServer } = await import('@/sync/convergeFromServer')
-      const r = await convergeFromServer()
+      const { runConverge } = await import('@/sync/convergeFromServer')
+      const r = await runConverge()
       setMsg(`已按服务器重建：写入 ${r.upserted} 条、清理本地多余 ${r.removed} 条`)
     } catch (err) {
       setMsg(err instanceof Error ? err.message : '对齐失败')

@@ -107,7 +107,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (phase !== 'open' || !isServerFirstWeb()) return
     void import('@/sync/convergeFromServer')
-      .then((m) => m.convergeFromServer())
+      .then((m) => m.runConverge())
       .catch((err) => console.warn('[server-first] 登录后对齐失败', err))
   }, [phase])
 
