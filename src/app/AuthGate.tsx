@@ -32,21 +32,11 @@ import {
   AUTH_USERID_KEY as USERID_KEY,
   getAuthToken as readAuthToken,
 } from '@/shared/authToken'
+import { toLoginIdentity } from '@/shared/authIdentity'
 
 /** 供后续步骤（同步身份、relay 自动配对）复用 */
-/**
- * 登录标识归一化：用户只填「用户名」（如 gundam23）也能登录。
- * PB 的 auth 集合标识仍是 email（0.40 无法给 text 字段加 UNIQUE，
- * 所以 identityFields 里不能放 username），建号时邮箱就是 <用户名>@workhub.local。
- * 含 @ 的原样返回，兼容直接用邮箱登录。
- */
-function toIdentity(raw: string): string {
-  const v = raw.trim()
-  // 用户名映射出的占位邮箱统一小写：PB 0.40 不会归一化邮箱大小写（实测 "Alice@..." 与
-  // "alice@..." 是两个值），不统一规则会让「注册时大写、登录时小写」直接认证失败。
-  // 含 @ 的真实邮箱原样保留，避免动到既有账号。
-  return v.includes('@') ? v : `${v.toLowerCase()}@workhub.local`
-}
+// 登录标识归一化收口到 shared/authIdentity（同步登录也要同一套规则，见该文件注释）
+const toIdentity = toLoginIdentity
 
 export function getAuthToken(): string {
   return readAuthToken()

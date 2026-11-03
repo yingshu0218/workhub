@@ -1,6 +1,7 @@
 import { db } from '@/db/db'
 import { storage } from '@/storage'
 import { getAuthToken } from '@/shared/authToken'
+import { toLoginIdentity } from '@/shared/authIdentity'
 import type { Settings } from '@/db/types'
 import { DEFAULT_SETTINGS } from '@/db/types'
 import { SETTINGS_KEY } from '@/db/types'
@@ -168,7 +169,8 @@ async function isTokenFresh(cfg: SyncSettingsView): Promise<boolean> {
 async function login(cfg: SyncSettingsView): Promise<void> {
   const res = await pbFetch(cfg, '/api/collections/users/auth-with-password', {
     method: 'POST',
-    body: JSON.stringify({ identity: cfg.username, password: cfg.password }),
+    // 与页面登录同口径：账号可填用户名，PB 只认邮箱（占位邮箱见 shared/authIdentity）
+    body: JSON.stringify({ identity: toLoginIdentity(cfg.username), password: cfg.password }),
   })
   if (!res.ok) {
     throw new Error(`PocketBase 登录失败（HTTP ${res.status}），请检查服务器地址与账号密码`)
