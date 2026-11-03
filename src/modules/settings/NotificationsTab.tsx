@@ -43,11 +43,6 @@ export function NotificationsTab({
                   desc: '解锁奖杯、到期临门等重磅节点短促清晰提示',
                 },
                 {
-                  key: 'webhook',
-                  title: '企业微信 / 钉钉 Webhook 协同同步',
-                  desc: '团队钉群机器人自动广播优先级看板更新与提醒完成消息',
-                },
-                {
                   key: 'dailyBrief',
                   title: '每日待办预告',
                   desc: '每天 09:00 依据事项清单草拟待办今日完成率简报',

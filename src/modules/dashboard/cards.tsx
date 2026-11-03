@@ -568,7 +568,8 @@ const STASH_INLINE_LIMIT = 5
  * 随手速记暂存便签（对齐原型 01 / Issue #134：**收集箱入口**，常驻大文本框）
  *
  * 定位：首页右下角的「外置收集箱」——灵感一闪先落这里，不分类、不中断当前动作；
- * 攒下的每一条速记再由卡片底部两个大按钮一键处置为**待办**（进收集箱）或**团队笔记**。
+ * 攒下的每一条速记再由卡片底部按钮一键处置为**待办**（进收集箱）——
+ * 团队笔记入口 2026-11-03 起停用。
  *
  * Issue #134 相对旧版的三处变化：
  * 1. 常驻 `textarea`（可拖高、随列宽自适应），取代「一行 input + Enter 提交」——
@@ -620,10 +621,13 @@ export function QuickNoteCard() {
   }
 
   /**
-   * 一键处置当前草稿：先落一条速记（保留原始输入痕迹），再转换为待办 / 笔记。
-   * 已入库的旧速记走 convertStashed（复用同一领域函数）。
+   * 一键处置当前草稿：先落一条速记（保留原始输入痕迹），再转为待办。
+   *
+   * 2026-11-03 用户裁定：团队笔记本版停用，这里只保留「转入待办」一条链；
+   * 领域函数 `convertQuickNote` 仍支持 'note'（测试与将来恢复入口都用它），
+   * 但本页不再提供任何通往笔记的按钮。
    */
-  async function convertDraft(to: 'todo' | 'note') {
+  async function convertDraft() {
     if (busy || !draft.trim()) return
     setBusy(true)
     try {
@@ -635,15 +639,10 @@ export function QuickNoteCard() {
       const content = draft.trim()
       await quickNoteRepo.put({ id: qnId, content, createdAt: Date.now() })
       // 处置只需业务字段：库内那份记录由 convertQuickNote 回写 convertedTo/At/Via
-      const targetId = await convertQuickNote({ id: qnId, content } as QuickNote, to, 'dashboard')
+      const targetId = await convertQuickNote({ id: qnId, content } as QuickNote, 'todo', 'dashboard')
       setDraft('')
-      if (to === 'todo') {
-        toast.success('已转入待办收集箱，可在待办中心归类')
-        navigate(todoFocusPath(targetId))
-      } else {
-        toast.success('已归入团队笔记')
-        navigate('/notes/' + targetId)
-      }
+      toast.success('已转入待办收集箱，可在待办中心归类')
+      navigate(todoFocusPath(targetId))
     } catch (err) {
       console.error('[dashboard] 速记处置失败', err)
       toast.error('处置速记失败，请稍后重试')
@@ -652,15 +651,15 @@ export function QuickNoteCard() {
     }
   }
 
-  /** 处置一条已入库的速记 */
-  async function convertStashed(n: QuickNote, to: 'todo' | 'note') {
+  /** 处置一条已入库的速记（同 convertDraft：本版只通向待办） */
+  async function convertStashed(n: QuickNote) {
     if (busy) return
     setBusy(true)
     try {
-      const targetId = await convertQuickNote(n, to, 'dashboard')
-      toast.success(to === 'todo' ? '已转入待办收集箱' : '已归入团队笔记')
+      const targetId = await convertQuickNote(n, 'todo', 'dashboard')
+      toast.success('已转入待办收集箱')
       // 转待办后不等于完成处置：仍需在待办中心补归属/截止，故跳转待办中心定位该条
-      if (to === 'todo') navigate(todoFocusPath(targetId))
+      navigate(todoFocusPath(targetId))
     } catch (err) {
       console.error('[dashboard] 速记处置失败', err)
       toast.error('处置速记失败，请稍后重试')
@@ -716,7 +715,7 @@ export function QuickNoteCard() {
           // ⌘/Ctrl + Enter 直接转待办收集箱；Enter 保留为换行（多行灵感）
           if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
             e.preventDefault()
-            void convertDraft('todo')
+            void convertDraft()
           }
         }}
       />
@@ -726,24 +725,16 @@ export function QuickNoteCard() {
         {draft.trim() && <span className="ml-1">⌘↵ 转待办</span>}
       </div>
 
-      {/* 常显双按钮（Issue #134）：转入待办 = 进收集箱；归入团队笔记 = 落正式笔记 */}
+      {/* 只留「转入待办」：团队笔记本版停用（2026-11-03 用户裁定：先把团队概念整个隐藏） */}
       <div className="mt-3 flex gap-2">
         <Button
           variant="tonal"
           icon="move_to_inbox"
           className="flex-1 justify-center"
           disabled={!canSubmit}
-          onClick={() => void convertDraft('todo')}
+          onClick={() => void convertDraft()}
         >
           转入待办
-        </Button>
-        <Button
-          icon="menu_book"
-          className="flex-1 justify-center"
-          disabled={!canSubmit}
-          onClick={() => void convertDraft('note')}
-        >
-          归入团队笔记
         </Button>
       </div>
       <button
@@ -775,7 +766,7 @@ export function QuickNoteCard() {
               <button
                 className="text-[0.7857rem] text-primary hover:underline"
                 onClick={() => navigate('/notes')}
-                title="查看归入团队笔记的速记"
+                title="查看已归档的速记"
               >
                 {archivedCount} 条已归档 →
               </button>
@@ -810,18 +801,9 @@ export function QuickNoteCard() {
                       variant="tonal"
                       icon="move_to_inbox"
                       disabled={busy}
-                      onClick={() => void convertStashed(n, 'todo')}
+                      onClick={() => void convertStashed(n)}
                     >
                       转待办
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      icon="menu_book"
-                      disabled={busy}
-                      onClick={() => void convertStashed(n, 'note')}
-                    >
-                      归笔记
                     </Button>
                   </div>
                 </li>

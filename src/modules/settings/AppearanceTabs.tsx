@@ -200,9 +200,9 @@ export function TypographyTab({
                 <div className="mb-1 text-[0.75rem] font-semibold uppercase tracking-widest text-primary">
                   # 核心里程碑 · Q3 Milestone
                 </div>
-                <div className="text-[1.35em] font-bold">多维穿透工作流与团队协作网格</div>
+                <div className="text-[1.35em] font-bold">多维穿透工作流与信息网格</div>
                 <p className="mt-2 text-on-surface-variant">
-                  在团队协作中，沉浸式记录与待办任务可无缝联动。寻鸽工作台深度集成 Inter
+                  在日常记录中，沉浸式编辑与待办任务可无缝联动。寻鸽工作台深度集成 Inter
                   字体内核与表格间距韵律，使每次会议纪要、OKR
                   对齐与财务中心之间实现零损耗上下文传递。当前预览即所保存后的全局正文渲染效果。
                 </p>
