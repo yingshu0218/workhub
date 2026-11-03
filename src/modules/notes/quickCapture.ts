@@ -24,14 +24,14 @@ import { DEFAULT_TODO_PRIORITY } from '@/modules/todo/priority'
  */
 
 export const QUICK_CAPTURE_TAG = '速记'
-/** 「归入团队笔记」专用标签：与侧栏速记的「速记」区分，两个入口可检索区分 */
+/** 「归入笔记」专用标签：与侧栏速记的「速记」区分，两个入口可检索区分 */
 export const QUICK_CAPTURE_ARCHIVE_TAG = '速记归档'
 /** 速记转待办的默认优先级：速记不是紧急事项，进收集箱待后续排期 */
 export const QUICK_CAPTURE_TODO_PRIORITY: Todo['priority'] = DEFAULT_TODO_PRIORITY
 /** 速记转待办的 desc：标明来源，便于在待办中心回溯（无通道信息时的默认值） */
 export const QUICK_CAPTURE_TODO_DESC = '由随手速记转入收集箱'
 /** 速记转笔记时追加的 desc 行：正式笔记模型暂无来源字段，用 markdown 末行留痕 */
-export const QUICK_CAPTURE_NOTE_ORIGIN = '> 由随手速记转入团队笔记'
+export const QUICK_CAPTURE_NOTE_ORIGIN = '> 由随手速记转入笔记'
 
 /**
  * 速记处置**发起通道** —— 用于在目标记录上留痕，回答「这条待办是哪来的」。
@@ -47,11 +47,11 @@ export type ConvertChannel = 'dashboard' | 'sidebar'
 export const CONVERTED_VIA: Record<ConvertChannel, { todoDesc: string; noteOrigin: string }> = {
   dashboard: {
     todoDesc: '由工作台速记转入收集箱',
-    noteOrigin: '> 由工作台速记转入团队笔记',
+    noteOrigin: '> 由工作台速记转入笔记',
   },
   sidebar: {
     todoDesc: '由侧栏快速便签转入收集箱',
-    noteOrigin: '> 由侧栏快速便签转入团队笔记',
+    noteOrigin: '> 由侧栏快速便签转入笔记',
   },
 }
 
@@ -143,7 +143,7 @@ export async function captureToTodo(content: string, channel?: ConvertChannel): 
 
 /**
  * 正文 → 正式笔记（tag「速记归档」）。返回新建笔记 id。
- * 末行附通道来源（`> 由…转入团队笔记`），便于在笔记里回溯这条归档从哪来。
+ * 末行附通道来源（`> 由…转入笔记`），便于在笔记里回溯这条归档从哪来。
  */
 export async function captureToNote(content: string, channel?: ConvertChannel): Promise<string> {
   const body = content.trim()

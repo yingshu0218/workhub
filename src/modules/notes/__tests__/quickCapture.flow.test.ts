@@ -1,7 +1,7 @@
 /**
  * 随手速记处置链路对照测试（Issue #134）
  *
- * 覆盖「速记 → 待办收集箱 / 团队笔记」这条首页右下角收集箱链路的三条纪律：
+ * 覆盖「速记 → 待办收集箱 / 笔记」这条首页右下角收集箱链路的三条纪律：
  * ① 转入待办必须落在「收集箱」（listId 缺省），不得被任何清单字段带偏；
  * ② 转入待办的初始态是干净的未完成态（status='todo'、无 completedAt/dueAt），
  *    否则会污染工作台「今日待办日程」与完成率分母；
@@ -81,12 +81,12 @@ describe('① 速记 → 待办：归属收集箱', () => {
   })
 })
 
-describe('② 速记 → 团队笔记', () => {
+describe('② 速记 → 笔记', () => {
   it('落正式 Note 并打「速记归档」标签', async () => {
     const id = await captureToNote('一段值得留存的灵感')
     const note = (await db.notes.get(id))!
     // 正文保真 + 末行来源引用（`> ` 引用行，渲染后是灰色出处，不干扰正文）
-    expect(note.markdown).toBe('一段值得留存的灵感\n\n> 由随手速记转入团队笔记')
+    expect(note.markdown).toBe('一段值得留存的灵感\n\n> 由随手速记转入笔记')
     expect(note.tags).toEqual([QUICK_CAPTURE_ARCHIVE_TAG])
   })
 
@@ -154,7 +154,7 @@ describe('④ 通道留痕：转入的待办/笔记能回答「从哪来」', ()
     expect(markdown.endsWith(CONVERTED_VIA.sidebar.noteOrigin)).toBe(true)
     // 末尾已带来源行时再处置（同内容）不重复追加
     const again = await captureToNote(`${markdown}`, 'sidebar')
-    expect((await db.notes.get(again))!.markdown.match(/由侧栏快速便签转入团队笔记/g)).toHaveLength(
+    expect((await db.notes.get(again))!.markdown.match(/由侧栏快速便签转入笔记/g)).toHaveLength(
       1,
     )
   })
