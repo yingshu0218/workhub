@@ -1,4 +1,5 @@
 import { db } from '@/db/db'
+import { isTombstone } from '@/sync/remoteNormalize'
 import {
   deleteRemoteRecord,
   isSyncedTable,
@@ -127,7 +128,22 @@ function makeTx(deps: ServerFirstDeps): StorageTx {
       await writeThrough(deps, table, next)
     },
     async delete(table, id) {
-      if (deps.isSynced(table)) await deps.deleteRemote(table, id)
+      if (deps.isSynced(table)) {
+        const cur = (await tableOf(table).get(id)) as Row | undefined
+        // ⚠️ 桌面端要连服务器（2026-11-03 定）之后，这里不能一律物理删：
+        // 脱机设备若还持有该记录的活副本，下次 push 查不到远端就会 POST 新建 —— 已删记录被复活。
+        // 活记录 → 先在服务端落墓碑（对端 pull 到墓碑才会跟着删）；墓碑记录 → 说明墓碑已收敛，真删。
+        if (cur && !isTombstone(cur)) {
+          await deps.upsertRemote(table, {
+            ...cur,
+            deleted: 1,
+            updatedAt: Date.now(),
+            rev: (Number(cur.rev) || 0) + 1,
+          })
+        } else {
+          await deps.deleteRemote(table, id)
+        }
+      }
       await tableOf(table).delete(id)
     },
     // 没有队列可入：服务端唯一真源下「写入即已送达」，入队语义在此终结

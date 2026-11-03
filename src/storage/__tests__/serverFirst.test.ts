@@ -90,15 +90,33 @@ describe('ServerFirstAdapter：写入直达服务端', () => {
     expect(await db.syncQueue.count()).toBe(0)
   })
 
-  it('delete：先删服务端，再删镜像', async () => {
+  it('delete 活记录：先在服务端落墓碑，再删镜像（脱机设备才不会复活它）', async () => {
     await db.customers.put(row('c5') as never)
+    const upsertRemote = vi.fn(async () => 'written' as const)
     const deleteRemote = vi.fn(async () => {})
-    const adapter = createServerFirstAdapter({ deleteRemote })
+    const adapter = createServerFirstAdapter({ upsertRemote, deleteRemote })
 
     await adapter.transaction(['customers', 'syncQueue'], (tx) => tx.delete('customers', 'c5'))
 
-    expect(deleteRemote).toHaveBeenCalledWith('customers', 'c5')
+    expect(deleteRemote).not.toHaveBeenCalled()
+    expect(upsertRemote).toHaveBeenCalledWith(
+      'customers',
+      expect.objectContaining({ id: 'c5', deleted: 1 }),
+    )
     expect(await db.customers.get('c5')).toBeUndefined()
+  })
+
+  it('delete 墓碑记录：墓碑已收敛，走物理删', async () => {
+    await db.customers.put(row('c7', { deleted: 1 }) as never)
+    const upsertRemote = vi.fn(async () => 'written' as const)
+    const deleteRemote = vi.fn(async () => {})
+    const adapter = createServerFirstAdapter({ upsertRemote, deleteRemote })
+
+    await adapter.transaction(['customers', 'syncQueue'], (tx) => tx.delete('customers', 'c7'))
+
+    expect(upsertRemote).not.toHaveBeenCalled()
+    expect(deleteRemote).toHaveBeenCalledWith('customers', 'c7')
+    expect(await db.customers.get('c7')).toBeUndefined()
   })
 
   it('update 不存在的记录 → 抛可操作错误（不许静默成功）', async () => {
