@@ -15,7 +15,7 @@ export const DEFAULT_IDENTITY_NAME = '阿蓝'
 export const DEFAULT_WORKSPACE_NAME = '青枫工作室'
 export const DEFAULT_WORKSPACE_ROLE = 'Owner'
 /** 工作区副标题的默认展示串 */
-export const DEFAULT_WORKSPACE_SUB = '团队协作者 · Owner'
+export const DEFAULT_WORKSPACE_SUB = '个人空间'
 
 export interface Identity {
   /** 用户显示名 —— 画布「我」节点、侧栏、首页问候、个人主页统一取这里 */

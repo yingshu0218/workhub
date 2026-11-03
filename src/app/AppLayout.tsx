@@ -62,7 +62,6 @@ export function isNavItemActive(pathname: string, to: string): boolean {
 }
 
 const TITLES: Record<string, string> = {
-  '/': 'Focus Synchronizer',
   '/todo': '待办事项',
   '/projects': '项目',
   '/crm': '客户管理',
@@ -81,10 +80,15 @@ const TITLES: Record<string, string> = {
 
 /** 工作区条目（原型 19-dashboard-account）：切换仅改 UI 选中态，数据隔离 Phase 7 后考虑 */
 /** 工作区条目（原型 19-dashboard-account）：只读常量，身份名/工作区名由 useIdentity 提供（Issue #123） */
-const WORKSPACES = [
-  { id: 'ws-main', role: 'Owner', sub: '团队协作者 · Owner' },
-  { id: 'ws-personal', role: 'Personal', sub: '个人空间 · Personal' },
-]
+const WORKSPACES = [{ id: 'ws-main', role: 'Personal', sub: '个人空间' }]
+
+/**
+ * 是否真的有多个工作空间可切换（2026-11-03：目前只有个人空间）。
+ *
+ * 为什么据此隐藏切换器：只列一项的「切换」是假的 —— 点开只有它自己，
+ * 还顺带许了个「加入工作区（即将上线）」的愿。等真有多工作区再放出来。
+ */
+const CAN_SWITCH_WORKSPACE = WORKSPACES.length > 1
 
 /**
  * 顶栏同步徽章。
@@ -122,7 +126,10 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation()
   const navigate = useNavigate()
   // /crm/:id/timeline 与 /module-config/... 为动态段路由，TITLES 精确匹配不到，先按前缀识别
+  // 首页刻意不显示页面级标题：仪表盘自己已有问候标题，再挂一个「Focus Synchronizer」
+  // 就是一层无信息量的旁白（2026-11-03 用户裁定删掉）
   const title =
+    pathname === '/' ? '' :
     (pathname.match(/^\/crm\/[^/]+\/timeline$/) ? TITLES['/crm/:id/timeline'] : undefined) ??
     (pathname.startsWith('/module-config') ? TITLES['/module-config'] : undefined) ??
     TITLES[pathname] ??
@@ -369,8 +376,8 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
                 className={`app-nav-link flex w-full items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-surface-hover ${
                   collapsed && !railOpen ? 'justify-center px-0' : ''
                 } ${pathname === '/profile' ? 'is-active bg-primary-fixed' : ''}`}
-                onClick={() => setWsOpen((o) => !o)}
-                title={collapsed && !railOpen ? `${identity.name} · 工作区与身份` : undefined}
+                onClick={() => CAN_SWITCH_WORKSPACE && setWsOpen((o) => !o)}
+                title={collapsed && !railOpen ? `${identity.name} · 个人空间` : undefined}
               >
                 <Avatar name={identity.name} size={32} />
                 {!(collapsed && !railOpen) && (
@@ -381,15 +388,17 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
                         {WORKSPACES.find((w) => w.id === activeWs)?.sub ?? DEFAULT_WORKSPACE_SUB}
                       </div>
                     </div>
-                    <Icon
-                      name={wsOpen ? 'keyboard_arrow_up' : 'keyboard_arrow_down'}
-                      className="text-[1.2857rem] text-outline"
-                    />
+                    {CAN_SWITCH_WORKSPACE && (
+                      <Icon
+                        name={wsOpen ? 'keyboard_arrow_up' : 'keyboard_arrow_down'}
+                        className="text-[1.2857rem] text-outline"
+                      />
+                    )}
                   </>
                 )}
               </button>
 
-            {wsPresent && (
+            {CAN_SWITCH_WORKSPACE && wsPresent && (
               <div
                 ref={wsPanelRef}
                 /* 从底部向上弹（面板贴在按钮上方），缩放轴落在底边 */
