@@ -91,6 +91,15 @@ declare module '@relay/server.mjs' {
     autoIssueConfirm?: boolean
     path?: string
     log?: (msg: string) => void
+    /**
+     * 签发配对码的第二条鉴权通道（宿主注入）。
+     * serve.mjs 用它放行「已登录的后台页面」：页面首次配对前没有 relay token，
+     * 但仍需要能生成接入凭据；relay 本身不 import 业务代码，校验由宿主完成。
+     */
+    authorizeMint?: (
+      req: import('node:http').IncomingMessage,
+      url: URL,
+    ) => boolean | Promise<boolean>
     serverExecutor?: {
       listTools: () => Array<{ name: string; description?: string; inputSchema?: unknown }>
       callTool: (name: string, args: unknown, meta?: unknown) => Promise<{ ok: boolean; data?: unknown; error?: string }>

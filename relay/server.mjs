@@ -14,7 +14,7 @@
  * 边界保持不变（方案 §四.1 / §7.4）：relay 不持有数据、不 import repositories，
  * 只转发「工具调用请求 / 结果」；token 鉴权、白名单、确认票据三道闸门原样保留。
  */
-import { randomInt } from 'node:crypto'
+import { randomBytes, randomInt } from 'node:crypto'
 import { acceptKey } from './ws-server.mjs'
 import { createMcpRouter, generateToken, MCP_PROTOCOL_VERSION, argsFingerprint, safeEqual } from './mcp-relay.mjs'
 
@@ -39,6 +39,11 @@ import { WsConnection } from './ws-server.mjs'
  * @param {boolean} [opts.autoIssueConfirm] dev 便利：预览响应自动附一次性 confirmToken（自动联调用，勿用于生产）
  * @param {string} [opts.path]             relay 挂载路径，默认 `/relay`（同源反代/挂载用）
  * @param {(m:string)=>void} [opts.log]    日志出口
+ * @param {(req: import('node:http').IncomingMessage, url: URL) => boolean | Promise<boolean>} [opts.authorizeMint]
+ *   站点登录态的鉴权通道（`/pair/new` 签码 + `/device/approve` 授权共用）。
+ *   默认只有持 relay token 才能签；传入本回调后，宿主可以用 PocketBase users token
+ *   授权后台页面直接签码 / 确认设备授权 —— 这是「首次配对前没有 token」的出口。
+ *   ⚠️ 回调必须自己做校验（serve.mjs 用 PB auth-refresh），relay 不 import 业务代码。
  * @param {{ listTools: ()=>Array, callTool: (name:string, args:unknown)=>Promise<{ok:boolean,data?:object,error?:string}>, handles: (name:string)=>boolean }} [opts.serverExecutor]
  *   内置服务端执行器（agentOps 服务端化 P2，只读）：命中 `handles(name)` 的工具在 relay
  *   进程内直接执行（直读 PB 中心），不经浏览器。路由规则：
@@ -48,7 +53,14 @@ import { WsConnection } from './ws-server.mjs'
  *   - tools/call：服务端工具本地执行，其余回落浏览器桥（浏览器离线 → 原有可操作错误）。
  * @returns {RelayHandle}
  */
-export function createRelay({ token = generateToken(), autoIssueConfirm = false, path = '/relay', log = (m) => process.stderr.write(`${m}\n`), serverExecutor = null } = {}) {
+export function createRelay({
+  token = generateToken(),
+  autoIssueConfirm = false,
+  path = '/relay',
+  log = (m) => process.stderr.write(`${m}\n`),
+  authorizeMint = null,
+  serverExecutor = null,
+} = {}) {
   /** 当前已连出的浏览器连接（首版单浏览器配对；多标签页取最近一条） */
   let browserConn = null
   /** 浏览器回包等待表：requestId -> {resolve, reject, timer, track} */
@@ -372,6 +384,24 @@ export function createRelay({ token = generateToken(), autoIssueConfirm = false,
   /** 兑换限速：ip → { count, resetAt }，防枚举爆破（6 位码 + 5 分钟 + 每分钟 10 次） */
   const pairAttempts = new Map()
 
+  /**
+   * 设备授权（RFC 8628 风格的「一条命令 + 浏览器点授权」）。
+   *
+   * 为什么不用完整 OAuth：MCP 客户端对 OAuth 的支持参差不齐，而设备码流程只需要两件事 ——
+   * CLI 能发 HTTP、用户能打开网页。CLI 拿 device_code 轮询，网页用**站点登录态**批准，
+   * 因此不依赖客户端实现任何 OAuth 发现/回调。
+   *
+   * 安全性质与配对码一致：短期（10 分钟）、一次性、device_code 高熵、批准必须登录站点。
+   */
+  const DEVICE_TTL_MS = 10 * 60 * 1000
+  const DEVICE_INTERVAL_S = 5
+  /** device_code → { userCode, expiresAt, interval, status: 'pending'|'approved'|'denied' } */
+  const devices = new Map()
+  /** 归一化 user_code → device_code（批准时反查；网页上人手输入的码可能没带连字符） */
+  const userCodeIndex = new Map()
+  /** 轮询限速：ip → { count, resetAt }（CLI 每 5 秒一次，给足余量但不允许无限刷） */
+  const devicePolls = new Map()
+
   const sendJson = (res, status, body) => {
     const text = JSON.stringify(body)
     res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' })
@@ -438,18 +468,87 @@ export function createRelay({ token = generateToken(), autoIssueConfirm = false,
     return rec.count <= 10
   }
 
-  const mcpUrlOf = (req, url) => {
-    const proto = String(req.headers['x-forwarded-proto'] ?? '').split(',')[0].trim() || (req.socket.encrypted ? 'https' : 'http')
-    const host = String(req.headers['x-forwarded-host'] ?? req.headers.host ?? url.host)
-    return `${proto}://${host}${path}/mcp`
+  /** 设备码轮询限速：每 IP 每分钟 120 次（CLI 12 次/分；留足重试与多实例余量） */
+  function allowDevicePoll(ip) {
+    const now = Date.now()
+    const rec = devicePolls.get(ip)
+    if (!rec || now > rec.resetAt) {
+      devicePolls.set(ip, { count: 1, resetAt: now + 60_000 })
+      return true
+    }
+    rec.count += 1
+    return rec.count <= 120
   }
 
-  /** `POST <path>/pair/new`：**必须持 token**（即页面/已配对的本机）才能签发一次性码 */
-  function handlePairNew(req, res, url) {
+  const normalizeUserCode = (s) => String(s ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '')
+
+  /** 清掉过期设备码（用户码索引同步删，避免只删一半） */
+  function sweepDevices() {
+    const now = Date.now()
+    for (const [deviceCode, rec] of devices) {
+      if (now > rec.expiresAt) {
+        devices.delete(deviceCode)
+        userCodeIndex.delete(rec.userCode)
+      }
+    }
+  }
+
+  /** 签发一枚设备码：8 位用户码（XXXX-XXXX）+ 32 字节 device_code（只回给 CLI） */
+  function mintDevice() {
+    sweepDevices()
+    const raw = Array.from({ length: 8 }, () => PAIR_ALPHABET[randomInt(PAIR_ALPHABET.length)]).join('')
+    const userCode = `${raw.slice(0, 4)}-${raw.slice(4)}`
+    const deviceCode = randomBytes(24).toString('base64url')
+    devices.set(deviceCode, {
+      userCode: normalizeUserCode(userCode),
+      expiresAt: Date.now() + DEVICE_TTL_MS,
+      interval: DEVICE_INTERVAL_S,
+      status: 'pending',
+    })
+    userCodeIndex.set(normalizeUserCode(userCode), deviceCode)
+    return { deviceCode, userCode }
+  }
+
+  /**
+   * 外部可访问的站点 origin。
+   * 与 `mcpUrlOf` 共用同一套 forwarded 头口径 —— 反代后 Host 被改写成 127.0.0.1 时，
+   * 授权页地址必须仍是用户浏览器能打开的域名，否则「弹出来的页面打不开」比不弹更糟。
+   */
+  function originOf(req, url) {
+    const proto = String(req.headers['x-forwarded-proto'] ?? '').split(',')[0].trim() || (req.socket.encrypted ? 'https' : 'http')
+    const host = String(req.headers['x-forwarded-host'] ?? req.headers.host ?? url.host)
+    return `${proto}://${host}`
+  }
+
+  const mcpUrlOf = (req, url) => `${originOf(req, url)}${path}/mcp`
+
+  /** `POST <path>/pair/new`：持 relay token 或宿主认可的站点登录态才能签发一次性码 */
+  async function handlePairNew(req, res, url) {
     if (req.method !== 'POST') return sendJson(res, 405, { error: '只接受 POST' })
-    if (!authOk(req, url)) return sendJson(res, 401, { error: '接入 token 无效：签发配对码需要 Bearer token' })
+    // 与兑换共用限速实现，但**分开计数**：签码会出站打 PB 校验登录态，
+    // 不能让任何人拿乱码 token 刷这个端点；同时不能挤占正常兑换的配额。
+    const ip = req.socket.remoteAddress ?? 'unknown'
+    if (!allowPairAttempt(`mint:${ip}`)) return sendJson(res, 429, { error: '尝试过于频繁，请稍后再试' })
+    const byRelayToken = authOk(req, url)
+    let bySiteLogin = false
+    if (!byRelayToken && authorizeMint) {
+      // 后台页面在首次配对前没有 relay token，只能拿 PocketBase 登录态来签码。
+      // 校验失败一律当作未授权（不要区分「没登录」与「校验服务挂了」，避免信息泄露）。
+      try {
+        bySiteLogin = Boolean(await authorizeMint(req, url))
+      } catch {
+        bySiteLogin = false
+      }
+    }
+    if (!byRelayToken && !bySiteLogin) {
+      return sendJson(res, 401, { error: '签发配对码需要接入 token 或站点登录态' })
+    }
     const { code, expiresAt } = mintPairCode()
-    log('[relay] 已签发一次性配对码（5 分钟、仅可兑换一次）')
+    log(
+      `[relay] 已签发一次性配对码（5 分钟、仅可兑换一次；签发方式：${
+        bySiteLogin ? '站点登录态' : '接入 token'
+      }）`,
+    )
     return sendJson(res, 200, { code, expiresAt, ttlSeconds: Math.round(PAIR_TTL_MS / 1000), url: mcpUrlOf(req, url) })
   }
 
@@ -473,6 +572,101 @@ export function createRelay({ token = generateToken(), autoIssueConfirm = false,
     pairCodes.delete(code)
     log('[relay] 配对码已兑换，长期 token 已下发（码已作废）')
     return sendJson(res, 200, { token, url: mcpUrlOf(req, url), protocolVersion: MCP_PROTOCOL_VERSION })
+  }
+
+  /** `POST <path>/device/code`：CLI 取设备码与用户码（无需鉴权，批准才需要登录） */
+  function handleDeviceCode(req, res, url) {
+    if (req.method !== 'POST') return sendJson(res, 405, { error: '只接受 POST' })
+    const ip = req.socket.remoteAddress ?? 'unknown'
+    if (!allowPairAttempt(`device:${ip}`)) return sendJson(res, 429, { error: '尝试过于频繁，请稍后再试' })
+    const { deviceCode, userCode } = mintDevice()
+    const origin = originOf(req, url)
+    log('[relay] 已签发设备授权码（10 分钟、仅可批准一次）')
+    return sendJson(res, 200, {
+      device_code: deviceCode,
+      user_code: userCode,
+      verification_uri: `${origin}/authorize`,
+      verification_uri_complete: `${origin}/authorize?user_code=${encodeURIComponent(userCode)}`,
+      expires_in: Math.round(DEVICE_TTL_MS / 1000),
+      interval: DEVICE_INTERVAL_S,
+    })
+  }
+
+  /** `POST <path>/device/approve|deny`：**必须持站点登录态**（后台页面替用户点确认） */
+  async function handleDeviceDecision(req, res, url, decision) {
+    if (req.method !== 'POST') return sendJson(res, 405, { error: '只接受 POST' })
+    // 校验登录态会出站打 PB：同样限速，避免拿乱码 token 刷这个端点
+    const ip = req.socket.remoteAddress ?? 'unknown'
+    if (!allowPairAttempt(`approve:${ip}`)) return sendJson(res, 429, { error: '尝试过于频繁，请稍后再试' })
+    if (!authorizeMint) {
+      return sendJson(res, 401, { error: '当前部署未启用站点登录，无法在页面授权' })
+    }
+    let allowed = false
+    try {
+      allowed = Boolean(await authorizeMint(req, url))
+    } catch {
+      allowed = false
+    }
+    if (!allowed) return sendJson(res, 401, { error: '需要有效的站点登录态' })
+
+    let rawCode = ''
+    try {
+      const body = JSON.parse((await readBody(req)) || '{}')
+      rawCode = String(body?.user_code ?? body?.code ?? '')
+    } catch {
+      return sendJson(res, 400, { error: '请求体不是合法 JSON' })
+    }
+    sweepDevices()
+    const normalized = normalizeUserCode(rawCode)
+    const deviceCode = userCodeIndex.get(normalized)
+    const rec = deviceCode ? devices.get(deviceCode) : null
+    if (!rec) return sendJson(res, 404, { error: '授权码不存在或已过期' })
+    if (rec.status !== 'pending') return sendJson(res, 409, { error: '该授权码已被处理，请重新发起命令' })
+
+    rec.status = decision
+    log(`[relay] 设备授权已${decision === 'approved' ? '批准' : '拒绝'}`)
+    return sendJson(res, 200, { ok: true, status: rec.status })
+  }
+
+  /** `POST <path>/device/token`：CLI 轮询；批准后返回 relay 的长期 token（一次性） */
+  async function handleDeviceToken(req, res, url) {
+    if (req.method !== 'POST') return sendJson(res, 405, { error: '只接受 POST' })
+    const ip = req.socket.remoteAddress ?? 'unknown'
+    if (!allowDevicePoll(ip)) return sendJson(res, 429, { error: '轮询过于频繁' })
+    let deviceCode = ''
+    try {
+      deviceCode = String(JSON.parse((await readBody(req)) || '{}')?.device_code ?? '')
+    } catch {
+      return sendJson(res, 400, { error: '请求体不是合法 JSON' })
+    }
+    sweepDevices()
+    const rec = devices.get(deviceCode)
+    if (!rec) {
+      return sendJson(res, 400, { error: 'expired_token', error_description: '授权码不存在或已过期' })
+    }
+    if (rec.status === 'pending') {
+      // RFC 8628 用 400 + authorization_pending；CLI 据此继续等，不当作失败
+      return sendJson(res, 400, {
+        error: 'authorization_pending',
+        error_description: '等待用户在浏览器中确认授权',
+      })
+    }
+    if (rec.status === 'denied') {
+      devices.delete(deviceCode)
+      userCodeIndex.delete(rec.userCode)
+      return sendJson(res, 403, { error: 'access_denied', error_description: '用户拒绝了本次授权' })
+    }
+
+    // approved：一次性兑现，随后删除（与配对码同一语义）
+    devices.delete(deviceCode)
+    userCodeIndex.delete(rec.userCode)
+    log('[relay] 设备授权已兑换，长期 token 已下发（授权码已作废）')
+    return sendJson(res, 200, {
+      access_token: token,
+      token_type: 'Bearer',
+      url: mcpUrlOf(req, url),
+      expires_in: 0,
+    })
   }
 
   /** `POST <path>/mcp`：标准 MCP over HTTP（stateless）。GET/DELETE 按规范回可接受的响应 */
@@ -565,6 +759,22 @@ export function createRelay({ token = generateToken(), autoIssueConfirm = false,
     }
     if (p === `${path}/pair/new`) {
       safe(() => handlePairNew(req, res, url))
+      return true
+    }
+    if (p === `${path}/device/code`) {
+      safe(() => handleDeviceCode(req, res, url))
+      return true
+    }
+    if (p === `${path}/device/approve`) {
+      safe(() => handleDeviceDecision(req, res, url, 'approved'))
+      return true
+    }
+    if (p === `${path}/device/deny`) {
+      safe(() => handleDeviceDecision(req, res, url, 'denied'))
+      return true
+    }
+    if (p === `${path}/device/token`) {
+      safe(() => handleDeviceToken(req, res, url))
       return true
     }
     return false

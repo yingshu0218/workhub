@@ -176,7 +176,7 @@ const setup = createSetupService({
   },
 })
 
-/** 用 PB 校验一个 users 登录态（只用于「写首改标记」这一步） */
+/** 用 PB 校验一个 users 登录态（写首改标记 + 后台页面签发配对码共用） */
 async function verifyPbUserToken(pbTokenValue) {
   const res = await fetch(`${pbBase}/api/collections/users/auth-refresh`, {
     method: 'POST',
@@ -185,11 +185,27 @@ async function verifyPbUserToken(pbTokenValue) {
   return res.ok
 }
 
+/** 从请求头取 Bearer 值（兼容不带 Bearer 前缀的裸值） */
+function bearerOf(req) {
+  return String(req.headers.authorization ?? '').replace(/^Bearer\s+/i, '').trim()
+}
+
 const relay = createRelay({
   token: relayToken,
   autoIssueConfirm,
   path: relayPath,
   serverExecutor,
+  /**
+   * 后台页面在**首次配对前**还没有 relay token，若签码只认 relay token，
+   * 「设置页生成配对码」就永远 401（用户实际卡点）。这里放行站点登录态：
+   * 页面带 PocketBase users token 调 `/relay/pair/new`，校验通过即可签码；
+   * 页面拿到码后自己兑换成 relay token（仍是 relay 下发，不是页面自造）。
+   */
+  authorizeMint: async (req) => {
+    const provided = bearerOf(req)
+    if (!provided) return false
+    return verifyPbUserToken(provided).catch(() => false)
+  },
   log: (m) => process.stderr.write(`${m}\n`),
 })
 

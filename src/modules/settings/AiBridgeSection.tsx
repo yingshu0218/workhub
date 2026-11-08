@@ -3,6 +3,7 @@ import { Card, Button } from '@/design-system/ui'
 import { Icon } from '@/design-system/Icon'
 import type { Settings, AiDomain } from '@/db/types'
 import { agentBridge, resolveBridgeBase, type BridgeStatus } from '@/agent/bridge'
+import { getAuthToken } from '@/shared/authToken'
 
 /**
  * AI Agent 桥配置区（能力白名单 + 接入凭据） —— 方案 §四.2 / §四.3（P1 第 4 步配套）
@@ -72,17 +73,11 @@ export function AiBridgeSection({
   /**
    * 给外部 Agent 的「一条命令」接入（Issue #154）。
    *
-   * 为什么放在设置页：用户直觉是「丢个地址给 Agent 就能用」，而标准 MCP 只有 stdio /
-   * Streamable HTTP 两种传输、**没有「连裸 ws://」这条**，直连 ws 的客户端极少。
-   * 所以这里直接产出可粘贴的命令与配置：Agent 侧用项目自带的 stdio 桥
-   * （`relay/mcp-stdio-shim.mjs`）把 JSON-RPC 帧搬到 relay 上。
-   *
-   * 优先给 `npm run agent:setup`：它自动写入各 Agent 工具（Codex / Hermes / opencode /
-   * Claude Code / Cursor …）的配置，并把凭据**集中存到 `~/.workhub/relay.json`** ——
-   * token 因此不落进任何可入库的配置文件。手抄下面那份 JSON 是备选路径，
-   * 注意它含明文 token，别提交到仓库。
+   * 2026-11-08 起主路径是 `--login`（设备授权）：命令只带站点地址，跑起来会打印并打开
+   * `/authorize` 页面，用户用站点账号点「授权」后，CLI 自己在后台轮询拿到 token 并写入
+   * `~/.workhub/relay.json` —— 终端与可复制的文本里都不出现长期 token。
    */
-  const agentSetupCmd = `npm run agent:setup -- --url ${bridgeBase} --token ${ai.bridgeToken ?? ''}`
+  const agentSetupCmd = `npm run agent:setup -- --url ${bridgeBase} --login`
   const mcpConfig = JSON.stringify(
     {
       mcpServers: {
@@ -153,26 +148,60 @@ export function AiBridgeSection({
   }
 
   /**
-   * 以已持有的 token 为凭据，签发一枚**给 Agent / 第二台设备用**的一次性配对码。
+   * 生成接入凭据（本页首次配对前也能用）。
    *
-   * 这就是「后台签发」：与 GitHub 生成 PAT 同一模型 —— 后台可见/可发凭据，客户端只负责填。
-   * 服务端要求 Bearer（`/pair/new`），所以桥没连上时这里必然 401，错误原样显示出来。
+   * 两条路径刻意分开：
+   * - **本页已有 relay token**：签一枚 5 分钟一次性码，给 Agent / 第二台设备兑换
+   *   （长期 token 不出现在可复制的聊天文本里）。
+   * - **本页还没有 token**：用**站点登录态**（PocketBase users token）签码，并立刻兑换成
+   *   长期 token 填回本页 —— 这就是「在后台页面生成 token，再填进 MCP 客户端」的入口。
+   *   ⚠️ token 仍由 relay 下发，页面**不自造**（2026-10-28 事故的硬约束，别改回去）。
    */
   const issueCode = async () => {
-    if (!ai.bridgeToken) {
-      setPairState({ busy: false, error: '尚未配对，无法签发配对码', ok: '' })
+    const authToken = ai.bridgeToken || getAuthToken()
+    if (!authToken) {
+      setPairState({
+        busy: false,
+        error: '未登录或当前部署未启用登录，无法在页面生成；请用启动日志里的引导码首次配对',
+        ok: '',
+      })
       return
     }
+    const firstTime = !ai.bridgeToken
     setIssueBusy(true)
     setPairState({ busy: false, error: '', ok: '' })
     try {
       const res = await fetch(`${relayHttpBase(bridgeBase)}/pair/new`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json', Authorization: `Bearer ${ai.bridgeToken}` },
+        headers: { 'content-type': 'application/json', Authorization: `Bearer ${authToken}` },
       })
       const data = (await res.json().catch(() => ({}))) as { code?: string; ttlSeconds?: number; error?: string }
       if (!res.ok || !data.code) throw new Error(data.error || `签发失败（HTTP ${res.status}）`)
-      setIssued({ code: data.code, minutes: Math.round((data.ttlSeconds ?? 300) / 60) })
+
+      if (!firstTime) {
+        setIssued({ code: data.code, minutes: Math.round((data.ttlSeconds ?? 300) / 60) })
+        return
+      }
+
+      // 页面尚未配对：把刚签出的码立刻兑换成 relay 的长期 token，填回本页供复制到 MCP 客户端。
+      // 码是一次性的，所以兑换后不会再显示（避免用户误以为还能给 Agent 用）。
+      const redeemRes = await fetch(`${relayHttpBase(bridgeBase)}/pair`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ code: data.code }),
+      })
+      const redeemed = (await redeemRes.json().catch(() => ({}))) as { token?: string; error?: string }
+      if (!redeemRes.ok || !redeemed.token) {
+        throw new Error(redeemed.error || `兑换失败（HTTP ${redeemRes.status}）`)
+      }
+      save({ ai: { ...ai, bridgeEnabled: true, bridgeToken: redeemed.token } })
+      agentBridge.connect({ url: ai.bridgeUrl ?? '', token: redeemed.token })
+      setIssued(null)
+      setPairState({
+        busy: false,
+        error: '',
+        ok: '已生成接入 token，复制到 MCP 客户端的 Authorization: Bearer 即可',
+      })
     } catch (e) {
       setPairState({ busy: false, error: e instanceof Error ? e.message : String(e), ok: '' })
     } finally {
@@ -254,7 +283,7 @@ export function AiBridgeSection({
             </div>
             <div>
               <div className="mb-1 text-[0.8214rem] font-medium text-on-surface-variant">
-                配对码（首次连接用）
+                配对 / 配对码
               </div>
               <div className="flex items-center gap-2">
                 <input
@@ -264,7 +293,7 @@ export function AiBridgeSection({
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') void redeemPair()
                   }}
-                  placeholder="6 位，服务器启动日志里打印"
+                  placeholder="6 位一次性码"
                 />
                 <Button size="sm" variant="ghost" onClick={() => void redeemPair()}>
                   {pairState.busy ? '配对中…' : '配对'}
@@ -276,7 +305,7 @@ export function AiBridgeSection({
               )}
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <Button size="sm" variant="ghost" onClick={() => void issueCode()}>
-                  {issueBusy ? '签发中…' : '生成配对码'}
+                  {issueBusy ? '生成中…' : ai.bridgeToken ? '生成配对码' : '生成接入 token'}
                 </Button>
                 {issued && (
                   <span className="font-mono text-[0.9286rem] tracking-wider text-primary">
@@ -288,8 +317,9 @@ export function AiBridgeSection({
                 )}
               </div>
               <p className="mt-1 text-[0.7857rem] text-outline">
-                首次用启动日志里的<b>引导码</b>（<code>docker logs &lt;容器&gt; | grep 配对码</code>，
-                一次性、不限期）；此后的码由本页签发，5 分钟有效，给 Agent 或第二台设备兑换。
+                本页已登录时可直接「生成接入 token」——用登录态向 relay 换长期 token，<b>无需先配对</b>；
+                再复制到 MCP 客户端的 <code>Authorization: Bearer</code>。已接入后同一按钮改为签发
+                5 分钟一次性码，给 Agent 或第二台设备兑换。启动日志里的引导码仅作兜底。
               </p>
             </div>
             <div>
@@ -343,8 +373,10 @@ export function AiBridgeSection({
                 {agentSetupCmd}
               </pre>
               <p className="mt-1 text-[0.7857rem] text-outline">
-                推荐用这条命令：它自动写入各 Agent 工具（Codex / Hermes / opencode / Claude Code /
-                Cursor …）的配置，并把凭据集中存到 <code>~/.workhub/relay.json</code> ——
+                推荐用这条命令（在仓库根目录执行）：运行后会打印并打开<b>授权页</b>，
+                用你当前的站点账号点「授权」即可；
+                随后自动写入各 Agent 工具（Codex / Hermes / opencode / Claude Code / Cursor …）的配置，
+                并把凭据集中存到 <code>~/.workhub/relay.json</code> ——
                 token 因此不落进任何可入库的配置文件。跑完<b>重启 Agent 工具</b>即可。详见{' '}
                 <code>docs/一键接入-Agent说明.md</code>。
               </p>

@@ -4,7 +4,28 @@
 >
 > 对标飞书 CLI 的 `npx @larksuite/cli@latest install`：探测 → 写配置 → 提示重启。
 
-## 最省事：一条指令，整段复制给任意 Agent（**连服务器，不连本机**）
+## 最省事：一条命令 + 浏览器授权（推荐）
+
+在能打开本仓库的机器上执行（设置页「Agent 侧接入」可直接复制）：
+
+```bash
+npm run agent:setup -- --url wss://<站点>/relay --login
+```
+
+它会：
+
+1. 向站点申请设备码，打印并**自动打开** `https://<站点>/authorize?user_code=XXXX-XXXX`；
+2. 你在页面里用站点账号登录（或直接点当前账户）确认「授权」；
+3. 终端轮询到 token，写入 `~/.workhub/relay.json`，并继续把各 Agent 的 MCP 配置写好。
+
+长期 token **不出现在终端输出、聊天记录或可复制的命令里**；命令本身只带站点地址。
+授权页在 `/authorize`（独立于工作台布局），未登录时由 `AuthGate` 先要求登录；
+批准动作由服务端用 PocketBase `auth-refresh` 二次校验，不能只靠前端「看起来已登录」。
+
+> 前置条件：站点已启用登录（有 users 账号）。未启用登录的部署无法在页面授权，
+> 请改用下文的「一条指令」配对码，或启动日志里的引导码。
+
+## 最省事（备选）：一条指令，整段复制给任意 Agent（**连服务器，不连本机**）
 
 ```bash
 npm run agent:setup -- --print-prompt
@@ -12,6 +33,9 @@ npm run agent:setup -- --print-prompt
 
 它现场向站点签发一枚**一次性配对码**（5 分钟、只能兑换一次），打印出一段文本，整段贴给任何 Agent 即可。
 文本里只有：服务器地址 + 那枚短码 + 三步操作。**没有长期 token，也没有任何本机路径。**
+
+> 本机还没有凭据时，`--print-prompt` 签不出码（它需要已有 token 作签发凭据）。
+> 先跑上面的 `--login` 完成一次授权即可。
 
 ```
 Agent ──MCP over HTTP（Authorization: Bearer <token>）──► https://<站点>/relay/mcp
@@ -29,12 +53,26 @@ Agent ──MCP over HTTP（Authorization: Bearer <token>）──► https://<�
 
 | 步骤 | 谁做 | 凭证形态 |
 |---|---|---|
-| ① 签发短码 | 本机跑 `--print-prompt`（持已有 token 才签得出来） | 6 位短码，5 分钟、一次性 |
+| ① 签发短码 | 本机跑 `--print-prompt`（持已有 token 才签得出来），**或已登录的后台页面直接生成接入 token** | 6 位短码，5 分钟、一次性 |
 | ② 兑换 | Agent 自己 `curl POST /relay/pair` | 换到长期 token（只进 Agent 自己的配置/密钥存储） |
 | ③ 连接 | Agent 用 `POST /relay/mcp` + Bearer | 标准 MCP over HTTP |
 
-三条性质缺一不可，缺任何一条这个机制就形同虚设：**只能兑换一次**、**会过期**、**签发必须持 token**
-（最后一条保证「只有能登录站点的人才能给自己发码」）。兑换失败一律同一句「无效或已过期」——
+## 后台页面直接生成接入 token（首次配对前也能用）
+
+**不需要先去容器日志里找引导码**：只要页面已登录（PocketBase users 账号），
+设置 →「AI Agent 桥」→ 点 **「生成接入 token」** 即可。
+
+页面会带登录态调 `POST /relay/pair/new` 签一枚一次性码，并立刻兑换成 relay 的长期 token，
+自动填入下方「接入 token」框。把它复制到 MCP 客户端的 `Authorization: Bearer` 就完成首次配对。
+
+> 为什么页面能签：`/pair/new` 除了认 relay token，还接受**站点登录态**（由 `scripts/serve.mjs`
+> 用 PB `auth-refresh` 校验后注入 relay 的 `authorizeMint`）。token 仍是 **relay 下发**的，
+> 不是页面本地随机生成 —— 后者正是 2026-10-28「桥永远连不上」事故的根因。
+>
+> 页面未启用登录（未配置管理员 / 首启未注册）时，这条通道不可用，仍可用启动日志里的引导码兜底。
+
+三条性质缺一不可，缺任何一条这个机制就形同虚设：**只能兑换一次**、**会过期**、**签发必须持凭据**
+（relay token 或站点登录态，后者保证「只有能登录站点的人才能给自己发码」）。兑换失败一律同一句「无效或已过期」——
 不给枚举者任何「这个码曾经存在过」的区分信息，并且每个 IP 每分钟限 10 次。
 
 ### 传输支持矩阵（MCP 客户端只认前两种，第三种不是标准）
@@ -56,8 +94,11 @@ Agent ──MCP over HTTP（Authorization: Bearer <token>）──► https://<�
 | 端点 | 方法 | 鉴权 | 作用 |
 |---|---|---|---|
 | `<路径>/mcp` | POST | `Authorization: Bearer <token>`（或 `?token=`） | 标准 MCP over HTTP（stateless）。GET 回 405（不建 SSE 流） |
-| `<路径>/pair/new` | POST | Bearer token | 签发一次性配对码 |
+| `<路径>/pair/new` | POST | Bearer relay token **或站点登录态** | 签发一次性配对码 |
 | `<路径>/pair` | POST `{code}` | 短码本身 | 兑换长期 token |
+| `<路径>/device/code` | POST | 无 | 设备授权：签发 device_code + 用户码（10 分钟） |
+| `<路径>/device/approve` | POST `{user_code}` | 站点登录态 | 授权页确认（可 `deny` 拒绝） |
+| `<路径>/device/token` | POST `{device_code}` | 设备码本身 | 轮询；批准后回长期 token（一次性） |
 
 `<路径>` 默认 `/relay`，由 `WORKHUB_RELAY_PATH` 决定；生产宿主 `scripts/serve.mjs` 与 dev 的 vite 插件都已挂上，
 「本地能连、线上不能连」这类传输差异不会留到部署后才发现。

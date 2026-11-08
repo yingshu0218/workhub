@@ -2,13 +2,25 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'node:path'
+import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { relayPlugin } from './scripts/vite-relay-plugin.mjs'
 import { tauriCspPlugin } from './scripts/vite-tauri-plugin.mjs'
 
 const dirname = path.dirname(fileURLToPath(import.meta.url))
 
+/**
+ * 应用包版本只从 `package.json` 取，构建期注入 —— 不在源码里再抄一份，
+ * 否则发版时必有一次「页面显示旧版本」的漂移（AGENTS.md 第 7 节的两套版本号）。
+ */
+const pkgVersion = (
+  JSON.parse(readFileSync(path.resolve(dirname, 'package.json'), 'utf8')) as { version: string }
+).version
+
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(pkgVersion),
+  },
   // Relay 内嵌进 dev/preview server（Issue #33）：同源 `/relay`，一条命令跑通，无需第二个进程/端口。
   // 同源 → 现有 CSP `connect-src 'self'` 本身即覆盖 ws/wss 同源，**不再需要注入额外 ws 源**。
   //

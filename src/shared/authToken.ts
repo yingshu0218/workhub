@@ -22,6 +22,15 @@ export function getAuthToken(): string {
   }
 }
 
+/** 读当前登录标识（授权页显示「用哪个账户授权」；隐私模式 / 未登录时返回空串） */
+export function getAuthIdentity(): string {
+  try {
+    return localStorage.getItem(AUTH_IDENTITY_KEY) ?? ''
+  } catch {
+    return ''
+  }
+}
+
 /** 清空页面会话（登出 / token 失效） */
 export function clearAuthSession(): void {
   try {

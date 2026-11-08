@@ -24,6 +24,26 @@ import { createRelay } from '../relay/server.mjs'
 export function relayPlugin(opts = {}) {
   const path = opts.path ?? '/relay'
   const autoIssueConfirm = opts.autoIssueConfirm ?? process.env.WORKHUB_RELAY_AUTO_CONFIRM === '1'
+  /**
+   * dev / preview 也要能用「后台页面生成 token / 浏览器设备授权」：
+   * 与 serve.mjs 同口径，用 PocketBase `users/auth-refresh` 校验站点登录态。
+   * 没跑 PB 的项目自然全部拒绝，不影响原有的 token 配对流程。
+   */
+  const pbBase = (process.env.WORKHUB_PB_URL || 'http://127.0.0.1:8090').replace(/\/+$/, '')
+  const authorizeMint = async (req) => {
+    const provided = String(req.headers.authorization ?? '').replace(/^Bearer\s+/i, '').trim()
+    if (!provided) return false
+    try {
+      const res = await fetch(`${pbBase}/api/collections/users/auth-refresh`, {
+        method: 'POST',
+        headers: { Authorization: provided },
+        signal: AbortSignal.timeout(5000),
+      })
+      return res.ok
+    } catch {
+      return false
+    }
+  }
   let relay = null
   /** @type {import('vite').ViteDevServer['httpServer'] | null} */
   let httpServer = null
@@ -43,7 +63,7 @@ export function relayPlugin(opts = {}) {
     name: 'workhub-relay',
     apply: 'serve',
     configureServer(server) {
-      relay = createRelay({ token: opts.token ?? process.env.WORKHUB_RELAY_TOKEN, autoIssueConfirm, path, log: (m) => server.config.logger.info(m) })
+      relay = createRelay({ token: opts.token ?? process.env.WORKHUB_RELAY_TOKEN, autoIssueConfirm, path, authorizeMint, log: (m) => server.config.logger.info(m) })
       httpServer = server.httpServer
       if (!httpServer) return
       httpServer.on('upgrade', upgradeHandler)
@@ -59,7 +79,7 @@ export function relayPlugin(opts = {}) {
     },
     configurePreviewServer(server) {
       // `npm run preview` 同样内嵌，便于本地验证生产构建（同源 /relay）
-      relay = createRelay({ token: opts.token ?? process.env.WORKHUB_RELAY_TOKEN, autoIssueConfirm, path, log: (m) => server.config.logger.info(m) })
+      relay = createRelay({ token: opts.token ?? process.env.WORKHUB_RELAY_TOKEN, autoIssueConfirm, path, authorizeMint, log: (m) => server.config.logger.info(m) })
       httpServer = server.httpServer
       if (!httpServer) return
       httpServer.on('upgrade', upgradeHandler)

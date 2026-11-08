@@ -4,7 +4,29 @@
 >
 > ⚠️ **环境口径（读下面历史轮次前必看）**：**测试环境已于 2026-10-31 下线** —— devtest 上的 `/opt/pocketbase`、systemd 单元、nginx 9001 站点与备份**全部删除**，`npm run deploy` 那条源码部署通道**不再存在**；**当前唯一环境 = 正式站 `https://team.fpigeon.fun`**（CNB 出镜像 → 服务器 `docker compose pull && up -d`）。域名 **`dev.fpigeon.fun` 已作废**（2026-10-09 全仓清理）——**本文正文中凡出现该域名，一律是历史轮次记述，不代表当前环境**。权威口径见 `docs/开发测试环境说明.md`。
 
-**最后更新**：2026-11-03（**停用「团队笔记」概念：速记只通向待办**）
+**最后更新**：2026-11-08（**一条命令 + 浏览器授权：`/authorize` 设备授权流**）
+**背景**：用户要 WorkBuddy 式认证 —— 复制一条命令，弹出页面点当前账户授权，不再手抄 token、也不去翻容器日志。
+**① relay**：新增 `/device/code`（无鉴权签 `device_code` + 8 位用户码，10 分钟）、`/device/approve|deny`（**必须站点登录态**，复用 `authorizeMint` 的 PB `auth-refresh` 校验）、`/device/token`（CLI 轮询；批准后**一次性**回 relay token）。设备码只存内存，重启即失效；签发与轮询分别限速。
+**② 授权页**：新增 `/authorize`（`AuthorizePage`，放在 Shell 之外、仍在 AuthGate 内）：显示用户码与当前账户，可「授权 / 换个账户」；页面**只提交 `user_code`**，长期 token 不经过页面。
+**③ CLI**：`npm run agent:setup -- --url wss://<站点>/relay --login`：请求设备码 → 打印并自动打开授权页 → 轮询 → 把 token 写入 `~/.workhub/relay.json`，再继续原有 MCP 配置写入。可复制的命令里**只有站点地址，没有 token**。
+**④ 设置页**：「Agent 侧接入（复制即用）」命令改为 `--login`；`--print-prompt` 的一次性配对码路径保留。dev 的 vite 插件也注入 `authorizeMint`（本机 PB），本地能走通同一条授权链。
+> **本轮验证**：`relayHttp.test.ts` **+5 条**（签发 / 待授权轮询 / 批准兑换且一次性 / 拒绝 / 反代地址）+ `authorizePage.test.tsx` **3 条**（只提交 user_code / 未登录不发请求 / 服务端原话透传）+ `agentSetup.test.ts` **42 条**（+3：`--login`、`ws→http`、`wss→https`）+ `aiBridgePair.test.tsx` **+1 条**（命令含 `--login` 且不含 token）；`npm run check:all` 全绿 —— **1162 passed / 0 failed / 7 skipped**（144 文件 / 1169 用例）；`npm run build` 通过。
+
+**上一轮**：2026-11-08（**修掉「首次配对前不能生成配对码」：后台页面可用登录态直接生成接入 token**）
+**背景（用户实际卡点）**：设置页「生成配对码」在 `ai.bridgeToken` 为空时直接报「尚未配对，无法签发配对码」，而 `/pair/new` 又只认 relay token —— 首次接入的人既没有 token、又必须先有 token 才能签，形成死循环，只能去翻容器日志找引导码。
+**① relay 增加第二鉴权通道**：`createRelay({ authorizeMint })`。`/pair/new` 仍优先认 `Bearer <relay token>`；未命中时交给宿主注入的回调（`scripts/serve.mjs` 用 PocketBase `users/auth-refresh` 校验**站点登录态**）。relay 本体仍不 import 任何业务代码。
+**② 页面流程**：`AiBridgeSection` 取 `getAuthToken()`（AuthGate 写入的 PB 登录态）；本页尚无 relay token 时，「生成接入 token」= 签一次性码 → **立即兑换** → 把 relay 下发的长期 token 写入 `settings.ai.bridgeToken` 并重连。**token 仍由 relay 下发，页面不自造**（2026-10-28 事故的硬约束不变）。已有 token 时按钮仍是原语义：签 5 分钟一次性码给 Agent / 第二台设备。
+**③ UI 口径**：按钮按状态显示「生成接入 token / 生成配对码」，说明改为「无需先配对，生成后复制到 MCP 客户端的 `Authorization: Bearer`」；启动日志引导码降级为兜底。
+> **本轮验证**：`relayHttp.test.ts` **+2 条**（站点登录态可签码并兑换 / 错误登录态仍 401）+ `aiBridgePair.test.tsx` **7 条**（新增「未配对但已登录：签码并自动兑换写入 token」，改写「未登录时提示引导码兜底」）；`npm run check:all` 全绿。
+
+**上上轮**：2026-11-08（**设置页新增「关于」：版本号 + 更新日志**）
+**范围**：纯展示，不改业务数据、同步 schema 与任何写库路径。
+**① 新 tab**：`SettingsPage` 的 `TABS` 增 `about`（图标 `info`），`AboutTab` 并列展示两个版本号 —— **应用版本**取 `package.json`（构建期 `__APP_VERSION__` 注入，vite / vitest 同源，源码不抄第二份）、**最新发布**取 CHANGELOG 中首个已发布里程碑。两者刻意不合并成一个号（AGENTS §7 的两套版本号）。
+**② 更新日志**：新增 `modules/settings/changelog.ts`，`?raw` 引入仓库根 `CHANGELOG.md` 并解析 `##` 段落；只收 `vX.Y.Z` 与「未发布」，跳过「记法约定 / 更早（未打 tag）」；正文复用笔记模块 `renderMarkdown`（marked + DOMPurify）渲染，默认展开最新版本、点行折叠/展开。
+**③ 为什么不在前端维护第二份日志**：CHANGELOG 是版本变更唯一事实源，复制一份必漂移；解析器抽成纯函数，边界（正文 `###` 小标题、`---`、非版本章节）由单测锁住。
+> **本轮验证**：`changelog.test.ts` **4 条** + `aboutTab.test.tsx` **2 条**；`settingsSmoke` 由 8 tab 扩到 **9 tab**；`npm run check:all` 全绿；`npm run build` 通过（`__APP_VERSION__` 与 `CHANGELOG.md?raw` 均能从构建产物正常注入）。
+
+**上上上轮**：2026-11-03（**停用「团队笔记」概念：速记只通向待办**）
 **① 速记卡只留一个出口**：删掉「归入团队笔记」大按钮与暂存区每行的「归笔记」；`convertDraft` / `convertStashed` 收窄成只转待办，`to === 'note'` 的分支与提示语一并删除（不留「看着能用、其实没人调」的暗路）。领域函数 `convertQuickNote(..., 'note')` **保留**（有用例覆盖），将来恢复入口只需把按钮加回来；用户可见的「归入团队笔记」提示与归档链接 title 同步改口。
 **② 通知项停用团队 Webhook**：「企业微信 / 钉钉 Webhook 协同同步」从通知设置列表移除；`settings.notifications.webhook` 字段保留，不迁移数据。
 **③ 外观预览示例文案中性化**：「团队协作网格 / 在团队协作中」→「信息网格 / 在日常记录中」——那只是排版预览的假文案，但会让人以为真有能力。

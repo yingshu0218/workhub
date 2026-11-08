@@ -121,6 +121,7 @@ npm run serve          # 生产形态：同进程托管 dist + relay（同源 ws
 
 ```bash
 npm run agent:setup                    # 探测本机 Agent 工具并写好 MCP + 规则 + skills
+npm run agent:setup -- --url wss://<站点>/relay --login   # 浏览器授权接入（推荐，token 不出现在命令里）
 npm run agent:setup -- --print-prompt  # 打印「一条指令」：零凭证，可整段复制给任意 Agent
 npm run agent:setup -- --check         # 连通性自检
 npm run agent:setup -- --dry-run       # 只预览改动，不落盘
@@ -137,11 +138,18 @@ npm run agent:setup -- --dry-run       # 只预览改动，不落盘
 | 环节 | 谁做 | 怎么拿 |
 |---|---|---|
 | 定 token | relay 启动 | `WORKHUB_RELAY_TOKEN` → `<dataDir>/relay-token`（0600）→ 首次生成写盘。**不允许构建期随机**（镜像要可复现，重建/回滚不能让已配对身份失效） |
-| 页面配对 | 人 | 启动日志打印**引导码**（`docker logs <容器> \| grep 配对码`，一次性、不限期）→ 设置页「配对码」→ 配对，写入 `settings.ai.bridgeToken` |
-| Agent 接入 | 人 / Agent | 页面显示的「接入 token」填进 `Authorization: Bearer`；或页面「生成配对码」签 5 分钟码，由 Agent `POST <relay>/pair` 兑换 |
+| 页面首次接入 | 人（已登录） | 设置页「生成接入 token」：页面带 **PocketBase 登录态**调 `/pair/new` 签码并立即兑换，写入 `settings.ai.bridgeToken`。**不需要先持有 relay token**；启动日志引导码仅作兜底（`docker logs <容器> \| grep 配对码`，一次性、不限期） |
+| Agent 接入 | 人 / Agent | 一条命令 `npm run agent:setup -- --url wss://<站点>/relay --login`：打印并打开 `/authorize`，登录后点「授权」即自动写入凭据；也可把页面显示的「接入 token」填进 `Authorization: Bearer`，或让 Agent 用 5 分钟配对码 `POST <relay>/pair` 兑换 |
 
 ⚠️ **页面不得自造 token**：`AiBridgeSection` 里原来的 `genToken()` 已删除。它让页面 token 与 relay token
 永不相等 —— 症状是页面永久「连接中…」而 Agent 只看到「未连接 relay」，两边都以为是对方配错。
+现在的「生成接入 token」是**向 relay 签码再兑换**（token 仍由 relay 下发），不是本地随机生成。
+⚠️ `/pair/new` 的第二鉴权通道由宿主注入（`createRelay({ authorizeMint })`，`scripts/serve.mjs` 用
+PB `auth-refresh` 校验），relay 本体仍不 import 任何业务代码。同一回调也用于设备授权的
+`/device/approve`（`authorizeMint` 是「站点登录态」的通用授权通道）。
+设备授权（`/device/code` → `/authorize` 页面 → `/device/token`）是「一条命令 + 浏览器点授权」的路径：
+`device_code` 只在 CLI 手里，页面只提交 `user_code`，长期 token 由 CLI 轮询写入
+`~/.workhub/relay.json`，**不经过页面、也不出现在可复制的命令里**。
 证据锁在 `src/modules/settings/__tests__/aiBridgePair.test.tsx`。⚠️ `mintPairCode` 的签名在
 `src/agent/relay-modules.d.ts` 另有一份 `.d.ts` 副本，改 JS 必须同步改它（否则类型仍按旧签名报错）。
 

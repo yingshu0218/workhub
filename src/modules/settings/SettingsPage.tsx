@@ -18,9 +18,10 @@ import { NotificationsTab } from './NotificationsTab'
 import { DensityTab, TypographyTab } from './AppearanceTabs'
 import { ShortcutsTab } from './ShortcutsTab'
 import { SecurityTab } from './SecurityTab'
+import { AboutTab } from './AboutTab'
 
 /**
- * 系统设置（对齐原型 13~15/17/18/20 · 7 标签）
+ * 系统设置（对齐原型 13~15/17/18/20 · 多标签）
  * 所有改动经 settingsRepo.save 即时落库并广播 settings:changed，各消费端实时应用（无「保存更改」按钮）
  * 边界（Issue #86）：本页只管「应用长什么样 / 怎么跑」的本地偏好（settings singleton，不进同步）；
  * 业务模块的规则配置（健康分权重等，写 moduleConfigs 同步表）已迁至 /module-config，本页仅留指路牌。
@@ -35,6 +36,7 @@ const TABS = [
   { id: 'sync', label: '云端同步', icon: 'cloud_sync' },
   { id: 'security', label: '数据与安全', icon: 'security' },
   { id: 'ai', label: 'AI Agent 桥', icon: 'smart_toy' },
+  { id: 'about', label: '关于', icon: 'info' },
 ] as const
 
 type TabId = (typeof TABS)[number]['id']
@@ -596,6 +598,9 @@ export default function SettingsPage() {
 
       {/* ── AI Agent 桥（能力白名单 + 接入凭据） ── */}
       {tab === 'ai' && <AiBridgeSection settings={settings} save={save} />}
+
+      {/* ── 关于（版本号 + 更新日志） ── */}
+      {tab === 'about' && <AboutTab />}
 
       {/* 应用风格确认弹窗（替代 window.confirm） */}
       <ConfirmDialog

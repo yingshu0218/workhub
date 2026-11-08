@@ -25,6 +25,7 @@ import {
   renderToolSkill,
   collectToolSkills,
   parseArgs,
+  httpBaseFromRelayUrl,
   TARGETS,
   REPO_ROOT,
   SERVER_NAME,
@@ -261,6 +262,18 @@ describe('参数解析', () => {
     expect(o.url).toBe('wss://x/relay')
     expect(o.token).toBe('abc')
     expect(o.swallowedByNpm).toBe(false)
+  })
+
+  it('--login 可单独开启（设备授权模式，不需要预先有 token）', () => {
+    const o = parseArgs(['--url', 'wss://team.example.com/relay', '--login'], {})
+    expect(o.login).toBe(true)
+    expect(o.token).toBe('')
+  })
+
+  it('设备授权的 HTTP 基址：ws→http、wss→https、去掉尾斜杠', () => {
+    expect(httpBaseFromRelayUrl('wss://team.fpigeon.fun/relay')).toBe('https://team.fpigeon.fun/relay')
+    expect(httpBaseFromRelayUrl('ws://127.0.0.1:9001/relay/')).toBe('http://127.0.0.1:9001/relay')
+    expect(httpBaseFromRelayUrl('')).toBe('')
   })
 })
 

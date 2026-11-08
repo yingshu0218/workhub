@@ -6,7 +6,8 @@
  * - MCP 客户端只支持 stdio / Streamable HTTP，**没有一家支持裸 WebSocket**。没有这个端点，
  *   远程 Agent 就只能在自己机器上跑 shim —— 等于「想连服务器上的工作台，先装一份仓库」。
  * - 配对码是「把 5 分钟一次性码交给 Agent、长期 token 不出聊天记录」的唯一通道，
- *   它的三条性质少一条就形同虚设：**只能用一次**、**会过期**、**签发要持 token**。
+ *   它的三条性质少一条就形同虚设：**只能用一次**、**会过期**、**签发要持凭据**
+ *   （relay token 或宿主认可的站点登录态）。
  *
  * 用真 http server + 真 fetch 跑（不打桩传输层）：这类端点最容易死在「框架层写对了、
  * 线路上不对」——比如把 405 写成 SPA 回退的 200 HTML，Agent 侧只会报「握手失败」。
@@ -26,6 +27,9 @@ beforeAll(async () => {
   relay = createRelay({
     token: TOKEN,
     log: () => {},
+    // 站点登录态鉴权通道：模拟 serve.mjs 用 PocketBase users token 校验后台页面。
+    // 这里只认固定的 admin-session，用来验证「页面首次配对前没有 relay token 也能签码」。
+    authorizeMint: (req) => req.headers.authorization === 'Bearer admin-session',
     // 服务端执行器：让 tools/list 在「浏览器不在线」时也有工具可列，
     // 从而验证的是**传输**而不是浏览器前置条件
     serverExecutor: {
@@ -133,8 +137,29 @@ describe('MCP over HTTP：远程 Agent 直连（不需要本地 shim）', () => 
 })
 
 describe('一次性配对码：长期 token 不出聊天记录', () => {
-  it('签发必须持 token（否则任何人都能给自己发码）', async () => {
+  it('签发必须持凭据（否则任何人都能给自己发码）', async () => {
     const r = await post('/pair/new', {})
+    expect(r.status).toBe(401)
+  })
+
+  /**
+   * 页面首次配对前**没有 relay token** —— 此时若签码只认 relay token，UI 上的
+   * 「生成配对码」永远 401（用户实际卡点）。serve.mjs 用 PocketBase users token
+   * 校验「已登录的后台页面」，本用例锁住这条第二鉴权通道的语义。
+   */
+  it('站点登录态也能签码，并可正常兑换成长期 token', async () => {
+    const minted = await post('/pair/new', {}, { authorization: 'Bearer admin-session' })
+    expect(minted.status).toBe(200)
+    const { code } = (await minted.json()) as { code: string }
+    expect(code).toMatch(/^[A-Z0-9]{6}$/)
+
+    const redeemed = await post('/pair', { code })
+    expect(redeemed.status).toBe(200)
+    expect(((await redeemed.json()) as { token: string }).token).toBe(TOKEN)
+  })
+
+  it('站点登录态校验失败时仍拒绝（不能退化成「有 Authorization 就放行」）', async () => {
+    const r = await post('/pair/new', {}, { authorization: 'Bearer wrong-session' })
     expect(r.status).toBe(401)
   })
 
@@ -205,5 +230,82 @@ describe('一次性配对码：长期 token 不出聊天记录', () => {
     expect(r.status).toBe(200)
     const j = (await r.json()) as { url: string }
     expect(j.url).toBe('https://team.example.com/relay/mcp')
+  })
+})
+
+describe('设备授权（一条命令 + 浏览器点确认）', () => {
+  const adminBearer = { authorization: 'Bearer admin-session' }
+
+  it('签发设备码：设备码只回 CLI，用户码是可手抄的 4-4 短码', async () => {
+    const r = await post('/device/code', {})
+    expect(r.status).toBe(200)
+    const j = (await r.json()) as {
+      device_code: string
+      user_code: string
+      verification_uri: string
+      verification_uri_complete: string
+      expires_in: number
+      interval: number
+    }
+    expect(j.device_code.length).toBeGreaterThan(20)
+    expect(j.user_code).toMatch(/^[A-Z0-9]{4}-[A-Z0-9]{4}$/)
+    expect(j.verification_uri).toMatch(/\/authorize$/)
+    expect(j.verification_uri_complete).toContain(`user_code=${encodeURIComponent(j.user_code)}`)
+    expect(j.expires_in).toBe(600)
+    expect(j.interval).toBe(5)
+  })
+
+  it('未批准时轮询返回 authorization_pending（CLI 继续等，不当失败）', async () => {
+    const { device_code } = (await (await post('/device/code', {})).json()) as { device_code: string }
+    const r = await post('/device/token', { device_code })
+    expect(r.status).toBe(400)
+    const j = (await r.json()) as { error: string }
+    expect(j.error).toBe('authorization_pending')
+  })
+
+  it('批准必须持站点登录态；批准后轮询才拿到 token，且只能拿一次', async () => {
+    const { device_code, user_code } = (await (await post('/device/code', {})).json()) as {
+      device_code: string
+      user_code: string
+    }
+
+    const denied = await post('/device/approve', { user_code })
+    expect(denied.status).toBe(401)
+
+    const approved = await post('/device/approve', { user_code }, adminBearer)
+    expect(approved.status).toBe(200)
+
+    const first = await post('/device/token', { device_code })
+    expect(first.status).toBe(200)
+    const tokenBody = (await first.json()) as { access_token: string; token_type: string; url: string }
+    expect(tokenBody.access_token).toBe(TOKEN)
+    expect(tokenBody.token_type).toBe('Bearer')
+    expect(tokenBody.url).toContain('/relay/mcp')
+
+    const second = await post('/device/token', { device_code })
+    expect(second.status).toBe(400)
+    expect(((await second.json()) as { error: string }).error).toBe('expired_token')
+  })
+
+  it('拒绝授权后轮询返回 access_denied，且码作废', async () => {
+    const { device_code, user_code } = (await (await post('/device/code', {})).json()) as {
+      device_code: string
+      user_code: string
+    }
+    const r = await post('/device/deny', { user_code }, adminBearer)
+    expect(r.status).toBe(200)
+
+    const poll = await post('/device/token', { device_code })
+    expect(poll.status).toBe(403)
+    expect(((await poll.json()) as { error: string }).error).toBe('access_denied')
+  })
+
+  it('授权页地址同样使用反代透传的真实域名', async () => {
+    const r = await post('/device/code', {}, {
+      'x-forwarded-host': 'team.example.com',
+      'x-forwarded-proto': 'https',
+    })
+    const j = (await r.json()) as { verification_uri: string }
+    expect(j.verification_uri).toBe('https://team.example.com/authorize')
   })
 })

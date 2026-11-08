@@ -1,10 +1,19 @@
 import { defineConfig } from 'vitest/config'
 import path from 'node:path'
+import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
 const dirname = path.dirname(fileURLToPath(import.meta.url))
 
+/** 与 vite.config.ts 同源：测试里读 `APP_VERSION` 也必须拿到 package.json 的真实版本 */
+const pkgVersion = (
+  JSON.parse(readFileSync(path.resolve(dirname, 'package.json'), 'utf8')) as { version: string }
+).version
+
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(pkgVersion),
+  },
   resolve: {
     alias: { '@': path.resolve(dirname, 'src'), '@relay': path.resolve(dirname, 'relay') },
   },

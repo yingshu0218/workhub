@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect } from 'react'
 import { createBrowserRouter, RouterProvider, Outlet, useLocation } from 'react-router-dom'
 import AppLayout from './AppLayout'
+import AuthorizePage from './AuthorizePage'
 import ErrorBoundary from './ErrorBoundary'
 import DashboardPage from '@/modules/dashboard/DashboardPage'
 import NotFoundPage from './NotFoundPage'
@@ -89,6 +90,11 @@ function Shell() {
 }
 
 const router = createBrowserRouter([
+  /**
+   * 设备授权页放在 Shell 之外：它是「从终端弹出来」的单独确认页，
+   * 不该出现侧栏、模块导航或页面切换动画。AuthGate 仍然包在外面（必须登录才能授权）。
+   */
+  { path: '/authorize', element: <AuthorizePage /> },
   {
     element: <Shell />,
     children: [

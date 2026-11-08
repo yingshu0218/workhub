@@ -44,7 +44,7 @@
  * 默认只投放一份元技能（讲清「中风险确认流程 / 消解优先 / 读限幅」这些 MCP schema 表达不了的事）。
  */
 import { readFileSync, writeFileSync, existsSync, mkdirSync, copyFileSync, rmSync, readdirSync, statSync } from 'node:fs'
-import { spawnSync } from 'node:child_process'
+import { spawnSync, spawn } from 'node:child_process'
 import { homedir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -104,6 +104,8 @@ const usage = () => `寻鸽工作台 · Agent 一键接入
   --transport local          指向本地 relay（默认 ws://127.0.0.1:9001/relay）
   --port <n>                 配合 --transport local 指定端口（dev 通常 5173，serve 默认 9001）
   --url <ws(s)://…/relay>    显式指定 relay 地址（远程部署用这个）
+  --login                    浏览器授权（推荐）：打印并打开授权页，登录后点「授权」，
+                             自动把 token 写入凭据文件，再继续写入各 Agent 配置
   --token <token>            指定接入 token（缺省复用已有凭据）
   --env <name>               把凭据存到 ~/.workhub/relay.<name>.json，且**不改 MCP 配置**
                              （用途：去测试站验收桥，不动正式站那套配置；
@@ -608,6 +610,85 @@ function siteFromCred(cred) {
   return u.replace(/^wss:/, 'https:').replace(/^ws:/, 'http:').replace(/\/relay\/?$/, '')
 }
 
+/** relay 的 ws(s) 地址 → 同路径的 http(s) 基址（设备授权走普通 HTTP） */
+export function httpBaseFromRelayUrl(url) {
+  return String(url ?? '')
+    .trim()
+    .replace(/^ws(s?):/i, 'http$1:')
+    .replace(/\/+$/, '')
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+/** 尽力打开系统浏览器；打不开不算失败（URL 已经打印在终端） */
+function openInBrowser(url) {
+  const platform = process.platform
+  const cmd = platform === 'darwin' ? 'open' : platform === 'win32' ? 'cmd' : 'xdg-open'
+  const args = platform === 'win32' ? ['/c', 'start', '', url] : [url]
+  try {
+    const child = spawn(cmd, args, { stdio: 'ignore', detached: true })
+    child.on('error', () => {})
+    child.unref()
+  } catch {
+    /* 无图形环境：用户手动打开打印出来的地址 */
+  }
+}
+
+/**
+ * 设备授权（「一条命令 + 浏览器点授权」）。
+ *
+ * 与配对码的区别：不需要用户去翻容器日志，也不要求本机已有 token。
+ * CLI 只拿高熵 device_code 轮询；用户在浏览器里用**站点账号**确认授权；
+ * 批准后 CLI 才收到长期 token 并写入凭据文件。token 不出现在终端输出里。
+ */
+export async function deviceLogin(relayUrl) {
+  if (!relayUrl) throw new Error('--login 需要 --url <wss://站点/relay>')
+  const base = httpBaseFromRelayUrl(relayUrl)
+  if (!/^https?:\/\//.test(base)) throw new Error(`--url 必须是 ws(s):// 地址，收到：${relayUrl}`)
+
+  const codeRes = await fetch(`${base}/device/code`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ client_name: 'workhub-agent-setup' }),
+    signal: AbortSignal.timeout(10_000),
+  })
+  const codeJson = await codeRes.json().catch(() => ({}))
+  if (!codeRes.ok || !codeJson.device_code) {
+    throw new Error(
+      `设备授权码签发失败（HTTP ${codeRes.status}）${codeJson.error ? `：${codeJson.error}` : ''}`,
+    )
+  }
+
+  const interval = Math.max(1, Number(codeJson.interval) || 5)
+  const expiresIn = Math.max(60, Number(codeJson.expires_in) || 600)
+  const deadline = Date.now() + expiresIn * 1000
+  const verifyUrl = codeJson.verification_uri_complete || codeJson.verification_uri
+
+  process.stdout.write(`\n请在浏览器中确认授权（用你的站点账号登录后点「授权」）：\n`)
+  process.stdout.write(`  ${verifyUrl}\n`)
+  process.stdout.write(`  授权码：${codeJson.user_code}\n\n`)
+  openInBrowser(verifyUrl)
+
+  while (Date.now() < deadline) {
+    await sleep(interval * 1000)
+    const res = await fetch(`${base}/device/token`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ device_code: codeJson.device_code }),
+      signal: AbortSignal.timeout(10_000),
+    })
+    const j = await res.json().catch(() => ({}))
+    if (res.ok && j.access_token) return { url: relayUrl, token: j.access_token }
+    if (j.error === 'authorization_pending') continue
+    if (j.error === 'access_denied') throw new Error('授权已被拒绝（可在授权页重新运行命令后再试）')
+    if (j.error === 'expired_token') throw new Error('授权码已过期，请重新运行命令')
+    throw new Error(`等待授权失败（HTTP ${res.status}）${j.error ? `：${j.error}` : ''}`)
+  }
+  throw new Error('等待授权超时，请重新运行命令')
+}
+
 /**
  * 向站点签发一枚**一次性配对码**。
  *
@@ -718,6 +799,7 @@ function parseArgs(argv, env = process.env) {
   return {
     dryRun: flag('--dry-run'),
     check: flag('--check'),
+    login: flag('--login'),
     uninstall: flag('--uninstall'),
     help: flag('--help') || flag('-h'),
     printPrompt: flag('--print-prompt'),
@@ -799,6 +881,28 @@ async function main() {
     }
     process.stdout.write(`${renderPrompt({ code, site: siteFromCred(cred) || 'https://<你的站点>' })}\n`)
     return
+  }
+
+  /**
+   * --login：先完成设备授权，再把拿到的 token 当成 --token 继续走既有写配置流程。
+   * 地址优先用 --url；没给就复用已有凭据里的地址（复用会导致「换站点却还在连旧站」的歧义，
+   * 所以只在不带 --url 时兜底，并在输出里明确写出实际目标）。
+   */
+  if (opts.login) {
+    const existing = readJson(activeCredFile) ?? {}
+    const targetUrl = opts.url || existing.url || ''
+    if (!targetUrl) {
+      process.stdout.write(
+        c.red('❌ --login 需要站点地址。\n') +
+          '   例：npm run agent:setup -- --url wss://team.fpigeon.fun/relay --login\n\n',
+      )
+      process.exitCode = 2
+      return
+    }
+    const cred = await deviceLogin(targetUrl)
+    opts.url = cred.url
+    opts.token = cred.token
+    opts.swallowedByNpm = false
   }
 
   const prefix = DRY_RUN ? c.yellow('[dry-run] ') : ''

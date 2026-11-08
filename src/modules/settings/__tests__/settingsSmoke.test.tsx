@@ -22,7 +22,7 @@ import 'fake-indexeddb/auto'
 import { db } from '@/db/db'
 import SettingsPage from '../SettingsPage'
 
-/** 8 个 tab 的标签文本（**逐字取自 `SettingsPage.tsx` 的 `TABS` 常量，不凭印象**） */
+/** 9 个 tab 的标签文本（**逐字取自 `SettingsPage.tsx` 的 `TABS` 常量，不凭印象**） */
 const TABS: { label: string; marker: string }[] = [
   { label: '外观与主题', marker: '界面风格' },
   { label: '色彩与密度', marker: '圆角与信息密度' },
@@ -32,6 +32,7 @@ const TABS: { label: string; marker: string }[] = [
   { label: '云端同步', marker: '自托管同步服务' },
   { label: '数据与安全', marker: '数据导出与多格式打包' },
   { label: 'AI Agent 桥', marker: 'AI Agent 桥' },
+  { label: '关于', marker: '版本信息' },
 ]
 
 beforeEach(async () => {
@@ -45,7 +46,7 @@ beforeEach(async () => {
  */
 afterEach(cleanup)
 
-describe('SettingsPage 冒烟：8 个 tab 都能渲染出实质内容', () => {
+describe('SettingsPage 冒烟：9 个 tab 都能渲染出实质内容', () => {
   it('默认进入「外观与主题」且有内容', async () => {
     render(
       <MemoryRouter>
@@ -100,11 +101,11 @@ describe('SettingsPage 冒烟：8 个 tab 都能渲染出实质内容', () => {
       results.push({ tab: label, ok, detail: ok ? marker : `缺标记文本「${marker}」` })
     }
 
-    // 8 个 tab 全部可点且渲染非空
+    // 9 个 tab 全部可点且渲染非空
     const bad = results.filter((r) => !r.ok).map((r) => `${r.tab}：${r.detail}`)
     expect(bad).toEqual([])
     expect(results.length).toBe(TABS.length)
-    // 8 次点击 + 8 次 waitFor，默认 5s 在并发负载下会超时（实测 5.2s）——
+    // 9 次点击 + 9 次 waitFor，默认 5s 在并发负载下会超时（实测 5.2s）——
     // 这是「交互次数多」而非「功能坏了」，给足预算而不是删断言
   }, 20_000)
 })

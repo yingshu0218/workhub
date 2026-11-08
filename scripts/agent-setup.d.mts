@@ -65,6 +65,8 @@ export declare function pickNodePath(): string
 export interface CliOptions {
   dryRun: boolean
   check: boolean
+  /** 浏览器设备授权：拿站点登录态换 token，不需要预先持有 relay token */
+  login: boolean
   uninstall: boolean
   help: boolean
   printPrompt: boolean
@@ -88,3 +90,9 @@ export declare function renderPrompt(opts?: { code?: string; site?: string }): s
 
 /** 由凭据里的 wss:// 反推站点地址（仅用于提示「去哪个页面启用桥」） */
 export declare function siteFromCred(cred: { url?: string } | null | undefined): string
+
+/** relay 的 ws(s) 地址 → 同路径 http(s) 基址（设备授权走普通 HTTP） */
+export declare function httpBaseFromRelayUrl(url: string): string
+
+/** 设备授权：请求 device/code → 打开授权页 → 轮询到 token */
+export declare function deviceLogin(relayUrl: string): Promise<{ url: string; token: string }>
