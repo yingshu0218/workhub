@@ -10,6 +10,7 @@
 **② 授权页**：新增 `/authorize`（`AuthorizePage`，放在 Shell 之外、仍在 AuthGate 内）：显示用户码与当前账户，可「授权 / 换个账户」；页面**只提交 `user_code`**，长期 token 不经过页面。
 **③ CLI**：`npm run agent:setup -- --url wss://<站点>/relay --login`：请求设备码 → 打印并自动打开授权页 → 轮询 → 把 token 写入 `~/.workhub/relay.json`，再继续原有 MCP 配置写入。可复制的命令里**只有站点地址，没有 token**。
 **④ 设置页**：「Agent 侧接入（复制即用）」命令改为 `--login`；`--print-prompt` 的一次性配对码路径保留。dev 的 vite 插件也注入 `authorizeMint`（本机 PB），本地能走通同一条授权链。
+**⑤ 构建修复（CNB 实测）**：首次镜像构建在 `vite build` 阶段失败 —— `.dockerignore` 把 `CHANGELOG.md` 排除了，`?raw` 解析不到。已从排除清单移除（它是「关于」页的构建期数据源），并加注释防止再被当大件删掉。
 > **本轮验证**：`relayHttp.test.ts` **+5 条**（签发 / 待授权轮询 / 批准兑换且一次性 / 拒绝 / 反代地址）+ `authorizePage.test.tsx` **3 条**（只提交 user_code / 未登录不发请求 / 服务端原话透传）+ `agentSetup.test.ts` **42 条**（+3：`--login`、`ws→http`、`wss→https`）+ `aiBridgePair.test.tsx` **+1 条**（命令含 `--login` 且不含 token）；`npm run check:all` 全绿 —— **1162 passed / 0 failed / 7 skipped**（144 文件 / 1169 用例）；`npm run build` 通过。
 
 **上一轮**：2026-11-08（**修掉「首次配对前不能生成配对码」：后台页面可用登录态直接生成接入 token**）

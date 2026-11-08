@@ -13,11 +13,13 @@ src-tauri/
 **/src-tauri/
 
 # ── 与运行时无关的大件 ──
+# ⚠️ **不要**排除 `CHANGELOG.md`：它是「设置 → 关于 → 更新日志」的**构建期数据源**
+#    （`src/modules/settings/changelog.ts` 用 `?raw` 引入），排除后 `vite build` 会报
+#    `Could not resolve "../../../CHANGELOG.md?raw"` —— CNB 镜像构建实测踩过。
 docs/
 design/
 .git/
 .gitattributes
-CHANGELOG.md
 
 # ── 构建产物与依赖（运行阶段会重新 `npm ci` + build）──
 node_modules/
