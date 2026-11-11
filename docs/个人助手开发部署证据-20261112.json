@@ -1,0 +1,121 @@
+{
+  "verifiedAt": "2026-11-12",
+  "release": {
+    "codeCommit": "ba5eabaed7e9790080de71a0fcc0c847e65f7e65",
+    "archiveSha256": "7b7de19e91582f1eff0fa55641b0d59dc0fd7542d24ee900bf715822c10e998c",
+    "pocketbase": "0.40.2",
+    "protocol": 1,
+    "migrations": [
+      "1794355200_reliability.js",
+      "1794355201_sync_metadata.js",
+      "1794355202_personal_activities.js"
+    ],
+    "migrationSha256": {
+      "1794355200_reliability.js": "2c62ca1c18a6dc7d2cbc99a7d0f42e32c83410de5d40c3db5d178c082e4e7a45",
+      "1794355201_sync_metadata.js": "959642cf76a7db45f460ec3a8775729eb28a4d8beb94b5f58ca34ad99ed38026",
+      "1794355202_personal_activities.js": "f7ea842517cba39049d4b2ab0ecd5b61bdb5563f85383b05d0d1ecd4cceba88b"
+    },
+    "unit": "workhub-devtest-20261111.service"
+  },
+  "preservation": {
+    "ok": true,
+    "generationPreserved": true,
+    "existingRowsAndReceiptsPreserved": {
+      "ledgers": 4,
+      "transactions": 4,
+      "todos": 1,
+      "interactions": 0,
+      "operations": 8,
+      "activities": 1,
+      "agent_credentials": 2
+    },
+    "existingDeletionMarksPreserved": 0,
+    "activityCount": 1,
+    "migratedActivities": 0,
+    "coldBackupVerified": true,
+    "credentialsUnchanged": true,
+    "factsFingerprint": {
+      "ledgers": "dcf40ac3659bc62e8c867816a63c3b8b2d3eff22b8ac22a1b5bba6c353981d32",
+      "transactions": "a103cac87b25c92032f5fd7ebb0a5e093d476817f4f38ed673030e4f984f3042",
+      "todos": "a569ccaaff766a8feaa74051180e9b97d0c588f7466a668fdfcac59ec13ca709",
+      "interactions": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "operations": "635fcbbb0eceea3dd5213b12dcf77a237142f8c799f10f42120debcaa0eb1358"
+    },
+    "release": {
+      "codeCommit": "ba5eabaed7e9790080de71a0fcc0c847e65f7e65",
+      "archiveSha256": "7b7de19e91582f1eff0fa55641b0d59dc0fd7542d24ee900bf715822c10e998c",
+      "pocketbase": "0.40.2",
+      "protocol": 1,
+      "migrations": [
+        "1794355200_reliability.js",
+        "1794355201_sync_metadata.js",
+        "1794355202_personal_activities.js"
+      ],
+      "migrationSha256": {
+        "1794355200_reliability.js": "2c62ca1c18a6dc7d2cbc99a7d0f42e32c83410de5d40c3db5d178c082e4e7a45",
+        "1794355201_sync_metadata.js": "959642cf76a7db45f460ec3a8775729eb28a4d8beb94b5f58ca34ad99ed38026",
+        "1794355202_personal_activities.js": "f7ea842517cba39049d4b2ab0ecd5b61bdb5563f85383b05d0d1ecd4cceba88b"
+      },
+      "unit": "workhub-devtest-20261111.service"
+    }
+  },
+  "independentCredentialSmoke": {
+    "ok": true,
+    "codeCommit": "ba5eabaed7e9790080de71a0fcc0c847e65f7e65",
+    "protocol": 1,
+    "anonymousQueriesWritesAndConfirmDenied": true,
+    "standardMcpArguments": true,
+    "browserRequired": false,
+    "independentCredential": true,
+    "credentialRevocation": true,
+    "planTamperingRejected": true,
+    "atomicEventFinanceTask": true,
+    "persistentRetry": true,
+    "productionHtmlHashMatches": true,
+    "amountMinor": 250,
+    "currency": "CNY",
+    "toolCount": 62
+  },
+  "legacySharedSmoke": {
+    "ok": true,
+    "protocol": 1,
+    "productionHtmlHashMatches": true,
+    "closedPageMcp": true,
+    "concretePreview": true,
+    "confirmationContextBound": true,
+    "persistentReplay": true,
+    "oldProtocolBlocked": true,
+    "totalMatched": 1,
+    "incomeMinor": 1234
+  },
+  "deploymentDomains": {
+    "domains": [
+      "crm",
+      "fin",
+      "todo",
+      "habit",
+      "project",
+      "note",
+      "read",
+      "link"
+    ],
+    "credentialsUnchanged": true,
+    "initialSmokeRejected": "FORBIDDEN: links write domain was not enabled",
+    "correction": "enable authorized link domain; no capability or confirmation check removed"
+  },
+  "service": {
+    "state": "active",
+    "subState": "running",
+    "restarts": 0,
+    "memoryMax": 805306368,
+    "cpuQuota": "100%",
+    "autoConfirm": false
+  },
+  "independentAudit": {
+    "functionalGroups": 10,
+    "externalAuthenticationCases": 30,
+    "liveReadProbe": true,
+    "sevenFileSha256Match": true,
+    "rootApproved": true
+  }
+}
