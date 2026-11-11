@@ -2,6 +2,7 @@
 import { beforeEach, expect, it, vi } from 'vitest'
 import 'fake-indexeddb/auto'
 import { db } from '@/db/db'
+import { CommandError } from '@/storage/pocketbase'
 import { createServerFirstAdapter } from '@/storage/serverFirst'
 import type { CommandTransport } from '@/storage/commandPlan'
 import type { Command } from '@/commands/core'
@@ -59,4 +60,21 @@ it('旧页面的世代固定；恢复后不能取得新世代继续写旧草稿'
   api.generation=async()=> 'restored-generation'
   await expect(adapter.transaction(['customers','syncQueue'],tx=>tx.put('customers',{...row,id:'new-after-restore'}))).rejects.toThrow('RECOVERY_REVIEW_REQUIRED')
   expect(api.commit).toHaveBeenCalledTimes(1)
+})
+
+it('服务端提交后本地辅助表失败不伪报业务保存失败',async()=>{
+ const api=transport();const adapter=createServerFirstAdapter({transport:api})
+ await expect(adapter.transaction(['customers','settings','syncQueue'],async tx=>{
+   await tx.put('customers',row)
+   await tx.put('settings',{id:'missing-key'})
+   return 'committed'
+ })).resolves.toBe('committed')
+ expect(api.commit).toHaveBeenCalledTimes(1);expect(await db.customers.count()).toBe(1)
+})
+
+it('REQUEST_REUSED 的 409 保留原 pending，不能当成从未提交',async()=>{
+ const api=transport();api.commit=async()=>{throw new CommandError('REQUEST_REUSED: 已提交但参数不同',409)}
+ const adapter=createServerFirstAdapter({transport:api})
+ await expect(adapter.transaction(['customers','syncQueue'],tx=>tx.put('customers',row))).rejects.toThrow('REQUEST_REUSED')
+ expect(Object.keys(localStorage).some(k=>k.startsWith('workhub.pending.'))).toBe(true)
 })

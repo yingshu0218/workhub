@@ -143,6 +143,7 @@ function financeTotals(rows) {
     const group = out[currency] || (out[currency] = { incomeMinor: 0, expenseMinor: 0, count: 0 });
     if (r.type === "income") group.incomeMinor += Number(amount);
     else if (r.type === "expense") group.expenseMinor += Number(amount);
+    if (!Number.isSafeInteger(group.incomeMinor) || !Number.isSafeInteger(group.expenseMinor)) fail("MONEY_RANGE", "\u6C47\u603B\u8D85\u51FA\u5B89\u5168\u6574\u6570\u8303\u56F4\uFF1A" + currency);
     group.count++;
   }
   return out;

@@ -1,3 +1,4 @@
+import { pendingCommandFor, recoverPendingCommand } from '@/storage/serverFirst'
 /**
  * 待办表单抽屉（2026-10-26 审计整改：从 `TodoPage.tsx` 拆出）
  *
@@ -88,11 +89,25 @@ export function TodoFormDrawer({
   // 正文即标题来源，打开即聚焦正文（原先聚焦标题输入框）
   const descRef = useAutoFocus<HTMLTextAreaElement>(open)
 
+  const [busy, setBusy] = useState(false)
+  const submitLock = useRef(false)
+  const draftId = useRef<string | null>(null)
+  const draftCreatedAt = useRef<number | null>(null)
+  const pendingDraft = useRef(pendingCommandFor('todos', todo?.id))
+  if (!draftId.current && pendingDraft.current) draftId.current = pendingDraft.current.writes.find(w => w.table === 'todos')?.id ?? null
   // 打开时重置
   const openKey = `${open}-${todo?.id ?? 'new'}`
   const [lastKey, setLastKey] = useState('')
   if (openKey !== lastKey) {
     setLastKey(openKey)
+    const pending = pendingCommandFor('todos', todo?.id ?? draftId.current)
+    const original = pending?.writes.find(w => w.table === 'todos')?.value
+    if (original) {
+      setDesc(toTodoText(original as unknown as Todo))
+      setPriority(normalizeTodoPriority(original.priority)); setDueAt(original.dueAt ? dayjs(Number(original.dueAt)).format('YYYY-MM-DDTHH:mm') : '')
+      setCustomerId(String(original.customerId || '')); setProjectId(String(original.projectId || '')); setTags(normalizeTodoTags(original.tags as string[] || []))
+      setError('发现待核对的原提交，原输入已恢复，请先核对结果')
+    } else {
     // 编辑回填：标题与正文拼接，对齐「首行即标题」的拆分口径（拆不开时按标题拆分）
     setDesc(toTodoText(todo))
     // 回填归一化：存量 P1/P2/P3 数据在此转成四档，编辑保存后自然完成数据迁移。
@@ -109,6 +124,7 @@ export function TodoFormDrawer({
     setTagDraft('')
     setTagNotice('')
     setError('')
+    }
     setSeedKey((k) => k + 1)
   }
 
@@ -132,9 +148,6 @@ export function TodoFormDrawer({
     }
   }
 
-  const submitLock = useRef(false)
-  const draftId = useRef<string | null>(null)
-  const draftCreatedAt = useRef<number | null>(null)
   async function save() {
     if (submitLock.current) return
     // 标签结算（Issue #148）：把未按回车的草稿与正文尾部残留的 `#词` 一并收成标签，
@@ -183,6 +196,7 @@ export function TodoFormDrawer({
     }
     // 错误处理（审计 P1 同类项）：此前无 try/catch，落库失败的 Promise 无人处理 → 静默失败零提示。
     submitLock.current = true
+    setBusy(true)
     try {
       // 清单归属已迁 links（v16 member）：与待办行同事务（null = 移回收集箱）
       await saveTodoWithList(base, listId || null)
@@ -193,12 +207,28 @@ export function TodoFormDrawer({
       onClose()
     } catch (e) {
       setError(e instanceof Error ? `保存失败：${e.message}` : '保存失败，请重试')
-    } finally { submitLock.current = false }
+    } finally { submitLock.current = false; setBusy(false) }
+  }
+
+  const pendingId = todo?.id ?? draftId.current
+  const unknown = !!pendingCommandFor('todos', pendingId)
+  function closeSafely() {
+    if (submitLock.current || unknown) { setError('保存结果待核对，原输入和请求已保留；请先核对保存结果或重试原提交'); return }
+    draftId.current = null; draftCreatedAt.current = null
+    onClose()
+  }
+  async function recover(retry = false) {
+    if (!pendingId) return
+    try {
+      if (await recoverPendingCommand('todos', pendingId, retry)) { draftId.current = null; draftCreatedAt.current = null; pendingDraft.current = undefined; onClose() }
+      else setError('暂未查到已提交回执，请用原输入重试；原请求不会重复创建记录')
+    } catch (error) { setError(error instanceof Error ? error.message : '结果查询失败，请重试') }
   }
 
   return (
-    <Modal open={open} title={todo ? '编辑待办' : '新建待办'} onClose={onClose} size="lg">
-      <div key={seedKey}>
+    <Modal open={open} title={todo ? '编辑待办' : '新建待办'} onClose={closeSafely} size="lg">
+      {unknown && <div className="mb-3 flex gap-2"><Button onClick={() => void recover()}>核对保存结果</Button><Button onClick={() => void recover(true)}>重试原提交</Button></div>}
+      <fieldset key={seedKey} disabled={busy || unknown} className="min-w-0 border-0 p-0">
         {/* 左右分区（Issue #148 后续）：
             - 左栏只放正文，独占可用高度（「把更大的面积留给文本输入」）；
             - 右栏「事项设置」收纳全部非正文字段（优先级/状态/截止时间/清单/项目/客户）；
@@ -394,12 +424,12 @@ export function TodoFormDrawer({
         </div>
         {error && <div className="mb-3 text-[0.8571rem] text-danger">{error}</div>}
         <div className="flex justify-end gap-2 pt-2">
-          <Button variant="tonal" onClick={onClose}>
+          <Button variant="tonal" onClick={closeSafely}>
             取消
           </Button>
           <Button onClick={save}>{todo ? '保存修改' : '创建待办'}</Button>
         </div>
-      </div>
+      </fieldset>
     </Modal>
   )
 }

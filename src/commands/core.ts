@@ -104,6 +104,7 @@ export function financeTotals(rows: readonly Row[]): Record<string, { incomeMino
     const group = out[currency] ||= { incomeMinor: 0, expenseMinor: 0, count: 0 }
     if (r.type === 'income') group.incomeMinor += Number(amount)
     else if (r.type === 'expense') group.expenseMinor += Number(amount)
+    if (!Number.isSafeInteger(group.incomeMinor) || !Number.isSafeInteger(group.expenseMinor)) fail('MONEY_RANGE', '汇总超出安全整数范围：' + currency)
     group.count++
   }
   return out

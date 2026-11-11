@@ -26,4 +26,4 @@ if(args.includes('--apply')){
  cpSync(data,join(temp,'original'),{recursive:true})
  const result=command(data);if(result.status!==0)throw new Error(result.stderr+result.stdout)
 }
-process.stdout.write(JSON.stringify({ok:true,applied:args.includes('--apply'),checkpoint:'1794355200_reliability',artifacts:temp})+'\n')
+process.stdout.write(JSON.stringify({ok:true,applied:args.includes('--apply'),checkpoint:'1794355201_sync_metadata',artifacts:temp})+'\n')

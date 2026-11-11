@@ -69,6 +69,18 @@
         "type": "number",
         "required": false,
         "presentable": false
+      },
+      {
+        "name": "deletedAt",
+        "type": "number"
+      },
+      {
+        "name": "restoredAt",
+        "type": "number"
+      },
+      {
+        "name": "trashSnapshot",
+        "type": "json"
       }
     ],
     "indexes": [
@@ -306,6 +318,10 @@
         "name": "deletedAt",
         "type": "number",
         "required": false
+      },
+      {
+        "name": "trashSnapshot",
+        "type": "json"
       }
     ],
     "indexes": [
@@ -411,6 +427,14 @@
         "name": "openingBalanceMinor",
         "type": "number",
         "onlyInt": true
+      },
+      {
+        "name": "trashSnapshot",
+        "type": "json"
+      },
+      {
+        "name": "isDefault",
+        "type": "bool"
       }
     ],
     "indexes": [
@@ -918,6 +942,10 @@
         "name": "deletedAt",
         "type": "number",
         "required": false
+      },
+      {
+        "name": "trashSnapshot",
+        "type": "json"
       }
     ],
     "indexes": [
@@ -1004,6 +1032,18 @@
         "type": "number",
         "required": false,
         "presentable": false
+      },
+      {
+        "name": "deletedAt",
+        "type": "number"
+      },
+      {
+        "name": "restoredAt",
+        "type": "number"
+      },
+      {
+        "name": "trashSnapshot",
+        "type": "json"
       }
     ],
     "indexes": [
@@ -1213,6 +1253,10 @@
         "name": "deletedAt",
         "type": "number",
         "required": false
+      },
+      {
+        "name": "trashSnapshot",
+        "type": "json"
       }
     ],
     "indexes": [
@@ -1312,6 +1356,18 @@
         "type": "number",
         "required": false,
         "presentable": false
+      },
+      {
+        "name": "deletedAt",
+        "type": "number"
+      },
+      {
+        "name": "restoredAt",
+        "type": "number"
+      },
+      {
+        "name": "trashSnapshot",
+        "type": "json"
       }
     ],
     "indexes": [
@@ -1420,6 +1476,10 @@
         "name": "deletedAt",
         "type": "number",
         "required": false
+      },
+      {
+        "name": "trashSnapshot",
+        "type": "json"
       }
     ],
     "indexes": [
@@ -1795,6 +1855,10 @@
         "name": "deletedAt",
         "type": "number",
         "required": false
+      },
+      {
+        "name": "trashSnapshot",
+        "type": "json"
       }
     ],
     "indexes": [
@@ -1866,6 +1930,18 @@
         "type": "number",
         "required": false,
         "presentable": false
+      },
+      {
+        "name": "deletedAt",
+        "type": "number"
+      },
+      {
+        "name": "restoredAt",
+        "type": "number"
+      },
+      {
+        "name": "trashSnapshot",
+        "type": "json"
       }
     ],
     "indexes": [
@@ -1962,6 +2038,10 @@
         "name": "deletedAt",
         "type": "number",
         "required": false
+      },
+      {
+        "name": "trashSnapshot",
+        "type": "json"
       }
     ],
     "indexes": [
@@ -2100,6 +2180,10 @@
         "type": "number",
         "required": false,
         "presentable": false
+      },
+      {
+        "name": "trashSnapshot",
+        "type": "json"
       }
     ],
     "indexes": [

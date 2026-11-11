@@ -1,3 +1,4 @@
+import { pendingCommandFor, recoverPendingCommand } from '@/storage/serverFirst'
 import { useRef, useState } from 'react'
 import { useCollection } from '@/queries/hooks'
 import { useFormReset } from '@/shared/useFormReset'
@@ -90,10 +91,25 @@ export default function TransactionFormDrawer({
   const [error, setError] = useState('')
   const summaryRef = useAutoFocus<HTMLInputElement>(open)
 
+  const [busy, setBusy] = useState(false)
+  const submitLock = useRef(false)
+  const draftId = useRef<string | null>(null)
+  const draftCreatedAt = useRef<number | null>(null)
+  const attachmentIds = useRef(new Map<File, string>())
+  const pendingDraft = useRef(pendingCommandFor('transactions', editTxn?.id))
+  if (!draftId.current && pendingDraft.current) draftId.current = pendingDraft.current.writes.find(w => w.table === 'transactions')?.id ?? null
   // 打开时重置（收口 C-10：骨架走 useFormReset）；编辑模式以旧记录回填
   const openKey = `${open}-${defaultLedgerId}-${editTxn?.id ?? ''}`
   const { seedKey } = useFormReset(openKey, open, (isOpen) => {
     if (!isOpen) return
+  const pending = pendingCommandFor('transactions', editTxn?.id ?? draftId.current)
+  const original = pending?.writes.find(w => w.table === 'transactions')?.value
+  if (original) {
+    setType(original.type as Transaction['type']); setLedgerId(String(original.ledgerId)); setChannel(String(original.channel || ''))
+    setSummary(String(original.summary)); setAmount(String(original.amount)); setOccurredAt(dayjs(Number(original.occurredAt)).format('YYYY-MM-DD'))
+    setTags((original.tags || []) as string[]); setNote(String(original.note || '')); setError('发现待核对的原提交，原输入已恢复，请先核对结果')
+    return
+  }
   if (editTxn) {
     setType(editTxn.type)
     setLedgerId(editTxn.ledgerId)
@@ -167,10 +183,6 @@ export default function TransactionFormDrawer({
     }
   }
 
-  const submitLock = useRef(false)
-  const draftId = useRef<string | null>(null)
-  const draftCreatedAt = useRef<number | null>(null)
-  const attachmentIds = useRef(new Map<File, string>())
   async function save() {
     if (submitLock.current) return
     if (!summary.trim()) {
@@ -251,6 +263,7 @@ export default function TransactionFormDrawer({
       createdAt: (draftCreatedAt.current ??= Date.now()),
     }))
     submitLock.current = true
+    setBusy(true)
     try {
       // 事件（transaction:created）已下沉 saveTransactionWithAttachments：事务 commit 后、
       // 仅新建时发出（编辑不再误发，修 §9.5 bug1）。UI 侧不再内联 emit，避免双发。
@@ -260,17 +273,33 @@ export default function TransactionFormDrawer({
       onClose()
     } catch (e) {
       setError(e instanceof Error ? `保存失败：${e.message}` : '保存失败，请重试')
-    } finally { submitLock.current = false }
+    } finally { submitLock.current = false; setBusy(false) }
+  }
+
+  const pendingId = editTxn?.id ?? draftId.current
+  const unknown = !!pendingCommandFor('transactions', pendingId)
+  function closeSafely() {
+    if (submitLock.current || unknown) { setError('保存结果待核对，原输入和请求已保留；请先核对保存结果或重试原提交'); return }
+    draftId.current = null; draftCreatedAt.current = null
+    onClose()
+  }
+  async function recover(retry = false) {
+    if (!pendingId) return
+    try {
+      if (await recoverPendingCommand('transactions', pendingId, retry)) { draftId.current = null; draftCreatedAt.current = null; pendingDraft.current = undefined; onClose() }
+      else setError('暂未查到已提交回执，请用原输入重试；原请求不会重复创建记录')
+    } catch (error) { setError(error instanceof Error ? error.message : '结果查询失败，请重试') }
   }
 
   return (
     <Modal
       open={open}
       title={editTxn ? '编辑流水' : '记一笔账'}
-      onClose={onClose}
+      onClose={closeSafely}
       elevated={elevated}
     >
-      <div key={seedKey}>
+      {unknown && <div className="mb-3 flex gap-2"><Button onClick={() => void recover()}>核对保存结果</Button><Button onClick={() => void recover(true)}>重试原提交</Button></div>}
+      <fieldset key={seedKey} disabled={busy || unknown} className="min-w-0 border-0 p-0">
         {/* 类型：整行（按钮组，塞半列会挤） */}
         <Field label="类型 *">
           <div className="flex gap-2">
@@ -510,14 +539,14 @@ export default function TransactionFormDrawer({
 
         {error && <div className="mb-3 text-[0.8571rem] text-danger">{error}</div>}
         <div className="flex justify-end gap-2 pt-2">
-          <Button variant="tonal" onClick={onClose}>
+          <Button variant="tonal" onClick={closeSafely}>
             取消
           </Button>
           <Button icon="save" onClick={save}>
             {editTxn ? '保存修改' : '立即保存此笔流水'}
           </Button>
         </div>
-      </div>
+      </fieldset>
     </Modal>
   )
 }

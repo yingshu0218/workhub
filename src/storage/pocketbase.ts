@@ -11,6 +11,10 @@ import {
 } from '@/sync/remoteNormalize'
 
 /** 服务端读取与命令传输宿主；写入只能经共享计划和 PB 事务，不逐条 HTTP 写集合。 */
+export class CommandError extends Error {
+  constructor(message: string, public status: number) { super(message) }
+}
+
 export interface PocketBaseAdapterOptions {
   /** PB 基址（如 http://127.0.0.1:9002，服务端执行器与 PB 同机走回环） */
   baseUrl: string
@@ -158,7 +162,7 @@ export function createPocketBaseAdapter(opts: PocketBaseAdapterOptions): Storage
     async commit(command) {
       const res = await api('/api/workhub/commands', { method: 'POST', body: command })
       const data = await res.json() as Receipt & { error?: string }
-      if (!res.ok) throw new Error(data.error || `命令失败 HTTP ${res.status}`)
+      if (!res.ok) throw new CommandError(data.error || `命令失败 HTTP ${res.status}`, res.status)
       return data
     },
     async lookup(requestId, generation, intent) {
