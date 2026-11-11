@@ -195,7 +195,7 @@ export function initServerExecutor(opts: ServerExecutorOptions): {
   listTools: () => ReturnType<typeof serverToolsList>
   callTool: (name: string, input: unknown, meta?: { confirmToken?: string; requestId?: string; generation?: string; replayOnly?: boolean; agentKey?: string; clientId?: string; capabilities?: string[]; planFingerprint?: string }) => Promise<ServerOpResult>
   handles: (name: string) => boolean
-  authenticate: (token: string) => Promise<Record<string, unknown>>
+  authenticate: (credential: {kind:'agent';token:string}|{kind:'shared-transition'}) => Promise<Record<string, unknown>>
 } {
   const pbAdapter = createPocketBaseAdapter(opts.pb)
   const context = new AsyncLocalStorage<{ adapter: StorageAdapter; events: { type: keyof AppEvent; payload: unknown; occurredAt: number }[] }>()
@@ -224,7 +224,7 @@ export function initServerExecutor(opts: ServerExecutorOptions): {
 
   return {
     listTools: () => serverToolsList(domains),
-    authenticate: async token => pbAdapter.personal('agents/verify', { token }),
+    authenticate: async credential => pbAdapter.personal('agents/verify', credential),
     handles: (name: string) =>
       (Object.hasOwn(SERVER_READ_TOOLS, name) || Object.hasOwn(AGENT_TOOLS, name)) && domainAllowed(name),
     callTool: async (name, input, meta) => {

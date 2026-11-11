@@ -27,7 +27,7 @@ const covered=new Set();let number=0
 async function test(name,run){await run();passed.push(name);console.log('PASS',name)}
 const sha=s=>createHash('sha256').update(s).digest('hex')
 const legacyLink=(fromType,fromId,toType,toId,kind='related',meta={})=>{let from={type:fromType,id:fromId},to={type:toType,id:toId};if(kind==='relation'&&from.id>to.id)[from,to]=[to,from];const seed=`${from.type}:${from.id}|${to.type}:${to.id}|${kind}|${kind==='relation'?(meta.label || '')+'#'+(meta.category || ''):''}`;return 'lk-'+BigInt('0x'+sha(seed)).toString(36).padStart(15,'0').slice(0,15)}
-let keyA,keyB,v1BackupPath
+let keyA,keyB,v1BackupPath,relayKey
 async function rpc(name,args,key=keyA){const r=await fetch(`http://127.0.0.1:${relayPort}/relay/mcp`,{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+key},body:JSON.stringify({jsonrpc:'2.0',id:++number,method:'tools/call',params:{name,arguments:args}})});const body=await r.json();if(body.error)return {ok:false,error:body.error.message,status:r.status};let value;try{value=JSON.parse(body.result.content[0].text)}catch{value={error:body.result?.content?.[0]?.text}}return {ok:!body.result.isError,data:value,error:body.result.isError?(value.error || body.result.content[0].text):undefined}}
 async function good(name,args,key){const r=await rpc(name,args,key);assert.equal(r.ok,true,JSON.stringify(r));covered.add(name);return r.data}
 async function preview(kind,input,id='capture_'+(++number),key=keyA){return good('preview_'+kind,{requestId:id,generation,input},key)}
@@ -73,8 +73,30 @@ try{
   const {initServerExecutor}=await import(join(root,'dist-server/server-executor.mjs'))
   const {createRelay}=await import(join(root,'relay/server.mjs'))
   const executor=initServerExecutor({pb:{baseUrl:base,account:'owner@workhub.local',password},domains:{read:true,crm:true,fin:true,todo:true,project:true,note:true,link:true,habit:true}})
-  relay=createRelay({token:randomBytes(24).toString('hex'),serverExecutor:executor})
-  server=createServer((req,res)=>{if(!relay.handleHttp(req,res)){res.writeHead(404).end()}});server.listen(relayPort,'127.0.0.1');await once(server,'listening')
+  relayKey=randomBytes(24).toString('hex');relay=createRelay({token:relayKey,serverExecutor:executor})
+  server=createServer((req,res)=>{if(!relay.handleHttp(req,res)){res.writeHead(404).end()}});server.on('upgrade',(req,socket,head)=>relay.handleUpgrade(req,socket,head));server.listen(relayPort,'127.0.0.1');await once(server,'listening')
+  await test('P0 外部空凭据拒绝，真实HTTP/WS查询写入取票均不能冒充共享过渡',async()=>{
+    assert.notEqual((await api('/api/workhub/agents/verify',{})).status,200)
+    assert.notEqual((await api('/api/workhub/agents/verify',{kind:'agent',token:''})).status,200)
+    assert.equal((await ok('/api/workhub/agents/verify',{kind:'shared-transition'})).clientId,'shared-transition')
+    const before=(await rows('todos')).length
+    for(const header of [undefined,'Bearer','Bearer ','Bearer   ','Bearer wrong'])for(const [name,args] of [['list_operations',{}],['todo_createTodo',{title:'__anonymous_write__',requestId:'anonymous_write_request',generation}],['confirm_preview',{tool:'commit_capture',args:{requestId:'anonymous_request',generation,previewId:'none'}}]]){
+      const r=await fetch(`http://127.0.0.1:${relayPort}/relay/mcp`,{method:'POST',headers:{'Content-Type':'application/json',...(header===undefined?{}:{Authorization:header})},body:JSON.stringify({jsonrpc:'2.0',id:++number,method:'tools/call',params:{name,arguments:args}})})
+      assert.equal(r.status,401);const value=await r.json();assert.ok(value.error);assert.equal(value.result,undefined)
+    }
+    assert.equal((await rows('todos')).length,before)
+    assert.equal((await good('list_operations',{},relayKey)).generation,generation)
+    const ws=new WebSocket(`ws://127.0.0.1:${relayPort}/relay`);await once(ws,'open')
+    const send=async(method,params={})=>{const response=once(ws,'message');ws.send(JSON.stringify({jsonrpc:'2.0',id:++number,method,params}));const [event]=await response;return JSON.parse(event.data)}
+    try{
+      for(const accessToken of [undefined,null,'','   ',{},[]]){assert.ok((await send('initialize',{accessToken})).error);assert.ok((await send('tools/list')).error);assert.ok((await send('tools/call',{name:'confirm_preview',arguments:{}})).error)}
+      assert.ok((await send('initialize',{accessToken:relayKey})).result)
+      assert.ok((await send('tools/list')).result)
+      assert.ok((await send('initialize',{accessToken:''})).error)
+      assert.ok((await send('tools/call',{name:'todo_createTodo',arguments:{title:'__anonymous_write__',requestId:'anonymous_ws_request',generation}})).error)
+      assert.ok((await send('initialize',{accessToken:keyA})).result)
+    }finally{ws.close();await once(ws,'close')}
+  })
   await test('A20 标准MCP公开工具目录与世代查询，零浏览器执行',async()=>{
     const r=await fetch(`http://127.0.0.1:${relayPort}/relay/mcp`,{method:'POST',headers:{Authorization:'Bearer '+keyA,'Content-Type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'tools/list'})});const body=await r.json();assert.ok(body.result.tools.some(t=>t.name==='commit_capture'&&t.inputSchema.properties.requestId));assert.ok(body.result.tools.find(t=>t.name==='fin_recordTransaction').inputSchema.properties.confirmToken)
     assert.equal((await good('list_operations',{limit:1})).generation,generation);assert.equal(relay.isBrowserOnline(),false)
@@ -83,6 +105,7 @@ try{
   const input={referenceAt:Date.now(),timeZone:'Asia/Shanghai',contacts:[{key:'wang',id:'v1:contact'},{key:'other',name:'老王',aliases:['老王称呼']}],topics:[{key:'topic',name:'网站改版',aliases:['改版事项']}],activities:[{key:'event',title:'改版沟通',summary:'收尾款并承诺方案',occurredAt:'2026-11-11',timePrecision:'date',category:'communication',contactIds:['wang','other'],topicIds:['topic'],sourceText:'今天沟通改版，收到尾款2000，答应周五发方案。',transactions:[{key:'payment',fact:'occurred',amountMinor:200000,currency:'CNY',ledgerId:'v1:ledger',type:'income'}],tasks:[{key:'promise',title:'发送第二版方案',dueAt:'2026-11-13'}]},{key:'solo',title:'独立整理资料',occurredAt:'2026-11-10',timePrecision:'date',sourceText:'独立工作'}]}
   await test('A01 A02 A03 A06 A09 一组预览确认原子录入，公开arguments安全重试',async()=>{
     const p=await preview('capture',input,'capture_main')
+    const unauthenticated=await fetch(`http://127.0.0.1:${relayPort}/relay/mcp`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:++number,method:'tools/call',params:{name:'confirm_preview',arguments:p.confirmHint.args}})});assert.equal(unauthenticated.status,401)
     const ticket=await confirm(p)
     const swapped=await rpc('commit_capture',{...p.confirmHint.args.args,previewId:'swapped',confirmToken:ticket.confirmToken});assert.equal(swapped.ok,false)
     const again=await preview('capture',input,'capture_main');captured=await commit(again)
@@ -233,6 +256,7 @@ try{
       await boot(undefined,restored)
       assert.notEqual((await ok('/api/workhub/state')).generation,generation)
       assert.notEqual((await api('/api/workhub/agents/verify',{})).status,200)
+      assert.notEqual((await api('/api/workhub/agents/verify',{kind:'shared-transition'})).status,200)
       assert.notEqual((await api('/api/workhub/agents/verify',{token:keyB})).status,200)
       assert.equal((await api('/api/workhub/personal/query',{name:'list_operations',input:{generation}})).status,409)
       if(label==='v2'){const keys=await rows('agent_credentials');assert.ok(keys.every(k=>k.tokenHash.length===64));assert.ok(!JSON.stringify(keys).includes(keyB));assert.equal((await rows('interactions',"localId='v1:log'" )).length,0)}

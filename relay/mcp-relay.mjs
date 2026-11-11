@@ -174,11 +174,14 @@ export function createMcpRouter({
   /** 每个会话的鉴权态：initialize 时校验 token */
   async function handleInitialize(params, ctx) {
     const provided = params?.accessToken ?? params?.token
+    ctx.authed=false;delete ctx.principal;delete ctx.accessToken
+    if(typeof provided!=='string' || !provided.trim())return {error:rpcError(null,-32001,'接入 token 缺失或为空')}
     if (authorizeToken) {
       try { ctx.principal = await authorizeToken(provided); ctx.accessToken = provided } catch (_) { return { error: rpcError(null,-32001,'Agent 凭据无效、已撤销或过期') } }
     } else if (!safeEqual(provided ?? '', token)) {
       return { error: rpcError(null, -32001, '接入 token 无效：Agent 连接必须携带 relay 启动时生成的 token') }
     }
+    ctx.accessToken=provided
     // 版本协商：客户端要的版本受支持就照回（否则回缺省），让 Streamable HTTP 客户端走对分支
     const requested = typeof params?.protocolVersion === 'string' ? params.protocolVersion : ''
     const negotiated = SUPPORTED_PROTOCOL_VERSIONS.includes(requested) ? requested : MCP_PROTOCOL_VERSION

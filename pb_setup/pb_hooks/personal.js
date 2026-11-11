@@ -220,7 +220,8 @@ exports.agents=e=>{
 }
 exports.verify=e=>{
   try{commands.owner($app,e);const d=e.requestInfo().body
-    if(!d.token){const state=commands.stateOf($app);if(state.getString('sharedTokenGeneration')!==state.getString('generation') || !state.getFloat('sharedTokenUntil')||Date.now()>state.getFloat('sharedTokenUntil'))throw new Error('UNAUTHORIZED: 共享 token 过渡期已结束');return e.json(200,{clientId:'shared-transition',capabilities:['*'],transitionUntil:state.getFloat('sharedTokenUntil')})}
+    if(d.kind==='shared-transition' && d.token===undefined){const state=commands.stateOf($app);if(state.getString('sharedTokenGeneration')!==state.getString('generation') || !state.getFloat('sharedTokenUntil')||Date.now()>state.getFloat('sharedTokenUntil'))throw new Error('UNAUTHORIZED: 共享 token 过渡期已结束');return e.json(200,{clientId:'shared-transition',capabilities:['*'],transitionUntil:state.getFloat('sharedTokenUntil')})}
+    if(d.kind!==undefined && d.kind!=='agent' || typeof d.token!=='string' || !d.token.trim())throw new Error('UNAUTHORIZED: 需要明确的非空 Agent 凭据')
     const principal=auth.principal($app,{auth:e.auth,request:{header:{get:name=>name==='X-Workhub-Agent-Key'?d.token:''}}})
     return e.json(200,{clientId:principal.clientId,capabilities:principal.capabilities})
   }catch(err){return commands.error(e,err)}

@@ -105,7 +105,7 @@ declare module '@relay/server.mjs' {
       listTools: () => Array<{ name: string; description?: string; inputSchema?: unknown }>
       callTool: (name: string, args: unknown, meta?: unknown) => Promise<{ ok: boolean; data?: unknown; error?: string }>
       handles: (name: string) => boolean
-      authenticate?: (token:string)=>Promise<Record<string,unknown>>
+      authenticate?: (credential:{kind:'agent';token:string}|{kind:'shared-transition'})=>Promise<Record<string,unknown>>
     } | null
   }): RelayHandle
 }

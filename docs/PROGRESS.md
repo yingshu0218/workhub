@@ -4,7 +4,12 @@
 >
 > **当前口径（2026-11-11）**：产品为完全个人使用的助手；开发验证环境重新建立于用户授权的 `devtest` 独立目录，旧 9001 环境仍已停用。正式站未在本轮修改。历史轮次中的团队、Local-First Web 和旧环境描述不代表当前实现；见 [开发测试环境说明](开发测试环境说明.md)。
 
-**最后更新**：2026-11-11（个人助手第二次交付：候选验证完成，待原库升级）
+**最后更新**：2026-11-12（P0 实站认证空值绕过修复，隔离入口停服待复验部署）
+- root 实站匿名探针发现 `ffcefc6` 把空凭据与内部共享过渡哨兵混淆，未携带 Authorization 也能列出工具；已立即停止本任务 devtest 服务，暂停交接，正式站未涉及。
+- HTTP/WS/stdio 外部入口先拒绝缺失/空白凭据；共享过渡改为显式 tagged 身份且仅由实际 constant-time 匹配共享秘密后构造；PB 不再把缺少 token 视作共享身份。失败重初始化清空旧会话；HTTP 头优先，不让空/错误头借查询串或正文升级。
+- 完整门禁 **1188 passed / 7 skipped**；真实 PB/MCP **18 组**（新增匿名读/写/取票、真实 WS 空初始化与有效共享/独立身份）及原 **10+2 组**复验通过。002 迁移已在第一次原库升级落地且 hash 冻结，未修改它。本修复待提交后重开隔离入口并接受 root 实站复核。
+
+**上一轮**：2026-11-11（个人助手第二次交付：候选验证完成，待原库升级）
 - activities、多人/无联系人、别名与联系人化；1794355202 原库增量映射冻结沟通、canonical links/旧深链/历史回执/回收站快照，旧别名永久删除登记防复活。搜索与 schemaVersion=5 业务副本使用活动原字段。
 - 24 个新公开工具（共 61 业务工具）：范围与游标查询、完整分币种汇总、整组预览提交、纠错/安全撤销/合并/保留事实删除/按来源清理、待确认操作和取消；独立散列凭据、撤销与世代、部署写域白名单、标准 MCP arguments 与计划绑定确认。
 - 完整门禁 **1179 passed / 7 skipped**，生产 Web/服务端构建通过；真实 PB/MCP **17 组**、既有可靠性 **10+2 组**及 root 独立 **10 组**通过。固定 1000 联系人/10000 事件/10000 流水/5000 待办/50000 关联，768 MiB/1 CPU、30 样本：查询 P95 **7.91–377.71ms**，普通复合提交 **89.02ms**。此前失败和超标夹具保留；`test:personal` 先构建服务端与真实仓储夹具，避免拿旧 bundle 验新源码。
@@ -172,16 +177,6 @@
 **⑤ 文档口径**：`docs/一键接入-Agent说明.md` 重写「一条指令 + 配对模型」（远程 HTTP 为主、stdio shim 降为「本机另一种接法」），补端点表与「配对码为何不算放宽鉴权」；工具数 **34 → 37**（4 处，与 AGENTS §8 对齐）。
 **部署前提（未做，需人工）**：VPS 仍跑 `a5f6bdf`，**没有**本轮端点 —— 未推送、未出镜像、未 `docker compose pull`。在部署完成前，`--print-prompt` 签码会 404，这条指令对 VPS 还不生效。
 > **本轮验证**：新增 `relayHttp.test.ts` **11 条**（无 Bearer 401 / initialize 握手 / tools/list 与 confirm_preview 合并 / tools/call 回 JSON-RPC / 通知 202 / GET 405 / 非 relay 路径交回宿主 / 签码需 token / 兑换一次性 / 乱码统一 401 / TTL 契约）+ `agentSetup.test.ts` 40 条（其中 `--print-prompt` 那条改为断言「含 `/relay/mcp`、不含 token、**不含仓库路径**」）。真机冒烟：`PORT=19011 node scripts/serve.mjs` → 签码 `F4T5MG` → 兑换拿到 token → `POST /relay/mcp` initialize 返回 200 JSON；另以 Streamable HTTP 客户端形态（`Accept: application/json, text/event-stream` + `protocolVersion: 2025-03-26`）复跑，协商回 `2025-03-26`、`listChanged: false`。`npm run check:all` 全绿 —— **1083 passed / 0 failed / 7 skipped**（131 文件 1090 用例，较上轮 +14 条 / +1 文件）。
-**上上轮**：2026-10-27（**Android 客户端（B 范围）交付：构建链打通 + 平台适配 + 已签名 APK**——正式站走 HTTPS，未放行明文）。
-**① 工具链与工程落盘**：JDK 17（Dragonwell）· Android SDK `platform 37.0`/`build-tools 37.0.0`/`ndk 27.0.12077973` · Rust 1.96 + 四个 Android target。`tauri android init` 生成 **`src-tauri/gen/android/`（入库）**；`.gitignore` 已挡 `build/`、`generated/`、`jniLibs/*.so`、`keystore.properties`。
-**② 一个必改的隐性前置**：Gradle 的 `:app:rustBuild*` 任务执行的是 **`npm run -- tauri android android-studio-script`**，而本仓当初是**手工加壳**、`package.json` 没有 `tauri` 脚本 → 报 `Missing script: "tauri"`。已补 `"tauri": "tauri"`（Tauri 脚手架惯例）。⚠️ 该报错在 Gradle 里只显示「`npm` 退出码 1」，不翻上面的输出看不到真正原因。
-**③ 平台适配（B 范围）**：`MainActivity` 给 `android.R.id.content` 加 **系统栏 + 刘海内边距**（`targetSdk 37` 强制 edge-to-edge，WebView 会铺到状态栏/手势条下面；`env(safe-area-inset-*)` 在 Android WebView 不可靠，故在原生侧兜底）；Manifest 补 **`adjustResize`**（否则键盘顶不起表单）；**返回键与文件选择无需自写** —— Tauri/Wry 已内建（`canGoBack()→goBack()`，栈底才退出；`RustWebChromeClient` 已实现 `onShowFileChooser`）。
-**④ 签名口径**：keystore 与密码**只存仓库外** `~/.workhub/android/`（`chmod 600`），`gen/android/keystore.properties` 被 gitignore；**有该文件才签、没有则产出未签名 APK** —— 别人的机器与 CI 不会因为缺密钥而挂。`build.gradle.kts` 的 `signingConfig` 只在文件存在时创建。
-**⑤ 产物与判据（实测，非推断）**：`app-arm64-release.apk` **11 MB** / `fun.fpigeon.nexus`（无 `.debug` 后缀）/ versionName `0.1.0` / versionCode `1000` / minSdk 24 / **targetSdk 36** / `arm64-v8a` / **APK Signature Scheme v2 验证通过**（我方 release 证书）/ `zipalign -c 4` 通过 / 包内 `.so` 内嵌的前端资源名 `assets/index-CaN84uyD.js` 与 `dist/assets/` **逐字一致**。
-⚠️ **构建耗时结论（实测）**：`assembleUniversalRelease` 要逐个编 4 个 ABI（arm/arm64/x86/x86_64），2 核机上 **>20 分钟**；只编 `assembleArm64Release` 为 **6 分 17 秒**（其中 R8 约 5 分钟）。CI 用 4 核走 Tauri CLI 无此问题；本地出包建议单 ABI。
-**⑥ 本轮验证**：⚠️ **`check:all` 未一次跑绿，如实记录**：本机 **2 核**，`--maxWorkers=4` 下两次分别有**不同**用例 15s 级超时（`entityLinkField` Esc 关闭、`todoRowDetail` 深链），二者**单独跑均通过**（0.6s / 3.1s）→ 属负载假红，非代码回归；改 `--maxWorkers=2` 全量 **1064 passed / 0 failed / 7 skipped**（130 文件 1071 用例），`tsc -b` 与 `eslint` 均 0 错。⚠️ **未做真机验收**：本机无 Android 设备、无 `/dev/kvm`（模拟器跑不起来），**安装/首启/登录/同步四项均未经真机点击**，只验到「能构建、签名有效、资源新鲜」。
-**⑦ 明确未做**：存储仍是 Dexie（文档里的「阶段 2」SQLite 迁移未动）；release 未上架分发渠道、未做 AAB；APK 仅 arm64（未出 armv7/x86_64，老设备与模拟器装不上）。
-**⑧ CNB 上出包（仅 tag 触发，2026-10-27 追加）**：新增 `.cnb/android/Dockerfile`（JDK 17 + Android SDK/NDK + Rust + Node，走腾讯云镜像）+ `.cnb.yml` 两个锚点：`.android-builder-image`（仅 `.cnb/android/Dockerfile` 变更时重建）与 `.android-apk`（只挂 `v*` 的 `tag_push`，流程＝写签名 → 构建 → `git:release` → `cnbcool/attachments` 挂 APK）。⚠️ **为让 CI 全链路走国内镜像，`compileSdk`/`targetSdk` 由 37 钉到 36**：腾讯镜像站只同步到 `platforms;android-36`，37 只能访问 `dl.google.com`（国内不可达）；36 与 37 对本应用无行为差异。`gradle-wrapper.properties` 的 `distributionUrl` 同步改腾讯镜像（官方地址会 302 到 GitHub）。**SDK36 的本地重打已完成（同日补）**：`app/build/outputs/apk/arm64/release/app-arm64-release.apk`，targetSdk 36、已签名、资源哈希与 `dist` 一致。⚠️ 本地**不要**跑 `assembleRelease`（universal 要编 4 个 ABI，2 核机 20 分钟以上）；单 ABI 用 `./gradlew app:assembleArm64Release -x rustBuildArm64Release`（6 分钟；`-x` 只在 Rust 产物已存在时可用）。密钥需人工在 `blueteam0715/keystore` 新建 `android-signing.yml`（base64 jks + alias + password），首次启用顺序与额度见 `docs/多端App改造方案-Tauri.md` §12.8。
 
 更早轮次见 [本轮归档](PROGRESS-archive-20261111.md)。
 
@@ -189,11 +184,11 @@
 
 | 项 | 状态 |
 |---|---|
-| 版本 | 第二次交付（规划阶段三、四）代码、完整门禁、真实回归/规模与独立审计通过；devtest 增量部署待收口；第三版未开始 |
+| 版本 | 第二次交付的模型/闭环与规模已验收；实站 P0 空认证修复已过门禁和真实回归，待重新部署及 root 实站复核；第三版未开始 |
 | 全站回收站 | ✅ 代码与 `/trash` 页面已落盘；**服务端 Schema 已升级**（14 个集合 `restoredAt` + 7 个父级 `trashSnapshot`，2026-10-24 双站导入完成；2026-10-26 复查两站 `check:schema` 均「完全一致」） |
-| 测试环境 | devtest 独立根目录 `/opt/workhub-devtest-20261111`，回环端口 9630，560f878 active/running；旧 9001 环境不再使用 |
+| 测试环境 | devtest 原库已升级到 ffcefc6、数据/世代/凭据保留；因实站 P0 主动停服，修复待部署。根目录与回环 9630 不变，旧 9001 不使用 |
 | 里程碑 | M1-M6 全部验收 ✅ |
-| 服务端 Schema | 配置 28 个集合（20 业务 + 8 同步/命令/凭据集合；users 另由初始化管理）；Dexie v18；增量迁移 1794355200/5201/5202，002 待部署后冻结 |
+| 服务端 Schema | 配置 28 个集合（20 业务 + 8 同步/命令/凭据集合；users 另由初始化管理）；Dexie v18；1794355200/5201/5202 均已部署冻结，后续只能新编号 |
 | 审计问题 | 2026-10 历史批次 P0×2 / P1×19 / P2×60 **全部清零**。**2026-10-26 全仓复审**：P0 = 0 / P1 = 3 / P2 = 12（报告 `docs/审计报告-全仓-20261026.md`），其中 P1 三项已整改（事实源校正 / CI 门禁 / 文档口径），**`zod < 4.6.6` 高危仍待拍板**；P2 已修 10 项、3 项如实挂起 |
 | 同步机制完善 | P0-1 墓碑清理竞态修复 + P0-2 推送侧 LWW ✅；P1-3 服务端墓碑 cron ✅；**P1-4 HTTPS/PWA 未闭环**（2026-10-09 更正，见下方 P1-4 行与「二、遗留问题」）；正式环境 `team.fpigeon.fun` 已上线（LE 证书 + `http→https` 301），但 **PWA 装机/离线能力需在该正式域名上复验**；Issue #140 多关联 json 字段已入 `collections.json`（**自托管端需重新导入并重启**，见部署指南） |
 | 正式环境（**已上线**） | **https://team.fpigeon.fun** 已部署运行（2026-10-09）。CNB 制品库 `docker.cnb.cool/blueteam0715/workhub:latest` → 主机 `1204pigeon`(<PROD_HOST>) 的 `/opt/workhub/`，**单容器全包**（前端 + relay + PocketBase，同源路由；**不含 Tauri 手机端/桌面端**），只绑回环 `127.0.0.1:8790` + 宿主 nginx 反代（acme.sh 单独签发的 TLS）。数据持久化在 `/opt/workhub/data`；资源上限 768m / 1.0 核 / 256 PIDs。**已关闭 `users` 集合的公开注册**（PB 默认 `createRule` 为空 = 任何人可自助注册，而业务集合规则是「登录即可读写全部」→ 组合起来等于公网裸奔；现设为 Locked，账号改由超管手工建。⚠️ **该设置只存在数据卷的 `data.db` 里、不在代码里**，换机/重建空库后需重做一次）。流程、端口占用、排错与这条加固步骤见 `docs/Docker镜像构建与部署.md`。⚠️ **2026-10-21 已升级**：镜像 label `org.opencontainers.image.revision` = **`cd74317`**（此前停在 `20dac51`/10-10，落后 47 提交）。同批完成 schema 导入 → 业务集合 **19 → 20**（补 `agent_events` + `customers.groupId` + `customerGroups.kind`），`check:schema` 对线上输出「**完全一致**」。判据不靠猜：线上主包含 4 个新工具名（各 2 处）、容器日志确认「20 个集合均已存在，跳过导入（幂等）」。⚠️ **正式站业务数据全为 0 条**（自上线以来就是空库），故本次升级零数据风险。**现状台账 / 上线判据 / 首次验收清单 / 回滚口径见 [`docs/正式站状态与上线清单-20261026.md`](正式站状态与上线清单-20261026.md)**（2026-10-26 实测：镜像 `cd74317` 落后 main **26 提交**，schema 已 21 集合一致 —— 「新 schema + 旧代码」，**先部署再录数据**）。**2026-10-27 进展**：制品库 `latest` 已到 `a5f6bdf` 且**质量门禁每次 push 均通过**；**正式站已部署到 `a5f6bdf`**（容器 healthy / 21 集合幂等跳过导入 / 公网四端点 200 / `check:schema --prod` 完全一致），部署前已备份 `pb_data.bak-20261027-002612` 并打回滚 tag `workhub:rollback-20261027-002557`。⚠️ **本行此前写的「镜像 `cd74317`」是过时记录**：上机实测部署前实为 `ab0d253`（10-26，落后 main 仅 5 提交），误判来源与纠正判据见 `docs/正式站状态与上线清单-20261026.md §二` —— **判断线上版本只认主机 `docker image inspect` 的 revision label，不认文档记录**。**正式站部署无留痕机制**（`.deploy-state` 只记测试站）已列为待补 |

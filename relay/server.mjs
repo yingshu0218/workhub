@@ -156,13 +156,18 @@ export function createRelay({
     return { ok: true, data: { ...issued, tool, note: '请以同一参数重试该工具，并携带 confirmToken。' } }
   }
 
+  async function authenticateExternal(provided) {
+    if(typeof provided!=='string' || !provided.trim())throw new Error('missing credential')
+    const shared=Boolean(token) && safeEqual(provided,token)
+    if(!serverExecutor?.authenticate){if(!shared)throw new Error('invalid credential');return undefined}
+    // 只有实际匹配共享秘密才能构造过渡身份；空输入永远不是内部哨兵。
+    const principal=await serverExecutor.authenticate(shared?{kind:'shared-transition'}:{kind:'agent',token:provided})
+    if(!principal || typeof principal.clientId!=='string' || !principal.clientId)throw new Error('invalid principal')
+    return {...principal,...(!shared?{agentKey:provided}:{})}
+  }
   const router = createMcpRouter({
     token,
-    authorizeToken: serverExecutor?.authenticate ? async provided => {
-      const shared=safeEqual(provided || '',token)
-      const principal=await serverExecutor.authenticate(shared?'':String(provided || ''))
-      return {...principal,...(!shared?{agentKey:provided}:{})}
-    } : undefined,
+    authorizeToken: serverExecutor?.authenticate ? authenticateExternal : undefined,
     autoIssueConfirm,
     // 工具清单失败必须转成**返回的 JSON-RPC 错误**（mcp-relay 的 tools/list 分支捕获），
     // 不得让异常穿出 handle() —— 否则未处理的 Promise rejection 会打崩宿主进程。
@@ -469,8 +474,8 @@ export function createRelay({
 
   /** 取请求携带的 token：`Authorization: Bearer`（标准）或 `?token=`（部分客户端只能配 url） */
   function authToken(req, url) {
-    const m = /^Bearer\s+(.+)$/i.exec(String(req.headers.authorization ?? ''))
-    return m ? m[1].trim() : String(url?.searchParams.get('token') ?? '')
+    if(req.headers.authorization!==undefined){const m=/^Bearer\s+(.+)$/i.exec(String(req.headers.authorization));return m?m[1].trim():''}
+    return String(url?.searchParams.get('token') ?? '')
   }
 
   const authOk = (req, url) => Boolean(token) && safeEqual(authToken(req, url), token)
@@ -719,6 +724,12 @@ export function createRelay({
 
   /** `POST <path>/mcp`：标准 MCP over HTTP（stateless）。GET/DELETE 按规范回可接受的响应 */
   async function handleMcpHttp(req, res, url) {
+    const provided=authToken(req,url)
+    let principal
+    try {principal=await authenticateExternal(provided)} catch (_) {
+      sendJson(res,401,{jsonrpc:'2.0',id:null,error:{code:-32001,message:'接入凭据缺失、无效、已撤销或过期'}})
+      return
+    }
     if (req.method === 'GET') {
       // 规范里 GET 用于建服务端→客户端的 SSE 流；本实现不推送，明确告知而不是挂住连接
       res.writeHead(405, { Allow: 'POST, DELETE', 'Content-Type': 'application/json; charset=utf-8' })
@@ -731,19 +742,6 @@ export function createRelay({
     }
     if (req.method !== 'POST') {
       res.writeHead(405, { Allow: 'POST, DELETE' }).end()
-      return
-    }
-    const provided=authToken(req,url)
-    let principal
-    try {
-      if(serverExecutor?.authenticate){const shared=safeEqual(provided,token);principal=await serverExecutor.authenticate(shared?'':provided)}
-      else if(!authOk(req,url))throw new Error('unauthorized')
-    } catch (_) {
-      sendJson(res, 401, {
-        jsonrpc: '2.0',
-        id: null,
-        error: { code: -32001, message: '接入 token 无效：请在 Authorization: Bearer 头携带 relay 的接入 token' },
-      })
       return
     }
     let msg
