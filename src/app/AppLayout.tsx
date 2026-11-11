@@ -27,15 +27,14 @@ import {
  * 它是菜单自身的属性，新增带子路由的菜单只需在数据上标一个字段，无需再维护一份白名单。
  */
 const NAV_ITEMS = [
-  { to: '/', icon: 'dashboard', label: '工作台' },
-  { to: '/notes', icon: 'description', label: '笔记' },
-  { to: '/todo', icon: 'check_circle', label: '待办事项' },
-  { to: '/projects', icon: 'hub', label: '项目', childPrefixed: true },
-  { to: '/crm', icon: 'group', label: '客户管理', childPrefixed: true },
-  { to: '/finance', icon: 'account_balance_wallet', label: '财务中心' },
-  { to: '/habits', icon: 'local_fire_department', label: '打卡习惯' },
-  { to: '/trophies', icon: 'emoji_events', label: '成就奖杯' },
-  { to: '/inspiration', icon: 'auto_awesome', label: '灵感闪现' },
+  { to: '/', icon: 'dashboard', label: '今天' },
+  { to: '/timeline', icon: 'timeline', label: '时间线' },
+  { to: '/crm', icon: 'group', label: '联系人', childPrefixed: true },
+  { to: '/graph', icon: 'hub', label: '图谱' },
+  { to: '/todo', icon: 'check_circle', label: '待办' },
+  { to: '/finance', icon: 'account_balance_wallet', label: '收支' },
+  { to: '/notes', icon: 'description', label: '笔记', childPrefixed: true },
+  { to: '/more', icon: 'menu_book', label: '更多' },
 ]
 
 /**
@@ -62,12 +61,15 @@ export function isNavItemActive(pathname: string, to: string): boolean {
 }
 
 const TITLES: Record<string, string> = {
-  '/todo': '待办事项',
+  '/timeline': '时间线',
+  '/graph': '图谱',
+  '/more': '更多',
+  '/todo': '待办',
   '/projects': '项目',
-  '/crm': '客户管理',
+  '/crm': '联系人',
   '/crm/canvas': '客户关系画布',
   '/crm/:id/timeline': '客户时间线',
-  '/finance': '财务中心',
+  '/finance': '收支',
   '/notes': '笔记',
   '/habits': '打卡习惯',
   '/trophies': '成就奖杯',

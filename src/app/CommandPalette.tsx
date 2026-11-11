@@ -1,290 +1,172 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { Icon } from '@/design-system/Icon'
-import { useNavigate } from 'react-router-dom'
-import { useCollection } from '@/queries/hooks'
-import { buildSearchIndex, searchAll } from '@/shared/search'
-import { filterBlacklisted, useIntimacyConfig } from '@/modules/crm/intimacy'
+import { useEffect, useRef, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { usePersonalQuery, type Value } from '@/queries/personal'
+import { isServerFirstWeb } from '@/platform/env'
+import { db } from '@/db/db'
+import { useCollection, useQuery } from '@/queries/hooks'
 import { isImeComposing } from '@/shared/ime'
-import type { SearchItem } from '@/shared/search'
-import type { Activity, Customer, Project, Todo, Transaction, Note, Habit } from '@/db/types'
-import { newId, saveNoteWithMentions } from '@/repositories'
-import { useToast } from '@/design-system/Toast'
-import { usePresence } from '@/shared/usePresence'
-
-/**
- * ⌘K 全局命令面板（对齐原型 11-global-search）
- * 输入即搜 / ↑↓ 选择 / Enter 跳转 / Esc 关闭；底部快捷指令区（灵感闪现/记一笔/新建笔记）
- */
+import { inputCls } from '@/design-system/ui'
+import { filterBlacklisted, useIntimacyConfig } from '@/modules/crm/intimacy'
+import type { Customer } from '@/db/types'
+import type { Note } from '@/db/types'
+import { recordPath } from '@/shared/records'
 export default function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const navigate = useNavigate()
-  const [query, setQuery] = useState('')
-  const [active, setActive] = useState(0)
-  const inputRef = useRef<HTMLInputElement>(null)
-  const [creatingNote, setCreatingNote] = useState(false)
-  const toast = useToast()
-
-  const customers = useCollection<Customer>('customers')
-  const activities = useCollection<Activity>('activities', ['id','title','summary','tags'])
-  const projects = useCollection<Project>('projects')
-  const todos = useCollection<Todo>('todos')
-  const transactions = useCollection<Transaction>('transactions')
-  // 搜索投影下沉：笔记仅取 id/title/tags，整篇 markdown 不进内存
-  const notes = useCollection<Note>('notes', ['id', 'title', 'tags'])
-  const habits = useCollection<Habit>('habits')
-
-  const intimacyCfg = useIntimacyConfig()
-  /**
-   * 黑名单「全局搜索屏蔽」（缺陷 D15）：被屏蔽的客户**不进搜索索引**。
-   * ⌘K 与「全局搜索」是同一次索引（本组件即入口），所以这里一处收口即两处生效；
-   * Agent 侧另有一份同口径过滤（agent/reads.searchEntities），否则 AI 会绕过开关。
-   */
-  const searchableCustomers = useMemo(
-    () => filterBlacklisted(customers, intimacyCfg, 'hideInSearch'),
-    [customers, intimacyCfg],
-  )
-
-  const groups = useMemo(
-    () =>
-      searchAll(
-        buildSearchIndex({
-          activities,
-          customers: searchableCustomers,
-          projects,
-          todos,
-          transactions,
-          notes,
-          habits,
-        }),
-        query,
-      ),
-    [activities, searchableCustomers, projects, todos, transactions, notes, habits, query],
-  )
-  const flat: (SearchItem & { icon: string })[] = useMemo(
-    () => groups.flatMap((g) => g.items.map((it) => ({ ...it, icon: g.icon }))),
-    [groups],
-  )
-  // active 随结果收缩钳制，避免越界高亮/Enter 空跳
-  const activeIndex = Math.min(active, Math.max(0, flat.length - 1))
-
-  // 打开时重置并聚焦
+  // 关闭时连查询组件都不挂载，避免背景订阅活动和整表建立索引。
+  return open ? <SearchPanel onClose={onClose} /> : null
+}
+function SearchPanel({ onClose }: { onClose: () => void }) {
+  const [text, setText] = useState(''),
+    [query, setQuery] = useState(''),
+    [active, setActive] = useState(0),
+    input = useRef<HTMLInputElement>(null),
+    navigate = useNavigate()
   useEffect(() => {
-    if (open) {
-      setQuery('')
+    input.current?.focus()
+  }, [])
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setQuery(text)
       setActive(0)
-      // 等面板挂载后聚焦
-      requestAnimationFrame(() => inputRef.current?.focus())
-    }
-  }, [open])
-
-  useEffect(() => setActive(0), [query])
-
-  const go = (item: SearchItem) => {
-    onClose()
-    navigate(item.path)
-  }
-
-  const createNote = async () => {
-    if (creatingNote) return
-    setCreatingNote(true)
-    try {
-      const id = newId('note')
-      await saveNoteWithMentions({
-        id,
-        title: '未命名笔记',
-        markdown: '',
-        tags: [],
-        createdAt: Date.now(),
-      })
-      onClose()
-      navigate(`/notes/${id}`)
-    } catch (err) {
-      // 写入失败（如配额超限）不再静默穿透
-      console.error('[CommandPalette] 新建笔记失败', err)
-      toast.error(`新建笔记失败：${err instanceof Error ? err.message : '请稍后重试'}`)
-    } finally {
-      setCreatingNote(false)
-    }
-  }
-
-  const quickActions = [
-    {
-      icon: 'bolt',
-      label: '灵感闪现',
-      desc: '随机抽取待办 / 核心人脉',
-      kbd: '⌘I',
-      run: () => {
-        onClose()
-        navigate('/inspiration')
-      },
-    },
-    {
-      icon: 'post_add',
-      label: '记一笔',
-      desc: '录入应收/应付资金往来凭据',
-      kbd: '⌘E',
-      run: () => {
-        onClose()
-        navigate('/finance')
-      },
-    },
-    {
-      icon: 'edit_note',
-      label: '新建笔记',
-      desc: '双向链接与思维白板',
-      kbd: '⌘N',
-      run: () => void createNote(),
-    },
-    {
-      icon: 'tune',
-      label: '功能配置',
-      desc: '业务模块规则与权重（健康分 / 黑名单等）',
-      kbd: '',
-      run: () => {
-        onClose()
-        navigate('/module-config')
-      },
-    },
+    }, 180)
+    return () => clearTimeout(timer)
+  }, [text])
+  const online = isServerFirstWeb()
+  const local =
+    useQuery(async () => {
+      if (online || !query.trim()) return []
+      const result: Value[] = []
+      for (const table of [
+        'activities',
+        'customers',
+        'projects',
+        'todos',
+        'transactions',
+      ] as const) {
+        const rows = await db
+          .table(table)
+          .filter(
+            (r) =>
+              !r.deleted &&
+              String(r.title || r.name || r.summary || '')
+                .toLowerCase()
+                .includes(query.toLowerCase()),
+          )
+          .limit(8)
+          .toArray()
+        result.push(
+          ...rows.map((r) => ({
+            id: r.id,
+            title: r.title || r.name || r.summary,
+            path: recordPath(table, r.id),
+          })),
+        )
+      }
+      return result
+    }, [query, online]) || []
+  const events = usePersonalQuery(
+      'search_activities',
+      { q: query, limit: 8 },
+      !!query.trim() && online,
+    ),
+    contacts = usePersonalQuery('resolve_contacts', { query }, !!query.trim() && online),
+    topics = usePersonalQuery('resolve_topics', { query }, !!query.trim() && online)
+  const tasks = usePersonalQuery('query_tasks', { q: query, limit: 8 }, !!query.trim() && online),
+    finance = usePersonalQuery('query_finance', { q: query, limit: 8 }, !!query.trim() && online)
+  const notes = useCollection<Note>('notes', ['id', 'title', 'tags'])
+  const intimacy = useIntimacyConfig(),
+    people = useCollection<Customer>('customers', ['id', 'intimacy'])
+  const visible = filterBlacklisted(people, intimacy, 'hideInSearch'),
+    hidden = new Set(people.filter((c) => !visible.some((v) => v.id === c.id)).map((c) => c.id))
+  const results: Value[] = [
+    ...local.filter((r) => !hidden.has(String(r.id))),
+    ...(tasks.data?.items || []),
+    ...(finance.data?.items || []),
+    ...((contacts.data?.candidates as Value[]) || [])
+      .filter((r) => !hidden.has(String(r.id)))
+      .map((r) => ({ ...r, path: recordPath('customers', r.id) })),
+    ...((topics.data?.candidates as Value[]) || []).map((r) => ({
+      ...r,
+      path: recordPath('projects', r.id),
+    })),
+    ...(events.data?.items || []).map((r) => r.record as Value),
+    ...notes
+      .filter((n) => query && n.title.toLowerCase().includes(query.toLowerCase()))
+      .slice(0, 8)
+      .map((n) => ({ ...n, path: recordPath('notes', n.id) })),
   ]
-
-  const onKeyDown = (e: React.KeyboardEvent) => {
-    // 输入法组合中不处理（戒点④：IME isComposing；单一实现见 shared/ime.ts）
-    if (isImeComposing(e.nativeEvent)) return
-    if (e.key === 'ArrowDown') {
-      e.preventDefault()
-      setActive((i) => (flat.length ? (i + 1) % flat.length : 0))
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault()
-      setActive((i) => (flat.length ? (i - 1 + flat.length) % flat.length : 0))
-    } else if (e.key === 'Enter') {
-      e.preventDefault()
-      const item = flat[activeIndex]
-      if (item) go(item)
-    } else if (e.key === 'Escape') {
-      e.preventDefault()
-      onClose()
-    }
+  const index = Math.min(active, Math.max(0, results.length - 1))
+  function go(path: string) {
+    onClose()
+    navigate(path)
   }
-
-  const { present, phase, ref: presenceRef } = usePresence(open, 150)
-  const closing = phase === 'out'
-
-  if (!present) return null
-  let cursor = -1
-
   return (
     <div
-      ref={presenceRef}
-      className="fixed inset-0 z-50 flex items-start justify-center pt-[12vh]"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 pt-[12vh]"
       onClick={onClose}
-      onKeyDown={onKeyDown}
     >
-      <div
-        className={`absolute inset-0 bg-black/30 ${closing ? 'anim-overlay-out' : 'anim-overlay-in'}`}
-      />
-      <div
-        className={`relative w-[640px] max-w-[92vw] overflow-hidden rounded-2xl border border-outline-variant/40 bg-surface-container-lowest shadow-2xl ${
-          closing ? 'anim-toast-out' : 'anim-toast-in'
-        }`}
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-label="全局搜索"
+        className="w-[640px] max-w-[92vw] space-y-3 rounded-2xl bg-surface-container-lowest p-5 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => {
+          if (isImeComposing(e.nativeEvent)) return
+          if (e.key === 'Escape') onClose()
+          if (e.key === 'ArrowDown') {
+            e.preventDefault()
+            setActive((n) => (n + 1) % Math.max(1, results.length))
+          }
+          if (e.key === 'ArrowUp') {
+            e.preventDefault()
+            setActive((n) => (n - 1 + results.length) % Math.max(1, results.length))
+          }
+          if (e.key === 'Enter' && results[index]) go(String(results[index].path))
+        }}
       >
-        {/* 搜索输入 */}
-        <div className="flex h-14 items-center gap-3 border-b border-outline-variant/40 px-5">
-          <Icon name="search" className="text-primary" />
+        <div className="flex gap-3">
           <input
-            ref={inputRef}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="全局搜索任务、客户或笔记…"
-            className="h-full flex-1 bg-transparent text-[1.0357rem] outline-none placeholder:text-outline"
+            ref={input}
+            className={inputCls}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="全局搜索任务、联系人或笔记…"
+            aria-label="搜索"
           />
-          <button className="text-outline hover:text-on-surface" onClick={onClose}>
-            <Icon name="close" size={18} />
-          </button>
+          <button onClick={onClose}>关闭</button>
         </div>
-
-        {/* 结果分组 */}
-        <div className="max-h-[46vh] overflow-y-auto px-2 py-2">
-          {flat.length === 0 ? (
-            <div className="px-4 py-10 text-center text-[0.9286rem] text-outline">
-              没有匹配「{query}」的结果
-            </div>
-          ) : (
-            groups.map((g) => (
-              <div key={g.type} className="mb-1">
-                <div className="px-3 pb-1 pt-2 text-[0.7857rem] font-semibold uppercase tracking-wide text-outline">
-                  {g.label} <span className="ml-0.5 text-[0.7143rem] font-normal">{g.items.length}</span>
-                </div>
-                {g.items.map((it) => {
-                  cursor += 1
-                  const idx = cursor
-                  return (
-                    <button
-                      key={`${it.type}-${it.id}`}
-                      /* 错峰入场：只对前 10 项给延迟——再往后的条目本来就在滚动区下方，
-                         多给延迟只会让「滚下去看」的那几条白白晚出现。 */
-                      style={idx < 10 ? { animationDelay: `${idx * 20}ms` } : undefined}
-                      className={`anim-enter-up flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors ${
-                        idx === activeIndex ? 'bg-primary-fixed' : 'hover:bg-surface-hover'
-                      }`}
-                      onMouseEnter={() => setActive(idx)}
-                      onClick={() => go(it)}
-                    >
-                      <Icon
-                        name={g.icon}
-                        className={`text-[1.2857rem] ${idx === activeIndex ? 'text-primary' : 'text-outline'}`}
-                      />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[0.9643rem] font-medium">{it.title}</span>
-                        {it.subtitle && (
-                          <span className="block truncate text-[0.8214rem] text-on-surface-variant">
-                            {it.subtitle}
-                          </span>
-                        )}
-                      </span>
-                      {idx === activeIndex && (
-                        <kbd className="shrink-0 rounded bg-surface-container-high px-1.5 text-[0.7143rem] text-outline">
-                          ↵
-                        </kbd>
-                      )}
-                    </button>
-                  )
-                })}
-              </div>
-            ))
-          )}
-        </div>
-
-        {/* 快捷指令区 */}
-        <div className="border-t border-outline-variant/40 bg-surface-container-low/60 px-5 py-3">
-          <div className="mb-2 flex items-center justify-between">
-            <span className="text-[0.7857rem] font-semibold uppercase tracking-wide text-outline">
-              快捷指令 / Quick Actions
-            </span>
-            <span className="text-[0.7143rem] text-outline">寻鸽快速通道</span>
-          </div>
-          <div className="grid grid-cols-4 gap-2">
-            {quickActions.map((a) => (
+        {events.error || contacts.error || topics.error ? (
+          <p role="alert">{events.error || contacts.error || topics.error}</p>
+        ) : null}
+        <ul className="max-h-[45vh] overflow-auto">
+          {results.map((row, i) => (
+            <li key={String(row.path) + i}>
               <button
-                key={a.label}
-                className="surface-card-xl px-3 py-2.5 text-left transition-colors hover:border-primary/60"
-                onClick={a.run}
+                className={
+                  'w-full rounded-lg p-3 text-left ' +
+                  (index === i ? 'bg-primary-fixed' : 'hover:bg-surface-hover')
+                }
+                onClick={() => go(String(row.path))}
               >
-                <div className="flex items-center justify-between">
-                  <Icon name={a.icon} className="text-[1.2857rem] text-primary" />
-                  {/* 无绑定快捷键的指令（如功能配置）不渲染空徽标，避免出现空边框方块 */}
-                  {a.kbd ? (
-                    <kbd className="rounded-md border border-outline-variant/50 bg-surface-container-high px-1.5 py-px font-mono text-[0.7143rem] text-outline">
-                      {a.kbd}
-                    </kbd>
-                  ) : null}
-                </div>
-                <div className="mt-1.5 text-[0.8929rem] font-semibold">{a.label}</div>
-                <div className="truncate text-[0.75rem] text-outline">{a.desc}</div>
+                {String(row.title || row.preferredName || row.name || row.summary)}
               </button>
-            ))}
-          </div>
-        </div>
-      </div>
+            </li>
+          ))}
+        </ul>
+        {query && !results.length ? <p>没有匹配结果</p> : null}
+        <nav className="flex flex-wrap gap-4 text-primary">
+          {[
+            ['/', '记录事件'],
+            ['/todo?new=1', '新建待办'],
+            ['/finance?new=1', '记收支'],
+            ['/notes', '笔记'],
+          ].map(([to, label]) => (
+            <Link key={to} to={to} onClick={onClose}>
+              {label}
+            </Link>
+          ))}
+        </nav>
+      </section>
     </div>
   )
 }

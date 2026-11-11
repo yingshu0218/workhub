@@ -43,6 +43,7 @@ const REBUILD_DEBOUNCE_MS = 250
 
 export interface ForceGraphOptions {
   graph: CanvasGraph
+  prepared?: {nodes:GraphNode[];links:GraphLink[]}
   size: { w: number; h: number }
   focusId?: string
   /** 视图模式（Issue #34）：默认 mixed */
@@ -57,6 +58,7 @@ export interface ForceGraphOptions {
 
 export function useForceGraph({
   graph,
+  prepared,
   size,
   focusId,
   mode,
@@ -74,7 +76,8 @@ export function useForceGraph({
   onSettledRef.current = onLayoutSettled
 
   useEffect(() => {
-    if (size.w === 0 || size.h === 0 || graph.customers.length === 0) return
+    if(prepared && !prepared.nodes.length){simRef.current?.stop();simRef.current=null;prevNodesRef.current.clear();setNodes([]);setLinks([]);return}
+    if (size.w === 0 || size.h === 0 || (!prepared && graph.customers.length === 0)) return
 
     let disposed = false
     // 同步风暴防护：graph 逐条变化时 250ms 防抖合并重建（风暴中少建 ~90% 的仿真）
@@ -83,7 +86,7 @@ export function useForceGraph({
     function buildSimulation() {
       if (disposed) return
       simRef.current?.stop() // 旧仿真停掉（其坐标已在 cleanup 缓存，见外层 return）
-      const built = buildGraph(graph, {
+      const built = prepared ? {nodes:prepared.nodes.map(n=>({...n})),links:prepared.links.map(l=>({...l}))} : buildGraph(graph, {
         focusId,
         mode,
         categories,
@@ -92,7 +95,7 @@ export function useForceGraph({
       })
       const ns = built.nodes
       const ls = built.links
-      if (ns.length === 0) return
+      if (ns.length === 0) {setNodes([]);setLinks([]);return}
 
       // 坐标继承（d3-force 官方模式）：同 id 节点延续上次位置/速度，只让**新**节点走初值——
       // 重建不再是「打回环状初值」，同步风暴中布局连续演化、收敛后聚簇稳定保留。
@@ -211,7 +214,7 @@ export function useForceGraph({
         rafRef.current = null
       }
     }
-  }, [graph, size.w, size.h, focusId, mode, categories, selfName])
+  }, [graph, prepared, size.w, size.h, focusId, mode, categories, selfName])
 
   return { nodes, links, setNodes, setLinks, simRef }
 }

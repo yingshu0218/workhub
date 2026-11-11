@@ -29,7 +29,7 @@ describe('侧栏选中判定：跨模块不再误高亮', () => {
     expect(isNavItemActive('/crm', '/crm')).toBe(true)
     expect(isNavItemActive('/crm/canvas', '/crm')).toBe(true)
     expect(isNavItemActive('/crm/c1/timeline', '/crm')).toBe(true)
-    expect(isNavItemActive('/projects/p1', '/projects')).toBe(true)
+    expect(isNavItemActive('/notes/n1', '/notes')).toBe(true)
     // 但不越界到「同类前缀」的其它模块
     expect(isNavItemActive('/crm-extra', '/crm')).toBe(false)
   })

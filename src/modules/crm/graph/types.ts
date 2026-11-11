@@ -10,7 +10,7 @@ import type { CanvasColorSlot } from './themes'
 export interface GraphNode extends SimulationNodeDatum {
   id: string
   /** self='我'（当前用户自节点，Issue #123）；其余为业务实体节点 */
-  kind: 'self' | 'customer' | 'project' | 'txn' | 'todo' | 'note'
+  kind: 'self' | 'customer' | 'project' | 'txn' | 'todo' | 'note' | 'activity'
   label: string
   /** 颜色槽名（2026-10-16 主题化）：渲染层按当前画布主题查该槽的 stroke/fill/text */
   slot: CanvasColorSlot

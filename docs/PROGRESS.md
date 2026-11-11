@@ -4,7 +4,14 @@
 >
 > **当前口径（2026-11-11）**：产品为完全个人使用的助手；开发验证环境重新建立于用户授权的 `devtest` 独立目录，旧 9001 环境仍已停用。正式站未在本轮修改。历史轮次中的团队、Local-First Web 和旧环境描述不代表当前实现；见 [开发测试环境说明](开发测试环境说明.md)。
 
-**最后更新**：2026-11-12（个人助手第三版基础：在线客户端协议与隔离镜像，综合验收中）
+**最后更新**：2026-11-12（个人助手第三版界面完成，待保留原库升级 devtest）
+- 今天/时间线/联系人/图谱成为主线；桌面与移动导航收口，待办/收支/笔记直接可达。事件、联系人与事项按名称搜索，发生/录入时间、仅日期精度、承诺变化、明确关系证据及分币种金额共用第二版查询。
+- 来源、正文、关系、历史和 effects 有界续读；旧深链回到同一活动。纠错只提交改动字段，长正文读全后才可改；预览/撤销/范围清理/联系人合并保留确认边界。查询失败与清理销毁旧正文/图谱，未提交内容及原 rev 单独保存；明确校验/版本拒绝不锁死输入。
+- 设置收为账号服务器、独立 Agent、数据备份、外观偏好、关于五组，保留既有主题与 d3-force。已建立可复跑 `test:clients`，区分服务器双游标与两个独立缓存进程。旧世代输入可见、可导出、可按原上下文核对。
+- 最终真实 PB/MCP 基线 **18+10+2 组**、同步/附件 **9 组**、独立缓存串联 MCP **6 组**通过；独立 root 审计 **7+6 组**通过。固定规模 P95 查询 **5.55–383.57ms**、复合提交 **93.52ms**；首轮 **76,546 行/383 页/83,472,611 字节/21.44s**，无变化 **0 行**、单条变更 **1 行**。
+- 新增快照修复保留删除登记/已覆盖水位回执拒绝，以及软删迁移活动不从冻结沟通导出原文的回归。最终完整门禁 **1213 passed / 7 skipped**，TypeScript、图标和 lint 通过。devtest 尚为 ba5eaba，下一步冷备份后保留原库增量升级，未涉及正式站、推送、浏览器或 APK。
+
+**上一轮**：2026-11-12（个人助手第三版基础：在线客户端协议与隔离镜像，综合验收中）
 - 生产 Web 与原生共用 VPS endpoint、在线认证、服务端命令；按 server/owner/generation/schema 隔离缓存、查询、草稿和未知请求。旧库与旧队列保留，只导出核对，不自动推送。
 - 新增 1794355203：全局 effects 索引与现有附件保护；000/001/002 保持冻结。跨表快照、200 行增量页、操作水位、原子游标发布、软删/永久删除与恢复世代校验；晚快照/旧回执/排队跨账号写入均有反向回归。
 - 认证完成后才安装同步与业务订阅；退出清理轮询/事件/计时。附件通过认证下载入口读取，匿名直链和删除后旧路径拒绝；原生前台恢复有接线与自动测试，不安装 SDK/NDK、不出新 APK。
@@ -115,72 +122,12 @@
 ⚠️ **代价（记下来）**：GitHub 仓库从此是**手动双推**的第二副本（`origin` = CNB、`github` = GitHub 各推一次），**不会自动跟上 CNB**。停用前实测三方一致：本地 HEAD / CNB `origin/main` / GitHub `main` 同为 `9c55fea`，tag v1.3.0~v1.1.0 两边齐全。
 ⚠️ **仍未真机验收**：手机端「安装 / 首启 / 登录 / 同步」四项照旧没被点过（无真机）。GitHub 出包解决的是「怎么构建」，不是「验过」。
 
-**上一轮**：2026-10-28（**修掉「桥永远连不上」的根因：token 收敛成单一来源**。现象：设置页「AI Agent 桥」永久 `连接中…`、relay 日志每 3 秒一条 `浏览器 WS 连接 token 无效，已拒绝`、Agent 侧只拿到 `-32001 工具清单不可用：寻鸽工作台未连接 relay` —— 两端都以为是对方配错。⚠️ **根因不在配置**：页面「启用」时用 `genToken()` **本地随机造 token**，relay 只认自己启动时那份（`WORKHUB_RELAY_TOKEN`），两端从不握手；且 token 输入框 `readOnly`，连手抄对齐都做不到。实测证据：nginx 记录页面发的是 `token=8vOe…`，容器环境里是 `sNn…`，12+ 次握手全被拒。）
-**① 页面不得自造 token**：删除 `genToken()` 与「重置」按钮（改为「解绑」）；`toggleBridge` 只切开关，不再顺带发 token —— 那行 `ai.bridgeToken || genToken()` 就是故障源头。
-**② 设置页新增配对码兑换**：`POST <relay>/pair`（**普通 HTTP** —— 此刻页面还没有 token，连不上 WS）→ 拿回 relay 下发的 token → 写 `settings.ai.bridgeToken` 并重连；另有「生成配对码」按钮（带 Bearer 打 `/pair/new`），签 5 分钟码给 Agent 或第二台设备 —— 即「后台签发、客户端填 token」的模型。
-**③ token 改为运行期持久化**：`scripts/serve.mjs` 按 `WORKHUB_RELAY_TOKEN` → `<dataDir>/relay-token`（0600）→ 首次生成写盘 的顺序取值，**刻意不在构建期随机**（同 commit 两次构建会得到两个 token，重建/回滚就让所有已配对身份失效）。`.data/` 已进 `.gitignore`。
-**④ 启动日志不再打印长期 token**：改打印**引导码**（`mintPairCode(0)`，一次性、不限期、兑换即作废）。不给 5 分钟 TTL 的理由：部署完过一阵再翻日志是常态，码过期后页面还没有 token、签不出新码 —— **直接死锁**，这正是这次卡住的形态。
-**⑤ 顺手修掉配对 url 吐内网地址**：根因是容器入口 `deploy/docker/entrypoint.mjs` 的 `forwardHeaders` 把 `Host` 改写成上游 `127.0.0.1:9001` 却不补 `X-Forwarded-Host`，于是 `/relay/pair*` 返回 `https://127.0.0.1:9001/relay/mcp` —— 照着这个字段配的客户端必连不上，而现场看起来完全像「客户端配错」。修法：entrypoint **先记原始 Host 进 `X-Forwarded-Host` 再改写 `Host`**；nginx 显式 `proxy_set_header X-Forwarded-Host $host`。⚠️ **线上实测结论**：旧镜像的 entrypoint 用的是 `{...req.headers}` 展开，forwarded 头本来就会透传 —— 所以**只改 nginx 就能立刻修好，不必等新镜像**。真机证据（对正式站 `POST /relay/pair/new`）：不带 forwarded 头 → `https://127.0.0.1:9001/relay/mcp`；带 `X-Forwarded-Host: team.fpigeon.fun` → `https://team.fpigeon.fun/relay/mcp`。
-> **本轮验证**：新增 `src/modules/settings/__tests__/aiBridgePair.test.tsx` **6 条**（配对成功写入**服务端下发的** token / `wss→https` 映射 / 失败不写 token 且显示服务端原话 / 空码不发请求 / 签发带 Bearer 且显示码 / 未配对时签发明确提示）+ `relayHttp.test.ts` **+2 条**（引导码不限期且只能兑一次 / 配对 url 用反代透传的真实域名）。⚠️ 两个红灯都说明「判据不在我以为的地方」：① 本仓 vitest 未开 `globals`，`@testing-library` 的自动 cleanup 不生效 → 上一条用例 DOM 残留，表现为「找到多个 button」，已按仓内惯例手动 `cleanup()`；② `mintPairCode` 的签名**另有一份 `.d.ts` 副本**（`src/agent/relay-modules.d.ts`），只改 JS 会报 `TS2554 Expected 0 arguments` —— 改 JS 必须同步改声明。`npm run check:all` 全绿 —— **1091 passed / 0 failed / 7 skipped**（132 文件 1098 用例，较上轮 +8 条）。
-**已部署（2026-10-28 02:16）**：推 `088809f` → CNB 构建 → 主机 `docker compose pull && up -d`。**判据全过**：镜像 revision label = `088809fb0faeae1d7389cfcb1a96d5cbf21a40f5`（与本提交逐字相同）、容器 `healthy`、`/`·`/api/health`·`/sw.js` 全 200、`pair/new` 返回 `https://team.fpigeon.fun/relay/mcp`（不再是 127.0.0.1）。启动日志确认 `token 来源：环境变量 WORKHUB_RELAY_TOKEN` —— **token 没变，已配对的 Agent 不受影响**；同轮把主机 compose 与 nginx 都对齐成仓库副本（`diff -q` 逐字一致），回滚 tag `workhub:rollback-20261028-021657`、PB 备份 `data/pb_data.bak-20261028-021657`。⚠️ **剩最后一步必须人工**：页面刷新后在「AI Agent 桥 → 配对码」填日志里的引导码配对一次，`tools/list` 才会出工具。
-
-**⑥ 清空本地库改成真·空库（代码已改，未推未部署）**：`resetAndSeedLocalData` → `resetLocalData`，删掉末尾的 `seedIfEmpty()`；`main.tsx` 的演示种子改为**仅开发模式**（`import.meta.env.DEV`）写入，生产构建不 seed。为什么非改不可：`seedIfEmpty()` 的唯一判据是「customers 为空」，生产里跑它 = **每次清库都被灌回来**，「清空后初始化」永远达不成。
-⚠️ 顺带一条硬事实（只读统计正式站 `data.db` 全表）：**PB 业务表全为 0 条**（`customers`/`todos`/`transactions`… 皆 0），演示数据一直只存在**浏览器 IndexedDB** 且写入时标记 `synced: 1`，从未上行 —— 所以「清服务端」本身是空操作，真要清的是浏览器本地。
-> **补充验证**：新增 `src/repositories/__tests__/localReset.test.ts` **2 条**（清完业务表全空 / settings 豁免），并做变异校验：把 `seedIfEmpty()` 加回清空流程 → `workspaces 应为空: expected 1 to be +0` 红（已还原）。`npm run check:all` 全绿 —— **1093 passed / 0 failed / 7 skipped**（133 文件，+2 条）。
-
-**⑦ 页面登录（第 1 步：守卫 + 管理员账号，代码已改，未推）**：此前页面**完全匿名**，同步身份藏在一个没人知道的 `demo@nexus.local` 上 —— 既无访问控制，也让「换设备」变成摸配置。本轮先把门装上：
-- `deploy/docker/entrypoint.mjs`：新增 `ensureAppUser()`，PB 就绪后用**已有的超管凭据**幂等创建 `WORKHUB_ADMIN_USER`（`users.createRule` 是 Locked，页面侧建不出来）。失败只告警不阻断启动。
-- `scripts/serve.mjs`：新增 `GET /relay/auth-status` → `{enabled:boolean}`，判据只看管理员 env 是否配齐；**只回布尔、不回账号名**。
-- `src/app/AuthGate.tsx`：守卫组件。**fail-open** —— 服务端说未启用就放行（配错 env 不能把唯一管理员锁在门外）；启用则必须过 `auth-refresh`，本地残留 token 不采信，续期后的 token 写回。另有**强制首改**：`auth-status` 的 `initialized:false`（`/data/.admin-initialized` 不存在）时，登录后只能停在「设置你的密码」，改完调 `POST /relay/admin-initialized` 落标记（该端点要验 users 登录态，否则谁都能把标记写掉）。
-- compose 默认值直接写死：`WORKHUB_ADMIN_USER:-admin` / `WORKHUB_ADMIN_PASSWORD:-password`（按用户要求「改的人自己改文件」）。⚠️ 初始密码公开可知，所以首改必须短窗口完成。
-⚠️ 与旧镜像的兼容性：旧 serve.mjs 没有该端点 → 前端 `res.json()` 抛错 → 按未启用处理 → 放行，不会因为前后端版本错位把人挡在外面。
-> **补充验证**：新增 `src/app/__tests__/authGate.test.tsx` **5 条**（未启用放行 / 启用无 token 显示登录页且不渲染业务内容 / 有效 token 放行并写回续期 token / 失效 token 回登录页 / `initialized:false` 时已登录也必须先改密）。`npm run check:all` 全绿 —— **1098 passed / 0 failed / 7 skipped**（134 文件，+5 条）。
-⚠️ **本轮只装门，尚未打通同步身份**：登录后同步仍走设置里原有的 `demo@nexus.local`（第 2 步要做的正是「登录态即同步身份」，并顺带把页面↔relay 的自动对接补上），别把「能登录」误当成「账号已统一」。
-
-**⑧ 冲突删除归组 + 可配置保留期（逻辑层完成，UI 未做，未部署）**：同步只合并不删除，导致「本地以为已同步、远端却没有」的行永不消失（演示种子就是这一类）。
-- `pocketbaseAdapter` 新增 `listRemoteIds(table)`：`fields=id`、`perPage=200`、沿用 `totalPages` 终止（**刻意不用 `skipTotal`**，否则无 `totalPages`、终止条件得另写）、401 走 `pbAuthedFetch` 自动重登。
-- 新增 `src/sync/reconcile.ts`：判据**只认** `synced===1 && 远端无此 id`；孤儿写 `deleted=1/deletedAt` **软删进回收站**（可恢复），**不写 `trashSnapshot`**（`canRestore` 不依赖它，见 `trash.ts:212`）、**不入同步队列**（远端本就没有）。单表拉取失败不写完成标记，留待下轮重试。
-- 新增 `src/modules/trash/retention.ts`：按 `settings.security.trashRetentionDays`（7/15/30，默认 30）到期 `purgeTrashRecord`，逐条 try/catch（`purgeTargets` 推送失败会抛）、`db.meta` 24h 节流、**不依赖 `isSyncConfigured`**（本地模式也要清）。
-- 数据层：`SettingsSecurity.trashRetentionDays`；Dexie v17 新增**纯本地**表 `trashBatches`（存批次 label/members）——**不进 `collections.json`**，它不同步。
-> **本轮验证**：`src/sync/__tests__/reconcile.test.ts` 4 条、`src/modules/trash/__tests__/retention.test.ts` 3 条全绿。⚠️ 踩到一个测试坑：`vi.mock` 提升到 import 之前，mock 工厂里引用普通 `const` 会 TDZ 超时（表现为 60s 无输出），必须用 `vi.hoisted`。
-✅ **现已收口（2026-10-30 18:40 部署 `cbeeb63`）**：分组 UI（`TrashPage` 顶部批次条 + 点选只看该批）、设置页 7/15/30 下拉、`回收站设计方案` 口径已改（「保留期固定 30 天」「本地模式不自动清理」两条作废）；`check:all` 已在 CI 通过（3m43s）。
-⚠️ 构建曾连红三次，真因是 `main.tsx` 引了**从未 git add** 的 `db/seedCleanup`（TS2307）；该模块判据「`synced===1` 即物理删」会误伤从服务端同步下来的真实数据，故**删除而非补提交**。
-
-**⑨ 审计与首批修复（2026-10-31）**：两份只读审计结论 —— 页面旁白违规 **30 条**（18 文件 / 10 页面）+ 存疑 11 条；弃用代码 **19 项** + 重复实现 **7 组** + 未用依赖 **4 个**。本轮先修 3 个**真实缺陷**（会直接显示在界面上，非风格问题）：
-- `moduleConfig/parts.tsx`：注释未包 `{/* */}`，`/* 开关滑块… */` 被当文本渲染进开关按钮（两份 `Toggle` 分叉的产物）
-- `AiBridgeSection` / `GroupEditorDrawer`：残留 Markdown `**` 直出成星号
-> 剩余按序推进：死代码删除 → 图标瘦身（98 个未引用 svg，当前 243 个全量 `eager` 进主包）→ 旁白分批删（一页一提交）→ 重复组件合并（会改视觉，最后做）。
-
-**⑩ 死代码清除（2026-10-31，净 -191 行）**：删 `modules/placeholder/` 整目录；删 16 个零引用导出（`customerGroupRepo` / `TRASH_ROOT_TABLES` / `toolOf` / `MOBILE_MAX_WIDTH` / `DEFAULT_BRIDGE_URL` / `resolveMany` / `eventsOf` / `SYNC_META_DEFAULT` / `useCustomerInteractions` / `useProject` / `todayKey` / `todoUpdateFailedMessage` / `formatUnlockedAt` / `markdownToPlain` / `hasCrossTabLock`）+ 5 个零引用类型；移除 3 个未用依赖（`@tauri-apps/api` / `source-map-js` / `@types/dompurify`）。
-⚠️ 两处**审计误判已纠正（不要按旧结论再删）**：① `resolveDefaultLedgerId` **不是**仅测试引用 —— `domain/index.ts:95` 的 `recordTransaction()` 在用它做缺省账本策略；② `eslint-plugin-react-refresh` 被 `eslint.config.js:3` import，依赖不能删。
-⚠️ 复核方法教训：`grep -rn "\b符号\b"` 在 macOS BSD grep 下**不支持 `\b`**，会把「有引用」误判成「零引用」（本次首轮复核全部假阴性）—— 判死必须用 ripgrep，并以「命中数 == 1（仅定义行）」为准。
-> 验证：`tsc -b --force` 0 错、`eslint src --max-warnings=0` 0 报错、`vitest` **1105 passed / 7 skipped**（136 文件）。
-
-**⑪ 图标瘦身 + 反向检查（2026-10-31）**：删 8 个基名零引用的 svg（`drag_indicator` / `my_location` / `more_vert` / `add_circle` / `location_on` / `more_horiz` / `summarize` / `directions_walk`），`assets/icons` 243 → 235；`check-icons.mjs` 新增**反向检查**（多余图标），输出 **warning 不 exit 1** —— 它属于构建门禁，硬失败会把构建卡死。
-⚠️ **`-fill` 变体一个都没删**：`Icon.tsx:37` 是 `(fill && ICONS[name + '-fill']) || ICONS[name]` 的后缀推导，按字面量判"未引用"会误删 `check_circle-fill` 这类深色/选中态图标（全仓 `check_circle-fill` 命中 0，但 `AppLayout` 传的是 `name="check_circle" fill`）。
-⚠️ 四条**动态引用**通道不能只靠 grep `name=`：`HABIT_ICONS`（习惯图标数组）、`KIND_ICONS`（客户详情）、`registry.ts` 模块 icon 字段、`db/seed.ts` 的 `trophies[].icon` + `poster.ts` 的模板字符串 glob；`agent/schema.ts:440` 还允许 AI 下发任意图标名 —— 这也是反向检查只敢 warning 的原因。
-> 实测：`npm run build` 通过（`✅ 图标校验通过：138 个引用全部存在（可用 235 个）`），主包 js **1,869,102 → 1,861,692 B（−7,410 B）**，`index-*.js` gzip 117.60 → 116.13 kB。
-
-**⑫ 页面级旁白清理（2026-10-31，23 处）**：按 2026-10-14 裁决删掉页面副标题 / 宣导横幅 / 色阶图例 / 公式图例 / 标语副标题 / 重复 label 的 `StatCard sub`。删得最多的：`SecurityTab` 的「数据主权保障已激活」整块绿横幅、`InspirationPage` 副标题、`cards.tsx` 的「自律即自由…」、`HabitsPage` 色阶图例、`ProfilePage` 的 EXP 公式。
-**刻意保留**（判断依据写在这里，避免以后被当漏网之鱼再删一遍）：`EmptyState` 的 description（含 `ProjectsPage:97` 那段"项目用来承载长期事项"）、危险区风险告知（覆盖同 id / 彻底重置）、`AiBridgeSection` 的中风险确认说明与「必须重启 Agent」接入步骤、`FinancePage` 的筛选状态文案、`AppearanceTabs` 里作为字体样张的那段正文。
-⚠️ 删文案后做了 3 处**布局补偿**（否则视觉会塌）：`cards.tsx` 速记卡标题 `mb-1 → mb-3`；`CustomerDetailPage` 时间线 `justify-between → justify-end`；`StatCard.sub` / `parts.Section.desc` 改可选 + 条件渲染，避免留空壳。
-> 验证：`npm run build` exit 0、`eslint` 干净、全量 `vitest` **1105 passed / 7 skipped**；`src/modules/trash/**`、`src/sync/**` 零改动。
-
-**⑬ 重复组件合并 + 两处遗留（2026-10-31）**：审计第三批。
-- **Toggle / Section**：`moduleConfig/parts.tsx` 改为从 `settings/settingsUi.tsx` 转出（单实现）；`CrmIntimacyConfig` 调用点零改动。
-- **统计卡**：`SummaryCard` 提升为 `design-system/ui.tsx` 的 `StatCard`，CRM 与财务共用；`CustomerDetailPage` 那个 `<button>` 可下钻的同名卡改名 `DrillDownStatCard`（语义不同，**刻意不合并**）。
-- **胶囊筛选**：新建 `design-system/FilterChip.tsx`，替换 5 处（CRM 档位、3 处时间线筛选、账本）。
-- ⚠️ **两处越界已回退**：「账本 chip」原本是**实心填充**、明细 Tab 原本是**纯文字页签**，合并时被改成描边胶囊 —— 那是改设计不是去重。前者加 `variant="filled"` 还原，后者撤销为内联纯文字（**页签 ≠ chip**）。
-- 遗留补齐：`CrmIntimacyConfig` 恢复「算法最多推到 T2，永不给出 T1/I6/I7」这条**硬规则**（以控件帮助形式，不是说明卡）；`NotificationsTab` 7 个开关加 `disabled`（代码里零消费方），仅 `todoDueWarning` 保持可操作。
-- 刻意不做：`Segmented` 两份（2026-10-21 已裁定视觉不同）、`EntitySummary`/`MentionEntitySummary`（需单独一轮 + 交互测试）。
-> 仍有可见差异（已裁定接受）：CRM 档位 chip 未选中态由浅填充改透明、描边 /60；时间线 chip 选中字重 `semibold→medium`；CRM 统计卡 `<768px` 值字号 22→18px（换响应式口径，防长金额撑破列）。
-
 更早轮次见 [本轮归档](PROGRESS-archive-20261111.md)。
 
 ## 一、当前状态总览
 
 | 项 | 状态 |
-| 个人助手第三版 | 在线客户端协议与隔离镜像已实现；核心独立审计 7+6 组通过，综合验收/原 devtest 升级进行中 |
+| 个人助手第三版 | 完整视图与在线客户端已实现；真实基线 18+10+2、同步9、双缓存6及独立7+6通过；待原 devtest 保留升级 |
 |---|---|
 | 版本 | 第二次交付（阶段三、四）模型/闭环、规模、原库部署及 P0 实站复验完成；已放行第三版（视图、多端共用增量协议及 Android 接线）接续 |
 | 全站回收站 | ✅ 代码与 `/trash` 页面已落盘；**服务端 Schema 已升级**（14 个集合 `restoredAt` + 7 个父级 `trashSnapshot`，2026-10-24 双站导入完成；2026-10-26 复查两站 `check:schema` 均「完全一致」） |
@@ -215,7 +162,7 @@
 | M3 (P3-P4) | CRM + 笔记 | ✅ 画布拖拽穿透、笔记 @客户双向链接、文件夹文件树 + 查看/编辑双态 + 列表固定行高/属性右置 + 弹窗查看（背景虚化，卡片编辑/关闭）（Issue #4 二轮反馈后）；Issue #11 客户详情页三源统一时间轴投影 + 鱼骨时间线视图（/crm/:id/timeline）+ 骨刺穿透深链定位 |
 | M4 (P5) | 习惯 + 成就 | ✅ 打卡→EXP→奖杯解锁弹窗全链路 |
 | M5 (P6-P7) | 灵感闪现 + 设置 + ⌘K | ✅ 权重引擎抽取、主题实时切换、全量导出 |
-| M6 多端同步 | 离线写入 + 在线自动同步 | ✅ 推送 27 条落库、服务端记录拉取到新设备，实测通过 |
+| M6 多端同步 | 当前为在线命令 + 有界增量缓存 | ✅ 独立双缓存/MCP 已验证；旧离线写入是历史里程碑，不代表当前客户端可离线复合入账 |
 
 ## 四、架构定案速览
 

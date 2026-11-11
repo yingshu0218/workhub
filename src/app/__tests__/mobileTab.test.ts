@@ -12,7 +12,7 @@ import { describe, it, expect } from 'vitest'
 import { isMobileTabActive, MOBILE_TABS } from '../MobileTabBar'
 
 const WORKBENCH = MOBILE_TABS[0].matches
-const CRM = MOBILE_TABS[1].matches
+const CRM = MOBILE_TABS[2].matches
 const PROFILE = MOBILE_TABS[4].matches
 
 describe('移动端底部导航：Tab 选中判定', () => {
@@ -23,9 +23,9 @@ describe('移动端底部导航：Tab 选中判定', () => {
   })
 
   it('二级页归到「工作台」：待办 / 笔记 / 项目（含子路由）', () => {
-    expect(isMobileTabActive('/todo', WORKBENCH)).toBe(true)
-    expect(isMobileTabActive('/notes/n1', WORKBENCH)).toBe(true)
-    expect(isMobileTabActive('/projects/p1', WORKBENCH)).toBe(true)
+    expect(isMobileTabActive('/todo', PROFILE)).toBe(true)
+    expect(isMobileTabActive('/notes/n1', PROFILE)).toBe(true)
+    expect(isMobileTabActive('/projects/p1', PROFILE)).toBe(true)
   })
 
   it('「客户」含画布 / 详情 / 时间线等子路由', () => {
@@ -42,11 +42,7 @@ describe('移动端底部导航：Tab 选中判定', () => {
     expect(isMobileTabActive('/module-config/crm/intimacy', PROFILE)).toBe(true)
   })
 
-  it('灵感闪现不占 Tab 位：它不该点亮任何一个 Tab', () => {
-    for (const tab of MOBILE_TABS) {
-      expect(isMobileTabActive('/inspiration', tab.matches)).toBe(false)
-    }
-  })
+  it('灵感收拢到更多，事件详情归时间线',()=>{expect(isMobileTabActive('/inspiration',PROFILE)).toBe(true);expect(isMobileTabActive('/activities/a',MOBILE_TABS[1].matches)).toBe(true)})
 
   it('任一页面只点亮一个 Tab（防止一个路径点亮两个）', () => {
     const paths = [

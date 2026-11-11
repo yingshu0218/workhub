@@ -17,22 +17,24 @@ export async function exportBusinessCopy() {
   requireClientSession(session)
   const cache = db,
     data: Record<string, unknown> = {}
+  let mapped = new Set<string>()
   // 只读事务固定所有表的同一镜像时刻；不会导出其他身份的草稿或授权秘密。
   await cache.transaction(
     'r',
     SYNC_TABLES.map((t) => cache.table(t)),
     async () => {
-      for (const table of SYNC_TABLES) data[table] = await cache.table(table).toArray()
+      for (const table of SYNC_TABLES) {
+        const rows = await cache.table(table).toArray()
+        if (table === 'activities')
+          mapped = new Set(
+            rows
+              .filter((row) => row.sourceTable === 'interactions')
+              .map((row) => String(row.sourceId)),
+          )
+        data[table] = rows.filter((row) => !row.deleted)
+      }
     },
   )
-  const activities = data.activities as {
-      sourceTable?: string
-      sourceId?: string
-      deleted?: number
-    }[],
-    mapped = new Set(
-      activities.filter((a) => a.sourceTable === 'interactions').map((a) => a.sourceId),
-    )
   data.interactions = (data.interactions as { id: string }[]).filter((r) => !mapped.has(r.id))
   const attachments = data.attachments as {
     id: string

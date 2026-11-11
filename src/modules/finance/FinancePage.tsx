@@ -4,6 +4,8 @@ import { Icon } from '@/design-system/Icon'
 import { FilterChip } from '@/design-system/FilterChip'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useCollection, useRecord } from '@/queries/hooks'
+import { useToast } from '@/design-system/Toast'
+import { attachmentBlob } from '@/storage/clientFiles'
 import { downloadBlob } from '@/shared/download'
 import { useIsMobile } from '@/shared/useIsMobile'
 import type { Customer, Ledger, Todo, Transaction } from '@/db/types'
@@ -81,6 +83,7 @@ export default function FinancePage() {
 
   // 深链定位：/finance?focus=<transactionId>（客户时间线鱼骨穿透入口）——目标流水存在时直接打开详情抽屉
   const [searchParams, setSearchParams] = useSearchParams()
+  useEffect(()=>{if(searchParams.get('new')==='1'){setCreating(true);const next=new URLSearchParams(searchParams);next.delete('new');setSearchParams(next,{replace:true})}},[searchParams,setSearchParams])
   const focusTxnId = searchParams.get('focus') ?? undefined
   useEffect(() => {
     if (!focusTxnId) return
@@ -722,8 +725,9 @@ function TransactionRow({
   )
 }
 
-function downloadAttachment(a: { name: string; blob: Blob }) {
-  downloadBlob(a.blob, a.name)
+async function downloadAttachment(a: { id:string; name: string; blob?: Blob }) {
+  const blob=await attachmentBlob(a.id)
+  downloadBlob(blob,a.name)
 }
 
 /** 凭证详情抽屉：完整字段 + 附件下载 + 关联业务溯源 + 状态流转与编辑 */
@@ -738,6 +742,7 @@ function TransactionDetailDrawer({
   const ledgers = useCollection<Ledger>('ledgers')
   const customers = useCollection<Customer>('customers')
   const todos = useCollection<Todo>('todos')
+  const toast=useToast()
   const attachments = useTransactionAttachments(transactionId ?? undefined)
   const navigate = useNavigate()
   const [editing, setEditing] = useState(false)
@@ -901,7 +906,7 @@ function TransactionDetailDrawer({
                       size="sm"
                       variant="tonal"
                       icon="download"
-                      onClick={() => downloadAttachment(a)}
+                      onClick={() => void downloadAttachment(a).catch(e=>toast.error(String(e)))}
                     >
                       下载
                     </Button>

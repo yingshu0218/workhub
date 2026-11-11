@@ -12,21 +12,11 @@ import { Icon } from '@/design-system/Icon'
  * 玻璃等形态，施加到胶囊导航上会把造型打散。
  */
 export const MOBILE_TABS = [
-  {
-    to: '/',
-    icon: 'dashboard',
-    label: '工作台',
-    matches: ['/', '/todo', '/notes', '/projects'],
-  },
-  { to: '/crm', icon: 'group', label: '客户', matches: ['/crm'] },
-  { to: '/finance', icon: 'account_balance_wallet', label: '财务', matches: ['/finance'] },
-  { to: '/habits', icon: 'local_fire_department', label: '习惯', matches: ['/habits'] },
-  {
-    to: '/profile',
-    icon: 'person',
-    label: '我的',
-    matches: ['/profile', '/trophies', '/settings', '/module-config'],
-  },
+ {to:'/',icon:'dashboard',label:'今天',matches:['/']},
+ {to:'/timeline',icon:'timeline',label:'时间线',matches:['/timeline','/activities','/operations','/interactions']},
+ {to:'/crm',icon:'group',label:'联系人',matches:['/crm']},
+ {to:'/graph',icon:'hub',label:'图谱',matches:['/graph']},
+ {to:'/more',icon:'menu_book',label:'更多',matches:['/more','/todo','/finance','/notes','/projects','/habits','/profile','/trophies','/settings','/module-config','/inspiration','/trash','/record','/records']},
 ] as const
 
 /**
@@ -45,28 +35,8 @@ export function isMobileTabActive(pathname: string, matches: readonly string[]):
 
 export default function MobileTabBar() {
   const { pathname } = useLocation()
-  // 已经在灵感闪现页时不再显示悬浮入口（避免「点进去还挂着一个入口」）
-  const onInspiration = pathname === '/inspiration'
-
   return (
-    <nav className="app-tabbar relative shrink-0 px-[21px] pt-3 md:hidden">
-      {/* 悬浮「灵感闪现」：贴在本导航之上（bottom-full 落在导航顶边），无需写死高度。
-          注意本导航是**在流内**的（不是 fixed），所以内容区不会被遮挡，也就没有
-          「给底栏留出 padding」这类补偿——这也是选择在流内而不是 fixed 的原因。 */}
-      {!onInspiration && (
-        <NavLink
-          to="/inspiration"
-          /* anim-pop 入场（依赖 .anim-pop 的 backwards 填充，否则会锁死 transform、
-             让 .app-tab-pill:active 的按压失效）；app-tab-pill 提供按压与颜色过渡。
-             出场不做：触发它的场景就是跳到 /inspiration（整页切换），
-             为它引入 presence 的收益低于成本。 */
-          className="app-tab-pill anim-pop absolute bottom-full right-5 mb-3 flex h-11 items-center gap-1.5 rounded-full bg-primary pl-3.5 pr-4 text-on-primary shadow-[0_8px_20px_rgba(0,74,198,0.32)]"
-        >
-          <Icon name="auto_awesome" size={18} />
-          <span className="text-[0.9286rem] font-semibold">灵感闪现</span>
-        </NavLink>
-      )}
-
+    <nav aria-label="主要导航" className="app-tabbar relative shrink-0 px-[21px] pt-3 md:hidden">
       <div className="flex h-[62px] items-center rounded-full border border-outline-variant/60 bg-surface-container-lowest p-1 shadow-[0_6px_20px_rgba(4,28,48,0.08)]">
         {MOBILE_TABS.map((tab) => {
           const active = isMobileTabActive(pathname, tab.matches)

@@ -90,13 +90,13 @@ describe('侧栏伸缩按钮（2026-10-19）', () => {
     fireEvent.click(screen.getByLabelText('收起左侧菜单'))
     const todoLink = document.querySelector('a[href="/todo"]') as HTMLElement
     expect(todoLink.textContent?.trim()).toBe('')
-    expect(todoLink.getAttribute('title')).toBe('待办事项')
+    expect(todoLink.getAttribute('title')).toBe('待办')
   })
 
   it('②c 展开态菜单项带文案、不带冗余 title（不打扰鼠标）', () => {
     renderLayout()
     const todoLink = document.querySelector('a[href="/todo"]') as HTMLElement
-    expect(todoLink.textContent).toContain('待办事项')
+    expect(todoLink.textContent).toContain('待办')
     expect(todoLink.getAttribute('title')).toBeNull()
   })
 
@@ -120,7 +120,7 @@ describe('侧栏伸缩按钮（2026-10-19）', () => {
     // 浮出是同步的（openHover 只清定时器 + 置位）
     await waitFor(() => expect(aside().getAttribute('data-rail-open')).toBe('true'))
     // 浮出时文案回来了
-    expect(document.querySelector('a[href="/todo"]')?.textContent).toContain('待办事项')
+    expect(document.querySelector('a[href="/todo"]')?.textContent).toContain('待办')
 
     // ⚠️ 用真实计时器 + waitFor 而不是 fakeTimers：收起有 120ms 延迟，
     // 且断言的是 React 状态驱动出的 DOM 属性，两件事叠在一起时假计时器

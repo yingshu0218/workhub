@@ -16,25 +16,25 @@ import { canonicalTags } from '@/shared/tags'
 const relKey = (r: { id?: string; targetId: string; label: string }) =>
   r.id ?? `${r.targetId}::${r.label}`
 
-/** 手动输入的客户名消解：精确名 → 公司名唯一命中 → 名字唯一包含；同名多人不猜（消解优先） */
+/** 手动输入的联系人名消解：精确名 → 公司名唯一命中 → 名字唯一包含；同名多人不猜（消解优先） */
 function resolveTarget(
   raw: string,
   candidates: Customer[],
 ): { ok: true; record: Customer } | { ok: false; message: string } {
   const text = raw.trim()
-  if (!text) return { ok: false, message: '请先输入关联客户' }
+  if (!text) return { ok: false, message: '请先输入关联联系人' }
   const byName = candidates.filter((c) => c.name === text)
   if (byName.length === 1) return { ok: true, record: byName[0] }
-  if (byName.length > 1) return { ok: false, message: `「${text}」有 ${byName.length} 位同名客户` }
+  if (byName.length > 1) return { ok: false, message: `「${text}」有 ${byName.length} 位同名联系人` }
   const fuzzy = candidates.filter((c) => c.name.includes(text) || c.company.includes(text))
   if (fuzzy.length === 1) return { ok: true, record: fuzzy[0] }
-  if (fuzzy.length > 1) return { ok: false, message: `「${text}」匹配到 ${fuzzy.length} 位客户` }
-  return { ok: false, message: `未找到客户「${text}」` }
+  if (fuzzy.length > 1) return { ok: false, message: `「${text}」匹配到 ${fuzzy.length} 位联系人` }
+  return { ok: false, message: `未找到联系人「${text}」` }
 }
 
 const DECISION_LEVELS: Customer['decisionLevel'][] = ['', '决策人', '影响者', '使用者', '把关人']
 
-/** 新建/编辑客户抽屉（复用；编辑以旧记录展开为基底，仅覆盖表单字段 —— 审计戒点 P0-2） */
+/** 新建/编辑联系人抽屉（复用；编辑以旧记录展开为基底，仅覆盖表单字段 —— 审计戒点 P0-2） */
 export default function CustomerFormDrawer({
   open,
   customer,
@@ -46,6 +46,7 @@ export default function CustomerFormDrawer({
   onClose: () => void
 }) {
   const [name, setName] = useState('')
+  const [aliases,setAliases]=useState(''),[preferredName,setPreferredName]=useState(''),[contactType,setContactType]=useState<Customer['contactType']>('unspecified')
   const [company, setCompany] = useState('')
   const [title, setTitle] = useState('')
   const [decisionLevel, setDecisionLevel] = useState<Customer['decisionLevel']>('')
@@ -56,16 +57,16 @@ export default function CustomerFormDrawer({
   const [wechat, setWechat] = useState('')
   const [email, setEmail] = useState('')
   const [address, setAddress] = useState('')
-  // 关联客户维护区（新建/编辑均可用）：目标只能落到已有客户，杜绝自由造目标 id 产生画布悬挂边。
-  // 交互改为芯片标签手动输入（用户需求）：客户名与关系语义各是一组可删芯片，回车/逗号固化。
-  // 新建时新客户尚未入库，候选天然不含自身；编辑时候选以 id 显式排除自己。
+  // 关联联系人维护区（新建/编辑均可用）：目标只能落到已有联系人，杜绝自由造目标 id 产生画布悬挂边。
+  // 交互改为芯片标签手动输入（用户需求）：联系人名与关系语义各是一组可删芯片，回车/逗号固化。
+  // 新建时新联系人尚未入库，候选天然不含自身；编辑时候选以 id 显式排除自己。
   const [relations, setRelations] = useState<CustomerRelation[]>([])
   const [relTargets, setRelTargets] = useState<string[]>([])
   const [relLabels, setRelLabels] = useState<string[]>([])
   /**
    * 关系区两个输入框里尚未敲下分隔符的草稿（保存时一并结算）。
    * 与 pendingTags 同理：控件不做失焦固化，草稿的归属由保存路径决定。
-   * 漏接这两个上报会造成「输了客户名/语义直接点保存 → 静默丢失」，
+   * 漏接这两个上报会造成「输了联系人名/语义直接点保存 → 静默丢失」，
    * 与表单自带提示「无需点添加关系也行，保存时会自动配对」矛盾（功能测试 #144）。
    */
   const [pendingRelTargets, setPendingRelTargets] = useState('')
@@ -78,8 +79,8 @@ export default function CustomerFormDrawer({
   // 打开时聚焦姓名且不滚动页面
   const nameRef = useAutoFocus<HTMLInputElement>(open)
 
-  // 客户间关系已迁 links（v15）：编辑回填来自 relation link（canonical，任一端都算
-  // 「该客户的关系」）。查询异步就绪 → 打开时先按已知值回填、links 就绪后水合一次
+  // 联系人间关系已迁 links（v15）：编辑回填来自 relation link（canonical，任一端都算
+  // 「该联系人的关系」）。查询异步就绪 → 打开时先按已知值回填、links 就绪后水合一次
   //（hydratedRef 保证每个 customer 只水合一轮，不覆盖用户随后在表单里的增删）。
   const relationLinksRaw = useQuery(
     () =>
@@ -114,6 +115,7 @@ export default function CustomerFormDrawer({
   const { seedKey } = useFormReset(openKey, open, (isOpen) => {
     if (!isOpen) return
   setName(customer?.name ?? '')
+  setAliases((customer?.aliases || []).join('、'));setPreferredName(customer?.preferredName || '');setContactType(customer?.contactType || 'unspecified')
   setCompany(customer?.company ?? '')
   setTitle(customer?.title ?? '')
   setDecisionLevel(customer?.decisionLevel ?? '')
@@ -135,9 +137,9 @@ export default function CustomerFormDrawer({
   setError('')
   })
 
-  // 第 4 步可关联的交易：仅列出尚未归属任何客户的流水（已关联的可通过财务侧改）
+  // 第 4 步可关联的交易：仅列出尚未归属任何联系人的流水（已关联的可通过财务侧改）
   const transactions = useCollection<Transaction>('transactions')
-  // 关联已迁 links（v15）：已关联任一客户的流水不再出现在候选（避免重复挂靠）
+  // 关联已迁 links（v15）：已关联任一联系人的流水不再出现在候选（避免重复挂靠）
   const relatedLinks =
     useQuery(
       () =>
@@ -151,15 +153,15 @@ export default function CustomerFormDrawer({
   const linkedTxnIds = new Set(relatedLinks.map((l) => l.fromId))
   const linkableTxns = transactions.filter((t) => !linkedTxnIds.has(t.id))
 
-  // 关联客户候选：所有未删除客户（排除自己），只能从这里选目标
+  // 关联联系人候选：所有未删除联系人（排除自己），只能从这里选目标
   const customers = useCollection<Customer>('customers')
   const relCandidates = customers.filter((c) => !customer || c.id !== customer.id)
   const REL_LABELS = ['转介绍人', '同一公司', '上下游', '竞对参照', '其他']
 
   /**
-   * 把「输入框里的客户名 × 语义」配对成关系条目（单一来源）。
+   * 把「输入框里的联系人名 × 语义」配对成关系条目（单一来源）。
    * 两条路径共用：点「添加关系」显式提交、以及保存时结算遗留草稿。
-   * 未解析出的客户名不静默丢弃，走 hints 回显（已解析到的照常写入）。
+   * 未解析出的联系人名不静默丢弃，走 hints 回显（已解析到的照常写入）。
    */
   function pairPendingRelations(
     targetsRaw: string[],
@@ -174,7 +176,7 @@ export default function CustomerFormDrawer({
       } else hints.push(hit.message)
     }
     if (targets.length === 0) {
-      if (hints.length === 0) hints.push('请先输入关联客户')
+      if (hints.length === 0) hints.push('请先输入关联联系人')
       return { added: [], hints }
     }
     const labels = labelsRaw.length > 0 ? labelsRaw : ['其他']
@@ -207,14 +209,14 @@ export default function CustomerFormDrawer({
    * 结算输入框草稿（保存路径）：
    * 控件现在「敲分隔符即固化」，正常不会有遗留草稿；但用户可能输入完直接点保存
    * （既不回车也不敲逗号）——此时若忽略草稿，观感依然是「保存不生效」。
-   * 故保存前显式结算一次：标签并入 tags，客户名 × 语义配对并入 relations。
+   * 故保存前显式结算一次：标签并入 tags，联系人名 × 语义配对并入 relations。
    */
   function settleDrafts(): { tags: string[]; relations: CustomerRelation[]; error: string } {
     // 标签走「标签语义」的唯一归一化（折叠大小写与 # 前缀）：
     // ① 并入未固化的草稿 ② 让存量里的旧写法（如 VIP）在下次保存时自然收敛为规范形式，
     // 避免标签栏出现 VIP / vip 两枚看起来一样的芯片（功能测试 #32）。
     const nextTags = canonicalTags(mergeDraftInto(tags, pendingTags))
-    // 关系区同样结算草稿（功能测试 #144）：客户名与语义各按控件同款口径解析
+    // 关系区同样结算草稿（功能测试 #144）：联系人名与语义各按控件同款口径解析
     // （mergeDraftInto = 已固化片段 + 未固化草稿，逗号切分 + trim + 去空 + 去重，
     //  与控件回车路径完全一致）。注意关系**不是标签**，不折叠大小写。
     const pendingRelationDrafts = mergeDraftInto(relTargets, pendingRelTargets)
@@ -241,13 +243,13 @@ export default function CustomerFormDrawer({
 
   async function save() {
     if (!name.trim()) {
-      setError('请填写客户姓名')
+      setError('请填写联系人姓名')
       return
     }
-    // 保存前结算草稿：手输完直接点保存也不丢（关系按 客户名 × 语义 配对，标签并入）
+    // 保存前结算草稿：手输完直接点保存也不丢（关系按 联系人名 × 语义 配对，标签并入）
     const settled = settleDrafts()
     if (settled.error) {
-      // 未解析出的客户名回显给用户（不静默丢弃），但已解析到的关系照常保存
+      // 未解析出的联系人名回显给用户（不静默丢弃），但已解析到的关系照常保存
       setError(settled.error)
     }
     // 错误处理（审计 P1：此前无 try/catch，落库失败的 Promise 无人处理）——
@@ -256,12 +258,13 @@ export default function CustomerFormDrawer({
     try {
       if (customer) {
         // 编辑：旧记录为基底，只覆盖表单字段（保留 createdAt 等）。
-        // 关系已迁 links（v15）：relations 作为选择集随 saveCustomer 与客户行同事务 diff 同步
+        // 关系已迁 links（v15）：relations 作为选择集随 saveCustomer 与联系人行同事务 diff 同步
         await saveCustomer(
           {
             ...customer,
             name: name.trim(),
             company: company.trim(),
+            aliases:aliases.split(/[、,，]/).map(v=>v.trim()).filter(Boolean),preferredName:preferredName.trim(),contactType,
             title: title.trim(),
             decisionLevel,
             tags: settled.tags,
@@ -277,6 +280,7 @@ export default function CustomerFormDrawer({
           id: newId('cus'),
           name: name.trim(),
           company: company.trim(),
+            aliases:aliases.split(/[、,，]/).map(v=>v.trim()).filter(Boolean),preferredName:preferredName.trim(),contactType,
           title: title.trim(),
           decisionLevel,
           tags: settled.tags,
@@ -302,10 +306,10 @@ export default function CustomerFormDrawer({
   }
 
   return (
-    <Modal open={open} title={customer ? '编辑客户档案' : '新建客户档案'} onClose={onClose}>
+    <Modal open={open} title={customer ? '编辑联系人档案' : '新建联系人档案'} onClose={onClose}>
       <div key={seedKey}>
         <StepHeader n={1} title="基础信息" />
-        <Field label="客户姓名 *">
+        <Field label="联系人姓名 *">
           <input
             ref={nameRef}
             className={inputCls}
@@ -345,6 +349,7 @@ export default function CustomerFormDrawer({
             </select>
           </Field>
         </div>
+        <Field label="别名（用逗号或顿号分隔）"><input className={inputCls} value={aliases} onChange={e=>setAliases(e.target.value)}/></Field><Field label="常用称呼"><input className={inputCls} value={preferredName} onChange={e=>setPreferredName(e.target.value)}/></Field><Field label="联系人类型"><select className={inputCls} value={contactType} onChange={e=>setContactType(e.target.value as Customer['contactType'])}><option value="unspecified">未指定</option><option value="person">个人</option><option value="organization">机构</option></select></Field>
         <StepHeader n={2} title="标签" />
         <Field label="标签（回车或逗号即固化）">
           <ChipTagInput
@@ -356,7 +361,7 @@ export default function CustomerFormDrawer({
             onOverflow={() => setError('标签最多 20 个')}
           />
         </Field>
-        <StepHeader n={3} title="联系方式与客情" />
+        <StepHeader n={3} title="联系方式与补充信息" />
         <div className="grid grid-cols-2 gap-3">
           <Field label="电话">
             <input
@@ -391,25 +396,25 @@ export default function CustomerFormDrawer({
             placeholder="如：上海浦东·张江科创园"
           />
         </Field>
-        {/* 关联客户维护区（新建/编辑共用）：
+        {/* 关联联系人维护区（新建/编辑共用）：
             交互按用户要求改为「芯片标签式手动输入」——关系列表就是一组可删芯片，
-            下方两块 ChipTagInput 负责手动输入（客户名 / 关系语义），回车或逗号即固化（客户名/标签里的空格不会被拆开）。
+            下方两块 ChipTagInput 负责手动输入（联系人名 / 关系语义），回车或逗号即固化（联系人名/标签里的空格不会被拆开）。
             不再用下拉 + 弹层：抽屉里再叠弹层会把表单输入状态顶掉，关掉后与表单不同步。
-            目标仍只能从已有客户选择（联想候选 + 唯一命中考验），杜绝自由造 id 产生画布悬挂边。 */}
+            目标仍只能从已有联系人选择（联想候选 + 唯一命中考验），杜绝自由造 id 产生画布悬挂边。 */}
         <div className="mt-4 rounded-xl bg-surface-container-low/60 p-3">
-          <StepHeader n={4} title="客户关系" />
+          <StepHeader n={4} title="联系人关系" />
           <div className="mb-2 text-[0.8571rem] text-on-surface-variant">
-            输入客户名与关系语义（回车或逗号即固化，无需点「添加关系」也行 ——
+            输入联系人名与关系语义（回车或逗号即固化，无需点「添加关系」也行 ——
             保存时会自动配对），点「添加关系」可立即把两者两两配对写入下方列表。
           </div>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <Field label="关联客户（可手输名，或点联想）">
+            <Field label="关联联系人（可手输名，或点联想）">
               <ChipTagInput
                 value={relTargets}
                 onChange={setRelTargets}
                 onDraftChange={setPendingRelTargets}
-                placeholder="输入客户名，回车或逗号固化"
-                onOverflow={() => setError('一次最多添加 5 位关联客户')}
+                placeholder="输入联系人名，回车或逗号固化"
+                onOverflow={() => setError('一次最多添加 5 位关联联系人')}
               />
             </Field>
             <Field label="关系语义（回车或逗号即固化）">
@@ -435,7 +440,7 @@ export default function CustomerFormDrawer({
             ))}
           </div>
           <div className="mb-2 flex flex-wrap items-center gap-1.5">
-            <span className="text-[0.7857rem] text-outline">客户联想：</span>
+            <span className="text-[0.7857rem] text-outline">联系人联想：</span>
             {relCandidates.slice(0, 6).map((c) => (
               <button
                 key={c.id}
@@ -446,7 +451,7 @@ export default function CustomerFormDrawer({
               </button>
             ))}
             {relCandidates.length === 0 && (
-              <span className="text-[0.7857rem] text-outline">暂无可关联的客户</span>
+              <span className="text-[0.7857rem] text-outline">暂无可关联的联系人</span>
             )}
           </div>
           <div className="mb-3">
@@ -484,7 +489,7 @@ export default function CustomerFormDrawer({
           )}
           <div className="mt-3 flex flex-wrap gap-1.5">
             {relations.length === 0 && (
-              <span className="text-[0.7857rem] text-outline">当前无关联客户</span>
+              <span className="text-[0.7857rem] text-outline">当前无关联联系人</span>
             )}
             {relations.map((r) => {
               const target = customers.find((c) => c.id === r.targetId)
@@ -535,7 +540,7 @@ export default function CustomerFormDrawer({
                   icon: 'payments',
                 }))}
                 placeholder="输入交易名称模糊搜索"
-                emptyText={linkableTxns.length === 0 ? '暂无未归属客户的流水' : '没有匹配的交易'}
+                emptyText={linkableTxns.length === 0 ? '暂无未归属联系人的流水' : '没有匹配的交易'}
                 onChange={setInitTxnId}
               />
             </Field>
@@ -547,7 +552,7 @@ export default function CustomerFormDrawer({
             取消
           </Button>
           <Button icon="save" onClick={save}>
-            {customer ? '保存修改' : '立即创建客户'}
+            {customer ? '保存修改' : '立即创建联系人'}
           </Button>
         </div>
       </div>
@@ -555,7 +560,7 @@ export default function CustomerFormDrawer({
   )
 }
 
-/** 四步表单分组指示器（1 基础信息 / 2 分层标签 / 3 联系客情 / 4 关联初始化） */
+/** 四步表单分组指示器（1 基础信息 / 2 分层标签 / 3 联系补充信息 / 4 关联初始化） */
 function StepHeader({ n, title }: { n: number; title: string }) {
   return (
     <div className="mb-2.5 mt-4 flex items-center gap-2">

@@ -16,5 +16,6 @@ export function projectInteractions(activities: readonly Activity[], links: read
       if (matches(record)) rows.push(record)
     }
   }
-  return rows.sort((a, b) => b.at - a.at || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+  const unique=filter.projectId?rows.filter((row,i)=>rows.findIndex(r=>r.id===row.id)===i):rows
+  return unique.sort((a, b) => b.at - a.at || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
 }

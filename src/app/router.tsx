@@ -17,12 +17,12 @@ import NotFoundPage from './NotFoundPage'
  */
 const TodoPage = lazy(() => import('@/modules/todo/TodoPage'))
 const FinancePage = lazy(() => import('@/modules/finance/FinancePage'))
-const CrmPage = lazy(() => import('@/modules/crm/CrmPage'))
-const CrmCanvasPage = lazy(() => import('@/modules/crm/CrmCanvasPage'))
-const CustomerDetailPage = lazy(() => import('@/modules/crm/CustomerDetailPage'))
-const CustomerTimelinePage = lazy(() => import('@/modules/crm/CustomerTimelinePage'))
-const CustomerGraphPage = lazy(() => import('@/modules/crm/CustomerGraphPage'))
-const AllTimelinesPage = lazy(() => import('@/modules/crm/AllTimelinesPage'))
+const CrmPage = lazy(() => import('@/modules/activities/ContactsPage'))
+const GraphPage = lazy(() => import('@/modules/activities/GraphPage'))
+const ContactPage = lazy(() => import('@/modules/activities/ContactPage'))
+const TimelinePage = lazy(() => import('@/modules/activities/TimelinePage'))
+const RecordsPage = lazy(() => import('@/modules/activities/RecordsPage'))
+const MorePage = lazy(() => import('./MorePage'))
 const PersonalRecordPage = lazy(() => import('@/modules/activities/RecordPage'))
 const NotesPage = lazy(() => import('@/modules/notes/NotesPage'))
 const NoteEditorPage = lazy(() => import('@/modules/notes/NoteEditorPage'))
@@ -104,11 +104,17 @@ const router = createBrowserRouter([
       { path: '/projects', element: <ProjectsPage /> },
       { path: '/projects/:id', element: <ProjectDetailPage /> },
       { path: '/crm', element: <CrmPage /> },
-      { path: '/crm/canvas', element: <CrmCanvasPage /> },
-      { path: '/crm/:id/graph', element: <CustomerGraphPage /> },
-      { path: '/crm/:id', element: <CustomerDetailPage /> },
-      { path: '/crm/:id/timeline', element: <CustomerTimelinePage /> },
-      { path: '/crm/timeline-all', element: <AllTimelinesPage /> },
+      { path: '/crm/canvas', element: <GraphPage /> },
+      { path: '/crm/:id/graph', element: <GraphPage /> },
+      { path: '/crm/:id', element: <ContactPage /> },
+      { path: '/crm/:id/timeline', element: <TimelinePage /> },
+      { path: '/crm/timeline-all', element: <TimelinePage /> },
+      { path: '/timeline', element: <TimelinePage /> },
+      { path: '/graph', element: <GraphPage /> },
+      { path: '/more', element: <MorePage /> },
+      { path: '/records', element: <RecordsPage /> },
+      { path: '/record/:table/:id', element: <RecordsPage detail /> },
+      { path: '/operations/request/:requestId', element: <PersonalRecordPage operation /> },
       { path: '/activities/:id', element: <PersonalRecordPage /> },
       { path: '/interactions/:id', element: <PersonalRecordPage /> },
       { path: '/operations/:id', element: <PersonalRecordPage operation /> },
