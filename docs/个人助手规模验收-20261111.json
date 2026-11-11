@@ -1,0 +1,131 @@
+{
+  "dataset": {
+    "counts": {
+      "customers": 1054,
+      "activities": 10011,
+      "transactions": 10001,
+      "todos": 5002,
+      "links": 50070
+    },
+    "synthetic": {
+      "customers": 1000,
+      "topics": 100,
+      "activities": 10000,
+      "transactions": 10000,
+      "todos": 5000,
+      "links": 50000
+    },
+    "activityText": {
+      "summaryChars": 320,
+      "sourceChars": 1200
+    },
+    "distribution": {
+      "days": 300,
+      "contactsPerEvent": 1,
+      "topicsPerEvent": 1,
+      "eventsPerContact": 10,
+      "financeEventLinkRatio": 0.5,
+      "currencies": [
+        "CNY",
+        "USD",
+        "EUR"
+      ],
+      "incomeRatio": 0.75,
+      "doneTaskRatio": 0.2
+    },
+    "totals": {
+      "CNY": {
+        "incomeMinor": 37500001,
+        "expenseMinor": 12508332
+      },
+      "USD": {
+        "incomeMinor": 37499999,
+        "expenseMinor": 12491668
+      },
+      "EUR": {
+        "incomeMinor": 37500000,
+        "expenseMinor": 12495000
+      }
+    }
+  },
+  "hardware": {
+    "cpu": "Intel(R) Xeon(R) Platinum",
+    "logicalCpus": 2,
+    "hostMemoryBytes": 3733340160,
+    "node": "v24.19.0",
+    "platform": "linux",
+    "network": "同机回环 HTTP；完整 JSON 响应读取；排除初始化和登录；3 次预热；串行样本",
+    "cpuMax": "100000 100000",
+    "memoryMax": "805306368"
+  },
+  "results": [
+    {
+      "label": "events-all",
+      "samples": 30,
+      "p50ms": 228.84,
+      "p95ms": 377.71,
+      "maxMs": 516.56
+    },
+    {
+      "label": "events-person",
+      "samples": 30,
+      "p50ms": 156.78,
+      "p95ms": 287.89,
+      "maxMs": 303.39
+    },
+    {
+      "label": "tasks",
+      "samples": 30,
+      "p50ms": 135.06,
+      "p95ms": 205.83,
+      "maxMs": 223.47
+    },
+    {
+      "label": "finance-all",
+      "samples": 30,
+      "p50ms": 22.27,
+      "p95ms": 37.2,
+      "maxMs": 39.61
+    },
+    {
+      "label": "graph-person",
+      "samples": 30,
+      "p50ms": 72.99,
+      "p95ms": 139.36,
+      "maxMs": 173.52
+    },
+    {
+      "label": "event-detail",
+      "samples": 30,
+      "p50ms": 49.18,
+      "p95ms": 56.95,
+      "maxMs": 63.66
+    },
+    {
+      "label": "contact-context",
+      "samples": 30,
+      "p50ms": 148.8,
+      "p95ms": 266.37,
+      "maxMs": 275.01
+    },
+    {
+      "label": "operations",
+      "samples": 30,
+      "p50ms": 3.64,
+      "p95ms": 7.91,
+      "maxMs": 16.09
+    },
+    {
+      "label": "compound-commit",
+      "samples": 30,
+      "p50ms": 68.13,
+      "p95ms": 89.02,
+      "maxMs": 101.76
+    }
+  ],
+  "targets": {
+    "queryP95ms": 500,
+    "commitP95ms": 1000
+  },
+  "passed": true
+}

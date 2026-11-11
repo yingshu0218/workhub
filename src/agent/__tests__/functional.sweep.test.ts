@@ -1,3 +1,4 @@
+import { PERSONAL_TOOL_MAP } from '../personalTools'
 /**
  * 本地功能性遍历探针（审计用，非回归门禁）
  *
@@ -102,12 +103,12 @@ describe('本地功能性遍历（全部工具）', () => {
     expect(result.schemaDiffs).toEqual([])
   })
 
-  it('④ 覆盖度自检：tools/list 下发的每个工具都被跑到', () => {
+  it('④ 旧CRUD覆盖度（新服务端工具由真实PB/MCP集成逐项覆盖）', () => {
     // 以运行期 tools/list 为基准逐项比对，**不写死数字** ——
     // 此前是 `expect(covered.size).toBeGreaterThanOrEqual(27)`，补 7 个工具后它只能靠改数字维持，
     // 且「数字对得上但漏跑某个工具」这种情况它抓不到（多跑一个别的工具就能凑够）。
     const covered = new Set(result.rows.map((r) => r.tool))
-    const missing = result.toolNames.filter((n) => !covered.has(n))
+    const missing = result.toolNames.filter((n) => !PERSONAL_TOOL_MAP.has(n) && !covered.has(n))
     expect(missing).toEqual([])
     expect(failuresOf(result)).toEqual([])
   })

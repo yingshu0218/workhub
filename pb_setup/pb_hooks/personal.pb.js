@@ -1,0 +1,8 @@
+routerAdd('POST','/api/workhub/personal/query',e=>require(__hooks+'/personal.js').query(e),$apis.requireAuth('users'),$apis.bodyLimit(64*1024))
+routerAdd('POST','/api/workhub/personal/preview',e=>require(__hooks+'/personal.js').preview(e),$apis.requireAuth('users'),$apis.bodyLimit(1024*1024))
+routerAdd('POST','/api/workhub/personal/commit',e=>require(__hooks+'/personal.js').commit(e),$apis.requireAuth('users'),$apis.bodyLimit(64*1024))
+routerAdd('POST','/api/workhub/agents',e=>require(__hooks+'/personal.js').agents(e),$apis.requireAuth('users'),$apis.bodyLimit(64*1024))
+routerAdd('POST','/api/workhub/agents/verify',e=>require(__hooks+'/personal.js').verify(e),$apis.requireAuth('users'),$apis.bodyLimit(4096))
+routerAdd('POST','/api/workhub/scoped',e=>require(__hooks+'/personal.js').scoped(e),$apis.requireAuth('users'),$apis.bodyLimit(16384))
+routerAdd('POST','/api/workhub/personal/cancel',e=>require(__hooks+'/personal.js').cancel(e),$apis.requireAuth('users'),$apis.bodyLimit(4096))
+cronAdd('workhubPersonalPendingCleanup','23 * * * *',()=>require(__hooks+'/personal.js').cleanupPending())

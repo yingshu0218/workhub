@@ -1,13 +1,14 @@
 import dayjs from 'dayjs'
 import { z } from 'zod'
 import { storage } from '@/storage'
+import { queryRows, endpointScope } from '@/storage/scoped'
 import { groupTxnLinks, txnLinksOf, type TxnLinks } from '@/modules/finance/links'
 import { buildSearchIndex, searchAll, type SearchEntityType } from '@/shared/search'
 import { memberIndexOf } from '@/repositories/links'
 // 直读层从 intimacy/direct 引（纯：零 react/Dexie）——barrel 会拖 config.ts 的响应式链，服务端 bundle 禁入
 import { filterBlacklisted, getIntimacyConfig } from '@/modules/crm/intimacy/direct'
 import { normalizeTodoPriority, todoPriorityFullLabel } from '@/modules/todo/priority'
-import type { Customer, Habit, Ledger, Link, Note, Project, Todo, Transaction } from '@/db/types'
+import type { Activity, Customer, Habit, Ledger, Link, Note, Project, Todo, Transaction } from '@/db/types'
 
 /**
  * agentOps 读工具集 —— 方案 §2.2（P1 第 5 步）
@@ -133,7 +134,7 @@ export const listLinksSchema = z
 export const searchEntitiesSchema = z.object({
   q: z.string().trim().min(1, '请提供搜索关键词'),
   types: z
-    .array(z.enum(['customer', 'todo', 'transaction', 'note', 'habit', 'project']))
+    .array(z.enum(['activity', 'customer', 'todo', 'transaction', 'note', 'habit', 'project']))
     .optional(),
 })
 
@@ -267,7 +268,7 @@ export async function getCustomer(input: unknown): Promise<ReadResult> {
   const d = getCustomerSchema.parse(input)
   const c = await storage.get<Customer>('customers', d.id)
   if (!c || c.deleted) return { items: [], count: 0, truncated: false }
-  const allLinks = await storage.list<Link>('links')
+  const allLinks = await queryRows<Link>(storage, 'links', endpointScope('customers', d.id))
   const relationLinks = allLinks.filter((l) => l.kind === 'relation')
   return { items: [projectCustomer(c, relationLinks)], count: 1, truncated: false }
 }
@@ -310,19 +311,21 @@ export async function listHabits(input: unknown): Promise<ReadResult> {
  */
 export async function searchEntities(input: unknown): Promise<ReadResult> {
   const d = searchEntitiesSchema.parse(input)
-  const [customers, projects, todos, transactions, notes, habits] = await Promise.all([
+  const [customers, projects, todos, transactions, notes, habits, activities] = await Promise.all([
     storage.list<Customer>('customers'),
     storage.list<Project>('projects'),
     storage.list<Todo>('todos'),
     storage.list<Transaction>('transactions'),
     storage.list<Note>('notes'),
     storage.list<Habit>('habits'),
+    storage.list<Activity>('activities'),
   ])
   // 黑名单「全局搜索屏蔽」（缺陷 D15）：Agent 读工具复用同一份 ⌘K 索引 ——
   // 若这里不过滤，被屏蔽的客户会从 AI 侧原样漏出去，等于给开关留了个后门。
   // 与 CommandPalette 同口径（都调 filterBlacklisted + getIntimacyConfig/useIntimacyConfig）。
   const intimacyCfg = await getIntimacyConfig()
   const index = buildSearchIndex({
+    activities: alive(activities),
     customers: filterBlacklisted(alive(customers), intimacyCfg, 'hideInSearch'),
     projects: alive(projects),
     todos: alive(todos),
@@ -412,7 +415,7 @@ const LIST_LINKS_TABLE = {
 export async function listLinks(input: unknown): Promise<ReadResult> {
   const d = listLinksSchema.parse(input ?? {})
   const table = LIST_LINKS_TABLE[d.type]
-  const rows = await storage.list<Link>('links')
+  const rows = await queryRows<Link>(storage, 'links', endpointScope(table, d.id))
   const seen = new Set<string>()
   const hit = rows.filter((l) => {
     if (l.deleted) return false

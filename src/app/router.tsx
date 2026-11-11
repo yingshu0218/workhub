@@ -23,6 +23,7 @@ const CustomerDetailPage = lazy(() => import('@/modules/crm/CustomerDetailPage')
 const CustomerTimelinePage = lazy(() => import('@/modules/crm/CustomerTimelinePage'))
 const CustomerGraphPage = lazy(() => import('@/modules/crm/CustomerGraphPage'))
 const AllTimelinesPage = lazy(() => import('@/modules/crm/AllTimelinesPage'))
+const PersonalRecordPage = lazy(() => import('@/modules/activities/RecordPage'))
 const NotesPage = lazy(() => import('@/modules/notes/NotesPage'))
 const NoteEditorPage = lazy(() => import('@/modules/notes/NoteEditorPage'))
 const HabitsPage = lazy(() => import('@/modules/habits/HabitsPage'))
@@ -108,6 +109,9 @@ const router = createBrowserRouter([
       { path: '/crm/:id', element: <CustomerDetailPage /> },
       { path: '/crm/:id/timeline', element: <CustomerTimelinePage /> },
       { path: '/crm/timeline-all', element: <AllTimelinesPage /> },
+      { path: '/activities/:id', element: <PersonalRecordPage /> },
+      { path: '/interactions/:id', element: <PersonalRecordPage /> },
+      { path: '/operations/:id', element: <PersonalRecordPage operation /> },
       { path: '/finance', element: <FinancePage /> },
       { path: '/notes', element: <NotesPage /> },
       { path: '/notes/:id', element: <NoteEditorPage /> },

@@ -32,7 +32,7 @@ function resolveTarget(
   return { ok: false, message: `未找到客户「${text}」` }
 }
 
-const DECISION_LEVELS: Customer['decisionLevel'][] = ['决策人', '影响者', '使用者', '把关人']
+const DECISION_LEVELS: Customer['decisionLevel'][] = ['', '决策人', '影响者', '使用者', '把关人']
 
 /** 新建/编辑客户抽屉（复用；编辑以旧记录展开为基底，仅覆盖表单字段 —— 审计戒点 P0-2） */
 export default function CustomerFormDrawer({
@@ -48,7 +48,7 @@ export default function CustomerFormDrawer({
   const [name, setName] = useState('')
   const [company, setCompany] = useState('')
   const [title, setTitle] = useState('')
-  const [decisionLevel, setDecisionLevel] = useState<Customer['decisionLevel']>('决策人')
+  const [decisionLevel, setDecisionLevel] = useState<Customer['decisionLevel']>('')
   const [tags, setTags] = useState<string[]>([])
   /** 标签输入框里尚未敲下分隔符的草稿（保存时一并结算，避免「输了没回车就点保存」丢标签） */
   const [pendingTags, setPendingTags] = useState('')
@@ -116,7 +116,7 @@ export default function CustomerFormDrawer({
   setName(customer?.name ?? '')
   setCompany(customer?.company ?? '')
   setTitle(customer?.title ?? '')
-  setDecisionLevel(customer?.decisionLevel ?? '决策人')
+  setDecisionLevel(customer?.decisionLevel ?? '')
   setTags(customer?.tags ?? [])
   setPhone(customer?.phone ?? '')
   setWechat(customer?.wechat ?? '')

@@ -72,6 +72,7 @@ export function boneSub(e: TimelineEvent): string {
 
 /** 骨刺穿透目标：点击跳转并定位对应记录 */
 export function boneTarget(e: TimelineEvent): string | undefined {
+  if (e.kind === 'interaction') return '/activities/' + encodeURIComponent(e.id)
   if (e.kind === 'transaction') return financeFocusPath(e.recordId)
   if (e.kind === 'todo') return todoFocusPath(e.recordId)
   return undefined

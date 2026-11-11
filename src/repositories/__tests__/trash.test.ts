@@ -127,7 +127,7 @@ describe('回收站：客户级联删除 → 恢复重建关联', () => {
 
     const deleted = (await db.customers.get('c1')) as unknown as Record<string, unknown>
     expect(deleted.deleted).toBe(1)
-    expect((deleted.trashSnapshot as { children: unknown[] }).children).toHaveLength(1)
+    expect((deleted.trashSnapshot as { children: unknown[] }).children).toHaveLength(0)
     // 关系 link 随级联墓碑化（双侧镜像/数组清扫已退役）
     expect((await db.links.get(relationLinkId))!.deleted).toBe(1)
     expect(
@@ -136,7 +136,7 @@ describe('回收站：客户级联删除 → 恢复重建关联', () => {
 
     const result = await restoreTrashRecord('customers', 'c1')
 
-    expect(result.restored).toBe(2) // 客户 + 1 条沟通日志
+    expect(result.restored).toBe(1) // 删除身份保留经历
     // 旧字段级回填：待办 + 项目（relations/customerIds 的 append 项已随 v15 迁 links 退役）
     expect(result.rebuiltLinks).toBe(2)
     // 关联层：related（流水↔客户）+ relation（客户↔客户）两条 link 随客户复活
@@ -249,6 +249,8 @@ describe('回收站：列表与父子禁用', () => {
     )
     await deleteCustomerCascade('c1')
 
+    // 历史版本已删除的沟通仍有父子恢复约束；新删除不再级联经历。
+    await db.interactions.update('i1',{deleted:1})
     const items = await listTrash()
     const child = items.find((i) => i.table === 'interactions' && i.id === 'i1')
     expect(child?.parentTable).toBe('customers')

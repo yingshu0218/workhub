@@ -443,11 +443,11 @@ export async function runToolSweep(mcp: McpClient, deps: SweepDeps = {}): Promis
   // 若先删客户，上面那条「删除后用 customerId 查不到」会在空结果集上**假通过**
   // （本来是「删掉了所以查不到」，会变成「解绑了所以查不到」）。
   await kase('crm_deleteCustomer', () => ({ customerId: g('customerId') }), (r) => {
-    const d = r.data as { sideEffects?: { cascadedInteractions?: number } }
-    // 上面记过 1 条沟通日志 → 级联日志数应 ≥ 1
+    const d = r.data as { sideEffects?: { cascadedInteractions?: number; retainedInteractions?: number } }
+    // 个人模型删除身份保留经历，只解除关联。
     need(
-      (d.sideEffects?.cascadedInteractions ?? 0) >= 1,
-      `期望级联 ≥1 条沟通日志，实际 ${String(d.sideEffects?.cascadedInteractions)}`,
+      d.sideEffects?.cascadedInteractions === 0 && (d.sideEffects?.retainedInteractions ?? 0) >= 1,
+      `期望保留经历，实际 ${JSON.stringify(d.sideEffects)}`,
     )
   })
 

@@ -1,4 +1,4 @@
-import type { Customer, Todo, Transaction, Note, Habit, Project } from '@/db/types'
+import type { Activity, Customer, Todo, Transaction, Note, Habit, Project } from '@/db/types'
 import { financeFocusPath } from '@/modules/finance/links'
 import { todoFocusPath } from '@/modules/todo/domain'
 
@@ -10,7 +10,8 @@ import { todoFocusPath } from '@/modules/todo/domain'
  * 整篇 markdown 不再进入搜索内存；摘要改用标签行。
  */
 
-export type SearchEntityType = 'customer' | 'todo' | 'transaction' | 'note' | 'habit' | 'project'
+export type SearchEntityType = 'activity' | 'customer' | 'todo' | 'transaction' | 'note' | 'habit' | 'project'
+export type ActivitySearchProjection = Pick<Activity, 'id' | 'title' | 'summary' | 'tags'>
 
 /** 搜索用笔记投影（不含 markdown 大字段，与 useCollection pick 对齐） */
 export type NoteSearchProjection = Pick<Note, 'id' | 'title' | 'tags'>
@@ -24,6 +25,7 @@ export interface SearchItem {
 }
 
 export const SEARCH_TYPE_META: Record<SearchEntityType, { label: string; icon: string }> = {
+  activity: { label: '经历与事件', icon: 'timeline' },
   customer: { label: 'CRM 客户', icon: 'group' },
   todo: { label: '待办事项', icon: 'check_circle' },
   transaction: { label: '财务流水', icon: 'account_balance_wallet' },
@@ -34,6 +36,7 @@ export const SEARCH_TYPE_META: Record<SearchEntityType, { label: string; icon: s
 
 /** 投影顺序即结果组序 */
 const TYPE_ORDER: SearchEntityType[] = [
+  'activity',
   'customer',
   'project',
   'todo',
@@ -48,6 +51,7 @@ function fmtAmount(amount: number): string {
 
 /** 选择性投影：五实体 → 精简检索条目（notes 为投影类型，不携带 markdown） */
 export function buildSearchIndex(inputs: {
+  activities?: ActivitySearchProjection[]
   customers: Customer[]
   projects: Project[]
   todos: Todo[]
@@ -56,12 +60,13 @@ export function buildSearchIndex(inputs: {
   habits: Habit[]
 }): SearchItem[] {
   const items: SearchItem[] = []
+  for (const a of inputs.activities || []) items.push({id:a.id,type:'activity',title:a.title || '',subtitle:[(a.summary || '').slice(0,500),...(a.tags || []).slice(0,50)].join(' · '),path:'/activities/'+encodeURIComponent(a.id)})
   for (const c of inputs.customers) {
     items.push({
       id: c.id,
       type: 'customer',
       title: c.name,
-      subtitle: [c.company, c.title].filter(Boolean).join(' · '),
+      subtitle: [c.preferredName, ...(c.aliases || []), c.company, c.title].filter(Boolean).join(' · '),
       path: `/crm/${c.id}`,
     })
   }

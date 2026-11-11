@@ -221,6 +221,35 @@
         "name": "trashSnapshot",
         "type": "json",
         "required": false
+      },
+      {
+        "name": "aliases",
+        "type": "json",
+        "required": false
+      },
+      {
+        "name": "preferredName",
+        "type": "text",
+        "required": false,
+        "max": 0,
+        "min": 0,
+        "pattern": ""
+      },
+      {
+        "name": "contactType",
+        "type": "text",
+        "required": false,
+        "max": 0,
+        "min": 0,
+        "pattern": ""
+      },
+      {
+        "name": "mergedIntoId",
+        "type": "text",
+        "required": false,
+        "max": 0,
+        "min": 0,
+        "pattern": ""
       }
     ],
     "indexes": [
@@ -601,7 +630,8 @@
     "indexes": [
       "CREATE INDEX idx_transactions_updatedAt ON transactions (updatedAt)",
       "CREATE UNIQUE INDEX idx_transactions_localId ON transactions (localId)",
-      "CREATE INDEX idx_transactions_tombstonePushed ON transactions (tombstonePushed)"
+      "CREATE INDEX idx_transactions_tombstonePushed ON transactions (tombstonePushed)",
+      "CREATE INDEX idx_transactions_ledgerId_scope ON transactions(ledgerId)"
     ]
   },
   {
@@ -748,7 +778,9 @@
     "indexes": [
       "CREATE INDEX idx_todos_updatedAt ON todos (updatedAt)",
       "CREATE UNIQUE INDEX idx_todos_localId ON todos (localId)",
-      "CREATE INDEX idx_todos_tombstonePushed ON todos (tombstonePushed)"
+      "CREATE INDEX idx_todos_tombstonePushed ON todos (tombstonePushed)",
+      "CREATE INDEX idx_todos_customerId_scope ON todos(customerId)",
+      "CREATE INDEX idx_todos_projectId_scope ON todos(projectId)"
     ]
   },
   {
@@ -951,7 +983,8 @@
     "indexes": [
       "CREATE INDEX idx_notes_updatedAt ON notes (updatedAt)",
       "CREATE UNIQUE INDEX idx_notes_localId ON notes (localId)",
-      "CREATE INDEX idx_notes_tombstonePushed ON notes (tombstonePushed)"
+      "CREATE INDEX idx_notes_tombstonePushed ON notes (tombstonePushed)",
+      "CREATE INDEX idx_notes_projectId_scope ON notes(projectId)"
     ]
   },
   {
@@ -1745,12 +1778,18 @@
         "name": "trashSnapshot",
         "type": "json",
         "required": false
+      },
+      {
+        "name": "aliases",
+        "type": "json",
+        "required": false
       }
     ],
     "indexes": [
       "CREATE INDEX idx_projects_updatedAt ON projects (updatedAt)",
       "CREATE UNIQUE INDEX idx_projects_localId ON projects (localId)",
-      "CREATE INDEX idx_projects_tombstonePushed ON projects (tombstonePushed)"
+      "CREATE INDEX idx_projects_tombstonePushed ON projects (tombstonePushed)",
+      "CREATE INDEX idx_projects_customerId_scope ON projects(customerId)"
     ]
   },
   {
@@ -2243,10 +2282,33 @@
       {
         "name": "plan",
         "type": "json"
+      },
+      {
+        "name": "clientId",
+        "type": "text",
+        "required": false,
+        "max": 0,
+        "min": 0,
+        "pattern": ""
+      },
+      {
+        "name": "kind",
+        "type": "text",
+        "required": false,
+        "max": 0,
+        "min": 0,
+        "pattern": ""
+      },
+      {
+        "name": "updatedAt",
+        "type": "number",
+        "required": false
       }
     ],
     "indexes": [
-      "CREATE UNIQUE INDEX idx_operation_request ON operations (owner, requestId)"
+      "CREATE UNIQUE INDEX idx_operation_request ON operations (owner, requestId)",
+      "CREATE INDEX idx_operations_recent ON operations(owner,committedAt,id)",
+      "CREATE INDEX idx_operations_status ON operations(owner,status,id)"
     ]
   },
   {
@@ -2305,11 +2367,17 @@
       {
         "name": "redacted",
         "type": "bool"
+      },
+      {
+        "name": "occurredAt",
+        "type": "number",
+        "required": false
       }
     ],
     "indexes": [
       "CREATE INDEX idx_effect_operation ON operation_effects (operationId)",
-      "CREATE INDEX idx_effect_record ON operation_effects (tableName, recordId, sequence, ordinal)"
+      "CREATE INDEX idx_effect_record ON operation_effects (tableName, recordId, sequence, ordinal)",
+      "CREATE INDEX idx_effect_time ON operation_effects(tableName,occurredAt,id)"
     ]
   },
   {
@@ -2367,6 +2435,16 @@
         "name": "sequence",
         "type": "number",
         "onlyInt": true
+      },
+      {
+        "name": "sharedTokenUntil",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "sharedTokenGeneration",
+        "type": "text",
+        "required": false
       }
     ],
     "indexes": []
@@ -2397,5 +2475,243 @@
       }
     ],
     "indexes": []
+  },
+  {
+    "name": "activities",
+    "type": "base",
+    "system": false,
+    "listRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "viewRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
+    "fields": [
+      {
+        "name": "id",
+        "type": "text",
+        "primaryKey": true,
+        "required": true,
+        "autogeneratePattern": ""
+      },
+      {
+        "name": "localId",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "updatedAt",
+        "type": "number",
+        "required": true
+      },
+      {
+        "name": "deleted",
+        "type": "number"
+      },
+      {
+        "name": "rev",
+        "type": "number"
+      },
+      {
+        "name": "restoredAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "deletedAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "created",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": false
+      },
+      {
+        "name": "updated",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "server_received_at",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "tombstonePushed",
+        "type": "number",
+        "required": false,
+        "presentable": false
+      },
+      {
+        "name": "trashSnapshot",
+        "type": "json"
+      },
+      {
+        "name": "title",
+        "type": "text",
+        "required": false,
+        "max": 0,
+        "min": 0,
+        "pattern": ""
+      },
+      {
+        "name": "summary",
+        "type": "text",
+        "required": false,
+        "max": 0,
+        "min": 0,
+        "pattern": ""
+      },
+      {
+        "name": "timePrecision",
+        "type": "text",
+        "required": false,
+        "max": 0,
+        "min": 0,
+        "pattern": ""
+      },
+      {
+        "name": "timeZone",
+        "type": "text",
+        "required": false,
+        "max": 0,
+        "min": 0,
+        "pattern": ""
+      },
+      {
+        "name": "category",
+        "type": "text",
+        "required": false,
+        "max": 0,
+        "min": 0,
+        "pattern": ""
+      },
+      {
+        "name": "sourceOperationId",
+        "type": "text",
+        "required": false,
+        "max": 0,
+        "min": 0,
+        "pattern": ""
+      },
+      {
+        "name": "sourceTable",
+        "type": "text",
+        "required": false,
+        "max": 0,
+        "min": 0,
+        "pattern": ""
+      },
+      {
+        "name": "sourceId",
+        "type": "text",
+        "required": false,
+        "max": 0,
+        "min": 0,
+        "pattern": ""
+      },
+      {
+        "name": "sourceText",
+        "type": "text",
+        "required": false,
+        "max": 0,
+        "min": 0,
+        "pattern": ""
+      },
+      {
+        "name": "occurredAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "occurredUntil",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "recordedAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "tags",
+        "type": "json",
+        "required": false
+      }
+    ],
+    "indexes": [
+      "CREATE UNIQUE INDEX idx_activities_localId ON activities(localId)",
+      "CREATE UNIQUE INDEX idx_activity_source ON activities(sourceTable,sourceId) WHERE sourceId != ''",
+      "CREATE INDEX idx_activity_time ON activities(deleted,occurredAt,localId)",
+      "CREATE INDEX idx_activity_operation ON activities(sourceOperationId)",
+      "CREATE INDEX idx_activity_updated ON activities(updatedAt)"
+    ]
+  },
+  {
+    "name": "agent_credentials",
+    "type": "base",
+    "listRule": null,
+    "viewRule": null,
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
+    "fields": [
+      {
+        "name": "owner",
+        "type": "text",
+        "required": false,
+        "max": 0,
+        "min": 0,
+        "pattern": ""
+      },
+      {
+        "name": "name",
+        "type": "text",
+        "required": false,
+        "max": 0,
+        "min": 0,
+        "pattern": ""
+      },
+      {
+        "name": "tokenHash",
+        "type": "text",
+        "required": false,
+        "max": 0,
+        "min": 0,
+        "pattern": ""
+      },
+      {
+        "name": "capabilities",
+        "type": "json",
+        "required": false
+      },
+      {
+        "name": "createdAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "revokedAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "expiresAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "generation",
+        "type": "text",
+        "required": false
+      }
+    ],
+    "indexes": [
+      "CREATE UNIQUE INDEX idx_agent_token ON agent_credentials(tokenHash)",
+      "CREATE INDEX idx_agent_owner ON agent_credentials(owner)"
+    ]
   }
 ]

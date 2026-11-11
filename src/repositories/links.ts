@@ -1,3 +1,4 @@
+import { queryRows, endpointScope } from '@/storage/scoped'
 import { storage } from '@/storage'
 import type { StorageTx } from '@/storage/types'
 import { db } from '@/db/db'
@@ -162,7 +163,7 @@ export async function syncMentionLinks(
   mentions: ReadonlyArray<{ type: string; id: string; label: string }>,
   now: number,
 ): Promise<void> {
-  const existing = (await tx.list<Link>('links')).filter(
+  const existing = (await queryRows<Link>(tx, 'links', { where: { fromType: 'notes', fromId: noteId, kind: 'mention' } })).filter(
     (l) => l.kind === 'mention' && l.fromType === 'notes' && l.fromId === noteId,
   )
   const wantedKeys = new Set<string>()
@@ -227,7 +228,7 @@ export async function syncRelatedLinks(
   wanted: TxnRelatedInput,
   now: number,
 ): Promise<void> {
-  const existing = (await tx.list<Link>('links')).filter(
+  const existing = (await queryRows<Link>(tx, 'links', { where: { fromType: 'transactions', fromId: txnId, kind: 'related' } })).filter(
     (l) => l.kind === 'related' && l.fromType === 'transactions' && l.fromId === txnId,
   )
   const wantedKeys = new Set<string>()
@@ -291,7 +292,7 @@ export async function syncMemberLinks(
   // 旧容器（若有）墓碑化：wanted 同容器时 id 相同、跳过
   const keepId =
     wanted !== undefined ? buildLinkId(from, { type: containerTable, id: wanted }, 'member') : null
-  const existing = (await tx.list<Link>('links')).filter(
+  const existing = (await queryRows<Link>(tx, 'links', { where: { fromType: from.type, fromId: from.id, kind: 'member', toType: containerTable } })).filter(
     (l) =>
       l.kind === 'member' &&
       !l.deleted &&
@@ -356,7 +357,7 @@ export async function syncRelationLinks(
   wanted: ReadonlyArray<RelationInput>,
   now: number,
 ): Promise<void> {
-  const existing = (await tx.list<Link>('links')).filter(
+  const existing = (await queryRows<Link>(tx, 'links', endpointScope('customers', customerId))).filter(
     (l) => l.kind === 'relation' && (l.fromId === customerId || l.toId === customerId),
   )
   const keyOf = (a: string, b: string, label: string, category?: string) =>
@@ -415,7 +416,8 @@ export async function cascadeSoftDeleteLinks(
   now: number,
 ): Promise<string[]> {
   const keys = new Set(endpoints.map((e) => `${e.type}:${e.id}`))
-  const hit = (await tx.list<Link>('links')).filter(
+  const scoped = await Promise.all(endpoints.map(e => queryRows<Link>(tx, 'links', endpointScope(e.type, e.id))))
+  const hit = [...new Map(scoped.flat().map(l => [l.id, l])).values()].filter(
     (l) =>
       !l.deleted &&
       (keys.has(`${l.fromType}:${l.fromId}`) || keys.has(`${l.toType}:${l.toId}`)),

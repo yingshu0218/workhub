@@ -1,3 +1,7 @@
+import { PERSONAL_TOOLS } from './personalTools'
+import { queryPersonal, previewPersonal, commitPersonal, cancelPersonal } from '@/domain/personal'
+import { listInteractionProjection } from '@/repositories/activities'
+import { queryRows, endpointScope } from '@/storage/scoped'
 import dayjs from 'dayjs'
 import { z } from 'zod'
 import { storage } from '@/storage'
@@ -255,7 +259,7 @@ export async function crm_createCustomer(input: unknown): Promise<AgentOpResult>
 
   const record: Customer = {
     id: newId('cus'),
-    name: d.name,
+    name: d.name,aliases:d.aliases,preferredName:d.preferredName,contactType:d.contactType,
     company: d.company ?? '',
     title: d.title ?? '',
     decisionLevel: d.decisionLevel,
@@ -264,7 +268,7 @@ export async function crm_createCustomer(input: unknown): Promise<AgentOpResult>
     wechat: d.wechat ?? '',
     email: d.email ?? '',
     address: d.address ?? '',
-    lastContactAt: Date.now(),
+    lastContactAt: 0,
     createdAt: Date.now(),
     updatedAt: 0,
     deleted: 0,
@@ -968,13 +972,14 @@ export async function crm_deleteCustomer(input: unknown): Promise<AgentOpResult>
   if (!found.ok) return err(found.error)
 
   const [logs, relatedLinks, todos, projects] = await Promise.all([
-    storage.list<Interaction>('interactions'),
-    storage.list<LinkRow>('links'),
+    listInteractionProjection(),
+    queryRows<LinkRow>(storage,'links',endpointScope('customers',id)),
     storage.list<Todo>('todos'),
     storage.list<Project>('projects'),
   ])
   const sideEffects = {
-    cascadedInteractions: logs.filter((l) => l.customerId === id && !l.deleted).length,
+    cascadedInteractions: 0,
+    retainedInteractions: logs.filter((l) => l.customerId === id && !l.deleted).length,
     // 关联已迁 links（v15）：统计指向该客户的流水 related link（级联会一并墓碑化）
     unlinkedTransactions: relatedLinks.filter(
       (l) =>
@@ -1215,6 +1220,9 @@ export async function link_unlink(input: unknown): Promise<AgentOpResult> {
 }
 
 export const AGENT_TOOLS = {
+  ...Object.fromEntries(PERSONAL_TOOLS.map(t => [t.name, { risk: t.risk, schema: t.schema, run: async (input: unknown): Promise<AgentOpResult> => {
+    try { const parsed = t.schema.parse(input); const d = parsed as Record<string, unknown>; const data = t.kind === 'query' ? await queryPersonal(t.name, parsed) : t.kind === 'cancel' ? await cancelPersonal(d as unknown as {requestId:string;generation:string}) : t.kind === 'preview' ? await previewPersonal(t.name.slice(8), d.input, d as unknown as { requestId: string; generation: string }) : await commitPersonal(d as unknown as { requestId: string; generation: string; previewId: string; planFingerprint: string }); return { ok: true, data } } catch (e) { return { ok: false, error: (e as Error).message } }
+  } }])),
   'fin_recordTransaction': { risk: TOOL_RISK['fin_recordTransaction'], schema: recordTransactionSchema, run: fin_recordTransaction },
   'link_link': { risk: TOOL_RISK['link_link'], schema: linkLinkSchema, run: link_link },
   'link_unlink': { risk: TOOL_RISK['link_unlink'], schema: linkUnlinkSchema, run: link_unlink },

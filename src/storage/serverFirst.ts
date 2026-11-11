@@ -30,6 +30,17 @@ export function createServerFirstAdapter(overrides: Partial<ServerFirstDeps> = {
   const source = {
     get: async (table: string, id: string) => await tableOf(table).get(id) as never,
     list: async (table: string) => await tableOf(table).toArray() as never,
+    query: async <T extends { id: string }>(table: string, scope: import('@/commands/scope').Scope): Promise<(T & import('@/db/types').SyncMeta)[]> => {
+      const { inScope } = await import('@/commands/scope')
+      const groups = scope.anyOf?.length ? scope.anyOf.map(g => ({ ...scope.where, ...g })) : [scope.where || {}]
+      const result = new Map<string, T & import('@/db/types').SyncMeta>()
+      for (const group of groups) {
+        const pair = table === 'links' && group.fromType && group.fromId ? ['fromType', 'fromId'] : table === 'links' && group.toType && group.toId ? ['toType', 'toId'] : table === 'activities' && group.sourceTable && group.sourceId ? ['sourceTable', 'sourceId'] : undefined
+        const rows = pair ? await tableOf(table).where('[' + pair.join('+') + ']').equals(pair.map(k => group[k])).toArray() : await tableOf(table).toArray()
+        for (const row of rows) if (inScope(row as Row, { where: group })) result.set(row.id, row)
+      }
+      return [...result.values()]
+    },
   }
   async function mirror(receipt: Receipt) {
     for (const c of receipt.changes) {

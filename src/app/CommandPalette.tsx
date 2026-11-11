@@ -6,7 +6,7 @@ import { buildSearchIndex, searchAll } from '@/shared/search'
 import { filterBlacklisted, useIntimacyConfig } from '@/modules/crm/intimacy'
 import { isImeComposing } from '@/shared/ime'
 import type { SearchItem } from '@/shared/search'
-import type { Customer, Project, Todo, Transaction, Note, Habit } from '@/db/types'
+import type { Activity, Customer, Project, Todo, Transaction, Note, Habit } from '@/db/types'
 import { newId, saveNoteWithMentions } from '@/repositories'
 import { useToast } from '@/design-system/Toast'
 import { usePresence } from '@/shared/usePresence'
@@ -24,6 +24,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
   const toast = useToast()
 
   const customers = useCollection<Customer>('customers')
+  const activities = useCollection<Activity>('activities', ['id','title','summary','tags'])
   const projects = useCollection<Project>('projects')
   const todos = useCollection<Todo>('todos')
   const transactions = useCollection<Transaction>('transactions')
@@ -46,6 +47,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
     () =>
       searchAll(
         buildSearchIndex({
+          activities,
           customers: searchableCustomers,
           projects,
           todos,
@@ -55,7 +57,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
         }),
         query,
       ),
-    [searchableCustomers, projects, todos, transactions, notes, habits, query],
+    [activities, searchableCustomers, projects, todos, transactions, notes, habits, query],
   )
   const flat: (SearchItem & { icon: string })[] = useMemo(
     () => groups.flatMap((g) => g.items.map((it) => ({ ...it, icon: g.icon }))),

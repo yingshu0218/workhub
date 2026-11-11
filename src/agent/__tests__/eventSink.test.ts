@@ -58,6 +58,8 @@ function newCustomer(id: string, over: Partial<Customer> = {}): Customer {
 }
 
 beforeEach(async () => {
+  await db.activities.clear()
+  await db.links.clear()
   await Promise.all(db.tables.map((t) => t.clear()))
 })
 
@@ -129,6 +131,7 @@ describe('边界② interaction 统一 emit：customer:contacted 单点收口', 
 
   it('§9.5 bug2 回归：项目跟进（携 projectId）经同一函数也发 customer:contacted', async () => {
     await db.customers.put(newCustomer('c1'))
+    await db.projects.put({id:'p1',name:'真实项目',status:'active',color:'#000',createdAt:1,updatedAt:0,deleted:0,rev:0})
     const cap = capture()
     await saveInteractionAndTouchCustomer(
       { id: newId('itx'), customerId: 'c1', content: '项目跟进', at: Date.now(), projectId: 'p1' },
@@ -237,7 +240,8 @@ describe('createCustomerWithInit 下沉 repositories 且不新增事件', () => 
     cap.restore()
     expect(cap.events).toHaveLength(0)
     expect(await db.customers.get('c9')).toBeTruthy()
-    expect(await db.interactions.count()).toBe(1)
+    expect(await db.activities.count()).toBe(1)
+    expect(await db.interactions.count()).toBe(0)
   })
 
   it('linkTransactionId 只改挂靠，不触发 transaction:created', async () => {

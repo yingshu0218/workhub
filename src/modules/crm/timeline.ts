@@ -1,3 +1,4 @@
+import { readInteractionProjection } from '@/queries/activities'
 import { db } from '@/db/db'
 import { useQuery } from '@/queries/hooks'
 import dayjs from 'dayjs'
@@ -102,11 +103,7 @@ export function useCustomerTimeline(customerId: string | undefined): TimelineEve
   const events = useQuery<TimelineEvent[]>(async () => {
     if (!customerId) return EMPTY
     const [interactions, transactions, todos] = await Promise.all([
-      db.interactions
-        .where('customerId')
-        .equals(customerId)
-        .filter((i) => !i.deleted)
-        .toArray(),
+      readInteractionProjection({customerId}),
       // 多关联（Issue #140 v11）：transactions 关联已数组化、customerId 索引已删，
       // 必须内存过滤（同 useCustomerTransactions / deleteCustomerCascade 口径，理由见 db.ts v11 注释）。
       // 旧写法 where('customerId') 会抛 SchemaError，被 useQuery 吞成空列表 → 详情页整块崩溃。
@@ -140,7 +137,7 @@ export function useCustomerTimeline(customerId: string | undefined): TimelineEve
 export function useAllTimelines(): TimelineEvent[] {
   const events = useQuery<TimelineEvent[]>(async () => {
     const [interactions, transactions, todos, relatedLinks] = await Promise.all([
-      db.interactions.filter((i) => !i.deleted && !!i.customerId).toArray(),
+      readInteractionProjection().then(rows=>rows.filter(i=>!!i.customerId)),
       // 关联已迁 links（v15）：有任一客户关联的流水才入图（回填时逐客户展开，同一笔流水可出现在多个客户时间轴）
       db.links
         .where('kind')

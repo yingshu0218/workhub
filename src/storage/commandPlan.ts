@@ -1,5 +1,6 @@
 import type { StorageAdapter, StorageTx } from './types'
 import { fail, stable, type Command, type Row, type Write } from '@/commands/core'
+import { inScope } from '@/commands/scope'
 
 export interface Receipt {
   operationId: string
@@ -16,12 +17,13 @@ export interface CommandTransport {
   lookup(requestId: string, generation: string, intent?: unknown): Promise<{ committed: boolean; receipt?: Receipt; pending?: Command }>
 }
 const copy = <T>(value: T): T => value === undefined ? value : JSON.parse(JSON.stringify(value)) as T
-export function stagePlan(source: Pick<StorageAdapter, 'get' | 'list'>) {
+export function stagePlan(source: Pick<StorageAdapter, 'get' | 'list' | 'query'>) {
   const reads = new Map<string, { table: string; id: string; rev: number | null }>()
   const cache = new Map<string, Row | undefined>()
   const writes = new Map<string, Write>()
   const uploads = new Map<string, Blob>()
   const scans = new Map<string, [string, number][]>()
+  const scopedScans: Command['scans'] = []
   const key = (table: string, id: string) => table + '/' + id
   async function get(table: string, id: string): Promise<Row | undefined> {
     const k = key(table, id)
@@ -34,6 +36,14 @@ export function stagePlan(source: Pick<StorageAdapter, 'get' | 'list'>) {
   }
   const tx: StorageTx = {
     get: async (table, id) => await get(table, id) as never,
+    async query(table, scope) {
+      const rows = source.query ? await source.query<Row>(table, scope) : (await source.list<Row>(table)).filter(r => inScope(r, scope))
+      if (rows.length > 1000) fail('LIMIT_EXCEEDED', '关联范围超过单次提交上限')
+      scopedScans.push({ table, scope, versions: rows.map(r => [r.id, Number(r.rev || 0)] as [string, number]).sort((a,b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0) })
+      for (const r of rows) if (!cache.has(key(table,r.id))) { reads.set(key(table,r.id),{table,id:r.id,rev:Number(r.rev || 0)});cache.set(key(table,r.id),copy(r)) }
+      const ids = new Set([...rows.map(r => r.id), ...[...writes.values()].filter(w => w.table === table && w.value && inScope(w.value, scope)).map(w => w.id)])
+      return [...ids].map(id => copy(cache.get(key(table,id)))).filter((r): r is Row => !!r && inScope(r, scope)) as never
+    },
     async list(table) {
       const rows = await source.list<Row>(table)
       if (rows.length > 20000) fail('LIMIT_EXCEEDED', '集合超过本版命令扫描上限')
@@ -71,7 +81,8 @@ export function stagePlan(source: Pick<StorageAdapter, 'get' | 'list'>) {
     uploads,
     writes: () => [...writes.values()],
     command(generation: string, requestId: string, intent?: unknown, result?: unknown): Command {
-      return { protocol: 1, generation, requestId, ...(intent === undefined ? {} : { intent }), reads: [...reads.values()], scans: [...scans].map(([table, versions]) => ({ table, versions })), writes: [...writes.values()], result }
+      const cleanup = [...writes.values()].some(w => w.kind === 'delete' && w.table === 'activities')
+      return { protocol: 1, generation, requestId, ...(cleanup ? { kind: 'purge' } : {}), ...(intent === undefined ? {} : { intent }), reads: [...reads.values()], scans: [...[...scans].map(([table, versions]) => ({ table, versions })), ...scopedScans], writes: [...writes.values()], result }
     },
   }
 }

@@ -8,7 +8,8 @@ function find(app, table, id) {
 function rowOf(r) {
   if (!r) return undefined
   const value = JSON.parse(JSON.stringify(r.publicExport()))
-  value.id = value.localId
+  for(const field of core.JSON_FIELDS_BY_TABLE[r.collection().name==='module_configs'?'moduleConfigs':r.collection().name] || [])value[field]=core.decodePbJson(value[field])
+  value.id = value.localId || value.id
   for (const k of ['localId', 'collectionId', 'collectionName', 'created', 'updated', 'server_received_at']) delete value[k]
   return value
 }
@@ -30,33 +31,43 @@ function error(e, err) {
   const status = code === 'UNAUTHORIZED' ? 401 : code === 'FORBIDDEN' ? 403 : /CONFLICT|DELETED|GENERATION|RECOVERY|REUSED|INITIALIZED/.test(code) ? 409 : 400
   return e.json(status, { code, error: message })
 }
-exports.state = e => { try { const s = owner($app, e); return e.json(200, { generation: s.getString('generation'), protocol: 1 }) } catch (err) { return error(e, err) } }
+exports.state = e => { try { const s = owner($app, e);require(__hooks+'/personal-auth.js').principal($app,e); return e.json(200, { generation: s.getString('generation'), protocol: 1 }) } catch (err) { return error(e, err) } }
 exports.operation = e => {
   try {
     const state = owner($app, e)
     const body = e.requestInfo().body
     if (body.generation !== state.getString('generation')) core.fail('RECOVERY_REVIEW_REQUIRED', '恢复后请核对旧请求，不能自动重放')
+    const currentActor=require(__hooks+'/personal-auth.js').principal($app,e)
     const existing = op($app, e.auth.id, body.requestId)
+    if(existing && existing.getString('clientId') && existing.getString('clientId')!==currentActor.clientId)core.fail('FORBIDDEN','操作属于另一客户端')
     if (!existing) return e.json(200, { committed: false })
     if (body.intent !== undefined && existing.getString('fingerprint') !== fingerprint(body)) core.fail('REQUEST_REUSED', '相同请求标识带有不同参数')
-    if (existing.getString('status') !== 'committed') return e.json(200, { committed: false, pending: existing.get('plan') })
-    return e.json(200, { committed: true, receipt: existing.get('result') })
+    if (existing.getString('status') !== 'committed') return e.json(200, { committed: false, pending: core.decodePbJson(existing.get('plan')) })
+    return e.json(200, { committed: true, receipt: require(__hooks+'/personal-auth.js').receipt(currentActor,core.decodePbJson(existing.get('result'))) })
   } catch (err) { return error(e, err) }
 }
-exports.commit = e => {
-  try {
-    const c = e.requestInfo().body
-    core.checkCommand(c)
-    const fp = fingerprint(c)
-    const planFp = $security.sha256(core.stable({ writes: c.writes, reads: c.reads, scans: c.scans }))
-    let receipt
-    $app.runInTransaction(app => {
+exports.apply = (app,e,c) => {
+  core.checkCommand(c)
+  const fp=fingerprint(c),planFp=$security.sha256(core.stable({writes:c.writes,reads:c.reads,scans:c.scans}))
+  let receipt
       const state = owner(app, e)
       if (state.getString('generation') !== c.generation) core.fail('RECOVERY_REVIEW_REQUIRED', '数据世代已改变，先核对恢复点后的操作')
       const existing = op(app, e.auth.id, c.requestId)
+      const currentActor=require(__hooks+'/personal-auth.js').principal(app,e)
+      if(existing && existing.getString('clientId') && existing.getString('clientId')!==currentActor.clientId)core.fail('FORBIDDEN','操作属于另一客户端')
+      for(const w of c.writes)if(!require(__hooks+'/personal-auth.js').can(currentActor,w.table,true))core.fail('FORBIDDEN','缺少写能力：'+w.table)
       if (existing) {
+        if(existing.getString('status')==='cancelled')core.fail('CANCELLED','预览已撤回，请使用新请求')
         if (existing.getString('fingerprint') !== fp || existing.getString('planFingerprint') !== planFp) core.fail('REQUEST_REUSED', '同一请求标识不同参数')
-        if (existing.getString('status') === 'committed') { receipt = existing.get('result'); return }
+        if (existing.getString('status') === 'committed') { receipt = require(__hooks+'/personal-auth.js').receipt(currentActor,core.decodePbJson(existing.get('result'))); return receipt }
+      }
+      const authorization=require(__hooks + '/personal-auth.js');const actor=authorization.principal(app,e)
+      for(const w of c.writes){
+        if(!authorization.can(actor,w.table,true))core.fail('FORBIDDEN','缺少写能力：'+w.table)
+        if(w.table==='interactions'){
+          const sourceActivity=c.writes.some(a=>a.table==='activities' && a.kind==='delete' && (()=>{const row=rowOf(find(app,'activities',a.id));return row?.sourceTable==='interactions' && row.sourceId===w.id})())
+          if(c.kind!=='purge' || w.kind!=='delete' || !sourceActivity)core.fail('FROZEN_SOURCE','请经 activities 兼容命令录入')
+        }
       }
       const cache = {}
       const get = (table, id) => {
@@ -69,7 +80,8 @@ exports.commit = e => {
         if ((current ? Number(current.rev || 0) : null) !== r.rev) core.fail('VERSION_CONFLICT', r.table + '/' + r.id)
       }
       for (const scan of c.scans) {
-        const rows = app.findRecordsByFilter(col(scan.table), '', 'localId', 20001)
+        const scope = scan.scope ? core.scopeFilter(scan.table,scan.scope) : {filter:'',params:{}}
+        const rows = app.findRecordsByFilter(col(scan.table), scope.filter, 'localId', scan.scope ? 1001 : 20001, 0, scope.params)
         const actual = rows.map(r => [r.getString('localId'), r.getInt('rev')]).sort((a,b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0)
         if (core.stable(actual) !== core.stable(scan.versions)) core.fail('VERSION_CONFLICT', '集合已变化：' + scan.table)
       }
@@ -80,8 +92,9 @@ exports.commit = e => {
         before[key] = prev || null
         const purged = app.findRecordsByFilter('deletion_registry', 'tableName = {:table} && recordId = {:id}', '', 1, 0, { table: w.table, id: w.id })[0]
         if (purged) core.fail('PERMANENTLY_DELETED', key)
+        if(w.table==='activities')for(const identity of core.activityDeletionIdentities(w.id,w.value?.sourceTable==='interactions'?w.value.sourceId:undefined,s=>$security.sha256(s)))if(app.findRecordsByFilter('deletion_registry','tableName={:table} && recordId={:id}','',1,0,{table:identity.table,id:identity.id}).length)core.fail('PERMANENTLY_DELETED','旧沟通来源已清理：'+identity.id)
         if (w.kind === 'delete') {
-          if (!prev || !prev.deleted) core.fail('DELETE_REQUIRES_TOMBSTONE', key)
+          if (!prev || (!prev.deleted && c.kind !== 'purge')) core.fail('DELETE_REQUIRES_TOMBSTONE', key)
           cache[key] = null
         } else {
           const next = JSON.parse(JSON.stringify(w.value))
@@ -101,6 +114,10 @@ exports.commit = e => {
       }
       for (const w of c.writes) {
         if (w.kind !== 'delete' && !w.value?.deleted) continue
+        const inbound = w.table==='customers'?[['todos','customerId'],['projects','customerId']]:w.table==='projects'?[['todos','projectId'],['notes','projectId'],['projectMilestones','projectId']]:w.table==='ledgers'?[['transactions','ledgerId']]:[]
+        for(const [table,field] of inbound)for(const r of app.findRecordsByFilter(table,field+'={:id} && deleted!=1','',1001,0,{id:w.id})){
+          const planned=get(table,r.getString('localId'));if(planned && !planned.deleted && planned[field]===w.id)core.fail('CASCADE_REQUIRED',table+'/'+r.getString('localId'))
+        }
         const links = app.findRecordsByFilter('links', 'deleted != 1 && ((fromType = {:table} && fromId = {:id}) || (toType = {:table} && toId = {:id}))', '', 20001, 0, {table:w.table,id:w.id})
         if (links.length > 20000) core.fail('LIMIT_EXCEEDED', '删除关联超限')
         for (const link of links) {
@@ -109,6 +126,10 @@ exports.commit = e => {
         }
       }
       const operation = existing || new Record(app.findCollectionByNameOrId('operations'))
+      if (!existing && c.operationId) { if(c.operationId !== $security.sha256(e.auth.id + '/' + c.requestId).slice(0,15))core.fail('INVALID_OPERATION_ID','操作身份');operation.set('id',c.operationId) }
+      const principal = require(__hooks + '/personal-auth.js').principal(app,e)
+      if(existing && existing.getString('clientId') && existing.getString('clientId')!==principal.clientId)core.fail('FORBIDDEN','操作属于另一客户端')
+      operation.set('clientId',principal.clientId);operation.set('kind',c.kind || 'legacy');operation.set('updatedAt',Date.now())
       operation.set('owner', e.auth.id); operation.set('requestId', c.requestId); operation.set('fingerprint', fp)
       operation.set('planFingerprint', planFp); operation.set('generation', c.generation); operation.set('status', 'committed'); operation.set('committedAt', Date.now())
       const sequence = state.getInt('sequence') + 1
@@ -122,16 +143,20 @@ exports.commit = e => {
         const current = find(app, w.table, w.id)
         const next = get(w.table, w.id)
         if (w.kind === 'delete') {
-          const mark = new Record(app.findCollectionByNameOrId('deletion_registry'))
-          mark.set('tableName', w.table); mark.set('recordId', w.id); mark.set('generation', c.generation); mark.set('purgedAt', Date.now())
-          app.save(mark); app.delete(current)
+          const identities=w.table==='activities'?core.activityDeletionIdentities(w.id,prev?.sourceTable==='interactions'?prev.sourceId:undefined,s=>$security.sha256(s)):[{table:w.table,id:w.id}]
+          for(const identity of identities)if(!app.findRecordsByFilter('deletion_registry','tableName={:table} && recordId={:id}','',1,0,{table:identity.table,id:identity.id}).length){
+            const mark = new Record(app.findCollectionByNameOrId('deletion_registry'))
+            mark.set('tableName', identity.table); mark.set('recordId', identity.id); mark.set('generation', c.generation); mark.set('purgedAt', Date.now());app.save(mark)
+          }
+          app.delete(current)
           // 清理不留下正文在旧值或回执中，重试只返回已执行的最小结果。
-          const history = app.findRecordsByFilter('operation_effects', 'tableName = {:table} && recordId = {:id}', '', 20000, 0, { table: w.table, id: w.id })
+          const history = app.findRecordsByFilter('operation_effects', '(tableName = {:table} && recordId = {:id})'+(w.table==='activities'?' || sourceScope={:id}':''), '', 20001, 0, { table: w.table, id: w.id })
+          if(history.length>20000)core.fail('SOURCE_HISTORY_LIMIT','需先分批核对并清理来源历史')
           for (const old of history) {
             old.set('before', null); old.set('after', null); old.set('redacted', true); app.save(old)
             const parent = app.findRecordById('operations', old.getString('operationId'))
-            const prior = JSON.parse(JSON.stringify(parent.get('result')))
-            if (prior?.changes) for (const c of prior.changes) if (c.table === w.table && c.id === w.id) { c.row = null; c.redacted = true }
+            const prior = JSON.parse(JSON.stringify(core.decodePbJson(parent.get('result'))))
+            if (prior?.changes) for (const c of prior.changes) if (c.table === old.getString('tableName') && c.id === old.getString('recordId')) { c.row = null; c.redacted = true }
             if (prior) prior.result = { ok: true, data: { committed: true, redacted: true } }
             parent.set('result', prior); parent.set('plan', null); app.save(parent)
           }
@@ -160,7 +185,7 @@ exports.commit = e => {
         effect.set('operationId', operation.id); effect.set('tableName', w.table); effect.set('recordId', w.id)
         effect.set('beforeRev', prev?.rev || 0); effect.set('afterRev', next?.rev || 0)
         effect.set('action', w.kind === 'delete' ? 'purge' : !prev ? 'create' : next.deleted ? 'delete' : prev.deleted ? 'restore' : 'update')
-        effect.set('sequence', sequence); effect.set('ordinal', changes.length); effect.set('sourceScope', c.requestId)
+        effect.set('sequence', sequence); effect.set('ordinal', changes.length); effect.set('sourceScope', w.sourceScope || c.requestId);effect.set('occurredAt',operation.getFloat('committedAt'))
         effect.set('before', w.kind === 'delete' ? null : prev); effect.set('after', next)
         app.save(effect)
         changes.push({ table: w.table, id: w.id, row: w.kind === 'delete' ? null : rowOf(find(app, w.table, w.id)) })
@@ -171,7 +196,7 @@ exports.commit = e => {
         const prev = before[w.table + '/' + w.id], next = get(w.table, w.id)
         if (!next || next.deleted) continue
         if (w.table === 'transactions' && !prev) notifications.push({type:'transaction:created',payload:{transactionId:w.id}})
-        if (w.table === 'interactions' && next.customerId && !prev) notifications.push({type:'customer:contacted',payload:{customerId:next.customerId}})
+        if (w.table === 'activities' && !prev) for(const link of c.writes)if(link.table==='links' && link.value?.fromType==='activities' && link.value.fromId===w.id && link.value.toType==='customers')notifications.push({type:'customer:contacted',payload:{customerId:link.value.toId}})
         if (w.table === 'habitLogs' && (!prev || prev.deleted)) notifications.push({type:'habit:checked',payload:{habitId:next.habitId,date:next.date}})
       }
       for (const ev of notifications) {
@@ -181,10 +206,17 @@ exports.commit = e => {
       }
       receipt = { operationId: operation.id, requestId: c.requestId, generation: c.generation, sequence, changes, result: c.result || null }
       operation.set('result', receipt); operation.set('plan', null); app.save(operation)
-    })
-    return e.json(200, receipt)
-  } catch (err) { return error(e, err) }
+      for(const target of c.writes.filter(w=>w.kind==='delete')){
+        const pending=app.findRecordsByFilter('operations','status="awaiting_confirmation" && plan~{:id}','',5001,0,{id:target.id})
+        if(pending.length>5000)core.fail('LIMIT_EXCEEDED','待清理预览过多，请缩小清理范围')
+        for(const draft of pending){draft.set('plan',null);draft.set('status','cancelled');draft.set('updatedAt',Date.now());app.save(draft)}
+      }
+      return receipt
 }
+exports.commit = e => {
+  try {let result;$app.runInTransaction(app=>{result=exports.apply(app,e,e.requestInfo().body)});return e.json(200,result)}catch(err){return error(e,err)}
+}
+
 exports.initialize = e => {
   try {
     if (!e.hasSuperuserAuth()) core.fail('FORBIDDEN', '首启只能通过宿主初始化通道')
@@ -253,11 +285,15 @@ exports.preview = e => {
     $app.runInTransaction(app => {
       const state = owner(app, e)
       if (state.getString('generation') !== c.generation) core.fail('RECOVERY_REVIEW_REQUIRED', '先核对恢复点')
+      const previewActor=require(__hooks+'/personal-auth.js').principal(app,e)
+      for(const w of c.writes)if(!require(__hooks+'/personal-auth.js').can(previewActor,w.table,true) || !require(__hooks+'/personal-auth.js').can(previewActor,w.table))core.fail('FORBIDDEN',w.table)
       const previous = op(app, e.auth.id, c.requestId)
+      if(previous && previous.getString('clientId') && previous.getString('clientId')!==previewActor.clientId)core.fail('FORBIDDEN','客户端归属')
       const fp = fingerprint(c), planFp = $security.sha256(core.stable({writes:c.writes,reads:c.reads,scans:c.scans}))
       if (previous) {
+        if(previous.getString('status')==='cancelled')core.fail('CANCELLED','预览已撤回')
         if (previous.getString('fingerprint') !== fp || previous.getString('planFingerprint') !== planFp) core.fail('REQUEST_REUSED', '请求已绑定另一份预览计划')
-        result = previous.get('plan'); return
+        result = core.decodePbJson(previous.get('plan')); return
       }
       for (const r of c.reads) {
         const current = rowOf(find(app, r.table, r.id))
@@ -265,7 +301,7 @@ exports.preview = e => {
       }
       const record = new Record(app.findCollectionByNameOrId('operations'))
       record.set('owner',e.auth.id);record.set('requestId',c.requestId);record.set('fingerprint',fp);record.set('planFingerprint',planFp);record.set('generation',c.generation)
-      record.set('status','awaiting_confirmation');record.set('plan',c);app.save(record);result=c
+      record.set('status','awaiting_confirmation');record.set('clientId',previewActor.clientId);record.set('updatedAt',Date.now());record.set('plan',c);app.save(record);state.set('sequence',state.getInt('sequence')+1);app.save(state);result=c
     })
     return e.json(200,result)
   } catch(err) { return error(e,err) }
@@ -275,3 +311,7 @@ exports.cleanupStaging = () => {
   const rows = $app.findRecordsByFilter('attachment_staging','expiresAt < {:now}','',500,0,{now:Date.now()})
   for (const row of rows) $app.delete(row)
 }
+
+exports.owner=owner;exports.find=find;exports.rowOf=rowOf;exports.stateOf=stateOf;exports.error=error;exports.op=op;exports.fingerprint=fingerprint
+
+exports.json=core.decodePbJson

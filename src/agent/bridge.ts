@@ -3,7 +3,7 @@ import { visibleToolNames, listVisibleTools, dispatchAgentTool } from './executo
 import { AGENT_TOOLS, type AgentOpResult } from './executor'
 import { needsPreview, previewEnvelope } from './confirmFlow'
 import { z } from 'zod'
-import { zodToJsonSchema } from './jsonSchema'
+import { toolJsonSchema } from './jsonSchema'
 
 /**
  * 应用内 Agent 桥（浏览器侧） —— 方案 §9.6 / §10.1（P1 第 4 步）
@@ -195,7 +195,7 @@ export function buildToolsList(domains?: Partial<Record<string, boolean>>) {
       description: describeTool(t.name, t.risk),
       risk: t.risk,
       domain: t.domain,
-      inputSchema: zodToJsonSchema(entry.schema),
+      inputSchema: toolJsonSchema(t.name, entry.schema),
     }
   })
 }
@@ -207,7 +207,7 @@ export const agentBridge = new AgentBridge()
 export { visibleToolNames }
 
 /** zod → JSON Schema 的最小转换（MCP tools inputSchema 需要） */
-export { zodToJsonSchema }
+export { zodToJsonSchema } from './jsonSchema'
 
 /** 供 UI 读取风险级 */
 export { TOOL_RISK as toolRisk } from './schema'

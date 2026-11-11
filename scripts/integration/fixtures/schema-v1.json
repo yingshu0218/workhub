@@ -1,0 +1,2401 @@
+[
+  {
+    "name": "workspaces",
+    "type": "base",
+    "system": false,
+    "listRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "viewRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
+    "fields": [
+      {
+        "name": "id",
+        "type": "text",
+        "primaryKey": true,
+        "required": true,
+        "autogeneratePattern": ""
+      },
+      {
+        "name": "localId",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "name",
+        "type": "text"
+      },
+      {
+        "name": "role",
+        "type": "text"
+      },
+      {
+        "name": "createdAt",
+        "type": "number"
+      },
+      {
+        "name": "updatedAt",
+        "type": "number",
+        "required": true
+      },
+      {
+        "name": "deleted",
+        "type": "number"
+      },
+      {
+        "name": "rev",
+        "type": "number"
+      },
+      {
+        "name": "created",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": false
+      },
+      {
+        "name": "updated",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "server_received_at",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "tombstonePushed",
+        "type": "number",
+        "required": false,
+        "presentable": false
+      },
+      {
+        "name": "deletedAt",
+        "type": "number"
+      },
+      {
+        "name": "restoredAt",
+        "type": "number"
+      },
+      {
+        "name": "trashSnapshot",
+        "type": "json"
+      }
+    ],
+    "indexes": [
+      "CREATE INDEX idx_workspaces_updatedAt ON workspaces (updatedAt)",
+      "CREATE UNIQUE INDEX idx_workspaces_localId ON workspaces (localId)",
+      "CREATE INDEX idx_workspaces_tombstonePushed ON workspaces (tombstonePushed)"
+    ]
+  },
+  {
+    "name": "customers",
+    "type": "base",
+    "system": false,
+    "listRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "viewRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
+    "fields": [
+      {
+        "name": "id",
+        "type": "text",
+        "primaryKey": true,
+        "required": true,
+        "autogeneratePattern": ""
+      },
+      {
+        "name": "localId",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "name",
+        "type": "text"
+      },
+      {
+        "name": "company",
+        "type": "text"
+      },
+      {
+        "name": "title",
+        "type": "text"
+      },
+      {
+        "name": "decisionLevel",
+        "type": "text"
+      },
+      {
+        "name": "tags",
+        "type": "json"
+      },
+      {
+        "name": "phone",
+        "type": "text"
+      },
+      {
+        "name": "wechat",
+        "type": "text"
+      },
+      {
+        "name": "email",
+        "type": "text"
+      },
+      {
+        "name": "address",
+        "type": "text"
+      },
+      {
+        "name": "lastContactAt",
+        "type": "number"
+      },
+      {
+        "name": "createdAt",
+        "type": "number"
+      },
+      {
+        "name": "relations",
+        "type": "json"
+      },
+      {
+        "name": "intimacy",
+        "type": "json",
+        "maxSize": 2000000,
+        "required": false
+      },
+      {
+        "name": "updatedAt",
+        "type": "number",
+        "required": true
+      },
+      {
+        "name": "deleted",
+        "type": "number"
+      },
+      {
+        "name": "rev",
+        "type": "number"
+      },
+      {
+        "name": "created",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": false
+      },
+      {
+        "name": "updated",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "server_received_at",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "tombstonePushed",
+        "type": "number",
+        "required": false,
+        "presentable": false
+      },
+      {
+        "name": "groupId",
+        "type": "text",
+        "required": false
+      },
+      {
+        "name": "restoredAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "deletedAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "trashSnapshot",
+        "type": "json",
+        "required": false
+      }
+    ],
+    "indexes": [
+      "CREATE INDEX idx_customers_updatedAt ON customers (updatedAt)",
+      "CREATE UNIQUE INDEX idx_customers_localId ON customers (localId)",
+      "CREATE INDEX idx_customers_tombstonePushed ON customers (tombstonePushed)"
+    ]
+  },
+  {
+    "name": "interactions",
+    "type": "base",
+    "system": false,
+    "listRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "viewRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
+    "fields": [
+      {
+        "name": "id",
+        "type": "text",
+        "primaryKey": true,
+        "required": true,
+        "autogeneratePattern": ""
+      },
+      {
+        "name": "localId",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "customerId",
+        "type": "text"
+      },
+      {
+        "name": "type",
+        "type": "text"
+      },
+      {
+        "name": "content",
+        "type": "text"
+      },
+      {
+        "name": "at",
+        "type": "number"
+      },
+      {
+        "name": "updatedAt",
+        "type": "number",
+        "required": true
+      },
+      {
+        "name": "deleted",
+        "type": "number"
+      },
+      {
+        "name": "rev",
+        "type": "number"
+      },
+      {
+        "name": "created",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": false
+      },
+      {
+        "name": "updated",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "server_received_at",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "projectId",
+        "type": "text",
+        "required": false
+      },
+      {
+        "name": "tombstonePushed",
+        "type": "number",
+        "required": false,
+        "presentable": false
+      },
+      {
+        "name": "restoredAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "deletedAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "trashSnapshot",
+        "type": "json"
+      }
+    ],
+    "indexes": [
+      "CREATE INDEX idx_interactions_updatedAt ON interactions (updatedAt)",
+      "CREATE UNIQUE INDEX idx_interactions_localId ON interactions (localId)",
+      "CREATE INDEX idx_interactions_tombstonePushed ON interactions (tombstonePushed)"
+    ]
+  },
+  {
+    "name": "ledgers",
+    "type": "base",
+    "system": false,
+    "listRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "viewRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
+    "fields": [
+      {
+        "name": "id",
+        "type": "text",
+        "primaryKey": true,
+        "required": true,
+        "autogeneratePattern": ""
+      },
+      {
+        "name": "localId",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "name",
+        "type": "text"
+      },
+      {
+        "name": "currency",
+        "type": "text"
+      },
+      {
+        "name": "openingBalance",
+        "type": "number"
+      },
+      {
+        "name": "closingCycle",
+        "type": "text"
+      },
+      {
+        "name": "sortOrder",
+        "type": "number"
+      },
+      {
+        "name": "createdAt",
+        "type": "number"
+      },
+      {
+        "name": "updatedAt",
+        "type": "number",
+        "required": true
+      },
+      {
+        "name": "deleted",
+        "type": "number"
+      },
+      {
+        "name": "rev",
+        "type": "number"
+      },
+      {
+        "name": "created",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": false
+      },
+      {
+        "name": "updated",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "server_received_at",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "tombstonePushed",
+        "type": "number",
+        "required": false,
+        "presentable": false
+      },
+      {
+        "name": "restoredAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "deletedAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "openingBalanceMinor",
+        "type": "number",
+        "onlyInt": true
+      },
+      {
+        "name": "trashSnapshot",
+        "type": "json"
+      },
+      {
+        "name": "isDefault",
+        "type": "bool"
+      }
+    ],
+    "indexes": [
+      "CREATE INDEX idx_ledgers_updatedAt ON ledgers (updatedAt)",
+      "CREATE UNIQUE INDEX idx_ledgers_localId ON ledgers (localId)",
+      "CREATE INDEX idx_ledgers_tombstonePushed ON ledgers (tombstonePushed)"
+    ]
+  },
+  {
+    "name": "transactions",
+    "type": "base",
+    "system": false,
+    "listRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "viewRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
+    "fields": [
+      {
+        "name": "id",
+        "type": "text",
+        "primaryKey": true,
+        "required": true,
+        "autogeneratePattern": ""
+      },
+      {
+        "name": "localId",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "ledgerId",
+        "type": "text"
+      },
+      {
+        "name": "type",
+        "type": "text"
+      },
+      {
+        "name": "amount",
+        "type": "number"
+      },
+      {
+        "name": "summary",
+        "type": "text"
+      },
+      {
+        "name": "channel",
+        "type": "text"
+      },
+      {
+        "name": "occurredAt",
+        "type": "number"
+      },
+      {
+        "name": "tags",
+        "type": "json"
+      },
+      {
+        "name": "invoiceNo",
+        "type": "text"
+      },
+      {
+        "name": "note",
+        "type": "text"
+      },
+      {
+        "name": "customerId",
+        "type": "text"
+      },
+      {
+        "name": "todoId",
+        "type": "text"
+      },
+      {
+        "name": "status",
+        "type": "text"
+      },
+      {
+        "name": "updatedAt",
+        "type": "number",
+        "required": true
+      },
+      {
+        "name": "deleted",
+        "type": "number"
+      },
+      {
+        "name": "rev",
+        "type": "number"
+      },
+      {
+        "name": "created",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": false
+      },
+      {
+        "name": "updated",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "server_received_at",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "projectId",
+        "type": "text",
+        "required": false
+      },
+      {
+        "name": "customerIds",
+        "type": "json",
+        "required": false,
+        "help": "Issue #140 多关联：关联客户 id 数组（json，照抄 tags 先例）。旧字段 customerId 仅老客户端降级写首个关联时使用"
+      },
+      {
+        "name": "todoIds",
+        "type": "json",
+        "required": false,
+        "help": "Issue #140 多关联：关联待办 id 数组（json）。旧字段 todoId 同上"
+      },
+      {
+        "name": "projectIds",
+        "type": "json",
+        "required": false,
+        "help": "Issue #140 多关联：关联项目 id 数组（json）。旧字段 projectId 同上"
+      },
+      {
+        "name": "tombstonePushed",
+        "type": "number",
+        "required": false,
+        "presentable": false
+      },
+      {
+        "name": "restoredAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "deletedAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "trashSnapshot",
+        "type": "json",
+        "required": false
+      },
+      {
+        "name": "amountMinor",
+        "type": "number",
+        "onlyInt": true
+      },
+      {
+        "name": "currency",
+        "type": "text"
+      }
+    ],
+    "indexes": [
+      "CREATE INDEX idx_transactions_updatedAt ON transactions (updatedAt)",
+      "CREATE UNIQUE INDEX idx_transactions_localId ON transactions (localId)",
+      "CREATE INDEX idx_transactions_tombstonePushed ON transactions (tombstonePushed)"
+    ]
+  },
+  {
+    "name": "todos",
+    "type": "base",
+    "system": false,
+    "listRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "viewRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
+    "fields": [
+      {
+        "name": "id",
+        "type": "text",
+        "primaryKey": true,
+        "required": true,
+        "autogeneratePattern": ""
+      },
+      {
+        "name": "localId",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "title",
+        "type": "text"
+      },
+      {
+        "name": "desc",
+        "type": "text"
+      },
+      {
+        "name": "priority",
+        "type": "text"
+      },
+      {
+        "name": "dueAt",
+        "type": "number"
+      },
+      {
+        "name": "status",
+        "type": "text"
+      },
+      {
+        "name": "customerId",
+        "type": "text"
+      },
+      {
+        "name": "ledgerId",
+        "type": "text"
+      },
+      {
+        "name": "habitId",
+        "type": "text"
+      },
+      {
+        "name": "completedAt",
+        "type": "number"
+      },
+      {
+        "name": "createdAt",
+        "type": "number"
+      },
+      {
+        "name": "updatedAt",
+        "type": "number",
+        "required": true
+      },
+      {
+        "name": "deleted",
+        "type": "number"
+      },
+      {
+        "name": "rev",
+        "type": "number"
+      },
+      {
+        "name": "created",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": false
+      },
+      {
+        "name": "updated",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "server_received_at",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "listId",
+        "type": "text",
+        "required": false
+      },
+      {
+        "name": "projectId",
+        "type": "text",
+        "required": false
+      },
+      {
+        "name": "tags",
+        "type": "json",
+        "required": false,
+        "maxSize": 0
+      },
+      {
+        "name": "sortOrder",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "tombstonePushed",
+        "type": "number",
+        "required": false,
+        "presentable": false
+      },
+      {
+        "name": "voidedAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "restoredAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "deletedAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "trashSnapshot",
+        "type": "json",
+        "required": false
+      }
+    ],
+    "indexes": [
+      "CREATE INDEX idx_todos_updatedAt ON todos (updatedAt)",
+      "CREATE UNIQUE INDEX idx_todos_localId ON todos (localId)",
+      "CREATE INDEX idx_todos_tombstonePushed ON todos (tombstonePushed)"
+    ]
+  },
+  {
+    "name": "noteFolders",
+    "type": "base",
+    "system": false,
+    "listRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "viewRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
+    "fields": [
+      {
+        "name": "id",
+        "type": "text",
+        "primaryKey": true,
+        "required": true,
+        "autogeneratePattern": ""
+      },
+      {
+        "name": "localId",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "name",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "createdAt",
+        "type": "number"
+      },
+      {
+        "name": "updatedAt",
+        "type": "number",
+        "required": true
+      },
+      {
+        "name": "deleted",
+        "type": "number"
+      },
+      {
+        "name": "rev",
+        "type": "number"
+      },
+      {
+        "name": "created",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": false
+      },
+      {
+        "name": "updated",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "server_received_at",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "tombstonePushed",
+        "type": "number",
+        "required": false,
+        "presentable": false
+      },
+      {
+        "name": "restoredAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "deletedAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "trashSnapshot",
+        "type": "json",
+        "required": false
+      }
+    ],
+    "indexes": [
+      "CREATE UNIQUE INDEX idx_noteFolders_localId ON noteFolders (localId)",
+      "CREATE INDEX idx_noteFolders_updatedAt ON noteFolders (updatedAt)",
+      "CREATE INDEX idx_noteFolders_tombstonePushed ON noteFolders (tombstonePushed)"
+    ]
+  },
+  {
+    "name": "notes",
+    "type": "base",
+    "system": false,
+    "listRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "viewRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
+    "fields": [
+      {
+        "name": "id",
+        "type": "text",
+        "primaryKey": true,
+        "required": true,
+        "autogeneratePattern": ""
+      },
+      {
+        "name": "localId",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "title",
+        "type": "text"
+      },
+      {
+        "name": "markdown",
+        "type": "text"
+      },
+      {
+        "name": "tags",
+        "type": "json"
+      },
+      {
+        "name": "backlinks",
+        "type": "json"
+      },
+      {
+        "name": "mentions",
+        "type": "json"
+      },
+      {
+        "name": "folderId",
+        "type": "text"
+      },
+      {
+        "name": "createdAt",
+        "type": "number"
+      },
+      {
+        "name": "updatedAt",
+        "type": "number",
+        "required": true
+      },
+      {
+        "name": "deleted",
+        "type": "number"
+      },
+      {
+        "name": "rev",
+        "type": "number"
+      },
+      {
+        "name": "created",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": false
+      },
+      {
+        "name": "updated",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "server_received_at",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "projectId",
+        "type": "text",
+        "required": false
+      },
+      {
+        "name": "tombstonePushed",
+        "type": "number",
+        "required": false,
+        "presentable": false
+      },
+      {
+        "name": "restoredAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "deletedAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "trashSnapshot",
+        "type": "json"
+      }
+    ],
+    "indexes": [
+      "CREATE INDEX idx_notes_updatedAt ON notes (updatedAt)",
+      "CREATE UNIQUE INDEX idx_notes_localId ON notes (localId)",
+      "CREATE INDEX idx_notes_tombstonePushed ON notes (tombstonePushed)"
+    ]
+  },
+  {
+    "name": "quickNotes",
+    "type": "base",
+    "system": false,
+    "listRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "viewRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
+    "fields": [
+      {
+        "name": "id",
+        "type": "text",
+        "primaryKey": true,
+        "required": true,
+        "autogeneratePattern": ""
+      },
+      {
+        "name": "localId",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "content",
+        "type": "text"
+      },
+      {
+        "name": "convertedTo",
+        "type": "text"
+      },
+      {
+        "name": "convertedAt",
+        "type": "number"
+      },
+      {
+        "name": "convertedVia",
+        "type": "text"
+      },
+      {
+        "name": "createdAt",
+        "type": "number"
+      },
+      {
+        "name": "updatedAt",
+        "type": "number",
+        "required": true
+      },
+      {
+        "name": "deleted",
+        "type": "number"
+      },
+      {
+        "name": "rev",
+        "type": "number"
+      },
+      {
+        "name": "created",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": false
+      },
+      {
+        "name": "updated",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "server_received_at",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "tombstonePushed",
+        "type": "number",
+        "required": false,
+        "presentable": false
+      },
+      {
+        "name": "deletedAt",
+        "type": "number"
+      },
+      {
+        "name": "restoredAt",
+        "type": "number"
+      },
+      {
+        "name": "trashSnapshot",
+        "type": "json"
+      }
+    ],
+    "indexes": [
+      "CREATE INDEX idx_quickNotes_updatedAt ON quickNotes (updatedAt)",
+      "CREATE UNIQUE INDEX idx_quickNotes_localId ON quickNotes (localId)",
+      "CREATE INDEX idx_quickNotes_tombstonePushed ON quickNotes (tombstonePushed)"
+    ]
+  },
+  {
+    "name": "habits",
+    "type": "base",
+    "system": false,
+    "listRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "viewRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
+    "fields": [
+      {
+        "name": "id",
+        "type": "text",
+        "primaryKey": true,
+        "required": true,
+        "autogeneratePattern": ""
+      },
+      {
+        "name": "localId",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "name",
+        "type": "text"
+      },
+      {
+        "name": "icon",
+        "type": "text"
+      },
+      {
+        "name": "color",
+        "type": "text"
+      },
+      {
+        "name": "category",
+        "type": "text"
+      },
+      {
+        "name": "schedule",
+        "type": "text"
+      },
+      {
+        "name": "targetMinutes",
+        "type": "number"
+      },
+      {
+        "name": "motivationNote",
+        "type": "text"
+      },
+      {
+        "name": "crossModuleSync",
+        "type": "bool"
+      },
+      {
+        "name": "createdAt",
+        "type": "number"
+      },
+      {
+        "name": "updatedAt",
+        "type": "number",
+        "required": true
+      },
+      {
+        "name": "deleted",
+        "type": "number"
+      },
+      {
+        "name": "rev",
+        "type": "number"
+      },
+      {
+        "name": "created",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": false
+      },
+      {
+        "name": "updated",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "server_received_at",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "tombstonePushed",
+        "type": "number",
+        "required": false,
+        "presentable": false
+      },
+      {
+        "name": "restoredAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "deletedAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "trashSnapshot",
+        "type": "json",
+        "required": false
+      }
+    ],
+    "indexes": [
+      "CREATE INDEX idx_habits_updatedAt ON habits (updatedAt)",
+      "CREATE UNIQUE INDEX idx_habits_localId ON habits (localId)",
+      "CREATE INDEX idx_habits_tombstonePushed ON habits (tombstonePushed)"
+    ]
+  },
+  {
+    "name": "habitLogs",
+    "type": "base",
+    "system": false,
+    "listRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "viewRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
+    "fields": [
+      {
+        "name": "id",
+        "type": "text",
+        "primaryKey": true,
+        "required": true,
+        "autogeneratePattern": ""
+      },
+      {
+        "name": "localId",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "habitId",
+        "type": "text"
+      },
+      {
+        "name": "date",
+        "type": "text"
+      },
+      {
+        "name": "completedAt",
+        "type": "number"
+      },
+      {
+        "name": "evidence",
+        "type": "text"
+      },
+      {
+        "name": "updatedAt",
+        "type": "number",
+        "required": true
+      },
+      {
+        "name": "deleted",
+        "type": "number"
+      },
+      {
+        "name": "rev",
+        "type": "number"
+      },
+      {
+        "name": "created",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": false
+      },
+      {
+        "name": "updated",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "server_received_at",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "tombstonePushed",
+        "type": "number",
+        "required": false,
+        "presentable": false
+      },
+      {
+        "name": "restoredAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "deletedAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "trashSnapshot",
+        "type": "json"
+      }
+    ],
+    "indexes": [
+      "CREATE INDEX idx_habitLogs_updatedAt ON habitLogs (updatedAt)",
+      "CREATE INDEX idx_habitLogs_habitId_date ON habitLogs (habitId, date)",
+      "CREATE UNIQUE INDEX idx_habitLogs_localId ON habitLogs (localId)",
+      "CREATE INDEX idx_habitLogs_tombstonePushed ON habitLogs (tombstonePushed)"
+    ]
+  },
+  {
+    "name": "trophies",
+    "type": "base",
+    "system": false,
+    "listRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "viewRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
+    "fields": [
+      {
+        "name": "id",
+        "type": "text",
+        "primaryKey": true,
+        "required": true,
+        "autogeneratePattern": ""
+      },
+      {
+        "name": "localId",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "name",
+        "type": "text"
+      },
+      {
+        "name": "tier",
+        "type": "text"
+      },
+      {
+        "name": "rarity",
+        "type": "text"
+      },
+      {
+        "name": "description",
+        "type": "text"
+      },
+      {
+        "name": "icon",
+        "type": "text"
+      },
+      {
+        "name": "unlockedAt",
+        "type": "number"
+      },
+      {
+        "name": "conditionType",
+        "type": "text"
+      },
+      {
+        "name": "conditionValue",
+        "type": "number"
+      },
+      {
+        "name": "updatedAt",
+        "type": "number",
+        "required": true
+      },
+      {
+        "name": "deleted",
+        "type": "number"
+      },
+      {
+        "name": "rev",
+        "type": "number"
+      },
+      {
+        "name": "created",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": false
+      },
+      {
+        "name": "updated",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "server_received_at",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "tombstonePushed",
+        "type": "number",
+        "required": false,
+        "presentable": false
+      },
+      {
+        "name": "deletedAt",
+        "type": "number"
+      },
+      {
+        "name": "restoredAt",
+        "type": "number"
+      },
+      {
+        "name": "trashSnapshot",
+        "type": "json"
+      }
+    ],
+    "indexes": [
+      "CREATE INDEX idx_trophies_updatedAt ON trophies (updatedAt)",
+      "CREATE UNIQUE INDEX idx_trophies_localId ON trophies (localId)",
+      "CREATE INDEX idx_trophies_tombstonePushed ON trophies (tombstonePushed)"
+    ]
+  },
+  {
+    "name": "attachments",
+    "type": "base",
+    "system": false,
+    "listRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "viewRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
+    "fields": [
+      {
+        "name": "id",
+        "type": "text",
+        "primaryKey": true,
+        "required": true,
+        "autogeneratePattern": ""
+      },
+      {
+        "name": "localId",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "refType",
+        "type": "text"
+      },
+      {
+        "name": "refId",
+        "type": "text"
+      },
+      {
+        "name": "name",
+        "type": "text"
+      },
+      {
+        "name": "mime",
+        "type": "text"
+      },
+      {
+        "name": "size",
+        "type": "number"
+      },
+      {
+        "name": "createdAt",
+        "type": "number"
+      },
+      {
+        "name": "file",
+        "type": "file",
+        "maxSelect": 1,
+        "maxSize": 20971520,
+        "thumbs": [],
+        "protected": false
+      },
+      {
+        "name": "updatedAt",
+        "type": "number",
+        "required": true
+      },
+      {
+        "name": "deleted",
+        "type": "number"
+      },
+      {
+        "name": "rev",
+        "type": "number"
+      },
+      {
+        "name": "created",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": false
+      },
+      {
+        "name": "updated",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "server_received_at",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "tombstonePushed",
+        "type": "number",
+        "required": false,
+        "presentable": false
+      },
+      {
+        "name": "restoredAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "deletedAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "trashSnapshot",
+        "type": "json"
+      }
+    ],
+    "indexes": [
+      "CREATE INDEX idx_attachments_updatedAt ON attachments (updatedAt)",
+      "CREATE UNIQUE INDEX idx_attachments_localId ON attachments (localId)",
+      "CREATE INDEX idx_attachments_tombstonePushed ON attachments (tombstonePushed)"
+    ]
+  },
+  {
+    "name": "sync_state",
+    "type": "base",
+    "system": false,
+    "listRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "viewRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
+    "fields": [
+      {
+        "name": "id",
+        "type": "text",
+        "primaryKey": true,
+        "required": true,
+        "autogeneratePattern": ""
+      },
+      {
+        "name": "localId",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "user",
+        "type": "text"
+      },
+      {
+        "name": "device",
+        "type": "text"
+      },
+      {
+        "name": "cursor",
+        "type": "number"
+      },
+      {
+        "name": "syncedAt",
+        "type": "number"
+      },
+      {
+        "name": "created",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": false
+      },
+      {
+        "name": "updated",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "server_received_at",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "tombstonePushed",
+        "type": "number",
+        "required": false,
+        "presentable": false
+      }
+    ],
+    "indexes": [
+      "CREATE INDEX idx_sync_state_user ON sync_state (user)",
+      "CREATE UNIQUE INDEX idx_sync_state_localId ON sync_state (localId)",
+      "CREATE INDEX idx_sync_state_tombstonePushed ON sync_state (tombstonePushed)"
+    ]
+  },
+  {
+    "name": "todoLists",
+    "type": "base",
+    "system": false,
+    "listRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "viewRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
+    "fields": [
+      {
+        "name": "id",
+        "type": "text",
+        "primaryKey": true,
+        "required": true,
+        "autogeneratePattern": ""
+      },
+      {
+        "name": "localId",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "name",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "sortOrder",
+        "type": "number"
+      },
+      {
+        "name": "createdAt",
+        "type": "number"
+      },
+      {
+        "name": "updatedAt",
+        "type": "number"
+      },
+      {
+        "name": "deleted",
+        "type": "bool"
+      },
+      {
+        "name": "rev",
+        "type": "number"
+      },
+      {
+        "name": "server_received_at",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": false
+      },
+      {
+        "name": "tombstonePushed",
+        "type": "number",
+        "required": false,
+        "presentable": false
+      },
+      {
+        "name": "restoredAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "deletedAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "trashSnapshot",
+        "type": "json",
+        "required": false
+      }
+    ],
+    "indexes": [
+      "CREATE UNIQUE INDEX idx_todoLists_localId ON todoLists (localId)",
+      "CREATE INDEX idx_todoLists_tombstonePushed ON todoLists (tombstonePushed)"
+    ]
+  },
+  {
+    "name": "projects",
+    "type": "base",
+    "system": false,
+    "listRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "viewRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
+    "fields": [
+      {
+        "name": "id",
+        "type": "text",
+        "required": false
+      },
+      {
+        "name": "localId",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "name",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "color",
+        "type": "text",
+        "required": false
+      },
+      {
+        "name": "status",
+        "type": "text",
+        "required": false
+      },
+      {
+        "name": "customerId",
+        "type": "text",
+        "required": false
+      },
+      {
+        "name": "budget",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "note",
+        "type": "text",
+        "required": false
+      },
+      {
+        "name": "createdAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "updatedAt",
+        "type": "number",
+        "required": true
+      },
+      {
+        "name": "deleted",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "rev",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "created",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": false
+      },
+      {
+        "name": "updated",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "server_received_at",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "tombstonePushed",
+        "type": "number",
+        "required": false,
+        "presentable": false
+      },
+      {
+        "name": "restoredAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "deletedAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "trashSnapshot",
+        "type": "json",
+        "required": false
+      }
+    ],
+    "indexes": [
+      "CREATE INDEX idx_projects_updatedAt ON projects (updatedAt)",
+      "CREATE UNIQUE INDEX idx_projects_localId ON projects (localId)",
+      "CREATE INDEX idx_projects_tombstonePushed ON projects (tombstonePushed)"
+    ]
+  },
+  {
+    "name": "projectMilestones",
+    "type": "base",
+    "system": false,
+    "listRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "viewRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
+    "fields": [
+      {
+        "name": "id",
+        "type": "text",
+        "required": false
+      },
+      {
+        "name": "localId",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "projectId",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "name",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "dueAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "weight",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "status",
+        "type": "text",
+        "required": false
+      },
+      {
+        "name": "sortOrder",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "createdAt",
+        "type": "number"
+      },
+      {
+        "name": "updatedAt",
+        "type": "number",
+        "required": true
+      },
+      {
+        "name": "deleted",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "rev",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "created",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": false
+      },
+      {
+        "name": "updated",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "server_received_at",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "tombstonePushed",
+        "type": "number",
+        "required": false,
+        "presentable": false
+      },
+      {
+        "name": "restoredAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "deletedAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "trashSnapshot",
+        "type": "json"
+      }
+    ],
+    "indexes": [
+      "CREATE INDEX idx_projectMilestones_updatedAt ON projectMilestones (updatedAt)",
+      "CREATE UNIQUE INDEX idx_projectMilestones_localId ON projectMilestones (localId)",
+      "CREATE INDEX idx_projectMilestones_tombstonePushed ON projectMilestones (tombstonePushed)",
+      "CREATE INDEX idx_projectMilestones_projectId ON projectMilestones (projectId)"
+    ]
+  },
+  {
+    "name": "module_configs",
+    "type": "base",
+    "system": false,
+    "listRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "viewRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
+    "fields": [
+      {
+        "name": "id",
+        "type": "text",
+        "primaryKey": true,
+        "required": true,
+        "autogeneratePattern": ""
+      },
+      {
+        "name": "localId",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "payload",
+        "type": "json"
+      },
+      {
+        "name": "updatedAt",
+        "type": "number",
+        "required": true
+      },
+      {
+        "name": "deleted",
+        "type": "number"
+      },
+      {
+        "name": "rev",
+        "type": "number"
+      },
+      {
+        "name": "created",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": false
+      },
+      {
+        "name": "updated",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "server_received_at",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "tombstonePushed",
+        "type": "number",
+        "required": false,
+        "presentable": false
+      },
+      {
+        "name": "deletedAt",
+        "type": "number"
+      },
+      {
+        "name": "restoredAt",
+        "type": "number"
+      },
+      {
+        "name": "trashSnapshot",
+        "type": "json"
+      }
+    ],
+    "indexes": [
+      "CREATE UNIQUE INDEX idx_module_configs_localId ON module_configs (localId)",
+      "CREATE INDEX idx_module_configs_updatedAt ON module_configs (updatedAt)",
+      "CREATE INDEX idx_module_configs_tombstonePushed ON module_configs (tombstonePushed)"
+    ]
+  },
+  {
+    "name": "customerGroups",
+    "type": "base",
+    "system": false,
+    "listRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "viewRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
+    "fields": [
+      {
+        "name": "id",
+        "type": "text",
+        "primaryKey": true,
+        "required": true,
+        "autogeneratePattern": ""
+      },
+      {
+        "name": "localId",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "createdAt",
+        "type": "number"
+      },
+      {
+        "name": "updatedAt",
+        "type": "number"
+      },
+      {
+        "name": "deleted",
+        "type": "bool"
+      },
+      {
+        "name": "rev",
+        "type": "number"
+      },
+      {
+        "name": "name",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "sortOrder",
+        "type": "number"
+      },
+      {
+        "name": "server_received_at",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": false
+      },
+      {
+        "name": "tombstonePushed",
+        "type": "number",
+        "required": false,
+        "presentable": false
+      },
+      {
+        "name": "includeTags",
+        "type": "json",
+        "maxSize": 2000000
+      },
+      {
+        "name": "excludeTags",
+        "type": "json",
+        "maxSize": 2000000
+      },
+      {
+        "name": "rules",
+        "type": "json",
+        "maxSize": 2000000
+      },
+      {
+        "name": "kind",
+        "type": "text",
+        "required": false
+      },
+      {
+        "name": "restoredAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "deletedAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "trashSnapshot",
+        "type": "json"
+      }
+    ],
+    "indexes": [
+      "CREATE UNIQUE INDEX idx_customerGroups_localId ON customerGroups (localId)",
+      "CREATE INDEX idx_customerGroups_tombstonePushed ON customerGroups (tombstonePushed)"
+    ]
+  },
+  {
+    "name": "agent_events",
+    "type": "base",
+    "listRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "viewRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
+    "fields": [
+      {
+        "name": "type",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "payload",
+        "type": "json",
+        "maxSize": 2000000
+      },
+      {
+        "name": "tool",
+        "type": "text"
+      },
+      {
+        "name": "occurredAt",
+        "type": "number",
+        "required": true
+      }
+    ],
+    "indexes": [
+      "CREATE INDEX idx_agent_events_occurred ON agent_events (occurredAt)"
+    ],
+    "system": false
+  },
+  {
+    "name": "links",
+    "type": "base",
+    "system": false,
+    "listRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "viewRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
+    "fields": [
+      {
+        "name": "id",
+        "type": "text",
+        "primaryKey": true,
+        "required": true,
+        "autogeneratePattern": ""
+      },
+      {
+        "name": "localId",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "fromType",
+        "type": "text"
+      },
+      {
+        "name": "fromId",
+        "type": "text"
+      },
+      {
+        "name": "toType",
+        "type": "text"
+      },
+      {
+        "name": "toId",
+        "type": "text"
+      },
+      {
+        "name": "kind",
+        "type": "text"
+      },
+      {
+        "name": "meta",
+        "type": "json",
+        "maxSize": 2000000
+      },
+      {
+        "name": "createdAt",
+        "type": "number"
+      },
+      {
+        "name": "updatedAt",
+        "type": "number",
+        "required": true
+      },
+      {
+        "name": "deleted",
+        "type": "number"
+      },
+      {
+        "name": "rev",
+        "type": "number"
+      },
+      {
+        "name": "restoredAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "deletedAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "created",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": false
+      },
+      {
+        "name": "updated",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "server_received_at",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      },
+      {
+        "name": "tombstonePushed",
+        "type": "number",
+        "required": false,
+        "presentable": false
+      },
+      {
+        "name": "trashSnapshot",
+        "type": "json"
+      }
+    ],
+    "indexes": [
+      "CREATE INDEX idx_links_from ON links (fromType, fromId)",
+      "CREATE INDEX idx_links_to ON links (toType, toId)",
+      "CREATE INDEX idx_links_updatedAt ON links (updatedAt)",
+      "CREATE UNIQUE INDEX idx_links_localId ON links (localId)",
+      "CREATE INDEX idx_links_tombstonePushed ON links (tombstonePushed)"
+    ]
+  },
+  {
+    "name": "operations",
+    "type": "base",
+    "listRule": null,
+    "viewRule": null,
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
+    "fields": [
+      {
+        "name": "owner",
+        "type": "text"
+      },
+      {
+        "name": "requestId",
+        "type": "text"
+      },
+      {
+        "name": "fingerprint",
+        "type": "text"
+      },
+      {
+        "name": "generation",
+        "type": "text"
+      },
+      {
+        "name": "status",
+        "type": "text"
+      },
+      {
+        "name": "result",
+        "type": "json"
+      },
+      {
+        "name": "committedAt",
+        "type": "number"
+      },
+      {
+        "name": "sequence",
+        "type": "number",
+        "onlyInt": true
+      },
+      {
+        "name": "planFingerprint",
+        "type": "text"
+      },
+      {
+        "name": "plan",
+        "type": "json"
+      }
+    ],
+    "indexes": [
+      "CREATE UNIQUE INDEX idx_operation_request ON operations (owner, requestId)"
+    ]
+  },
+  {
+    "name": "operation_effects",
+    "type": "base",
+    "listRule": null,
+    "viewRule": null,
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
+    "fields": [
+      {
+        "name": "operationId",
+        "type": "text"
+      },
+      {
+        "name": "tableName",
+        "type": "text"
+      },
+      {
+        "name": "recordId",
+        "type": "text"
+      },
+      {
+        "name": "beforeRev",
+        "type": "number"
+      },
+      {
+        "name": "afterRev",
+        "type": "number"
+      },
+      {
+        "name": "before",
+        "type": "json"
+      },
+      {
+        "name": "after",
+        "type": "json"
+      },
+      {
+        "name": "action",
+        "type": "text"
+      },
+      {
+        "name": "sourceScope",
+        "type": "text"
+      },
+      {
+        "name": "sequence",
+        "type": "number"
+      },
+      {
+        "name": "ordinal",
+        "type": "number"
+      },
+      {
+        "name": "redacted",
+        "type": "bool"
+      }
+    ],
+    "indexes": [
+      "CREATE INDEX idx_effect_operation ON operation_effects (operationId)",
+      "CREATE INDEX idx_effect_record ON operation_effects (tableName, recordId, sequence, ordinal)"
+    ]
+  },
+  {
+    "name": "deletion_registry",
+    "type": "base",
+    "listRule": null,
+    "viewRule": null,
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
+    "fields": [
+      {
+        "name": "tableName",
+        "type": "text"
+      },
+      {
+        "name": "recordId",
+        "type": "text"
+      },
+      {
+        "name": "generation",
+        "type": "text"
+      },
+      {
+        "name": "purgedAt",
+        "type": "number"
+      }
+    ],
+    "indexes": [
+      "CREATE UNIQUE INDEX idx_deleted_entity ON deletion_registry (tableName, recordId)"
+    ]
+  },
+  {
+    "name": "command_state",
+    "type": "base",
+    "listRule": null,
+    "viewRule": null,
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
+    "fields": [
+      {
+        "name": "generation",
+        "type": "text"
+      },
+      {
+        "name": "schemaVersion",
+        "type": "number"
+      },
+      {
+        "name": "ownerId",
+        "type": "text"
+      },
+      {
+        "name": "sequence",
+        "type": "number",
+        "onlyInt": true
+      }
+    ],
+    "indexes": []
+  },
+  {
+    "name": "attachment_staging",
+    "type": "base",
+    "listRule": null,
+    "viewRule": "owner = @request.auth.id",
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
+    "fields": [
+      {
+        "name": "owner",
+        "type": "text"
+      },
+      {
+        "name": "file",
+        "type": "file",
+        "maxSelect": 1,
+        "maxSize": 5242880,
+        "protected": true
+      },
+      {
+        "name": "expiresAt",
+        "type": "number"
+      }
+    ],
+    "indexes": []
+  }
+]

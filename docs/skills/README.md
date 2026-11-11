@@ -16,7 +16,7 @@
 - **relay 不是安全边界**：真正的防线是 agentOps 的 zod 校验 + 风险分级 + confirmToken + 白名单；
 - relay 是**通道、不持有数据**：权威数据在浏览器 IndexedDB，agentOps 在页面进程内执行。
 
-## 工具总览（37 个）
+## 工具总览（61 个）
 
 | 工具 | 域 | 风险 | 能力 |
 |---|---|---|---|
@@ -46,6 +46,19 @@
 | [`note_deleteNote`](./note_deleteNote.md) | note | high | 删除笔记（不可逆） |
 | [`crm_deleteCustomer`](./crm_deleteCustomer.md) | crm | high | 删除客户（不可逆，级联日志 + 解绑四表 + 清关系） |
 | [`project_deleteProject`](./project_deleteProject.md) | project | high | 删除项目（不可逆，级联里程碑 + 解绑四表） |
+| [`cancel_operation`](./cancel_operation.md) | read | low | 撤回本人待确认预览并清理草稿来源；已提交操作需另行预览撤销。 |
+| [`preview_capture`](./preview_capture.md) | read | low | 保存整组具体预览，包含生成 ID、日期、版本、影响与计划指纹；不提交业务事实。 |
+| [`commit_capture`](./commit_capture.md) | read | medium | 用户确认后按 confirmHint 携票原子提交；超时按原 requestId 查回并重试。 |
+| [`preview_amend`](./preview_amend.md) | read | low | 保存整组具体预览，包含生成 ID、日期、版本、影响与计划指纹；不提交业务事实。 |
+| [`commit_amend`](./commit_amend.md) | read | medium | 用户确认后按 confirmHint 携票原子提交；超时按原 requestId 查回并重试。 |
+| [`preview_undo`](./preview_undo.md) | read | low | 保存整组具体预览，包含生成 ID、日期、版本、影响与计划指纹；不提交业务事实。 |
+| [`commit_undo`](./commit_undo.md) | read | high | 用户确认后按 confirmHint 携票原子提交；超时按原 requestId 查回并重试。 |
+| [`preview_merge`](./preview_merge.md) | read | low | 保存整组具体预览，包含生成 ID、日期、版本、影响与计划指纹；不提交业务事实。 |
+| [`commit_merge`](./commit_merge.md) | read | high | 用户确认后按 confirmHint 携票原子提交；超时按原 requestId 查回并重试。 |
+| [`preview_delete`](./preview_delete.md) | read | low | 保存整组具体预览，包含生成 ID、日期、版本、影响与计划指纹；不提交业务事实。 |
+| [`commit_delete`](./commit_delete.md) | read | high | 用户确认后按 confirmHint 携票原子提交；超时按原 requestId 查回并重试。 |
+| [`preview_purge`](./preview_purge.md) | read | low | 保存整组具体预览，包含生成 ID、日期、版本、影响与计划指纹；不提交业务事实。 |
+| [`commit_purge`](./commit_purge.md) | read | high | 用户确认后按 confirmHint 携票原子提交；超时按原 requestId 查回并重试。 |
 | [`resolveEntity`](./resolveEntity.md) | read | low | 把自然语言里的实体名消解为真实 id（写工具的前置） |
 | [`searchEntities`](./searchEntities.md) | read | low | 全局搜索（客户/项目/待办/笔记/账本/习惯） |
 | [`getCustomer`](./getCustomer.md) | read | low | 读取单个客户档案摘要 |
@@ -57,6 +70,17 @@
 | [`listNotes`](./listNotes.md) | read | low | 列笔记（标题/标签/归属，**不含正文**） |
 | [`listNoteFolders`](./listNoteFolders.md) | read | low | 列笔记文件夹 |
 | [`listLinks`](./listLinks.md) | read | low | 查某实体的关联（双向合并） |
+| [`resolve_contacts`](./resolve_contacts.md) | read | low | 权威有界查询；返回范围、世代、水位和继续游标，正文按需读取。 |
+| [`resolve_topics`](./resolve_topics.md) | read | low | 权威有界查询；返回范围、世代、水位和继续游标，正文按需读取。 |
+| [`search_activities`](./search_activities.md) | read | low | 权威有界查询；返回范围、世代、水位和继续游标，正文按需读取。 |
+| [`get_activity`](./get_activity.md) | read | low | 权威有界查询；返回范围、世代、水位和继续游标，正文按需读取。 |
+| [`get_operation`](./get_operation.md) | read | low | 权威有界查询；返回范围、世代、水位和继续游标，正文按需读取。 |
+| [`list_operations`](./list_operations.md) | read | low | 权威有界查询；返回范围、世代、水位和继续游标，正文按需读取。 |
+| [`get_contact_context`](./get_contact_context.md) | read | low | 权威有界查询；返回范围、世代、水位和继续游标，正文按需读取。 |
+| [`query_tasks`](./query_tasks.md) | read | low | 权威有界查询；返回范围、世代、水位和继续游标，正文按需读取。 |
+| [`query_finance`](./query_finance.md) | read | low | 权威有界查询；返回范围、世代、水位和继续游标，正文按需读取。 |
+| [`get_record`](./get_record.md) | read | low | 权威有界查询；返回范围、世代、水位和继续游标，正文按需读取。 |
+| [`query_graph`](./query_graph.md) | read | low | 权威有界查询；返回范围、世代、水位和继续游标，正文按需读取。 |
 
 ## 通用纪律
 

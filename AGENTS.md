@@ -8,7 +8,8 @@
 ## 1. 项目是什么
 
 面向个人/小团队的**一体化数字工作台**：CRM · 财务 · 待办 · 笔记 · 习惯五大模块闭环，外加游戏化成长体系（EXP / 等级 / 奖杯）。
-2 人团队 × ≥4 台设备，Local-First，自托管同步。
+当前产品为个人助手：自托管 VPS 是网页与 Agent 的事实权威，未来 Android 客户端复用同一命令/回执协议。
+历史 Local-First/团队实现仍有兼容代码；当前网页的周期全量对齐不是有界增量同步，后续多端接线见 PROGRESS。
 
 ⚠️ **开发阶段**：接口与结构随时调整，不可用于生产。
 
@@ -44,7 +45,7 @@ src/repositories/   写入口唯一层：所有落库走这里（存储无关，
                     读路径（`db.<table>` 查询）不受此限。
 src/domain/         动作编排唯一层：跨表编排（记账口径、默认账本策略…）
 src/agent/          agentOps：MCP 工具 schema / 执行器 / 浏览器侧桥
-src/sync/           LWW 同步引擎（2s 去抖队列 + 30s 心跳 + online 触发）
+src/sync/           历史 LWW 同步与当前 Web 全量对齐；新多端增量协议尚待第三版
 relay/              MCP relay：内嵌于站点，同源挂载 /relay
 scripts/            构建 / 部署 / skill 生成 / Agent 配置
 design/prototypes/  21 页原型（01-dashboard ~ 21-profile）—— UI 对齐基准
@@ -111,8 +112,8 @@ npm run serve          # 生产形态：同进程托管 dist + relay（同源 ws
 
 ## 8. 接入 Agent（本项目自带的桥）
 
-本项目把 **37 个业务工具**（客户 / 流水 / 待办 / 笔记 / 习惯 / 账本 / 关联…；`tools/list` 另含 `confirm_preview` 共 38 条）通过 MCP 暴露给外部 Agent，
-数据始终留在浏览器 IndexedDB，relay 只转发、零特权。
+本项目把 **61 个业务工具**（含事件查询、复合录入/纠错撤销；`tools/list` 另含 `confirm_preview` 共 62 条）通过 MCP 暴露给外部 Agent。
+当前 VPS 服务端执行器在网页关闭时仍可用；业务数据保留在自托管 PocketBase，浏览器是镜像。relay 只做认证/转发与票据核销，不 import 业务代码。
 
 **接入点（2026-10-27 起）**：远程 Agent 直连 **`https://<站点>/relay/mcp`**（标准 MCP over HTTP，
 `Authorization: Bearer <token>`），**不需要本仓库、不需要本机进程**。本机的 `relay/mcp-stdio-shim.mjs`
@@ -130,10 +131,10 @@ npm run agent:setup -- --dry-run       # 只预览改动，不落盘
 接入后 **Agent 配置里不要出现 token**：token 集中在 `~/.workhub/relay.json`（由上面的命令写入），
 由 `relay/mcp-stdio-shim.mjs` 读取并透传。
 
-**前置条件（配不出来的那部分，必须人工）**：relay 要有工具清单，前提是**站点页面在线并已在
+**历史浏览器桥的前置条件**（服务端执行器模式不需要页面在线）：relay 要有浏览器工具清单，前提是**站点页面在线并已在
 「设置 → AI Agent 桥」启用桥**。否则 `tools/list` 返回 `-32001 工具清单不可用` —— 这不是配置错误。
 
-**token 只有一个来源（2026-10-28 定死，别再分叉）**：
+**旧共享 relay token 只有一个来源**（不能让页面自造；下表仅描述共享桥兼容路径）：
 
 | 环节 | 谁做 | 怎么拿 |
 |---|---|---|
@@ -153,8 +154,13 @@ PB `auth-refresh` 校验），relay 本体仍不 import 任何业务代码。同
 证据锁在 `src/modules/settings/__tests__/aiBridgePair.test.tsx`。⚠️ `mintPairCode` 的签名在
 `src/agent/relay-modules.d.ts` 另有一份 `.d.ts` 副本，改 JS 必须同步改它（否则类型仍按旧签名报错）。
 
-安全边界（改动前先想清楚，五条都不许放宽）：token 鉴权 · 按域能力白名单 · 中风险一次性确认票据
-（**票据绑定参数指纹**，防「预览 A 执行 B」）· relay 零特权不 import 业务代码 · 数据不出浏览器。
+**第二版独立身份**：新 Agent 按客户端签发独立凭据，PB 仅保存散列、名称、能力与 generation；撤销立即影响已有会话与重试。
+设备授权的新服务路径签发独立凭据，旧共享 token 只保留与升级世代绑定的 7 天过渡，恢复不能重开。
+标准 MCP 的 requestId/generation/confirmToken 在公开 arguments 内；票据绑定客户端、参数和具体计划指纹。
+见 [事件协议](docs/个人助手事件协议-20261111.md)。
+
+安全边界（改动前先想清楚，五条都不许放宽）：凭据鉴权 · 按域能力白名单 · 中风险一次性确认票据
+（**票据绑定参数指纹**，防「预览 A 执行 B」）· relay 不 import 业务代码 · 业务数据不交第三方云服务。
 
 ## 9. 禁区
 

@@ -71,7 +71,9 @@ try {
     assert.equal((await api('/api/workhub/commands',{},'')).status,401)
     assert.notEqual((await api('/api/collections/todos/records',{localId:'bypass',title:'bad'})).status,200)
     const c=command([put('interactions','test:orphan',{customerId:'missing',content:'bad',at:1})],[missing('interactions','test:orphan')])
-    assert.match((await api('/api/workhub/commands',c)).body.error,/REFERENCE/)
+    assert.match((await api('/api/workhub/commands',c)).body.error,/FROZEN_SOURCE/)
+    const edge=command([put('links','test:ghost-edge',{fromType:'activities',fromId:'missing',toType:'customers',toId:'missing',kind:'related'})],[missing('links','test:ghost-edge')])
+    assert.match((await api('/api/workhub/commands',edge)).body.error,/REFERENCE/)
     const foreign=await api('/api/collections/users/records',{email:'foreign@example.test',password,passwordConfirm:password},superToken)
     const other=(await api('/api/collections/users/auth-with-password',{identity:'foreign@example.test',password},'')).body.token
     assert.ok(foreign.body.id);assert.equal((await api('/api/workhub/state',undefined,other)).status,403)
@@ -135,7 +137,7 @@ try {
     const defaultLedger=await executor.callTool('fin_createLedger',{name:'真实默认账本',currency:'CNY',openingBalance:0,closingCycle:'不封账',isDefault:true},{requestId:'agent_default_ledger',generation});assert.equal(defaultLedger.ok,true,JSON.stringify(defaultLedger));assert.equal((await records('ledgers')).find(r=>r.localId===defaultLedger.data.ledgerId).isDefault,true)
     const input={summary:'真实 Agent',amount:3.14,type:'income',ledgerId:ledger.id,customerIds:[c1.id,c2.id]}
     const meta={requestId:'agent_persistent_request',generation}
-    const preview=await executor.callTool('fin_recordTransaction',input,meta);assert.equal(preview.data.preview,true)
+    const preview=await executor.callTool('fin_recordTransaction',input,meta);assert.equal(preview.ok,true,JSON.stringify(preview));assert.equal(preview.data.preview,true)
     const first=await executor.callTool('fin_recordTransaction',input,{...meta,confirmToken:'verified-by-relay'})
     assert.equal(first.ok,true,JSON.stringify(first));assert.ok(first.data.transactionId)
     const retry=await executor.callTool('fin_recordTransaction',input,{...meta,replayOnly:true})

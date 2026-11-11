@@ -15,6 +15,9 @@
 | `tags` | array | 否 | `[]` |  |
 | `folderId` | string | 否 | — |  |
 | `projectId` | string | 否 | — |  |
+| `requestId` | string | 否 | — | 稳定请求标识，首次提交前确定，重试复用。 |
+| `generation` | string | 否 | — | 原数据世代，由查询返回。 |
+| `confirmToken` | string | 否 | — | 按具体预览提示取得的一次性确认票据。 |
 
 ## 副作用
 

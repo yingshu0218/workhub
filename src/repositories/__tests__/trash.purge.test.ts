@@ -104,9 +104,11 @@ describe('永久删除：单条墓碑', () => {
 })
 
 describe('永久删除：级联墓碑', () => {
-  it('父墓碑带子墓碑一起物理删除', async () => {
+  it('历史父墓碑的快照仍带子墓碑一起清理', async () => {
     await seedCustomerWithInteraction()
     await deleteCustomerCascade('c1')
+    await db.interactions.update('i1',{deleted:1})
+    await db.customers.update('c1',{trashSnapshot:{children:[{table:'interactions',id:'i1'}],links:[]}})
 
     const result = await purgeTrashRecord('customers', 'c1')
 
@@ -137,6 +139,7 @@ describe('永久删除：级联墓碑', () => {
     await seedCustomerWithInteraction()
     await deleteCustomerCascade('c1')
     // 先只恢复子项是不可能的（父未活），故这里直接手造「父已物理消失、子仍是墓碑」
+    await db.interactions.update('i1',{deleted:1})
     await db.customers.delete('c1')
 
     const items = await listTrash()
@@ -187,11 +190,11 @@ describe('永久删除：清空回收站', () => {
     await deleteHabitCascade('h1')
 
     const before = await listTrash()
-    expect(before.length).toBe(4) // 客户 + 日志 + 习惯 + 打卡
+    expect(before.length).toBe(3) // 客户 + 习惯 + 打卡；经历保持存活
 
     const result = await purgeAllTrash()
 
-    expect(result.purged).toBe(4)
+    expect(result.purged).toBe(3)
     expect(await listTrash()).toEqual([])
     expect(await db.customers.count()).toBe(0)
     expect(await db.habits.count()).toBe(0)

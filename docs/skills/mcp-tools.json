@@ -2,7 +2,7 @@
   "generatedBy": "scripts/gen-skills.mjs",
   "source": "src/agent/skillSource.ts",
   "protocolVersion": "2024-11-05",
-  "toolCount": 37,
+  "toolCount": 61,
   "tools": [
     {
       "name": "fin_recordTransaction",
@@ -135,6 +135,18 @@
                 }
               }
             ]
+          },
+          "requestId": {
+            "type": "string",
+            "description": "稳定请求标识，首次提交前确定，重试复用。"
+          },
+          "generation": {
+            "type": "string",
+            "description": "原数据世代，由查询返回。"
+          },
+          "confirmToken": {
+            "type": "string",
+            "description": "按具体预览提示取得的一次性确认票据。"
           }
         },
         "required": [
@@ -186,6 +198,18 @@
           "isDefault": {
             "type": "boolean",
             "default": false
+          },
+          "requestId": {
+            "type": "string",
+            "description": "稳定请求标识，首次提交前确定，重试复用。"
+          },
+          "generation": {
+            "type": "string",
+            "description": "原数据世代，由查询返回。"
+          },
+          "confirmToken": {
+            "type": "string",
+            "description": "按具体预览提示取得的一次性确认票据。"
           }
         },
         "required": [
@@ -220,9 +244,27 @@
               "决策人",
               "影响者",
               "使用者",
-              "把关人"
+              "把关人",
+              ""
             ],
-            "default": "决策人"
+            "default": ""
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "preferredName": {
+            "type": "string"
+          },
+          "contactType": {
+            "type": "string",
+            "enum": [
+              "person",
+              "organization",
+              "unspecified"
+            ]
           },
           "tags": {
             "type": "array",
@@ -249,6 +291,18 @@
           },
           "linkTransactionId": {
             "type": "string"
+          },
+          "requestId": {
+            "type": "string",
+            "description": "稳定请求标识，首次提交前确定，重试复用。"
+          },
+          "generation": {
+            "type": "string",
+            "description": "原数据世代，由查询返回。"
+          },
+          "confirmToken": {
+            "type": "string",
+            "description": "按具体预览提示取得的一次性确认票据。"
           }
         },
         "required": [
@@ -279,6 +333,18 @@
           },
           "projectId": {
             "type": "string"
+          },
+          "requestId": {
+            "type": "string",
+            "description": "稳定请求标识，首次提交前确定，重试复用。"
+          },
+          "generation": {
+            "type": "string",
+            "description": "原数据世代，由查询返回。"
+          },
+          "confirmToken": {
+            "type": "string",
+            "description": "按具体预览提示取得的一次性确认票据。"
           }
         },
         "required": [
@@ -319,6 +385,18 @@
               "person",
               "other"
             ]
+          },
+          "requestId": {
+            "type": "string",
+            "description": "稳定请求标识，首次提交前确定，重试复用。"
+          },
+          "generation": {
+            "type": "string",
+            "description": "原数据世代，由查询返回。"
+          },
+          "confirmToken": {
+            "type": "string",
+            "description": "按具体预览提示取得的一次性确认票据。"
           }
         },
         "required": [
@@ -389,6 +467,18 @@
               "person",
               "other"
             ]
+          },
+          "requestId": {
+            "type": "string",
+            "description": "稳定请求标识，首次提交前确定，重试复用。"
+          },
+          "generation": {
+            "type": "string",
+            "description": "原数据世代，由查询返回。"
+          },
+          "confirmToken": {
+            "type": "string",
+            "description": "按具体预览提示取得的一次性确认票据。"
           }
         },
         "required": [
@@ -461,6 +551,18 @@
               "person",
               "other"
             ]
+          },
+          "requestId": {
+            "type": "string",
+            "description": "稳定请求标识，首次提交前确定，重试复用。"
+          },
+          "generation": {
+            "type": "string",
+            "description": "原数据世代，由查询返回。"
+          },
+          "confirmToken": {
+            "type": "string",
+            "description": "按具体预览提示取得的一次性确认票据。"
           }
         },
         "required": [
@@ -523,6 +625,18 @@
             "items": {
               "type": "string"
             }
+          },
+          "requestId": {
+            "type": "string",
+            "description": "稳定请求标识，首次提交前确定，重试复用。"
+          },
+          "generation": {
+            "type": "string",
+            "description": "原数据世代，由查询返回。"
+          },
+          "confirmToken": {
+            "type": "string",
+            "description": "按具体预览提示取得的一次性确认票据。"
           }
         }
       },
@@ -545,6 +659,18 @@
           "done": {
             "type": "boolean",
             "default": true
+          },
+          "requestId": {
+            "type": "string",
+            "description": "稳定请求标识，首次提交前确定，重试复用。"
+          },
+          "generation": {
+            "type": "string",
+            "description": "原数据世代，由查询返回。"
+          },
+          "confirmToken": {
+            "type": "string",
+            "description": "按具体预览提示取得的一次性确认票据。"
           }
         },
         "required": [
@@ -573,6 +699,18 @@
           "undo": {
             "type": "boolean",
             "default": false
+          },
+          "requestId": {
+            "type": "string",
+            "description": "稳定请求标识，首次提交前确定，重试复用。"
+          },
+          "generation": {
+            "type": "string",
+            "description": "原数据世代，由查询返回。"
+          },
+          "confirmToken": {
+            "type": "string",
+            "description": "按具体预览提示取得的一次性确认票据。"
           }
         },
         "required": [
@@ -635,6 +773,18 @@
             "items": {
               "type": "string"
             }
+          },
+          "requestId": {
+            "type": "string",
+            "description": "稳定请求标识，首次提交前确定，重试复用。"
+          },
+          "generation": {
+            "type": "string",
+            "description": "原数据世代，由查询返回。"
+          },
+          "confirmToken": {
+            "type": "string",
+            "description": "按具体预览提示取得的一次性确认票据。"
           }
         },
         "required": [
@@ -656,6 +806,18 @@
         "properties": {
           "todoId": {
             "type": "string"
+          },
+          "requestId": {
+            "type": "string",
+            "description": "稳定请求标识，首次提交前确定，重试复用。"
+          },
+          "generation": {
+            "type": "string",
+            "description": "原数据世代，由查询返回。"
+          },
+          "confirmToken": {
+            "type": "string",
+            "description": "按具体预览提示取得的一次性确认票据。"
           }
         },
         "required": [
@@ -725,6 +887,18 @@
           },
           "address": {
             "type": "string"
+          },
+          "requestId": {
+            "type": "string",
+            "description": "稳定请求标识，首次提交前确定，重试复用。"
+          },
+          "generation": {
+            "type": "string",
+            "description": "原数据世代，由查询返回。"
+          },
+          "confirmToken": {
+            "type": "string",
+            "description": "按具体预览提示取得的一次性确认票据。"
           }
         },
         "required": [
@@ -767,6 +941,18 @@
           },
           "note": {
             "type": "string"
+          },
+          "requestId": {
+            "type": "string",
+            "description": "稳定请求标识，首次提交前确定，重试复用。"
+          },
+          "generation": {
+            "type": "string",
+            "description": "原数据世代，由查询返回。"
+          },
+          "confirmToken": {
+            "type": "string",
+            "description": "按具体预览提示取得的一次性确认票据。"
           }
         },
         "required": [
@@ -811,6 +997,18 @@
           },
           "note": {
             "type": "string"
+          },
+          "requestId": {
+            "type": "string",
+            "description": "稳定请求标识，首次提交前确定，重试复用。"
+          },
+          "generation": {
+            "type": "string",
+            "description": "原数据世代，由查询返回。"
+          },
+          "confirmToken": {
+            "type": "string",
+            "description": "按具体预览提示取得的一次性确认票据。"
           }
         },
         "required": [
@@ -849,6 +1047,18 @@
           },
           "projectId": {
             "type": "string"
+          },
+          "requestId": {
+            "type": "string",
+            "description": "稳定请求标识，首次提交前确定，重试复用。"
+          },
+          "generation": {
+            "type": "string",
+            "description": "原数据世代，由查询返回。"
+          },
+          "confirmToken": {
+            "type": "string",
+            "description": "按具体预览提示取得的一次性确认票据。"
           }
         },
         "required": [
@@ -888,6 +1098,18 @@
           },
           "projectId": {
             "type": "string"
+          },
+          "requestId": {
+            "type": "string",
+            "description": "稳定请求标识，首次提交前确定，重试复用。"
+          },
+          "generation": {
+            "type": "string",
+            "description": "原数据世代，由查询返回。"
+          },
+          "confirmToken": {
+            "type": "string",
+            "description": "按具体预览提示取得的一次性确认票据。"
           }
         },
         "required": [
@@ -909,6 +1131,18 @@
         "properties": {
           "name": {
             "type": "string"
+          },
+          "requestId": {
+            "type": "string",
+            "description": "稳定请求标识，首次提交前确定，重试复用。"
+          },
+          "generation": {
+            "type": "string",
+            "description": "原数据世代，由查询返回。"
+          },
+          "confirmToken": {
+            "type": "string",
+            "description": "按具体预览提示取得的一次性确认票据。"
           }
         },
         "required": [
@@ -930,6 +1164,18 @@
         "properties": {
           "habitId": {
             "type": "string"
+          },
+          "requestId": {
+            "type": "string",
+            "description": "稳定请求标识，首次提交前确定，重试复用。"
+          },
+          "generation": {
+            "type": "string",
+            "description": "原数据世代，由查询返回。"
+          },
+          "confirmToken": {
+            "type": "string",
+            "description": "按具体预览提示取得的一次性确认票据。"
           }
         },
         "required": [
@@ -972,6 +1218,18 @@
           },
           "crossModuleSync": {
             "type": "boolean"
+          },
+          "requestId": {
+            "type": "string",
+            "description": "稳定请求标识，首次提交前确定，重试复用。"
+          },
+          "generation": {
+            "type": "string",
+            "description": "原数据世代，由查询返回。"
+          },
+          "confirmToken": {
+            "type": "string",
+            "description": "按具体预览提示取得的一次性确认票据。"
           }
         },
         "required": [
@@ -1017,6 +1275,18 @@
           },
           "crossModuleSync": {
             "type": "boolean"
+          },
+          "requestId": {
+            "type": "string",
+            "description": "稳定请求标识，首次提交前确定，重试复用。"
+          },
+          "generation": {
+            "type": "string",
+            "description": "原数据世代，由查询返回。"
+          },
+          "confirmToken": {
+            "type": "string",
+            "description": "按具体预览提示取得的一次性确认票据。"
           }
         },
         "required": [
@@ -1161,6 +1431,18 @@
                 }
               }
             ]
+          },
+          "requestId": {
+            "type": "string",
+            "description": "稳定请求标识，首次提交前确定，重试复用。"
+          },
+          "generation": {
+            "type": "string",
+            "description": "原数据世代，由查询返回。"
+          },
+          "confirmToken": {
+            "type": "string",
+            "description": "按具体预览提示取得的一次性确认票据。"
           }
         },
         "required": [
@@ -1182,6 +1464,18 @@
         "properties": {
           "transactionId": {
             "type": "string"
+          },
+          "requestId": {
+            "type": "string",
+            "description": "稳定请求标识，首次提交前确定，重试复用。"
+          },
+          "generation": {
+            "type": "string",
+            "description": "原数据世代，由查询返回。"
+          },
+          "confirmToken": {
+            "type": "string",
+            "description": "按具体预览提示取得的一次性确认票据。"
           }
         },
         "required": [
@@ -1203,6 +1497,18 @@
         "properties": {
           "noteId": {
             "type": "string"
+          },
+          "requestId": {
+            "type": "string",
+            "description": "稳定请求标识，首次提交前确定，重试复用。"
+          },
+          "generation": {
+            "type": "string",
+            "description": "原数据世代，由查询返回。"
+          },
+          "confirmToken": {
+            "type": "string",
+            "description": "按具体预览提示取得的一次性确认票据。"
           }
         },
         "required": [
@@ -1224,6 +1530,18 @@
         "properties": {
           "customerId": {
             "type": "string"
+          },
+          "requestId": {
+            "type": "string",
+            "description": "稳定请求标识，首次提交前确定，重试复用。"
+          },
+          "generation": {
+            "type": "string",
+            "description": "原数据世代，由查询返回。"
+          },
+          "confirmToken": {
+            "type": "string",
+            "description": "按具体预览提示取得的一次性确认票据。"
           }
         },
         "required": [
@@ -1245,6 +1563,18 @@
         "properties": {
           "projectId": {
             "type": "string"
+          },
+          "requestId": {
+            "type": "string",
+            "description": "稳定请求标识，首次提交前确定，重试复用。"
+          },
+          "generation": {
+            "type": "string",
+            "description": "原数据世代，由查询返回。"
+          },
+          "confirmToken": {
+            "type": "string",
+            "description": "按具体预览提示取得的一次性确认票据。"
           }
         },
         "required": [
@@ -1254,6 +1584,895 @@
       "annotations": {
         "risk": "high",
         "domain": "project",
+        "readOnly": false
+      },
+      "events": []
+    },
+    {
+      "name": "cancel_operation",
+      "description": "撤回本人待确认预览并清理草稿来源；已提交操作需另行预览撤销。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "requestId",
+          "generation"
+        ]
+      },
+      "annotations": {
+        "risk": "low",
+        "domain": "read",
+        "readOnly": false
+      },
+      "events": []
+    },
+    {
+      "name": "preview_capture",
+      "description": "保存整组具体预览，包含生成 ID、日期、版本、影响与计划指纹；不提交业务事实。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "string"
+          },
+          "input": {
+            "type": "object",
+            "properties": {
+              "referenceAt": {
+                "type": "number"
+              },
+              "timeZone": {
+                "type": "string"
+              },
+              "contacts": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "aliases": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "preferredName": {
+                      "type": "string"
+                    },
+                    "contactType": {
+                      "type": "string",
+                      "enum": [
+                        "person",
+                        "organization",
+                        "unspecified"
+                      ]
+                    },
+                    "company": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "phone": {
+                      "type": "string"
+                    },
+                    "wechat": {
+                      "type": "string"
+                    },
+                    "email": {
+                      "type": "string"
+                    },
+                    "address": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ]
+                }
+              },
+              "topics": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "aliases": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ]
+                }
+              },
+              "activities": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "summary": {
+                      "type": "string"
+                    },
+                    "occurredAt": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string"
+                        }
+                      ]
+                    },
+                    "occurredUntil": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string"
+                        }
+                      ]
+                    },
+                    "timePrecision": {
+                      "type": "string",
+                      "enum": [
+                        "date",
+                        "minute",
+                        "range"
+                      ]
+                    },
+                    "timeZone": {
+                      "type": "string"
+                    },
+                    "category": {
+                      "type": "string"
+                    },
+                    "tags": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "contactIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "topicIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "sourceText": {
+                      "type": "string"
+                    },
+                    "transactions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string"
+                          },
+                          "existingId": {
+                            "type": "string"
+                          },
+                          "fact": {
+                            "type": "string",
+                            "enum": [
+                              "occurred",
+                              "quote",
+                              "invoice",
+                              "expected"
+                            ]
+                          },
+                          "amountMinor": {
+                            "type": "number"
+                          },
+                          "currency": {
+                            "type": "string",
+                            "enum": [
+                              "CNY",
+                              "USD",
+                              "EUR"
+                            ]
+                          },
+                          "ledgerId": {
+                            "type": "string"
+                          },
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "income",
+                              "expense"
+                            ]
+                          },
+                          "summary": {
+                            "type": "string"
+                          },
+                          "occurredAt": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "string"
+                              }
+                            ]
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "已结算",
+                              "待对账"
+                            ]
+                          },
+                          "duplicateDecision": {
+                            "type": "string",
+                            "enum": [
+                              "new"
+                            ]
+                          },
+                          "note": {
+                            "type": "string"
+                          },
+                          "channel": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "tasks": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string"
+                          },
+                          "existingId": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "desc": {
+                            "type": "string"
+                          },
+                          "priority": {
+                            "type": "string",
+                            "enum": [
+                              "high",
+                              "mid",
+                              "low",
+                              "none"
+                            ]
+                          },
+                          "dueAt": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "string"
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    "relations": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "fromContactId": {
+                            "type": "string"
+                          },
+                          "toContactId": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "category": {
+                            "type": "string",
+                            "enum": [
+                              "project",
+                              "event",
+                              "finance",
+                              "person",
+                              "other"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "fromContactId",
+                          "toContactId",
+                          "label"
+                        ]
+                      }
+                    },
+                    "records": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "table": {
+                            "type": "string",
+                            "enum": [
+                              "notes",
+                              "attachments"
+                            ]
+                          },
+                          "id": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "table",
+                          "id"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "title",
+                    "occurredAt",
+                    "timePrecision"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "activities"
+            ]
+          }
+        },
+        "required": [
+          "requestId",
+          "generation",
+          "input"
+        ]
+      },
+      "annotations": {
+        "risk": "low",
+        "domain": "read",
+        "readOnly": false
+      },
+      "events": []
+    },
+    {
+      "name": "commit_capture",
+      "description": "用户确认后按 confirmHint 携票原子提交；超时按原 requestId 查回并重试。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "string"
+          },
+          "previewId": {
+            "type": "string"
+          },
+          "confirmToken": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "requestId",
+          "generation",
+          "previewId"
+        ]
+      },
+      "annotations": {
+        "risk": "medium",
+        "domain": "read",
+        "readOnly": false
+      },
+      "events": []
+    },
+    {
+      "name": "preview_amend",
+      "description": "保存整组具体预览，包含生成 ID、日期、版本、影响与计划指纹；不提交业务事实。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "string"
+          },
+          "input": {
+            "type": "object",
+            "properties": {
+              "changes": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "table": {
+                      "type": "string",
+                      "enum": [
+                        "activities",
+                        "customers",
+                        "projects",
+                        "transactions",
+                        "todos",
+                        "notes",
+                        "attachments"
+                      ]
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "expectedRev": {
+                      "type": "number"
+                    },
+                    "timeZone": {
+                      "type": "string"
+                    },
+                    "patch": {},
+                    "contactIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "topicIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "table",
+                    "id",
+                    "expectedRev",
+                    "patch"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "changes"
+            ]
+          }
+        },
+        "required": [
+          "requestId",
+          "generation",
+          "input"
+        ]
+      },
+      "annotations": {
+        "risk": "low",
+        "domain": "read",
+        "readOnly": false
+      },
+      "events": []
+    },
+    {
+      "name": "commit_amend",
+      "description": "用户确认后按 confirmHint 携票原子提交；超时按原 requestId 查回并重试。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "string"
+          },
+          "previewId": {
+            "type": "string"
+          },
+          "confirmToken": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "requestId",
+          "generation",
+          "previewId"
+        ]
+      },
+      "annotations": {
+        "risk": "medium",
+        "domain": "read",
+        "readOnly": false
+      },
+      "events": []
+    },
+    {
+      "name": "preview_undo",
+      "description": "保存整组具体预览，包含生成 ID、日期、版本、影响与计划指纹；不提交业务事实。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "string"
+          },
+          "input": {
+            "type": "object",
+            "properties": {
+              "operationId": {
+                "type": "string"
+              },
+              "effectIds": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "operationId"
+            ]
+          }
+        },
+        "required": [
+          "requestId",
+          "generation",
+          "input"
+        ]
+      },
+      "annotations": {
+        "risk": "low",
+        "domain": "read",
+        "readOnly": false
+      },
+      "events": []
+    },
+    {
+      "name": "commit_undo",
+      "description": "用户确认后按 confirmHint 携票原子提交；超时按原 requestId 查回并重试。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "string"
+          },
+          "previewId": {
+            "type": "string"
+          },
+          "confirmToken": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "requestId",
+          "generation",
+          "previewId"
+        ]
+      },
+      "annotations": {
+        "risk": "high",
+        "domain": "read",
+        "readOnly": false
+      },
+      "events": []
+    },
+    {
+      "name": "preview_merge",
+      "description": "保存整组具体预览，包含生成 ID、日期、版本、影响与计划指纹；不提交业务事实。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "string"
+          },
+          "input": {
+            "type": "object",
+            "properties": {
+              "sourceId": {
+                "type": "string"
+              },
+              "targetId": {
+                "type": "string"
+              },
+              "sourceRev": {
+                "type": "number"
+              },
+              "targetRev": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "sourceId",
+              "targetId",
+              "sourceRev",
+              "targetRev"
+            ]
+          }
+        },
+        "required": [
+          "requestId",
+          "generation",
+          "input"
+        ]
+      },
+      "annotations": {
+        "risk": "low",
+        "domain": "read",
+        "readOnly": false
+      },
+      "events": []
+    },
+    {
+      "name": "commit_merge",
+      "description": "用户确认后按 confirmHint 携票原子提交；超时按原 requestId 查回并重试。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "string"
+          },
+          "previewId": {
+            "type": "string"
+          },
+          "confirmToken": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "requestId",
+          "generation",
+          "previewId"
+        ]
+      },
+      "annotations": {
+        "risk": "high",
+        "domain": "read",
+        "readOnly": false
+      },
+      "events": []
+    },
+    {
+      "name": "preview_delete",
+      "description": "保存整组具体预览，包含生成 ID、日期、版本、影响与计划指纹；不提交业务事实。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "string"
+          },
+          "input": {
+            "type": "object",
+            "properties": {
+              "targets": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "table": {
+                      "type": "string",
+                      "enum": [
+                        "activities",
+                        "customers",
+                        "projects",
+                        "transactions",
+                        "todos",
+                        "notes",
+                        "attachments"
+                      ]
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "expectedRev": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "table",
+                    "id",
+                    "expectedRev"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "targets"
+            ]
+          }
+        },
+        "required": [
+          "requestId",
+          "generation",
+          "input"
+        ]
+      },
+      "annotations": {
+        "risk": "low",
+        "domain": "read",
+        "readOnly": false
+      },
+      "events": []
+    },
+    {
+      "name": "commit_delete",
+      "description": "用户确认后按 confirmHint 携票原子提交；超时按原 requestId 查回并重试。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "string"
+          },
+          "previewId": {
+            "type": "string"
+          },
+          "confirmToken": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "requestId",
+          "generation",
+          "previewId"
+        ]
+      },
+      "annotations": {
+        "risk": "high",
+        "domain": "read",
+        "readOnly": false
+      },
+      "events": []
+    },
+    {
+      "name": "preview_purge",
+      "description": "保存整组具体预览，包含生成 ID、日期、版本、影响与计划指纹；不提交业务事实。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "string"
+          },
+          "input": {
+            "type": "object",
+            "properties": {
+              "targets": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "table": {
+                      "type": "string",
+                      "enum": [
+                        "activities",
+                        "customers",
+                        "projects",
+                        "transactions",
+                        "todos",
+                        "notes",
+                        "attachments"
+                      ]
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "expectedRev": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "table",
+                    "id",
+                    "expectedRev"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "targets"
+            ]
+          }
+        },
+        "required": [
+          "requestId",
+          "generation",
+          "input"
+        ]
+      },
+      "annotations": {
+        "risk": "low",
+        "domain": "read",
+        "readOnly": false
+      },
+      "events": []
+    },
+    {
+      "name": "commit_purge",
+      "description": "用户确认后按 confirmHint 携票原子提交；超时按原 requestId 查回并重试。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "string"
+          },
+          "previewId": {
+            "type": "string"
+          },
+          "confirmToken": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "requestId",
+          "generation",
+          "previewId"
+        ]
+      },
+      "annotations": {
+        "risk": "high",
+        "domain": "read",
         "readOnly": false
       },
       "events": []
@@ -1306,6 +2525,7 @@
             "items": {
               "type": "string",
               "enum": [
+                "activity",
                 "customer",
                 "todo",
                 "transaction",
@@ -1574,6 +2794,1832 @@
           "type",
           "id"
         ]
+      },
+      "annotations": {
+        "risk": "low",
+        "domain": "read",
+        "readOnly": true
+      },
+      "events": []
+    },
+    {
+      "name": "resolve_contacts",
+      "description": "权威有界查询；返回范围、世代、水位和继续游标，正文按需读取。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "view": {
+            "type": "string",
+            "enum": [
+              "relations",
+              "history",
+              "effects"
+            ]
+          },
+          "generation": {
+            "type": "string"
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "limit": {
+            "type": "number"
+          },
+          "id": {
+            "type": "string"
+          },
+          "operationId": {
+            "type": "string"
+          },
+          "requestId": {
+            "type": "string"
+          },
+          "query": {
+            "type": "string"
+          },
+          "identity": {
+            "type": "string"
+          },
+          "table": {
+            "type": "string",
+            "enum": [
+              "activities",
+              "customers",
+              "projects",
+              "todos",
+              "transactions",
+              "notes",
+              "attachments"
+            ]
+          },
+          "contactId": {
+            "type": "string"
+          },
+          "topicId": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "sourceType": {
+            "type": "string",
+            "enum": [
+              "activity",
+              "task_change",
+              "legacy_finance"
+            ]
+          },
+          "q": {
+            "type": "string"
+          },
+          "from": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "to": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "referenceAt": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "income",
+              "expense"
+            ]
+          },
+          "ledgerId": {
+            "type": "string"
+          },
+          "due": {
+            "type": "string",
+            "enum": [
+              "undated",
+              "today",
+              "overdue",
+              "all"
+            ]
+          },
+          "depth": {
+            "type": "number"
+          },
+          "includeSource": {
+            "type": "boolean"
+          },
+          "sourceOffset": {
+            "type": "number"
+          },
+          "sourceLimit": {
+            "type": "number"
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "markdown",
+                "summary",
+                "desc",
+                "note",
+                "phone",
+                "email",
+                "wechat",
+                "address",
+                "company",
+                "title"
+              ]
+            }
+          },
+          "bodyOffset": {
+            "type": "number"
+          },
+          "bodyLimit": {
+            "type": "number"
+          },
+          "revision": {
+            "type": "number"
+          }
+        }
+      },
+      "annotations": {
+        "risk": "low",
+        "domain": "read",
+        "readOnly": true
+      },
+      "events": []
+    },
+    {
+      "name": "resolve_topics",
+      "description": "权威有界查询；返回范围、世代、水位和继续游标，正文按需读取。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "view": {
+            "type": "string",
+            "enum": [
+              "relations",
+              "history",
+              "effects"
+            ]
+          },
+          "generation": {
+            "type": "string"
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "limit": {
+            "type": "number"
+          },
+          "id": {
+            "type": "string"
+          },
+          "operationId": {
+            "type": "string"
+          },
+          "requestId": {
+            "type": "string"
+          },
+          "query": {
+            "type": "string"
+          },
+          "identity": {
+            "type": "string"
+          },
+          "table": {
+            "type": "string",
+            "enum": [
+              "activities",
+              "customers",
+              "projects",
+              "todos",
+              "transactions",
+              "notes",
+              "attachments"
+            ]
+          },
+          "contactId": {
+            "type": "string"
+          },
+          "topicId": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "sourceType": {
+            "type": "string",
+            "enum": [
+              "activity",
+              "task_change",
+              "legacy_finance"
+            ]
+          },
+          "q": {
+            "type": "string"
+          },
+          "from": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "to": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "referenceAt": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "income",
+              "expense"
+            ]
+          },
+          "ledgerId": {
+            "type": "string"
+          },
+          "due": {
+            "type": "string",
+            "enum": [
+              "undated",
+              "today",
+              "overdue",
+              "all"
+            ]
+          },
+          "depth": {
+            "type": "number"
+          },
+          "includeSource": {
+            "type": "boolean"
+          },
+          "sourceOffset": {
+            "type": "number"
+          },
+          "sourceLimit": {
+            "type": "number"
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "markdown",
+                "summary",
+                "desc",
+                "note",
+                "phone",
+                "email",
+                "wechat",
+                "address",
+                "company",
+                "title"
+              ]
+            }
+          },
+          "bodyOffset": {
+            "type": "number"
+          },
+          "bodyLimit": {
+            "type": "number"
+          },
+          "revision": {
+            "type": "number"
+          }
+        }
+      },
+      "annotations": {
+        "risk": "low",
+        "domain": "read",
+        "readOnly": true
+      },
+      "events": []
+    },
+    {
+      "name": "search_activities",
+      "description": "权威有界查询；返回范围、世代、水位和继续游标，正文按需读取。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "view": {
+            "type": "string",
+            "enum": [
+              "relations",
+              "history",
+              "effects"
+            ]
+          },
+          "generation": {
+            "type": "string"
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "limit": {
+            "type": "number"
+          },
+          "id": {
+            "type": "string"
+          },
+          "operationId": {
+            "type": "string"
+          },
+          "requestId": {
+            "type": "string"
+          },
+          "query": {
+            "type": "string"
+          },
+          "identity": {
+            "type": "string"
+          },
+          "table": {
+            "type": "string",
+            "enum": [
+              "activities",
+              "customers",
+              "projects",
+              "todos",
+              "transactions",
+              "notes",
+              "attachments"
+            ]
+          },
+          "contactId": {
+            "type": "string"
+          },
+          "topicId": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "sourceType": {
+            "type": "string",
+            "enum": [
+              "activity",
+              "task_change",
+              "legacy_finance"
+            ]
+          },
+          "q": {
+            "type": "string"
+          },
+          "from": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "to": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "referenceAt": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "income",
+              "expense"
+            ]
+          },
+          "ledgerId": {
+            "type": "string"
+          },
+          "due": {
+            "type": "string",
+            "enum": [
+              "undated",
+              "today",
+              "overdue",
+              "all"
+            ]
+          },
+          "depth": {
+            "type": "number"
+          },
+          "includeSource": {
+            "type": "boolean"
+          },
+          "sourceOffset": {
+            "type": "number"
+          },
+          "sourceLimit": {
+            "type": "number"
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "markdown",
+                "summary",
+                "desc",
+                "note",
+                "phone",
+                "email",
+                "wechat",
+                "address",
+                "company",
+                "title"
+              ]
+            }
+          },
+          "bodyOffset": {
+            "type": "number"
+          },
+          "bodyLimit": {
+            "type": "number"
+          },
+          "revision": {
+            "type": "number"
+          }
+        }
+      },
+      "annotations": {
+        "risk": "low",
+        "domain": "read",
+        "readOnly": true
+      },
+      "events": []
+    },
+    {
+      "name": "get_activity",
+      "description": "权威有界查询；返回范围、世代、水位和继续游标，正文按需读取。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "view": {
+            "type": "string",
+            "enum": [
+              "relations",
+              "history",
+              "effects"
+            ]
+          },
+          "generation": {
+            "type": "string"
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "limit": {
+            "type": "number"
+          },
+          "id": {
+            "type": "string"
+          },
+          "operationId": {
+            "type": "string"
+          },
+          "requestId": {
+            "type": "string"
+          },
+          "query": {
+            "type": "string"
+          },
+          "identity": {
+            "type": "string"
+          },
+          "table": {
+            "type": "string",
+            "enum": [
+              "activities",
+              "customers",
+              "projects",
+              "todos",
+              "transactions",
+              "notes",
+              "attachments"
+            ]
+          },
+          "contactId": {
+            "type": "string"
+          },
+          "topicId": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "sourceType": {
+            "type": "string",
+            "enum": [
+              "activity",
+              "task_change",
+              "legacy_finance"
+            ]
+          },
+          "q": {
+            "type": "string"
+          },
+          "from": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "to": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "referenceAt": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "income",
+              "expense"
+            ]
+          },
+          "ledgerId": {
+            "type": "string"
+          },
+          "due": {
+            "type": "string",
+            "enum": [
+              "undated",
+              "today",
+              "overdue",
+              "all"
+            ]
+          },
+          "depth": {
+            "type": "number"
+          },
+          "includeSource": {
+            "type": "boolean"
+          },
+          "sourceOffset": {
+            "type": "number"
+          },
+          "sourceLimit": {
+            "type": "number"
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "markdown",
+                "summary",
+                "desc",
+                "note",
+                "phone",
+                "email",
+                "wechat",
+                "address",
+                "company",
+                "title"
+              ]
+            }
+          },
+          "bodyOffset": {
+            "type": "number"
+          },
+          "bodyLimit": {
+            "type": "number"
+          },
+          "revision": {
+            "type": "number"
+          }
+        }
+      },
+      "annotations": {
+        "risk": "low",
+        "domain": "read",
+        "readOnly": true
+      },
+      "events": []
+    },
+    {
+      "name": "get_operation",
+      "description": "权威有界查询；返回范围、世代、水位和继续游标，正文按需读取。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "view": {
+            "type": "string",
+            "enum": [
+              "relations",
+              "history",
+              "effects"
+            ]
+          },
+          "generation": {
+            "type": "string"
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "limit": {
+            "type": "number"
+          },
+          "id": {
+            "type": "string"
+          },
+          "operationId": {
+            "type": "string"
+          },
+          "requestId": {
+            "type": "string"
+          },
+          "query": {
+            "type": "string"
+          },
+          "identity": {
+            "type": "string"
+          },
+          "table": {
+            "type": "string",
+            "enum": [
+              "activities",
+              "customers",
+              "projects",
+              "todos",
+              "transactions",
+              "notes",
+              "attachments"
+            ]
+          },
+          "contactId": {
+            "type": "string"
+          },
+          "topicId": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "sourceType": {
+            "type": "string",
+            "enum": [
+              "activity",
+              "task_change",
+              "legacy_finance"
+            ]
+          },
+          "q": {
+            "type": "string"
+          },
+          "from": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "to": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "referenceAt": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "income",
+              "expense"
+            ]
+          },
+          "ledgerId": {
+            "type": "string"
+          },
+          "due": {
+            "type": "string",
+            "enum": [
+              "undated",
+              "today",
+              "overdue",
+              "all"
+            ]
+          },
+          "depth": {
+            "type": "number"
+          },
+          "includeSource": {
+            "type": "boolean"
+          },
+          "sourceOffset": {
+            "type": "number"
+          },
+          "sourceLimit": {
+            "type": "number"
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "markdown",
+                "summary",
+                "desc",
+                "note",
+                "phone",
+                "email",
+                "wechat",
+                "address",
+                "company",
+                "title"
+              ]
+            }
+          },
+          "bodyOffset": {
+            "type": "number"
+          },
+          "bodyLimit": {
+            "type": "number"
+          },
+          "revision": {
+            "type": "number"
+          }
+        }
+      },
+      "annotations": {
+        "risk": "low",
+        "domain": "read",
+        "readOnly": true
+      },
+      "events": []
+    },
+    {
+      "name": "list_operations",
+      "description": "权威有界查询；返回范围、世代、水位和继续游标，正文按需读取。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "view": {
+            "type": "string",
+            "enum": [
+              "relations",
+              "history",
+              "effects"
+            ]
+          },
+          "generation": {
+            "type": "string"
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "limit": {
+            "type": "number"
+          },
+          "id": {
+            "type": "string"
+          },
+          "operationId": {
+            "type": "string"
+          },
+          "requestId": {
+            "type": "string"
+          },
+          "query": {
+            "type": "string"
+          },
+          "identity": {
+            "type": "string"
+          },
+          "table": {
+            "type": "string",
+            "enum": [
+              "activities",
+              "customers",
+              "projects",
+              "todos",
+              "transactions",
+              "notes",
+              "attachments"
+            ]
+          },
+          "contactId": {
+            "type": "string"
+          },
+          "topicId": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "sourceType": {
+            "type": "string",
+            "enum": [
+              "activity",
+              "task_change",
+              "legacy_finance"
+            ]
+          },
+          "q": {
+            "type": "string"
+          },
+          "from": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "to": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "referenceAt": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "income",
+              "expense"
+            ]
+          },
+          "ledgerId": {
+            "type": "string"
+          },
+          "due": {
+            "type": "string",
+            "enum": [
+              "undated",
+              "today",
+              "overdue",
+              "all"
+            ]
+          },
+          "depth": {
+            "type": "number"
+          },
+          "includeSource": {
+            "type": "boolean"
+          },
+          "sourceOffset": {
+            "type": "number"
+          },
+          "sourceLimit": {
+            "type": "number"
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "markdown",
+                "summary",
+                "desc",
+                "note",
+                "phone",
+                "email",
+                "wechat",
+                "address",
+                "company",
+                "title"
+              ]
+            }
+          },
+          "bodyOffset": {
+            "type": "number"
+          },
+          "bodyLimit": {
+            "type": "number"
+          },
+          "revision": {
+            "type": "number"
+          }
+        }
+      },
+      "annotations": {
+        "risk": "low",
+        "domain": "read",
+        "readOnly": true
+      },
+      "events": []
+    },
+    {
+      "name": "get_contact_context",
+      "description": "权威有界查询；返回范围、世代、水位和继续游标，正文按需读取。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "view": {
+            "type": "string",
+            "enum": [
+              "relations",
+              "history",
+              "effects"
+            ]
+          },
+          "generation": {
+            "type": "string"
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "limit": {
+            "type": "number"
+          },
+          "id": {
+            "type": "string"
+          },
+          "operationId": {
+            "type": "string"
+          },
+          "requestId": {
+            "type": "string"
+          },
+          "query": {
+            "type": "string"
+          },
+          "identity": {
+            "type": "string"
+          },
+          "table": {
+            "type": "string",
+            "enum": [
+              "activities",
+              "customers",
+              "projects",
+              "todos",
+              "transactions",
+              "notes",
+              "attachments"
+            ]
+          },
+          "contactId": {
+            "type": "string"
+          },
+          "topicId": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "sourceType": {
+            "type": "string",
+            "enum": [
+              "activity",
+              "task_change",
+              "legacy_finance"
+            ]
+          },
+          "q": {
+            "type": "string"
+          },
+          "from": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "to": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "referenceAt": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "income",
+              "expense"
+            ]
+          },
+          "ledgerId": {
+            "type": "string"
+          },
+          "due": {
+            "type": "string",
+            "enum": [
+              "undated",
+              "today",
+              "overdue",
+              "all"
+            ]
+          },
+          "depth": {
+            "type": "number"
+          },
+          "includeSource": {
+            "type": "boolean"
+          },
+          "sourceOffset": {
+            "type": "number"
+          },
+          "sourceLimit": {
+            "type": "number"
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "markdown",
+                "summary",
+                "desc",
+                "note",
+                "phone",
+                "email",
+                "wechat",
+                "address",
+                "company",
+                "title"
+              ]
+            }
+          },
+          "bodyOffset": {
+            "type": "number"
+          },
+          "bodyLimit": {
+            "type": "number"
+          },
+          "revision": {
+            "type": "number"
+          }
+        }
+      },
+      "annotations": {
+        "risk": "low",
+        "domain": "read",
+        "readOnly": true
+      },
+      "events": []
+    },
+    {
+      "name": "query_tasks",
+      "description": "权威有界查询；返回范围、世代、水位和继续游标，正文按需读取。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "view": {
+            "type": "string",
+            "enum": [
+              "relations",
+              "history",
+              "effects"
+            ]
+          },
+          "generation": {
+            "type": "string"
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "limit": {
+            "type": "number"
+          },
+          "id": {
+            "type": "string"
+          },
+          "operationId": {
+            "type": "string"
+          },
+          "requestId": {
+            "type": "string"
+          },
+          "query": {
+            "type": "string"
+          },
+          "identity": {
+            "type": "string"
+          },
+          "table": {
+            "type": "string",
+            "enum": [
+              "activities",
+              "customers",
+              "projects",
+              "todos",
+              "transactions",
+              "notes",
+              "attachments"
+            ]
+          },
+          "contactId": {
+            "type": "string"
+          },
+          "topicId": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "sourceType": {
+            "type": "string",
+            "enum": [
+              "activity",
+              "task_change",
+              "legacy_finance"
+            ]
+          },
+          "q": {
+            "type": "string"
+          },
+          "from": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "to": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "referenceAt": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "income",
+              "expense"
+            ]
+          },
+          "ledgerId": {
+            "type": "string"
+          },
+          "due": {
+            "type": "string",
+            "enum": [
+              "undated",
+              "today",
+              "overdue",
+              "all"
+            ]
+          },
+          "depth": {
+            "type": "number"
+          },
+          "includeSource": {
+            "type": "boolean"
+          },
+          "sourceOffset": {
+            "type": "number"
+          },
+          "sourceLimit": {
+            "type": "number"
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "markdown",
+                "summary",
+                "desc",
+                "note",
+                "phone",
+                "email",
+                "wechat",
+                "address",
+                "company",
+                "title"
+              ]
+            }
+          },
+          "bodyOffset": {
+            "type": "number"
+          },
+          "bodyLimit": {
+            "type": "number"
+          },
+          "revision": {
+            "type": "number"
+          }
+        }
+      },
+      "annotations": {
+        "risk": "low",
+        "domain": "read",
+        "readOnly": true
+      },
+      "events": []
+    },
+    {
+      "name": "query_finance",
+      "description": "权威有界查询；返回范围、世代、水位和继续游标，正文按需读取。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "view": {
+            "type": "string",
+            "enum": [
+              "relations",
+              "history",
+              "effects"
+            ]
+          },
+          "generation": {
+            "type": "string"
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "limit": {
+            "type": "number"
+          },
+          "id": {
+            "type": "string"
+          },
+          "operationId": {
+            "type": "string"
+          },
+          "requestId": {
+            "type": "string"
+          },
+          "query": {
+            "type": "string"
+          },
+          "identity": {
+            "type": "string"
+          },
+          "table": {
+            "type": "string",
+            "enum": [
+              "activities",
+              "customers",
+              "projects",
+              "todos",
+              "transactions",
+              "notes",
+              "attachments"
+            ]
+          },
+          "contactId": {
+            "type": "string"
+          },
+          "topicId": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "sourceType": {
+            "type": "string",
+            "enum": [
+              "activity",
+              "task_change",
+              "legacy_finance"
+            ]
+          },
+          "q": {
+            "type": "string"
+          },
+          "from": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "to": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "referenceAt": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "income",
+              "expense"
+            ]
+          },
+          "ledgerId": {
+            "type": "string"
+          },
+          "due": {
+            "type": "string",
+            "enum": [
+              "undated",
+              "today",
+              "overdue",
+              "all"
+            ]
+          },
+          "depth": {
+            "type": "number"
+          },
+          "includeSource": {
+            "type": "boolean"
+          },
+          "sourceOffset": {
+            "type": "number"
+          },
+          "sourceLimit": {
+            "type": "number"
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "markdown",
+                "summary",
+                "desc",
+                "note",
+                "phone",
+                "email",
+                "wechat",
+                "address",
+                "company",
+                "title"
+              ]
+            }
+          },
+          "bodyOffset": {
+            "type": "number"
+          },
+          "bodyLimit": {
+            "type": "number"
+          },
+          "revision": {
+            "type": "number"
+          }
+        }
+      },
+      "annotations": {
+        "risk": "low",
+        "domain": "read",
+        "readOnly": true
+      },
+      "events": []
+    },
+    {
+      "name": "get_record",
+      "description": "权威有界查询；返回范围、世代、水位和继续游标，正文按需读取。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "view": {
+            "type": "string",
+            "enum": [
+              "relations",
+              "history",
+              "effects"
+            ]
+          },
+          "generation": {
+            "type": "string"
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "limit": {
+            "type": "number"
+          },
+          "id": {
+            "type": "string"
+          },
+          "operationId": {
+            "type": "string"
+          },
+          "requestId": {
+            "type": "string"
+          },
+          "query": {
+            "type": "string"
+          },
+          "identity": {
+            "type": "string"
+          },
+          "table": {
+            "type": "string",
+            "enum": [
+              "activities",
+              "customers",
+              "projects",
+              "todos",
+              "transactions",
+              "notes",
+              "attachments"
+            ]
+          },
+          "contactId": {
+            "type": "string"
+          },
+          "topicId": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "sourceType": {
+            "type": "string",
+            "enum": [
+              "activity",
+              "task_change",
+              "legacy_finance"
+            ]
+          },
+          "q": {
+            "type": "string"
+          },
+          "from": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "to": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "referenceAt": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "income",
+              "expense"
+            ]
+          },
+          "ledgerId": {
+            "type": "string"
+          },
+          "due": {
+            "type": "string",
+            "enum": [
+              "undated",
+              "today",
+              "overdue",
+              "all"
+            ]
+          },
+          "depth": {
+            "type": "number"
+          },
+          "includeSource": {
+            "type": "boolean"
+          },
+          "sourceOffset": {
+            "type": "number"
+          },
+          "sourceLimit": {
+            "type": "number"
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "markdown",
+                "summary",
+                "desc",
+                "note",
+                "phone",
+                "email",
+                "wechat",
+                "address",
+                "company",
+                "title"
+              ]
+            }
+          },
+          "bodyOffset": {
+            "type": "number"
+          },
+          "bodyLimit": {
+            "type": "number"
+          },
+          "revision": {
+            "type": "number"
+          }
+        }
+      },
+      "annotations": {
+        "risk": "low",
+        "domain": "read",
+        "readOnly": true
+      },
+      "events": []
+    },
+    {
+      "name": "query_graph",
+      "description": "权威有界查询；返回范围、世代、水位和继续游标，正文按需读取。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "view": {
+            "type": "string",
+            "enum": [
+              "relations",
+              "history",
+              "effects"
+            ]
+          },
+          "generation": {
+            "type": "string"
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "limit": {
+            "type": "number"
+          },
+          "id": {
+            "type": "string"
+          },
+          "operationId": {
+            "type": "string"
+          },
+          "requestId": {
+            "type": "string"
+          },
+          "query": {
+            "type": "string"
+          },
+          "identity": {
+            "type": "string"
+          },
+          "table": {
+            "type": "string",
+            "enum": [
+              "activities",
+              "customers",
+              "projects",
+              "todos",
+              "transactions",
+              "notes",
+              "attachments"
+            ]
+          },
+          "contactId": {
+            "type": "string"
+          },
+          "topicId": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "sourceType": {
+            "type": "string",
+            "enum": [
+              "activity",
+              "task_change",
+              "legacy_finance"
+            ]
+          },
+          "q": {
+            "type": "string"
+          },
+          "from": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "to": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "referenceAt": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "income",
+              "expense"
+            ]
+          },
+          "ledgerId": {
+            "type": "string"
+          },
+          "due": {
+            "type": "string",
+            "enum": [
+              "undated",
+              "today",
+              "overdue",
+              "all"
+            ]
+          },
+          "depth": {
+            "type": "number"
+          },
+          "includeSource": {
+            "type": "boolean"
+          },
+          "sourceOffset": {
+            "type": "number"
+          },
+          "sourceLimit": {
+            "type": "number"
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "markdown",
+                "summary",
+                "desc",
+                "note",
+                "phone",
+                "email",
+                "wechat",
+                "address",
+                "company",
+                "title"
+              ]
+            }
+          },
+          "bodyOffset": {
+            "type": "number"
+          },
+          "bodyLimit": {
+            "type": "number"
+          },
+          "revision": {
+            "type": "number"
+          }
+        }
       },
       "annotations": {
         "risk": "low",

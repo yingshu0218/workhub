@@ -13,7 +13,10 @@
 | `name` | string | 是 | — |  |
 | `company` | string | 否 | — |  |
 | `title` | string | 否 | — |  |
-| `decisionLevel` | enum(决策人 / 影响者 / 使用者 / 把关人) | 否 | `"决策人"` |  |
+| `decisionLevel` | enum(决策人 / 影响者 / 使用者 / 把关人 / ) | 否 | `""` |  |
+| `aliases` | array | 否 | — |  |
+| `preferredName` | string | 否 | — |  |
+| `contactType` | enum(person / organization / unspecified) | 否 | — |  |
 | `tags` | array | 否 | `[]` |  |
 | `phone` | string | 否 | — |  |
 | `wechat` | string | 否 | — |  |
@@ -21,6 +24,9 @@
 | `address` | string | 否 | — |  |
 | `openingLog` | boolean | 否 | `false` |  |
 | `linkTransactionId` | string | 否 | — |  |
+| `requestId` | string | 否 | — | 稳定请求标识，首次提交前确定，重试复用。 |
+| `generation` | string | 否 | — | 原数据世代，由查询返回。 |
+| `confirmToken` | string | 否 | — | 按具体预览提示取得的一次性确认票据。 |
 
 ## 副作用
 

@@ -195,6 +195,11 @@ const relay = createRelay({
   autoIssueConfirm,
   path: relayPath,
   serverExecutor,
+  issueAgentCredential: async (req, details) => {
+    const response=await fetch(process.env.WORKHUB_PB_URL.replace(/\/$/,'')+'/api/workhub/agents', {method:'POST',headers:{'Content-Type':'application/json',Authorization:bearerOf(req)},body:JSON.stringify({action:'issue',name:details.name,capabilities:['activity','crm','project','todo','fin','note','attachment','link','habit','operation','source'].flatMap(d=>[d+':read',d+':write'])}),signal:AbortSignal.timeout(5000)})
+    if(!response.ok)throw new Error('credential issuance failed')
+    return response.json()
+  },
   /**
    * 后台页面在**首次配对前**还没有 relay token，若签码只认 relay token，
    * 「设置页生成配对码」就永远 401（用户实际卡点）。这里放行站点登录态：

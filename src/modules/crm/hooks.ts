@@ -1,3 +1,4 @@
+import { readInteractionProjection } from '@/queries/activities'
 import { moneySummary, moneyAmount } from '@/modules/finance/money'
 import { useMemo } from 'react'
 import dayjs from 'dayjs'
@@ -101,11 +102,7 @@ export function useCanvasGraph(): CanvasGraph {
         .filter((t) => !t.deleted)
         .toArray(),
       // customerId 建有索引（v1 起），与 transactions 同款索引查询（Issue #34 桥接推导前置）
-      db.interactions
-        .where('customerId')
-        .notEqual('')
-        .filter((i) => !i.deleted)
-        .toArray(),
+      readInteractionProjection().then(rows=>rows.filter(i=>!!i.customerId)),
     ])
     // 笔记经 mention link 反查客户（v15 起 mentions 迁 links：kind 索引收窄 + 内存过滤目标客户）
     const customerIds = new Set(customers.map((c) => c.id))
@@ -233,11 +230,7 @@ export function useCustomerScoreInput(
         .equals(customerId)
         .filter((p) => !p.deleted)
         .toArray(),
-      db.interactions
-        .where('customerId')
-        .equals(customerId)
-        .filter((i) => !i.deleted)
-        .toArray(),
+      readInteractionProjection({customerId}),
     ])
     return { transactions, todos, projects, interactions }
   }, [customerId])
@@ -283,11 +276,7 @@ export function useCustomerScoreRows(
         .anyOf(ids)
         .filter((p) => !p.deleted)
         .toArray(),
-      db.interactions
-        .where('customerId')
-        .anyOf(ids)
-        .filter((i) => !i.deleted)
-        .toArray(),
+      readInteractionProjection({customerIds:ids}),
     ])
     return { transactions, todos, projects, interactions }
   }, [key])

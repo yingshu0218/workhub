@@ -26,6 +26,7 @@ export type SyncOp = 'upsert' | 'delete'
  * 事务内原语。浏览器端 = Dexie 原生事务体内操作；服务端 = 暂存计划并在 PocketBase runInTransaction 内校验、提交。
  */
 export interface StorageTx {
+  query?<T extends { id: string }>(table: TableName, scope: import('@/commands/scope').Scope): Promise<(T & SyncMeta)[]>
   /** 读单条（含软删行，调用方按 `deleted` 判活） */
   get<T extends { id: string }>(table: TableName, id: string): Promise<(T & SyncMeta) | undefined>
   /** 原样落库：不盖章不入队，语义与 Dexie put 一致（整体覆盖） */
@@ -48,6 +49,7 @@ export interface StorageTx {
 }
 
 export interface StorageAdapter {
+  query?<T extends { id: string }>(table: TableName, scope: import('@/commands/scope').Scope): Promise<(T & SyncMeta)[]>
   /** 已关闭逐表写入，只通过 PB 命令事务提交。 */
   commandMode?: true
   /**

@@ -18,6 +18,7 @@ import { settingsRepo } from '@/repositories/localAdmin'
 import { DEFAULT_SETTINGS, type Customer, type Settings } from '@/db/types'
 import { agentBridge } from '../bridge'
 import { READ_LIMITS } from '../reads'
+import { readInteractionProjection } from '@/queries/activities'
 import { MCP_PROTOCOL_VERSION } from '@relay/mcp-relay.mjs'
 import {
   installWebSocketGlobal,
@@ -274,7 +275,7 @@ describe('P1 第 7 步 E2E 主干验收（§9.8）', () => {
     expect(custEnv.items).toHaveLength(1)
     expect(custEnv.items[0].name).toBe('王五')
     expect(custEnv.items[0]).not.toHaveProperty('relations')
-    const interactions = await db.interactions.where('customerId').equals(customerId).toArray()
+    const interactions = await readInteractionProjection({customerId})
     expect(interactions.filter((i) => !i.deleted)).toHaveLength(1)
 
     /* 9. 建待办「周五回访王五」（低风险，直达执行；关联该客户） */

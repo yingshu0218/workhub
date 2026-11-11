@@ -1,3 +1,5 @@
+import { interactionProjectionRepo, putInteractionActivity } from './activities'
+import { queryRows } from '@/storage/scoped'
 import { storage } from '@/storage'
 import { minorUnits } from '@/commands/core'
 import { assertExpectedRevision } from './repository'
@@ -42,7 +44,7 @@ import { extractMentions } from '@/modules/notes/mentionParse'
 /** 模块统一从这里拿仓储实例，不直接触碰 Dexie */
 export const workspaceRepo = createRepository<Workspace>('workspaces')
 export const customerRepo = createRepository<Customer>('customers')
-export const interactionRepo = createRepository<Interaction>('interactions')
+export const interactionRepo = interactionProjectionRepo
 export const ledgerRepo = createRepository<Ledger>('ledgers')
 export const transactionRepo = createRepository<Transaction>('transactions')
 export const todoRepo = createRepository<Todo>('todos')
@@ -557,39 +559,16 @@ export async function saveTransactionWithAttachments(
  * 时机为**事务 commit 之后**（函数出口），永不进事务体。`customer:contacted` 是孤儿事件（无消费者），
  * 对照测试降级为「emit 调用发生」级断言（§七.1）。
  */
-export async function saveInteractionAndTouchCustomer(
-  interaction: PutInput<Interaction>,
-  customerId: string,
-  touchAt?: number,
-): Promise<string> {
-  const now = Date.now()
-  await storage.transaction(['interactions', 'customers', 'syncQueue'], async (tx) => {
-    const prevInteraction = await tx.get<Interaction>('interactions', interaction.id)
-    assertExpectedRevision(interaction, prevInteraction)
-    await tx.put('interactions', {
-      ...interaction,
-      updatedAt: now,
-      rev: (prevInteraction?.rev ?? 0) + 1,
-      deleted: 0 as const,
-    } as Interaction)
-    await tx.enqueue('interactions', interaction.id, 'upsert', now)
-
-    const prevCustomer = await tx.get<Customer>('customers', customerId)
-    if (!prevCustomer || prevCustomer.deleted) {
-      // 客户不存在/已删除：抛错让整个事务回滚，杜绝孤儿日志
-      throw new Error(`saveInteractionAndTouchCustomer: customer ${customerId} not found`)
-    }
-    await tx.update('customers', customerId, {
-      lastContactAt: Math.max(prevCustomer.lastContactAt || 0, touchAt ?? interaction.at),
-      updatedAt: now,
-      rev: prevCustomer.rev + 1,
-    })
-    await tx.enqueue('customers', customerId, 'upsert', now)
+export async function saveInteractionAndTouchCustomer(interaction: PutInput<Interaction>, customerId: string, touchAt?: number): Promise<string> {
+  const now=Date.now()
+  await storage.transaction(['activities','customers','projects','links','syncQueue'],async tx=>{
+    await putInteractionActivity(tx,interaction,now)
+    const customer=await tx.get<Customer>('customers',customerId)
+    if(!customer || customer.deleted)throw new Error('REFERENCE_NOT_FOUND: 联系人不存在')
+    await tx.update('customers',customerId,{lastContactAt:Math.max(customer.lastContactAt || 0,touchAt ?? interaction.at),updatedAt:now,rev:customer.rev+1})
+    await tx.enqueue('customers',customerId,'upsert',now)
   })
-  // 事务 commit 之后：统一 emit（UI 两个入口 + agentOps 都经此，单点收口）
-  eventBus.emit('customer:contacted', { customerId })
-  storage.requestSync()
-  return interaction.id
+  eventBus.emit('customer:contacted',{customerId});storage.requestSync();return interaction.id
 }
 
 /**
@@ -676,25 +655,22 @@ export async function saveCustomer(
 export async function deleteCustomerCascade(customerId: string): Promise<void> {
   const now = Date.now()
   await storage.transaction(
-    ['customers', 'interactions', 'todos', 'projects', 'links', 'syncQueue'],
+    ['customers', 'todos', 'projects', 'links', 'syncQueue'],
     async (tx) => {
       const prevCustomer = await tx.get<Customer>('customers', customerId)
       if (!prevCustomer || prevCustomer.deleted) throw new Error('NOT_FOUND: 目标记录不存在或已删除')
 
-      const interactions = (await tx.list<Interaction>('interactions')).filter(
-        (it) => it.customerId === customerId && !it.deleted,
-      )
       // transactions.customerIds 已迁 links（v15）：指向该客户的 related link 由
       // cascadeSoftDeleteLinks 统一墓碑化（快照留档、恢复复活），「数组解绑 + mode:'append'
       // 快照」路径退役 —— 本函数不再触碰 transactions 表。
-      const todos = (await tx.list<Todo>('todos')).filter(
+      const todos = (await queryRows<Todo>(tx,'todos',{where:{customerId}})).filter(
         (t) => t.customerId === customerId && !t.deleted,
       )
       // relations 已迁 links（v15）：指向该客户的 relation link 由 cascadeSoftDeleteLinks
       // 统一墓碑化（canonical 一条记录，无「双侧清扫」），快照留档、恢复复活 —— 退役
       // 原「遍历全部客户剪 relations 数组 + mode:'relation' 快照」路径。
       // 解绑名下项目：项目不随客户消失，只清挂靠关系（弱引用语义，画布/CRM 下钻不悬挂）
-      const projects = (await tx.list<import('@/db/types').Project>('projects')).filter(
+      const projects = (await queryRows<import('@/db/types').Project>(tx,'projects',{where:{customerId}})).filter(
         (p) => p.customerId === customerId && !p.deleted,
       )
       /**
@@ -710,13 +686,12 @@ export async function deleteCustomerCascade(customerId: string): Promise<void> {
         tx,
         [
           { type: 'customers', id: customerId },
-          ...interactions.map((it) => ({ type: 'interactions' as const, id: it.id })),
         ],
         now,
       )
 
       const trashSnapshot: TrashSnapshot = {
-        children: interactions.map((it) => ({ table: 'interactions' as const, id: it.id })),
+        children: [],
         links: [
           ...todos.map((t) => ({
             table: 'todos' as const,
@@ -745,18 +720,6 @@ export async function deleteCustomerCascade(customerId: string): Promise<void> {
         trashSnapshot,
       })
       await tx.enqueue('customers', customerId, 'delete', now)
-
-      for (const it of interactions) {
-        await tx.update('interactions', it.id, {
-          deleted: 1,
-          updatedAt: now,
-          rev: it.rev + 1,
-          deletedAt: now,
-          restoredAt: undefined,
-          trashSnapshot: undefined,
-        })
-        await tx.enqueue('interactions', it.id, 'delete', now)
-      }
 
       for (const todo of todos) {
         await tx.update('todos', todo.id, {
@@ -804,7 +767,7 @@ export async function createCustomerWithInit(
 ): Promise<void> {
   const now = Date.now()
   await storage.transaction(
-    ['customers', 'todos', 'interactions', 'transactions', 'links', 'syncQueue'],
+    ['customers', 'todos', 'activities', 'transactions', 'links', 'syncQueue'],
     async (tx) => {
       const prev = await tx.get<Customer>('customers', customer.id)
     assertExpectedRevision(customer, prev)
@@ -828,13 +791,7 @@ export async function createCustomerWithInit(
           content: '客户建档 · 首次建立联系（opening）',
           at: now,
         }
-        await tx.put('interactions', {
-          ...itx,
-          updatedAt: now,
-          rev: 1,
-          deleted: 0 as const,
-        } as Interaction)
-        await tx.enqueue('interactions', itx.id, 'upsert', now)
+        await putInteractionActivity(tx, itx, now)
       }
 
       if (opts.linkTransactionId) {
@@ -877,7 +834,7 @@ export async function deleteTransactionCascade(txnId: string): Promise<void> {
 
     // 附件归属已迁 links（v15）：按 kind='attachment' 的 from 方向找子附件
     // （含墓碑 link —— 归属关系一旦建立就随流水走，墓碑只代表「当下已删」而非「从未归属」）
-    const attLinks = (await tx.list<Link>('links')).filter(
+    const attLinks = (await queryRows<Link>(tx, 'links', { where: { fromType: 'transactions', fromId: txnId, kind: 'attachment' } })).filter(
       (l) =>
         l.kind === 'attachment' && l.fromType === 'transactions' && l.fromId === txnId,
     )
@@ -940,7 +897,7 @@ export async function deleteTransactionCascade(txnId: string): Promise<void> {
 export async function deleteProjectCascade(projectId: string): Promise<void> {
   const now = Date.now()
   await storage.transaction(
-    ['projects', 'projectMilestones', 'todos', 'notes', 'interactions', 'links', 'syncQueue'],
+    ['projects', 'projectMilestones', 'todos', 'notes', 'activities', 'links', 'syncQueue'],
     async (tx) => {
       const prev = await tx.get<Project>('projects', projectId)
       if (!prev || prev.deleted) throw new Error('NOT_FOUND: 目标记录不存在或已删除')
@@ -949,10 +906,9 @@ export async function deleteProjectCascade(projectId: string): Promise<void> {
         (m) => m.projectId === projectId && !m.deleted,
       )
       // 单值弱引用表（todos/notes/interactions）：projectId 置 undefined 即解绑
-      const [todos, notes, interactions] = await Promise.all([
+      const [todos, notes] = await Promise.all([
         tx.list<Todo>('todos'),
         tx.list<Note>('notes'),
-        tx.list<Interaction>('interactions'),
       ])
       const linkedSingle = [
         ...todos.filter((r) => !r.deleted && r.projectId === projectId).map((r) => ({
@@ -963,9 +919,7 @@ export async function deleteProjectCascade(projectId: string): Promise<void> {
           table: 'notes' as const,
           record: r,
         })),
-        ...interactions
-          .filter((r) => !r.deleted && r.projectId === projectId)
-          .map((r) => ({ table: 'interactions' as const, record: r })),
+
       ]
       // 笔记 mention 已迁 links（v15）：指向该项目的 mention link 由下方
       // cascadeSoftDeleteLinks 统一墓碑化，「剪 mentions 字段 + mode:'mention' 快照」退役

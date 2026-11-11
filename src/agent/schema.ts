@@ -1,6 +1,7 @@
 import dayjs from 'dayjs'
 import { z } from 'zod'
 import type { AiDomain } from '@/db/types'
+import { PERSONAL_TOOLS } from './personalTools'
 import { EVENT_DECLARATIONS, toolEventsMap, isSunk, type EventName } from '@/shared/eventContract'
 import {
   DEFAULT_TODO_PRIORITY,
@@ -143,7 +144,10 @@ export const createCustomerSchema = z.object({
   company: z.string().optional(),
   title: z.string().optional(),
   /** 默认值与 CustomerFormDrawer 初值一致（§9.4：决策人） */
-  decisionLevel: z.enum(['决策人', '影响者', '使用者', '把关人']).default('决策人'),
+  decisionLevel: z.enum(['决策人', '影响者', '使用者', '把关人', '']).default(''),
+  aliases: z.array(z.string().min(1).max(120)).max(50).optional(),
+  preferredName: z.string().max(120).optional(),
+  contactType: z.enum(['person','organization','unspecified']).optional(),
   tags: z.array(z.string()).default([]),
   phone: z.string().optional(),
   wechat: z.string().optional(),
@@ -541,6 +545,7 @@ export const deleteProjectSchema = z.object({
 
 /** 各写工具的风险分级（§四.4：低=执行+undo；中=先 preview 拿 confirmToken 再 execute） */
 export const TOOL_RISK: Record<string, RiskLevel> = {
+  ...Object.fromEntries(PERSONAL_TOOLS.map(t => [t.name, t.risk])),
   'fin_recordTransaction': 'medium',
   // 关联层（P4）：改的是关联关系而非实体数据，medium（与 crm_addRelation 同级）
   'link_link': 'medium',
@@ -619,6 +624,7 @@ export const resolveEntitySchema = z.object({
  * 白名单关闭的域：桥的 tools 清单里**不出现**该域工具（不仅拒绝调用）。
  */
 export const TOOL_DOMAIN: Record<string, AiDomain> = {
+  ...Object.fromEntries(PERSONAL_TOOLS.map(t => [t.name, t.domain])),
   fin_recordTransaction: 'fin',
   link_link: 'link',
   link_unlink: 'link',

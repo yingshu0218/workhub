@@ -12,6 +12,7 @@
 
 /** 参与同步的业务表（与 pb_setup/collections.json 一一对应，Progress/Settings/瞬态表不同步） */
 export const SYNC_TABLES = [
+  'activities',
   'workspaces',
   'customers',
   'interactions',
@@ -87,7 +88,9 @@ export function stripPbMeta(revived: Record<string, unknown>): Record<string, un
  * （intimacy 是对象、moduleConfigs.payload 是任意 json，不做数组兜底）。
  */
 const JSON_ARRAY_FIELDS_BY_TABLE: Record<string, readonly string[]> = {
-  customers: ['tags', 'relations'],
+  activities: ['tags'],
+  projects: ['aliases'],
+  customers: ['tags', 'relations', 'aliases'],
   transactions: ['tags', 'customerIds', 'todoIds', 'projectIds'],
   todos: ['tags'],
   notes: ['tags', 'backlinks', 'mentions'],
@@ -104,15 +107,17 @@ const JSON_ARRAY_FIELDS_BY_TABLE: Record<string, readonly string[]> = {
  * 收口方式：声明式字段表（`无声明 = 该表无 json 字段`），
  * 由 `mergeNotesJsonRevive.test.ts` 的字段表 ↔ collections.json 一致性断言兜住漂移。
  */
-const JSON_FIELDS_BY_TABLE: Record<string, readonly string[]> = {
-  customers: ['tags', 'relations', 'intimacy', 'trashSnapshot'],
+export const JSON_FIELDS_BY_TABLE: Record<string, readonly string[]> = {
+  agent_credentials: ['capabilities'],
+  activities: ['tags', 'trashSnapshot'],
+  customers: ['tags', 'relations', 'intimacy', 'aliases', 'trashSnapshot'],
   transactions: ['tags', 'customerIds', 'todoIds', 'projectIds', 'trashSnapshot'],
   todos: ['tags', 'trashSnapshot'],
   habits: ['trashSnapshot'],
   notes: ['tags', 'backlinks', 'mentions', 'trashSnapshot'],
   noteFolders: ['trashSnapshot'],
   todoLists: ['trashSnapshot'],
-  projects: ['trashSnapshot'],
+  projects: ['trashSnapshot', 'aliases'],
   customerGroups: ['includeTags', 'excludeTags', 'rules', 'trashSnapshot'],
   moduleConfigs: ['payload', 'trashSnapshot'],
   // 关联层：meta 是对象型 json（不进 JSON_ARRAY_FIELDS_BY_TABLE，只做一层反序列化）
@@ -210,7 +215,17 @@ export function reviveRemoteJsonFields(table: string, record: Record<string, unk
  */
 export function sha256ToBase36_15(input: string): string {
   // 纯 JS SHA-256（FIPS 180-4），输入按 UTF-8 编码
-  const utf8 = new TextEncoder().encode(input)
+  // PB JSVM 没有 TextEncoder/BigInt；相同字节编码与长除法保持既有 ID 逐字一致。
+  const bytes: number[] = []
+  for (const character of input) {
+    let c = character.codePointAt(0)!
+    if (c >= 0xd800 && c <= 0xdfff) c = 0xfffd
+    if (c < 0x80) bytes.push(c)
+    else if (c < 0x800) bytes.push(0xc0 | c >> 6, 0x80 | c & 63)
+    else if (c < 0x10000) bytes.push(0xe0 | c >> 12, 0x80 | c >> 6 & 63, 0x80 | c & 63)
+    else bytes.push(0xf0 | c >> 18, 0x80 | c >> 12 & 63, 0x80 | c >> 6 & 63, 0x80 | c & 63)
+  }
+  const utf8 = new Uint8Array(bytes)
   const H = [
     0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
   ]
@@ -260,13 +275,20 @@ export function sha256ToBase36_15(input: string): string {
     for (let i = 0; i < 8; i++) H[i] = (H[i] + [a, b, c, d, e, f, g, h][i]) | 0
   }
   const hex = H.map((x) => (x >>> 0).toString(16).padStart(8, '0')).join('')
-  const n = BigInt('0x' + hex)
   const alphabet = '0123456789abcdefghijklmnopqrstuvwxyz'
   let s = ''
-  let v = n
-  while (v > 0n) {
-    s = alphabet[Number(v % 36n)] + s
-    v /= 36n
+  let digits = hex.split('').map(c => parseInt(c, 16))
+  while (digits.length) {
+    let remainder = 0
+    const quotient: number[] = []
+    for (const digit of digits) {
+      const value = remainder * 16 + digit
+      const next = Math.floor(value / 36)
+      if (quotient.length || next) quotient.push(next)
+      remainder = value % 36
+    }
+    s = alphabet[remainder] + s
+    digits = quotient
   }
   return s.padStart(15, '0').slice(0, 15)
 }

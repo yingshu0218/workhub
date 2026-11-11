@@ -1,21 +1,27 @@
 /** 宿主无关的命令契约；JSVM / Node / 浏览器共用，禁止在这里引入 I/O。 */
+export { scopeFilter } from './scope'
+export { decodePbJson } from './json'
+export { JSON_FIELDS_BY_TABLE } from '@/sync/remoteNormalize'
+export { legacyActivityId, activityDeletionIdentities } from './activityIdentity'
 export type Row = { id: string; rev?: number; deleted?: number; [key: string]: unknown }
-export type Write = { table: string; id: string; kind: 'put' | 'delete'; value?: Row }
+export type Write = { table: string; id: string; kind: 'put' | 'delete'; value?: Row; sourceScope?: string }
 export type ReadVersion = { table: string; id: string; rev: number | null }
 export interface Command {
   protocol: 1
   generation: string
   requestId: string
   intent?: unknown
+  operationId?: string
+  kind?: string
   reads: ReadVersion[]
-  scans: { table: string; versions: [string, number][] }[]
+  scans: { table: string; scope?: import('./scope').Scope; versions: [string, number][] }[]
   writes: Write[]
   result?: unknown
   events?: { type: string; payload: unknown; occurredAt: number }[]
 }
 export const BUSINESS_TABLES = ['workspaces', 'customers', 'interactions', 'ledgers', 'transactions',
   'todos', 'todoLists', 'notes', 'noteFolders', 'quickNotes', 'projects', 'projectMilestones',
-  'habits', 'habitLogs', 'trophies', 'attachments', 'moduleConfigs', 'customerGroups', 'links']
+  'habits', 'habitLogs', 'trophies', 'attachments', 'moduleConfigs', 'customerGroups', 'links', 'activities']
 export function stable(value: unknown): string {
   if (value === undefined || value === null) return 'null'
   if (Array.isArray(value)) return '[' + value.map(stable).join(',') + ']'
@@ -36,7 +42,7 @@ export function checkCommand(c: Command): void {
   if (!c || c.protocol !== 1) fail('UPGRADE_REQUIRED', '请升级到命令协议 1')
   if (!/^[A-Za-z0-9:_-]{8,128}$/.test(c.requestId || '')) fail('INVALID_REQUEST_ID', '需要稳定请求标识')
   if (!c.generation) fail('GENERATION_REQUIRED', '先获取数据世代')
-  if (!Array.isArray(c.reads) || !Array.isArray(c.scans) || !Array.isArray(c.writes) || c.writes.length > 500 || c.reads.length > 20000 || c.scans.length > 24) fail('LIMIT_EXCEEDED', '命令规模超限')
+  if (!Array.isArray(c.reads) || !Array.isArray(c.scans) || !Array.isArray(c.writes) || c.writes.length > 500 || c.reads.length > 20000 || c.scans.length > 500 || c.scans.filter(s=>!s.scope).length>24 || c.scans.reduce((n,s)=>n+(s.versions?.length || 0),0)>20000) fail('LIMIT_EXCEEDED', '命令规模超限')
   const seen: Record<string, boolean> = {}
   for (const w of c.writes) {
     if (!BUSINESS_TABLES.includes(w.table) || !w.id || w.id.length > 240 || !['put', 'delete'].includes(w.kind)) fail('INVALID_WRITE', '集合、标识或动作非法')
@@ -90,6 +96,11 @@ export function validateRecord(table: string, next: Row, prev: Row | undefined, 
   if (table === 'todos' && !String(next.title || '').trim()) fail('INVALID_TODO', next.id)
   if (table === 'customers' && !String(next.name || '').trim()) fail('INVALID_CUSTOMER', next.id)
   if (table === 'interactions' && ((!next.customerId && !next.projectId) || !String(next.content || '').trim())) fail('INVALID_INTERACTION', next.id)
+  if (table === 'activities') {
+    if (!String(next.title || '').trim() || !Number.isFinite(next.occurredAt) || !['date', 'minute', 'range'].includes(String(next.timePrecision)) || !String(next.timeZone || '')) fail('INVALID_ACTIVITY', next.id)
+    if (next.occurredUntil && Number(next.occurredUntil) < Number(next.occurredAt)) fail('INVALID_TIME_RANGE', next.id)
+    if (next.timePrecision === 'range' && !Number.isFinite(next.occurredUntil)) fail('INVALID_TIME_RANGE', '范围必须包含结束时间')
+  }
 }
 export function financeTotals(rows: readonly Row[]): Record<string, { incomeMinor: number; expenseMinor: number; count: number }> {
   const out: Record<string, { incomeMinor: number; expenseMinor: number; count: number }> = {}

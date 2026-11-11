@@ -27,6 +27,9 @@ export interface PocketBaseAdapterOptions {
   /** 测试注入用；缺省 globalThis.fetch（Node 18+ 原生） */
   fetchImpl?: typeof fetch
   token?: () => string | null
+  agentKey?: string
+  /** 执行器部署白名单只进一步收窄写能力，不赋予凭据新能力。 */
+  writeDomains?: Record<string, boolean>
 }
 
 interface PbListResult {
@@ -35,7 +38,7 @@ interface PbListResult {
   items: Record<string, unknown>[]
 }
 
-export function createPocketBaseAdapter(opts: PocketBaseAdapterOptions): StorageAdapter & { transport: CommandTransport; queryFinance(input: unknown): Promise<Record<string, unknown>> } {
+export function createPocketBaseAdapter(opts: PocketBaseAdapterOptions): StorageAdapter & { transport: CommandTransport; queryFinance(input: unknown): Promise<Record<string, unknown>>; personal(path: string, input: unknown, headers?: Record<string, string>): Promise<Record<string, unknown>> } {
   const fetchImpl = opts.fetchImpl ?? ((...a: Parameters<typeof fetch>) => fetch(...a))
   const base = opts.baseUrl.replace(/\/$/, '')
   let token: string | null = null
@@ -59,7 +62,7 @@ export function createPocketBaseAdapter(opts: PocketBaseAdapterOptions): Storage
   /** 统一请求出口：自动附鉴权；401 有凭据重登一次重试 / 匿名给可操作错误 */
   async function api(
     path: string,
-    init?: { method?: string; body?: unknown },
+    init?: { method?: string; body?: unknown; headers?: Record<string, string> },
     retry = true,
   ): Promise<Response> {
     if (opts.token) token = opts.token()
@@ -70,6 +73,9 @@ export function createPocketBaseAdapter(opts: PocketBaseAdapterOptions): Storage
       headers: {
         ...(init?.body !== undefined && !(init.body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}),
         ...(token ? { Authorization: token } : undefined),
+        ...(opts.agentKey ? { 'X-Workhub-Agent-Key': opts.agentKey } : {}),
+        ...(opts.writeDomains ? { 'X-Workhub-Write-Domains': JSON.stringify(opts.writeDomains) } : {}),
+        ...init?.headers,
       },
       ...(init?.body !== undefined ? { body: init.body instanceof FormData ? init.body : JSON.stringify(init.body) } : {}),
     })
@@ -172,10 +178,23 @@ export function createPocketBaseAdapter(opts: PocketBaseAdapterOptions): Storage
       return data
     },
   }
-  const source = { get: async (table: string, id: string) => await apiGet(table, id) as never, list: async (table: string) => await apiList(table) as never }
+  const source = { get: async (table: string, id: string) => await apiGet(table, id) as never, list: async (table: string) => await apiList(table) as never,
+    query: async <T extends { id: string }>(table: string, scope: import('@/commands/scope').Scope): Promise<(T & SyncMeta)[]> => {
+      const response = await api('/api/workhub/scoped', { method: 'POST', body: { table, scope } })
+      const body = await response.json() as { items: (T & SyncMeta)[]; error?: string }
+      if (!response.ok) throw new Error(body.error || '范围查询失败')
+      return body.items
+    },
+  }
   return {
     commandMode: true,
     ...source, transport,
+    async personal(path, input, headers) {
+      const response = await api('/api/workhub/' + path, { method: 'POST', body: input, headers })
+      const body = await response.json() as Record<string, unknown>
+      if (!response.ok) throw new CommandError(String(body.error || '业务请求失败'), response.status)
+      return body
+    },
     async queryFinance(input) {
       const res = await api('/api/workhub/finance', { method: 'POST', body: input || {} })
       const body = await res.json() as Record<string, unknown>

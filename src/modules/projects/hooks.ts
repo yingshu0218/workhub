@@ -1,3 +1,4 @@
+import { readInteractionProjection } from '@/queries/activities'
 import { db } from '@/db/db'
 import { storage } from '@/storage'
 import { newId } from '@/repositories'
@@ -105,12 +106,7 @@ export function useProjectInteractions(projectId: string | undefined): Interacti
   const list = useQuery<Interaction[]>(
     () =>
       projectId
-        ? db.interactions
-            .where('projectId')
-            .equals(projectId)
-            .filter((i) => !i.deleted)
-            .reverse()
-            .sortBy('at')
+        ? readInteractionProjection({projectId})
         : Promise.resolve([]),
     [projectId],
   )

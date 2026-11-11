@@ -1,4 +1,6 @@
+import { projectRecord, TABLE_DOMAIN } from '@/commands/personal'
 import { AsyncLocalStorage } from 'node:async_hooks'
+import { PERSONAL_TOOL_MAP } from './personalTools'
 import { stagePlan, requestId as newRequestId } from '@/storage/commandPlan'
 import type { StorageAdapter } from '@/storage/types'
 import { eventBus, setEventInterceptor, type AppEvent } from '@/shared/eventBus'
@@ -7,7 +9,7 @@ import { createPocketBaseAdapter } from '@/storage/pocketbase'
 import { setStorageAdapter } from '@/storage'
 import { dispatchAgentTool, AGENT_TOOLS } from './executor'
 import { TOOL_RISK, TOOL_DOMAIN, resolveEntitySchema } from './schema'
-import { zodToJsonSchema } from './jsonSchema'
+import { toolJsonSchema } from './jsonSchema'
 import { needsPreview, previewEnvelope } from './confirmFlow'
 import { resolveEntity, type ResolveResult } from './resolver'
 import {
@@ -105,8 +107,10 @@ export type ServerReadToolName = keyof typeof SERVER_READ_TOOLS
 
 /** 工具描述（与浏览器桥同口径：域 + 风险级，参数细节在 schema） */
 function describeTool(name: string, risk: string): string {
-  return `${name}（域：${name.split('_')[0]}，风险：${risk}）—— 参数见 inputSchema；实体引用须先 resolveEntity，候选不唯一必须反问用户。写入前先用读工具取得 generation，并在 tools/call.params._meta 发送稳定 requestId 与原 generation；网络重试复用二者。具体预览返回 confirmHint，按原提示取票和提交。`
+  return `${name}（域：${name.split('_')[0]}，风险：${risk}）—— 参数见 inputSchema；实体引用须先 resolveEntity，候选不唯一必须反问用户。写入前先用读工具取得 generation，并在公开 arguments 发送稳定 requestId 与原 generation；网络重试复用二者。具体预览返回 confirmHint，按原提示取票和提交。`
 }
+
+/** 公开参数可被普通 MCP 客户端提交；旧 _meta 仅保留兼容，不再是完成提交的前提。 */
 
 /** 服务端工具清单（MCP tools/list 条目；risk/domain 与 schema.ts 的声明表同源） */
 export function serverToolsList(domains: Record<string, boolean> = {}): Array<{
@@ -121,7 +125,7 @@ export function serverToolsList(domains: Record<string, boolean> = {}): Array<{
     description: describeTool(name, TOOL_RISK[name] ?? 'low'),
     risk: TOOL_RISK[name] ?? 'low',
     domain: TOOL_DOMAIN[name] ?? 'read',
-    inputSchema: zodToJsonSchema(SERVER_READ_TOOLS[name].schema),
+    inputSchema: toolJsonSchema(name, SERVER_READ_TOOLS[name].schema),
   }))
   // P3 写工具必须出现在清单里：MCP 客户端只会调用 tools/list 列出的工具。
   // 只实现 handles() 而不广告 = 工具"存在但永远调不到"（2026-11-01 正式站实测踩到：
@@ -129,7 +133,7 @@ export function serverToolsList(domains: Record<string, boolean> = {}): Array<{
   const write = (Object.keys(AGENT_TOOLS) as Array<keyof typeof AGENT_TOOLS>)
     .filter((name) => {
       const domain = TOOL_DOMAIN[name as string]
-      return domain ? domains[domain] === true : false
+    return domain ? domains[domain] === true && !Object.hasOwn(SERVER_READ_TOOLS, name) : false
     })
     .map((name) => {
       const tool = AGENT_TOOLS[name]
@@ -138,7 +142,7 @@ export function serverToolsList(domains: Record<string, boolean> = {}): Array<{
         description: describeTool(name as string, tool.risk ?? 'low'),
         risk: tool.risk ?? 'low',
         domain: TOOL_DOMAIN[name as string] ?? '',
-        inputSchema: zodToJsonSchema(tool.schema),
+        inputSchema: toolJsonSchema(name as string, tool.schema),
       }
     })
   return [...read, ...write]
@@ -189,8 +193,9 @@ export interface ServerExecutorOptions {
  */
 export function initServerExecutor(opts: ServerExecutorOptions): {
   listTools: () => ReturnType<typeof serverToolsList>
-  callTool: (name: string, input: unknown, meta?: { confirmToken?: string; requestId?: string; generation?: string; replayOnly?: boolean }) => Promise<ServerOpResult>
+  callTool: (name: string, input: unknown, meta?: { confirmToken?: string; requestId?: string; generation?: string; replayOnly?: boolean; agentKey?: string; clientId?: string; capabilities?: string[]; planFingerprint?: string }) => Promise<ServerOpResult>
   handles: (name: string) => boolean
+  authenticate: (token: string) => Promise<Record<string, unknown>>
 } {
   const pbAdapter = createPocketBaseAdapter(opts.pb)
   const context = new AsyncLocalStorage<{ adapter: StorageAdapter; events: { type: keyof AppEvent; payload: unknown; occurredAt: number }[] }>()
@@ -198,6 +203,7 @@ export function initServerExecutor(opts: ServerExecutorOptions): {
     commandMode: true,
     get: (...args) => (context.getStore()?.adapter || pbAdapter).get(...args),
     list: (...args) => (context.getStore()?.adapter || pbAdapter).list(...args),
+    query: (...args) => (context.getStore()?.adapter || pbAdapter).query!(...args),
     transaction: (...args) => (context.getStore()?.adapter || pbAdapter).transaction(...args),
     requestSync() {},
   })
@@ -218,9 +224,40 @@ export function initServerExecutor(opts: ServerExecutorOptions): {
 
   return {
     listTools: () => serverToolsList(domains),
+    authenticate: async token => pbAdapter.personal('agents/verify', { token }),
     handles: (name: string) =>
       (Object.hasOwn(SERVER_READ_TOOLS, name) || Object.hasOwn(AGENT_TOOLS, name)) && domainAllowed(name),
     callTool: async (name, input, meta) => {
+      let requestAdapter = meta?.agentKey ? createPocketBaseAdapter({ ...opts.pb, agentKey: meta.agentKey }) : pbAdapter
+      const personal = PERSONAL_TOOL_MAP.get(name)
+      if (!personal && input && typeof input === 'object') { const clean = { ...(input as Record<string,unknown>) };delete clean.requestId;delete clean.generation;delete clean.confirmToken;input=clean }
+      if (personal) {
+        // 旧工具已按自身业务域闸门授权其既有关联副作用；复合工具才逐项按部署域收窄。
+        requestAdapter=createPocketBaseAdapter({...opts.pb,...(meta?.agentKey?{agentKey:meta.agentKey}:{}),writeDomains:domains})
+        try {
+          if (!domainAllowed(name)) throw new Error('FORBIDDEN: 服务端 read 域未开放')
+          const d = personal.schema.parse(input) as Record<string, unknown>
+          if (personal.kind === 'query') return { ok: true, data: await requestAdapter.personal('personal/query', { name, input: d }) }
+          if (personal.kind === 'cancel') return {ok:true,data:await requestAdapter.personal('personal/cancel',d)}
+          if (personal.kind === 'preview') {
+            const data = await requestAdapter.personal('personal/preview', { ...d, kind: name.slice(8) })
+            if (data.preview) {
+              const commitName = 'commit_' + name.slice(8)
+              const args = { requestId: d.requestId, generation: d.generation, previewId: data.previewId }
+              data.confirmHint = { tool: 'confirm_preview', args: { tool: commitName, args, requestId: d.requestId, generation: d.generation, planFingerprint: data.planFingerprint }, note: '向用户转述整组影响，确认后取票，再按上述提交参数加 confirmToken 调用提交工具。' }
+            }
+            return { ok: true, data }
+          }
+          // 无票时只核对既有回执；票据失效不可创建新事实。
+          if (!meta?.confirmToken || meta.replayOnly) {
+            const lookup = await requestAdapter.personal('personal/query', { name: 'get_operation', input: { requestId: d.requestId, generation: d.generation } })
+            const items = lookup.items as Array<Record<string, unknown>>
+            if (items[0]?.status === 'committed') return { ok: true, data: items[0].receipt as Record<string, unknown> }
+            throw new Error('CONFIRMATION_REQUIRED: 请按具体预览的 confirmHint 取得有效票据')
+          }
+          return { ok: true, data: await requestAdapter.personal('personal/commit', d, { 'X-Workhub-Plan': meta.planFingerprint || '' }) }
+        } catch (e) { return { ok: false, error: (e as Error).message } }
+      }
       if (!domainAllowed(name)) {
         return {
           ok: false,
@@ -228,42 +265,54 @@ export function initServerExecutor(opts: ServerExecutorOptions): {
         }
       }
       const isRead = Object.hasOwn(SERVER_READ_TOOLS, name)
+      const capabilities = meta?.capabilities || ['*']
+      const readable: Record<string,string> = { getCustomer:'crm',listTransactions:'fin',listTodos:'todo',listLedgers:'fin',listHabits:'habit',listProjects:'project',listNotes:'note',listNoteFolders:'note',listLinks:'link' }
+      if (isRead && !capabilities.includes('*')) {
+        const domain = readable[name] || (name === 'resolveEntity' ? ({ customer:'crm',project:'project',todo:'todo',ledger:'fin',habit:'habit',note:'note',noteFolder:'note' } as Record<string,string>)[String((input as Record<string,unknown>)?.type)] : '')
+        if (!domain || !capabilities.includes(domain+':read')) return {ok:false,error:'FORBIDDEN: 缺少读取能力'}
+      }
+
       if (isRead) {
         try {
-          if (name === 'listTransactions') return { ok: true, data: await pbAdapter.queryFinance(listTransactionsSchema.parse(input || {})) }
-          const result = await dispatchServerReadTool(name, input)
-          return result.ok ? { ...result, data: { ...result.data, generation: await pbAdapter.transport.generation(), protocol: 1 } } : result
+          if (name === 'resolveEntity' && ['customer','project'].includes(String((input as Record<string,unknown>)?.type))) {
+            const d=resolveEntitySchema.parse(input),r=await requestAdapter.personal('personal/query',{name:d.type==='customer'?'resolve_contacts':'resolve_topics',input:{query:d.query}})
+            const candidates=(r.candidates as Array<Record<string,unknown>>).map(c=>({...c,type:d.type,label:c.company?String(c.company)+' · '+String(c.name):String(c.name),sub:c.match}))
+            return {ok:true,data:{...r,candidates}}
+          }
+          if (name === 'listTransactions') return { ok: true, data: await requestAdapter.queryFinance(listTransactionsSchema.parse(input || {})) }
+          const result = await context.run({adapter:requestAdapter,events:[]},()=>dispatchServerReadTool(name, input))
+          return result.ok ? { ...result, data: { ...result.data, generation: await requestAdapter.transport.generation(), protocol: 1 } } : result
         } catch (e) { return { ok: false, error: (e as Error).message } }
       }
       try {
         if (!meta?.requestId && !needsPreview(name, meta)) throw new Error('REQUEST_CONTEXT_REQUIRED: 写入必须携带稳定 requestId 和原 generation；缺少原上下文的旧请求不可自动补新标识重录，请先核对既有事实')
         if (meta?.requestId && !meta.generation) throw new Error('GENERATION_REQUIRED: 稳定请求必须携带原数据世代，恢复后禁止自动重录')
         if (meta?.confirmToken && (!meta.requestId || !meta.generation)) throw new Error('PREVIEW_REQUIRED: 确认时必须携带具体预览的 requestId 和 generation')
-        const generation = meta?.generation || await pbAdapter.transport.generation()
+        const generation = meta?.generation || await requestAdapter.transport.generation()
         const id = meta?.requestId || newRequestId()
         const intent = { tool: name, input }
         // 已提交请求优先读持久回执，票据消费或进程重启都不影响安全重试。
-        const prior = await pbAdapter.transport.lookup(id, generation, intent)
+        const prior = await requestAdapter.transport.lookup(id, generation, intent)
         const reply = (receipt: import('@/storage/commandPlan').Receipt): ServerOpResult => { const r = receipt.result as ServerOpResult; return { ...r, data: { ...r.data, requestId: id, operationId: receipt.operationId, generation, retrySafe: !!meta?.requestId } } }
         if (prior.committed && prior.receipt) return reply(prior.receipt)
         if (meta?.replayOnly) return { ok: false, error: '确认票据已失效且没有提交回执，请重新预览确认' }
-        const preview = (command: import('@/commands/core').Command): ServerOpResult => ({ok:true,data:{...previewEnvelope(name,input),requestId:id,generation,confirmHint:{...previewEnvelope(name,input).confirmHint,args:{tool:name,args:input,requestId:id,generation}},targets:command.reads,changes:command.writes}})
+        const preview = (command: import('@/commands/core').Command): ServerOpResult => ({ok:true,data:{...previewEnvelope(name,input),requestId:id,generation,confirmHint:{...previewEnvelope(name,input).confirmHint,args:{tool:name,args:input,requestId:id,generation}},targets:command.reads,changes:command.writes.map(w=>({...w,value:w.value?projectRecord({can:table=>capabilities.includes('*') || capabilities.includes((TABLE_DOMAIN[table] || table)+':read')},w.table,w.value):null}))}})
         if (prior.pending) {
           if (needsPreview(name, meta)) return preview(prior.pending)
-          return reply(await pbAdapter.transport.commit(prior.pending))
+          return reply(await requestAdapter.transport.commit(prior.pending))
         }
-        const plan = stagePlan(pbAdapter)
+        const plan = stagePlan(requestAdapter)
         const events: { type: keyof AppEvent; payload: unknown; occurredAt: number }[] = []
         const adapter: StorageAdapter = {
-          get: plan.tx.get, list: plan.tx.list,
+          get: plan.tx.get, list: plan.tx.list, query: plan.tx.query,
           transaction: async (_tables, fn) => fn(plan.tx), requestSync() {},
         }
         const result = await context.run({ adapter, events }, () => dispatchAgentTool(name, input, domains))
         if (!result.ok) return result as ServerOpResult
         const command = plan.command(generation, id, intent, result)
         command.events = events
-        if (needsPreview(name, meta)) return preview(await pbAdapter.transport.preview!(command))
-        const receipt = await pbAdapter.transport.commit(command)
+        if (needsPreview(name, meta)) return preview(await requestAdapter.transport.preview!(command))
+        const receipt = await requestAdapter.transport.commit(command)
         // 真实事务结束后才向本进程观察者投递，通知记录已在同一事务持久化。
         for (const ev of events) eventBus.emit(ev.type, ev.payload as never)
         return reply(receipt)

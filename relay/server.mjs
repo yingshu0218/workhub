@@ -60,6 +60,7 @@ export function createRelay({
   log = (m) => process.stderr.write(`${m}\n`),
   authorizeMint = null,
   serverExecutor = null,
+  issueAgentCredential = null,
 } = {}) {
   /** 当前已连出的浏览器连接（首版单浏览器配对；多标签页取最近一条） */
   let browserConn = null
@@ -120,16 +121,16 @@ export function createRelay({
     map.set(key, value)
   }
 
-  function rememberPreview(key) {
-    boundedSet(previewStore, key, Date.now() + PREVIEW_TTL_MS)
-    for (const [k, exp] of previewStore) if (Date.now() > exp) previewStore.delete(k)
+  function rememberPreview(key, planFingerprint) {
+    boundedSet(previewStore, key, {expiresAt:Date.now() + PREVIEW_TTL_MS,planFingerprint})
+    for (const [k, rec] of previewStore) if (Date.now() > rec.expiresAt) previewStore.delete(k)
   }
 
   function consumePreview(key) {
     const exp = previewStore.get(key)
     if (exp === undefined) return false
     previewStore.delete(key)
-    return Date.now() <= exp
+    return Date.now() <= exp.expiresAt ? exp : false
   }
 
   /**
@@ -138,23 +139,30 @@ export function createRelay({
    * 非 --dev 下的**唯一取票路径**：Agent 完成「预览 → 向用户转述 → 用户确认」后调用本工具，
    * relay 校验「该 (tool,args) 组合确实被 preview 过」才签发一次性 confirmToken。
    */
-  function confirmPreview(args) {
+  function confirmPreview(args, meta = {}) {
     const tool = String(args?.tool ?? '')
     const toolArgs = args?.args ?? {}
     if (!tool) return { ok: false, error: 'confirm_preview 缺少 tool' }
-    const key = argsHash(tool, toolArgs, args)
-    if (!consumePreview(key)) {
+    const context = {...args,clientId:meta.clientId}
+    const key = argsHash(tool, toolArgs, context)
+    const preview=consumePreview(key)
+    if (!preview || (preview.planFingerprint && args?.planFingerprint!==preview.planFingerprint)) {
       return {
         ok: false,
         error: `未找到工具 ${tool} 的预览记录（须先以相同参数调用一次本工具取得预览，票据绑定该组参数且 5 分钟内有效）`,
       }
     }
-    const issued = router.issueConfirm({ tool, args: toolArgs, requestId: args?.requestId, generation: args?.generation, source: 'confirm_preview' })
+    const issued = router.issueConfirm({ tool, args: toolArgs, requestId: args?.requestId, generation: args?.generation, clientId:meta.clientId,planFingerprint:preview.planFingerprint, source: 'confirm_preview' })
     return { ok: true, data: { ...issued, tool, note: '请以同一参数重试该工具，并携带 confirmToken。' } }
   }
 
   const router = createMcpRouter({
     token,
+    authorizeToken: serverExecutor?.authenticate ? async provided => {
+      const shared=safeEqual(provided || '',token)
+      const principal=await serverExecutor.authenticate(shared?'':String(provided || ''))
+      return {...principal,...(!shared?{agentKey:provided}:{})}
+    } : undefined,
     autoIssueConfirm,
     // 工具清单失败必须转成**返回的 JSON-RPC 错误**（mcp-relay 的 tools/list 分支捕获），
     // 不得让异常穿出 handle() —— 否则未处理的 Promise rejection 会打崩宿主进程。
@@ -163,7 +171,7 @@ export function createRelay({
     // 浏览器离线语义（P2 起）：有服务端工具 → 清单照常返回（读工具 7×24 可用）；
     // 无服务端工具且浏览器离线 → listTools 内显式抛错转 -32001（与既有口径一致）。
     isBrowserOnline,
-    listTools: async () => {
+    listTools: async (principal) => {
       const fromBrowser = () => requestFromBrowser({ kind: 'tools/list' }).then((r) => r.data?.tools ?? [])
       // 服务端工具（P2）：已按服务端白名单过滤；浏览器工具与之按名字去重（重名服务端版优先）
       const serverTools = serverExecutor
@@ -171,7 +179,7 @@ export function createRelay({
         : []
       const serverNames = new Set(serverTools.map((t) => t.name))
       let browserTools = []
-      if (isBrowserOnline()) {
+      if (isBrowserOnline() && !principal?.agentKey) {
         try {
           browserTools = (await fromBrowser()).filter((t) => !serverNames.has(t.name))
         } catch {
@@ -198,6 +206,7 @@ export function createRelay({
             properties: {
               tool: { type: 'string', description: '要执行的中风险工具名' },
               requestId: { type: 'string' }, generation: { type: 'string' },
+              planFingerprint: { type: 'string' },
               args: { type: 'object', description: '与该次预览完全一致的入参' },
             },
             required: ['tool', 'args'],
@@ -208,7 +217,7 @@ export function createRelay({
     callTool: (name, toolArgs, meta) => {
       if (name === CONFIRM_TOOL) {
         try {
-          return Promise.resolve(confirmPreview(toolArgs))
+          return Promise.resolve(confirmPreview(toolArgs,meta))
         } catch (e) {
           return Promise.resolve({ ok: false, error: e?.message ?? String(e) })
         }
@@ -220,12 +229,17 @@ export function createRelay({
         return serverExecutor
           .callTool(name, toolArgs, meta)
           .then((r) => {
-            if (r.ok && r.data?.preview === true) rememberPreview(argsHash(name, toolArgs, r.data))
+            if (r.ok && r.data?.preview === true) {
+              const hint=r.data.confirmHint?.args
+              if(hint?.tool?.startsWith('commit_'))rememberPreview(argsHash(hint.tool,hint.args,{...hint,clientId:meta?.clientId}),r.data.planFingerprint)
+              else rememberPreview(argsHash(name, toolArgs, {...r.data,clientId:meta?.clientId}),r.data.planFingerprint)
+            }
             return r
           })
           .catch((e) => ({ ok: false, error: e?.message ?? String(e) }))
       }
       if (meta?.replayOnly) return Promise.resolve({ ok: false, error: '票据已失效，请核对原操作或重新确认' })
+      if (meta?.agentKey) return Promise.resolve({ok:false,error:'FORBIDDEN: 独立 Agent 凭据只允许受保护的服务端执行路径，不能回退旧浏览器桥'})
       return requestFromBrowser({
         kind: 'tools/call',
         name,
@@ -654,6 +668,9 @@ export function createRelay({
     if (!rec) return sendJson(res, 404, { error: '授权码不存在或已过期' })
     if (rec.status !== 'pending') return sendJson(res, 409, { error: '该授权码已被处理，请重新发起命令' })
 
+    if(decision==='approved' && issueAgentCredential){
+      try { rec.credential=await issueAgentCredential(req,{name:'Agent '+normalized}) } catch (_) { return sendJson(res,503,{error:'Agent 凭据签发失败，请稍后重试'}) }
+    }
     rec.status = decision
     log(`[relay] 设备授权已${decision === 'approved' ? '批准' : '拒绝'}`)
     return sendJson(res, 200, { ok: true, status: rec.status })
@@ -693,7 +710,7 @@ export function createRelay({
     userCodeIndex.delete(rec.userCode)
     log('[relay] 设备授权已兑换，长期 token 已下发（授权码已作废）')
     return sendJson(res, 200, {
-      access_token: token,
+      access_token: rec.credential?.token || token,
       token_type: 'Bearer',
       url: mcpUrlOf(req, url),
       expires_in: 0,
@@ -716,7 +733,12 @@ export function createRelay({
       res.writeHead(405, { Allow: 'POST, DELETE' }).end()
       return
     }
-    if (!authOk(req, url)) {
+    const provided=authToken(req,url)
+    let principal
+    try {
+      if(serverExecutor?.authenticate){const shared=safeEqual(provided,token);principal=await serverExecutor.authenticate(shared?'':provided)}
+      else if(!authOk(req,url))throw new Error('unauthorized')
+    } catch (_) {
       sendJson(res, 401, {
         jsonrpc: '2.0',
         id: null,
@@ -732,11 +754,11 @@ export function createRelay({
       return
     }
     // HTTP 无会话：每个请求都自带凭证，因此进来的连接等价于「已 initialize 过」
-    const ctx = { authed: true }
+    const ctx = { authed: true, accessToken:provided, principal }
     const once = async (m) => {
       // initialize 的参数校验在 router 内（accessToken）；HTTP 侧凭证在头上，这里补进参数，
       // 保证「同一个 token 只能走同一条校验路径」——不在传输层另开一套鉴权。
-      const withToken = m?.method === 'initialize' ? { ...m, params: { ...(m.params ?? {}), accessToken: token } } : m
+      const withToken = m?.method === 'initialize' ? { ...m, params: { ...(m.params ?? {}), accessToken: provided } } : m
       return router.handle(withToken, ctx)
     }
     if (Array.isArray(msg)) {

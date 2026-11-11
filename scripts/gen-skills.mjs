@@ -62,7 +62,7 @@ function paramsTable(schema) {
 }
 
 function renderToolDoc(t, meta) {
-  const inputSchema = zodToJsonSchema(t.schema)
+  const inputSchema = zodToJsonSchema(t.name, t.schema)
   const risk = meta.TOOL_RISK[t.name] ?? 'low'
   const domain = meta.TOOL_DOMAIN[t.name] ?? 'unknown'
   const events = (meta.TOOL_EVENTS ?? {})[t.name] ?? []
@@ -153,11 +153,11 @@ ${rows}
 async function main() {
   const meta = await loadSkillSource()
   // 注入运行期同一份实现（src/agent/jsonSchema.ts，随 skillSource 一起被 esbuild 打包）
-  zodToJsonSchema = meta.zodToJsonSchema
+  zodToJsonSchema = meta.toolJsonSchema
   await mkdir(outDir, { recursive: true })
   const tools = []
   for (const t of meta.ALL_TOOL_SKILLS) {
-    const inputSchema = zodToJsonSchema(t.schema)
+    const inputSchema = zodToJsonSchema(t.name, t.schema)
     const risk = meta.TOOL_RISK[t.name] ?? 'low'
     const domain = meta.TOOL_DOMAIN[t.name] ?? 'unknown'
     await writeFile(path.join(outDir, `${t.name}.md`), renderToolDoc(t, meta), 'utf8')

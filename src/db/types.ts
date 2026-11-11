@@ -39,6 +39,7 @@ export interface SyncMeta {
 
 /** 可进回收站的业务表（与 SYNC_TABLES 的子集对齐；快速便签/奖杯/配置/工作区无删除入口） */
 export type TrashTable =
+  | 'activities'
   | 'customers'
   | 'interactions'
   | 'ledgers'
@@ -131,9 +132,13 @@ export interface CustomerRelation {
 export interface Customer extends SyncMeta {
   id: string
   name: string
+  aliases?: string[]
+  preferredName?: string
+  contactType?: 'person' | 'organization' | 'unspecified'
+  mergedIntoId?: string
   company: string
   title: string
-  decisionLevel: '决策人' | '影响者' | '使用者' | '把关人'
+  decisionLevel: '决策人' | '影响者' | '使用者' | '把关人' | ''
   tags: string[]
   phone: string
   wechat: string
@@ -171,6 +176,24 @@ export interface Interaction extends SyncMeta {
   at: number
   /** 所属项目（进展流水复用 CRM 沟通日志，不另建表） */
   projectId?: string
+}
+
+/** 经历正文仅存在活动中，旧沟通 ID 通过 sourceTable/sourceId 解析。 */
+export interface Activity extends SyncMeta {
+  id: string
+  title: string
+  summary: string
+  occurredAt: number
+  occurredUntil?: number
+  timePrecision: 'date' | 'minute' | 'range'
+  timeZone: string
+  recordedAt: number
+  category: string
+  tags: string[]
+  sourceOperationId?: string
+  sourceTable?: string
+  sourceId?: string
+  sourceText?: string
 }
 
 export interface Ledger extends SyncMeta {
@@ -267,6 +290,7 @@ export interface TodoList extends SyncMeta {
  * 项目维度的收支/进度统计一律从源记录实时推导，本表不存任何快照字段（仓库铁律）。
  */
 export interface Project extends SyncMeta {
+  aliases?: string[]
   id: string
   name: string
   /** 视觉标识色（hex），用于项目列表/详情/画布节点 */
@@ -782,6 +806,7 @@ export function customerInGroup(
  * customerGroups 是 Phase 3 手动分组族的预留位（member link 端点）。
  */
 export type LinkEndpointTable =
+  | 'activities'
   | 'customers'
   | 'interactions'
   | 'ledgers'
@@ -808,6 +833,9 @@ export type LinkKind = (typeof LINK_KINDS)[number]
 
 /** kind 专属载荷：mention 存提及时的显示名；relation 存关系语义（label 参与 id 判重，Issue #39 口径） */
 export interface LinkMeta {
+  sourceActivityIds?: string[]
+  sourceActivityId?: string
+  sourceKind?: 'explicit' | 'legacy' | 'participation' | 'finance'
   label?: string
   category?: RelationCategory
 }

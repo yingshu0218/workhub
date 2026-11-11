@@ -9,6 +9,7 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest'
 import 'fake-indexeddb/auto'
+import { interactionProjectionRepo } from '@/repositories/activities'
 import { db } from '@/db/db'
 import { eventBus } from '@/shared/eventBus'
 import { fin_recordTransaction, crm_createCustomer, crm_addInteraction, crm_addRelation, todo_createTodo, todo_completeTodo, AGENT_TOOLS } from '../executor'
@@ -137,7 +138,7 @@ describe('契约变更：crm_addInteraction 已无 type，但老调用不失败'
     await db.customers.put({ id: 'c1', name: '王五', company: '', title: '', decisionLevel: '决策人', tags: [], phone: '', wechat: '', email: '', address: '', lastContactAt: 0, createdAt: 1, updatedAt: 0, deleted: 0, rev: 0 })
     const r = await crm_addInteraction({ customerId: 'c1', content: '老调用方仍在传类型', type: '会议' })
     expect(r.ok).toBe(true)
-    const itx = await db.interactions.get((r.data as { interactionId: string }).interactionId)
+    const itx = await interactionProjectionRepo.get((r.data as { interactionId: string }).interactionId)
     expect(itx?.content).toBe('老调用方仍在传类型')
     expect(itx).not.toHaveProperty('type')
   })
@@ -148,11 +149,11 @@ describe('契约变更：crm_addInteraction 已无 type，但老调用不失败'
 })
 
 describe('CRM / Todo 工具面', () => {
-  it('建客户默认口径与 UI 一致（决策人），openingLog 建首联日志', async () => {
+  it('联系人不预设商务角色，openingLog 建首联日志', async () => {
     const r = await crm_createCustomer({ name: '王五' })
     expect(r.ok).toBe(true)
     const c = await db.customers.get((r.data as { customerId: string }).customerId)
-    expect(c?.decisionLevel).toBe('决策人')
+    expect(c?.decisionLevel).toBe('')
     // 手动分层 tier 已删除（并入健康分）：建客户不应再落任何分层字段
     expect(c).not.toHaveProperty('tier')
   })
@@ -270,7 +271,7 @@ describe('lastContactAt 只前进：补录历史沟通不回退客户最近联�
     const after = await db.customers.get(customerId)
     expect(after!.lastContactAt).toBeGreaterThanOrEqual(before) // 不倒退
     // 日志本体的时间保留真实值（回溯补录不篡改记录时间）
-    const itx = await db.interactions.get((r.data as { interactionId: string }).interactionId)
+    const itx = await interactionProjectionRepo.get((r.data as { interactionId: string }).interactionId)
     expect(itx!.at).toBe(past)
   })
 

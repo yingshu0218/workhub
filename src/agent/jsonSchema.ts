@@ -163,3 +163,10 @@ export function zodToJsonSchema(schema: z.ZodTypeAny): JsonSchema {
   // 未识别：保守降级为空 schema（不阻断 MCP 校验，但不臆造约束）
   return {}
 }
+
+/** 旧工具保留业务参数，可靠提交的公开上下文由所有发现/文档出口共用。 */
+export function toolJsonSchema(name: string, schema: z.ZodTypeAny): JsonSchema {
+  const value = zodToJsonSchema(schema)
+  if (!/^(fin|crm|todo|project|note|habit|link)_/.test(name)) return value
+  return { ...value, properties: { ...(value.properties as object), requestId: { type: 'string', description: '稳定请求标识，首次提交前确定，重试复用。' }, generation: { type: 'string', description: '原数据世代，由查询返回。' }, confirmToken: { type: 'string', description: '按具体预览提示取得的一次性确认票据。' } } }
+}

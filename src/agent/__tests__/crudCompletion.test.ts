@@ -374,7 +374,8 @@ describe('crm_deleteCustomer', () => {
     const r = await crm_deleteCustomer({ customerId: 'c1' })
     expect(r.ok).toBe(true)
     expect((r.data as { sideEffects: Record<string, number> }).sideEffects).toEqual({
-      cascadedInteractions: 2,
+      cascadedInteractions: 0,
+      retainedInteractions: 2,
       unlinkedTransactions: 1,
       unlinkedTodos: 1,
       unlinkedProjects: 1,
@@ -382,7 +383,7 @@ describe('crm_deleteCustomer', () => {
     })
 
     // 级联：日志软删；流水/待办/项目只解绑不删除
-    expect((await db.interactions.get('i1'))?.deleted).toBe(1)
+    expect((await db.interactions.get('i1'))?.deleted).toBe(0)
     expect((await transactionRepo.get('t1'))).toBeTruthy() // 流水不删，只解绑
     const { buildLinkId: bl } = await import('@/repositories/linkId')
     expect(

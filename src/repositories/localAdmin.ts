@@ -170,6 +170,7 @@ const RESTORE_TABLES = [
   'workspaces',
   'customers',
   'interactions',
+  'activities',
   'ledgers',
   'transactions',
   'todos',

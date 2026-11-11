@@ -37,6 +37,12 @@ function ensureAdapter(): Promise<StorageAdapter> {
 
 /** 执行链统一入口：方法转发到当前适配器（保证 setStorageAdapter 后所有既有 import 立即生效） */
 export const storage: StorageAdapter = {
+  async query(table, scope) {
+    const adapter = await ensureAdapter()
+    if (adapter.query) return adapter.query(table, scope)
+    const { inScope } = await import('@/commands/scope')
+    return (await adapter.list<import('@/commands/core').Row>(table)).filter(r => inScope(r, scope)) as never
+  },
   async transaction(...args) {
     return (await ensureAdapter()).transaction(...args)
   },

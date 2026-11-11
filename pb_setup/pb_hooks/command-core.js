@@ -1,3 +1,4 @@
+"use strict";
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
@@ -20,14 +21,118 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 var core_exports = {};
 __export(core_exports, {
   BUSINESS_TABLES: () => BUSINESS_TABLES,
+  JSON_FIELDS_BY_TABLE: () => JSON_FIELDS_BY_TABLE,
+  activityDeletionIdentities: () => activityDeletionIdentities,
   checkCommand: () => checkCommand,
+  decodePbJson: () => decodePbJson,
   fail: () => fail,
   financeTotals: () => financeTotals,
+  legacyActivityId: () => legacyActivityId,
   minorUnits: () => minorUnits,
+  scopeFilter: () => scopeFilter,
   stable: () => stable,
   validateRecord: () => validateRecord
 });
 module.exports = __toCommonJS(core_exports);
+
+// src/commands/scope.ts
+var SCOPE_FIELDS = {
+  links: ["fromType", "fromId", "toType", "toId", "kind", "deleted"],
+  activities: ["sourceTable", "sourceId", "sourceOperationId", "deleted", "category"],
+  customers: ["localId", "name", "deleted"],
+  projects: ["customerId", "name", "deleted"],
+  todos: ["customerId", "projectId", "status", "deleted"],
+  notes: ["projectId", "deleted"],
+  projectMilestones: ["projectId", "deleted"],
+  transactions: ["ledgerId", "type", "status", "deleted"],
+  interactions: ["customerId", "projectId", "deleted"],
+  operation_effects: ["operationId", "tableName", "recordId", "action"],
+  operations: ["owner", "clientId", "requestId", "status", "kind"]
+};
+function checkScope(table, scope) {
+  const groups = [scope.where || {}, ...scope.anyOf || []];
+  if (!SCOPE_FIELDS[table] || groups.length > 12 || !groups.some((g) => Object.keys(g).length)) fail("INVALID_SCOPE", table);
+  for (const g of groups) for (const k of Object.keys(g)) {
+    if (!SCOPE_FIELDS[table].includes(k) || !["number", "string"].includes(typeof g[k]) || String(g[k]).length > 240) fail("INVALID_SCOPE", table + "/" + k);
+  }
+}
+function scopeFilter(table, scope) {
+  var _a;
+  checkScope(table, scope);
+  const params = {};
+  let i = 0;
+  const group = (g) => Object.keys(g).map((k) => {
+    const p = "s" + i++;
+    params[p] = g[k];
+    return k + " = {:" + p + "}";
+  }).join(" && ") || 'id != ""';
+  const base = "(" + group(scope.where || {}) + ")";
+  return { filter: base + (((_a = scope.anyOf) == null ? void 0 : _a.length) ? " && (" + scope.anyOf.map((g) => "(" + group(g) + ")").join(" || ") + ")" : ""), params };
+}
+
+// src/commands/json.ts
+function decodePbJson(value) {
+  if (value == null) return null;
+  if (Array.isArray(value) && !value.length) return null;
+  if (typeof value === "string") {
+    try {
+      return JSON.parse(value);
+    } catch (e) {
+      return value;
+    }
+  }
+  if (Array.isArray(value) && value.length && value.every((n) => typeof n === "number" && Number.isInteger(n) && n >= 0 && n <= 255)) {
+    try {
+      return JSON.parse(decodeURIComponent(value.map((n) => "%" + Number(n).toString(16).padStart(2, "0")).join("")));
+    } catch (e) {
+      return value;
+    }
+  }
+  return value;
+}
+
+// src/sync/remoteNormalize.ts
+var JSON_FIELDS_BY_TABLE = {
+  agent_credentials: ["capabilities"],
+  activities: ["tags", "trashSnapshot"],
+  customers: ["tags", "relations", "intimacy", "aliases", "trashSnapshot"],
+  transactions: ["tags", "customerIds", "todoIds", "projectIds", "trashSnapshot"],
+  todos: ["tags", "trashSnapshot"],
+  habits: ["trashSnapshot"],
+  notes: ["tags", "backlinks", "mentions", "trashSnapshot"],
+  noteFolders: ["trashSnapshot"],
+  todoLists: ["trashSnapshot"],
+  projects: ["trashSnapshot", "aliases"],
+  customerGroups: ["includeTags", "excludeTags", "rules", "trashSnapshot"],
+  moduleConfigs: ["payload", "trashSnapshot"],
+  // 关联层：meta 是对象型 json（不进 JSON_ARRAY_FIELDS_BY_TABLE，只做一层反序列化）
+  links: ["meta", "trashSnapshot"],
+  operations: ["result", "plan"],
+  operation_effects: ["before", "after"],
+  // ⚠️ 旧关联键（transactions 数组 / notes mentions,backlinks / customers relations）的登记
+  // 刻意保留：服务端列永不删除（PATCH 不带键就不清列，老客户端还在写），pull 侧要先
+  // 反序列化才能派生成 link、再剥键（mergeRemote 的 MIGRATED_LINK_TABLES 流程）。
+  // 删登记 = 派生拿到 JSON 字符串解析不出 = 新设备拉到的旧关联凭空丢失。
+  workspaces: ["trashSnapshot"],
+  interactions: ["trashSnapshot"],
+  ledgers: ["trashSnapshot"],
+  quickNotes: ["trashSnapshot"],
+  habitLogs: ["trashSnapshot"],
+  trophies: ["trashSnapshot"],
+  attachments: ["trashSnapshot"],
+  projectMilestones: ["trashSnapshot"]
+};
+
+// src/commands/activityIdentity.ts
+function legacyActivityId(sourceId, hash) {
+  return "act-" + hash("interactions/" + sourceId).slice(0, 32);
+}
+function activityDeletionIdentities(id, sourceId, hash) {
+  const sources = [.../* @__PURE__ */ new Set([id, ...sourceId ? [sourceId] : []])];
+  return [{ table: "activities", id }, ...sources.flatMap((source) => [{ table: "interactions", id: source }, { table: "activities", id: legacyActivityId(source, hash) }])];
+}
+
+// src/commands/core.ts
 var BUSINESS_TABLES = [
   "workspaces",
   "customers",
@@ -47,7 +152,8 @@ var BUSINESS_TABLES = [
   "attachments",
   "moduleConfigs",
   "customerGroups",
-  "links"
+  "links",
+  "activities"
 ];
 function stable(value) {
   if (value === void 0 || value === null) return "null";
@@ -71,7 +177,10 @@ function checkCommand(c) {
   if (!c || c.protocol !== 1) fail("UPGRADE_REQUIRED", "\u8BF7\u5347\u7EA7\u5230\u547D\u4EE4\u534F\u8BAE 1");
   if (!/^[A-Za-z0-9:_-]{8,128}$/.test(c.requestId || "")) fail("INVALID_REQUEST_ID", "\u9700\u8981\u7A33\u5B9A\u8BF7\u6C42\u6807\u8BC6");
   if (!c.generation) fail("GENERATION_REQUIRED", "\u5148\u83B7\u53D6\u6570\u636E\u4E16\u4EE3");
-  if (!Array.isArray(c.reads) || !Array.isArray(c.scans) || !Array.isArray(c.writes) || c.writes.length > 500 || c.reads.length > 2e4 || c.scans.length > 24) fail("LIMIT_EXCEEDED", "\u547D\u4EE4\u89C4\u6A21\u8D85\u9650");
+  if (!Array.isArray(c.reads) || !Array.isArray(c.scans) || !Array.isArray(c.writes) || c.writes.length > 500 || c.reads.length > 2e4 || c.scans.length > 500 || c.scans.filter((s) => !s.scope).length > 24 || c.scans.reduce((n, s) => {
+    var _a;
+    return n + (((_a = s.versions) == null ? void 0 : _a.length) || 0);
+  }, 0) > 2e4) fail("LIMIT_EXCEEDED", "\u547D\u4EE4\u89C4\u6A21\u8D85\u9650");
   const seen = {};
   for (const w of c.writes) {
     if (!BUSINESS_TABLES.includes(w.table) || !w.id || w.id.length > 240 || !["put", "delete"].includes(w.kind)) fail("INVALID_WRITE", "\u96C6\u5408\u3001\u6807\u8BC6\u6216\u52A8\u4F5C\u975E\u6CD5");
@@ -128,6 +237,11 @@ function validateRecord(table, next, prev, get) {
   if (table === "todos" && !String(next.title || "").trim()) fail("INVALID_TODO", next.id);
   if (table === "customers" && !String(next.name || "").trim()) fail("INVALID_CUSTOMER", next.id);
   if (table === "interactions" && (!next.customerId && !next.projectId || !String(next.content || "").trim())) fail("INVALID_INTERACTION", next.id);
+  if (table === "activities") {
+    if (!String(next.title || "").trim() || !Number.isFinite(next.occurredAt) || !["date", "minute", "range"].includes(String(next.timePrecision)) || !String(next.timeZone || "")) fail("INVALID_ACTIVITY", next.id);
+    if (next.occurredUntil && Number(next.occurredUntil) < Number(next.occurredAt)) fail("INVALID_TIME_RANGE", next.id);
+    if (next.timePrecision === "range" && !Number.isFinite(next.occurredUntil)) fail("INVALID_TIME_RANGE", "\u8303\u56F4\u5FC5\u987B\u5305\u542B\u7ED3\u675F\u65F6\u95F4");
+  }
 }
 function financeTotals(rows) {
   var _a;

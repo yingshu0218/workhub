@@ -82,7 +82,9 @@ const rpcError = (id, code, message, data) => ({
  * 单次有效（核销即删）、超时作废、token 不匹配拒绝。
  */
 export function confirmationFingerprint(tool, args, meta = {}) {
-  return argsFingerprint(tool, meta.requestId ? { arguments: args, requestId: meta.requestId, generation: meta.generation } : args)
+  const value={...(args || {})}
+  for(const key of ['confirmToken','requestId','generation'])delete value[key]
+  return argsFingerprint(tool, meta.requestId || meta.clientId ? { arguments: value, requestId: meta.requestId, generation: meta.generation, clientId: meta.clientId } : value)
 }
 
 export class ConfirmTokenStore {
@@ -167,11 +169,14 @@ export function createMcpRouter({
    * 自行向 relay 取票**（ConfirmTokenStore.issue），relay 不代用户确认。
    */
   autoIssueConfirm = false,
+  authorizeToken,
 } = {}) {
   /** 每个会话的鉴权态：initialize 时校验 token */
-  function handleInitialize(params) {
+  async function handleInitialize(params, ctx) {
     const provided = params?.accessToken ?? params?.token
-    if (!safeEqual(provided ?? '', token)) {
+    if (authorizeToken) {
+      try { ctx.principal = await authorizeToken(provided); ctx.accessToken = provided } catch (_) { return { error: rpcError(null,-32001,'Agent 凭据无效、已撤销或过期') } }
+    } else if (!safeEqual(provided ?? '', token)) {
       return { error: rpcError(null, -32001, '接入 token 无效：Agent 连接必须携带 relay 启动时生成的 token') }
     }
     // 版本协商：客户端要的版本受支持就照回（否则回缺省），让 Streamable HTTP 客户端走对分支
@@ -204,10 +209,13 @@ export function createMcpRouter({
     if (method !== 'initialize' && !ctx.authed) {
       return rpcError(id, -32001, '未鉴权：请先 initialize 并携带有效 accessToken')
     }
+    if (method !== 'initialize' && authorizeToken) {
+      try { ctx.principal = await authorizeToken(ctx.accessToken) } catch (_) { ctx.authed=false;return rpcError(id,-32001,'Agent 凭据无效、已撤销或过期') }
+    }
 
     switch (method) {
       case 'initialize': {
-        const r = handleInitialize(params)
+        const r = await handleInitialize(params, ctx)
         if (r.error) return { ...r.error, id }
         ctx.authed = true
         return rpcResult(id, r.result)
@@ -227,7 +235,7 @@ export function createMcpRouter({
         // Agent 一调 `tools/list` 就把**整个站点**一起打崩，且 Agent 侧只看到连接断开。
         let tools
         try {
-          tools = await listTools()
+          tools = await listTools(ctx.principal)
         } catch (e) {
           log(`[relay] listTools 失败：${e?.message ?? e}`)
           return rpcError(id, -32001, `工具清单不可用：${e?.message ?? String(e)}`)
@@ -244,7 +252,7 @@ export function createMcpRouter({
       }
       case 'tools/call': {
         const name = params?.name
-        const args = params?.arguments ?? {}
+        const args = { ...(params?.arguments ?? {}) }
         if (typeof name !== 'string' || !name) {
           return rpcResult(id, { content: [{ type: 'text', text: 'tools/call 缺少 name' }], isError: true })
         }
@@ -255,7 +263,14 @@ export function createMcpRouter({
         //   ① Agent 侧（如本地 CLI/IDE 插件）在用户确认后自取票据 → issueConfirm()；
         //   ② relay --dev：把「预览」与「签发」并成一步，供本地联调/自动化跑通
         //      preview → confirm → execute 全链路（非 dev 一律不签发，防被静默绕过确认）。
-        const meta = { confirmToken: params?.confirmToken, requestId: params?.requestId || params?._meta?.requestId, generation: params?.generation || params?._meta?.generation }
+        if (['clientId','ownerId','agentKey','capabilities','principal'].some(k=>Object.hasOwn(args,k)))return rpcResult(id,{content:[{type:'text',text:'FORBIDDEN: 工具参数不能声明调用身份或能力'}],isError:true})
+        const meta = { clientId: ctx.principal?.clientId, capabilities: ctx.principal?.capabilities, agentKey: ctx.principal?.agentKey }
+        for(const field of ['confirmToken','requestId','generation']){
+          const values=[args[field],params?.[field],params?._meta?.[field]].filter(v=>v!==undefined)
+          if(values.some(v=>v!==values[0]))return rpcResult(id,{content:[{type:'text',text:'REQUEST_CONTEXT_CONFLICT: '+field}],isError:true})
+          meta[field]=values[0]
+        }
+        delete args.confirmToken
         if (meta.confirmToken) {
           // 核销时必须带上「本次执行参数」的指纹：票据绑定的是「用户确认过的那组参数」，
           // 对不上即拒 —— 否则「预览 A 拿票执行 B」的越权路径成立。
@@ -267,7 +282,7 @@ export function createMcpRouter({
             })
           }
           if (!redeemed.ok) { meta.replayOnly = true; meta.confirmToken = undefined }
-          else meta.redeemed = redeemed.meta
+          else { meta.redeemed = redeemed.meta;meta.planFingerprint=redeemed.meta.planFingerprint }
         }
         let res
         try {

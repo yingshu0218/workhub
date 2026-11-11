@@ -7,7 +7,6 @@ import { resetLocalData, restoreFromJson, focusSessionRepo } from '@/repositorie
 import {
   workspaceRepo,
   customerRepo,
-  interactionRepo,
   ledgerRepo,
   transactionRepo,
   todoRepo,
@@ -25,6 +24,7 @@ import {
 } from '@/repositories'
 import { downloadBlob, downloadText } from '@/shared/download'
 import { moduleConfigRepo } from '@/repositories'
+import { exportActivityData } from '@/repositories/activities'
 import { migrateLegacyTodoPriority } from '@/modules/todo/backfill'
 import type { Settings } from '@/db/types'
 import type { Attachment } from '@/db/db'
@@ -77,7 +77,7 @@ export function SecurityTab({
       const [
         workspaces,
         customers,
-        interactions,
+        activityData,
         ledgers,
         transactions,
         todos,
@@ -97,7 +97,7 @@ export function SecurityTab({
       ] = await Promise.all([
         workspaceRepo.list(),
         customerRepo.list(),
-        interactionRepo.list(),
+        exportActivityData(),
         ledgerRepo.list(),
         transactionRepo.list(),
         todoRepo.list(),
@@ -123,12 +123,14 @@ export function SecurityTab({
       )
       const payload = {
         app: 'nexus-workspace',
-        schemaVersion: 4,
+        schemaVersion: 5,
+        kind: 'business-copy',
+        recovery: '服务端完整恢复需使用冷备份、校验与隔离恢复流程；本文件不包含操作回执、凭据与离线队列',
         exportedAt: new Date().toISOString(),
         data: {
           workspaces,
           customers,
-          interactions,
+          ...activityData,
           ledgers,
           transactions,
           todos,
@@ -343,8 +345,8 @@ export function SecurityTab({
                 {
                   icon: 'data_object',
                   tag: 'SNAPSHOT',
-                  title: 'JSON 全量结构化存档',
-                  desc: '完整流水表结构：CRM · 客户档案 · 财务流水 · 笔记关联关系',
+                  title: 'JSON 业务数据副本',
+                  desc: '保留事件原字段与关联；服务器完整恢复使用校验后的冷备份',
                   action: exportJson,
                   label: exporting ? '导出中…' : '导出 JSON 存档',
                   variant: 'primary' as const,

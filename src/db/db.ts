@@ -87,6 +87,7 @@ export interface FocusSession {
  * 所有业务表均含同步元数据 updatedAt/deleted/rev（索引统一建在 updatedAt 上）
  */
 export class NexusDB extends Dexie {
+  activities!: Table<import('./types').Activity, string>
   workspaces!: Table<Workspace, string>
   customers!: Table<Customer, string>
   interactions!: Table<Interaction, string>
@@ -308,6 +309,10 @@ export class NexusDB extends Dexie {
      */
     this.version(17).stores({
       trashBatches: 'id, createdAt',
+    })
+    // 服务端完成权威迁移；本地仅接收可重建缓存，不另写第二份迁移事实。
+    this.version(18).stores({
+      activities: 'id, occurredAt, recordedAt, updatedAt, sourceOperationId, [sourceTable+sourceId]',
     })
   }
 }
