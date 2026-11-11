@@ -119,7 +119,7 @@ PB_BIN=<0.40.2> npm run test:clients  # 显式构建双缓存进程harness，仅
 远程 Agent 直连 `https://<站点>/relay/mcp`，标准 MCP over HTTP、`Authorization: Bearer <独立凭据>`；不需要仓库、本机进程或在线网页。
 
 - 主路径：拥有者登录 → 设置「Agent 接入」→ 按客户端名称及最小能力签发独立凭据，只显示一次；服务端仅保存散列。可单独撤销，恢复世代也使旧凭据失效。
-- 设备授权可用 `npm run agent:setup -- --url wss://<站点>/relay --login`。CLI持有device_code并轮询，页面只提交user_code；长期凭据不经过页面，落在 `~/.workhub/relay.json`，不放到可复制命令或Agent配置。
+- 设备授权可用 `npm run agent:setup -- --url wss://<站点>/relay --login`，**身份取决于宿主能力，不能仅凭命令名认定独立授权**：当前 `scripts/serve.mjs` 注入 `issueAgentCredential` 时签发独立身份；未注入的旧宿主只返回共享relay token，受升级世代绑定的7天过渡限制，不能当独立可撤销凭据。长期最小能力主路径仍是上条设置页逐Agent签发。CLI持有device_code并轮询，页面只提交user_code；长期凭据不经页面，落在 `~/.workhub/relay.json`，不放到可复制命令或Agent配置。
 - 页面及原生客户端用拥有者登录态走同一命令；Agent预览仍绑定原客户端，网页不能代另一Agent确认或撤回。
 - 旧浏览器桥/共享token是兼容路径，当前设置不再展示旧桥入口。共享秘密来源固定为 `WORKHUB_RELAY_TOKEN` → `<dataDir>/relay-token`（0600）→ 首次生成，不允许构建期随机或页面自造；升级世代绑定的7天过渡到期/恢复后不能重开。
 - **禁止用空串/缺失token表示共享身份**：外部HTTP/WS/stdio先拒绝空白凭据；仅实际匹配共享秘密后构造显式内部身份。此P0边界由真实协议回归固定。
