@@ -1,4 +1,4 @@
-import { storage } from '@/storage'
+import { storage, onlineCommandStorage } from '@/storage'
 import { forgetTombstoneMarks, pushTombstonesNow } from '@/sync/pocketbaseAdapter'
 import { reviveCascadeLinks } from './links'
 import type {
@@ -580,7 +580,7 @@ async function purgeTargets(targets: { table: TrashTable; id: string }[]): Promi
   if (targets.length === 0) return { purged: 0, tables: [] }
 
   const entries = targets.map((t) => ({ table: t.table as string, recordId: t.id }))
-  await pushTombstonesNow(entries)
+  if (!(await onlineCommandStorage())) await pushTombstonesNow(entries)
 
   const tables = [...new Set(targets.map((t) => t.table))]
   const purgedTargets: { table: TrashTable; id: string }[] = []

@@ -1379,6 +1379,21 @@
           },
           "to": {
             "type": "string"
+          },
+          "offset": {
+            "type": "number"
+          },
+          "limit": {
+            "type": "number"
+          },
+          "sequence": {
+            "type": "number"
+          },
+          "generation": {
+            "type": "string"
+          },
+          "queryKey": {
+            "type": "string"
           }
         }
       },

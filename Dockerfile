@@ -86,6 +86,7 @@ COPY deploy/docker/entrypoint.mjs ./entrypoint.mjs
 
 # PocketBase 的初始化物料（hooks 生效；collections 供首次启动按需导入）
 COPY pb_setup/pb_hooks ./pb_hooks
+COPY pb_setup/pb_migrations ./pb_migrations
 COPY pb_setup/collections.json ./pb_setup/collections.json
 
 COPY package.json ./
@@ -100,6 +101,7 @@ ENV NODE_ENV=production \
     HOST=127.0.0.1 \
     PB_HTTP=127.0.0.1:8090 \
     PB_DATA_DIR=/data/pb_data \
+    PB_MIGRATIONS_DIR=/app/pb_migrations \
     PB_HOOKS_DIR=/app/pb_hooks \
     PB_COLLECTIONS=/app/pb_setup/collections.json
 

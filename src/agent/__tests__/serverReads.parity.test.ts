@@ -91,10 +91,8 @@ describe('serverReads：服务端读执行器', () => {
         domains: { crm: true, read: true },
       })
       const noTicket = await ex.callTool('crm_createCustomer', { name: '张三', decisionLevel: '决策人' })
-      expect(noTicket.ok).toBe(true)
-      expect(noTicket.data?.preview).toBe(true)
-      expect((noTicket.data as Record<string, unknown>).tool).toBe('crm_createCustomer')
-      expect((noTicket.data as Record<string, unknown>).risk).toBe('medium')
+      expect(noTicket.ok).toBe(false) // 不能在 PB 不可用时伪造已经校验的具体预览
+      expect(noTicket.error).toBeTruthy()
       // low 工具不经 preview（对照：todo_createTodo low → 直接执行到业务层）
       const low = await ex.callTool('todo_createTodo', { title: 'P3 闸门对照' })
       // PB 不可达 → 执行至网络层报错（证明 preview 闸门没有拦 low）

@@ -1,3 +1,4 @@
+import { moneySummary, totalsByCurrency } from './money'
 import { useEffect, useState } from 'react'
 import { Icon } from '@/design-system/Icon'
 import { FilterChip } from '@/design-system/FilterChip'
@@ -100,12 +101,12 @@ export default function FinancePage() {
   // 当前账本口径下的流水与汇总（统计一律从源记录推导）；全部账本口径仅计 CNY 账本
   const scoped = transactions.filter((t) =>
     scope === 'all'
-      ? (ledgerMap.get(t.ledgerId)?.currency ?? 'CNY') === 'CNY'
+      ? (t.currency ?? ledgerMap.get(t.ledgerId)?.currency ?? 'CNY') === 'CNY'
       : t.ledgerId === scope,
   )
-  const scopeNote = scope === 'all' ? ' · 仅 CNY 账本' : ''
-  const income = scoped.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0)
-  const expense = scoped.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
+  const scopeNote = scope === 'all' ? ' · CNY；全部收入 ' + moneySummary(transactions, 'income') + '；全部支出 ' + moneySummary(transactions, 'expense') : ''
+  const income = (totalsByCurrency(scoped)[currency]?.incomeMinor || 0) / 100
+  const expense = (totalsByCurrency(scoped)[currency]?.expenseMinor || 0) / 100
   const opening =
     scope === 'all'
       ? ledgers

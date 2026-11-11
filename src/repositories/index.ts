@@ -1,4 +1,6 @@
 import { storage } from '@/storage'
+import { minorUnits } from '@/commands/core'
+import { assertExpectedRevision } from './repository'
 import { createRepository, newId } from './repository'
 import type { PutInput } from './repository'
 import type {
@@ -88,6 +90,8 @@ export async function saveNoteWithMentions(
     ['notes', 'links', 'customers', 'todos', 'ledgers', 'projects', 'noteFolders', 'syncQueue'],
     async (tx) => {
       const prev = await tx.get<Note>('notes', note.id)
+      assertExpectedRevision(note, prev)
+      if (prev?.deleted) throw new Error('DELETED: 请从回收站显式恢复笔记')
       const reviving = prev?.deleted === 1
       const restoredAt = reviving ? now : (note.restoredAt ?? prev?.restoredAt)
       await tx.put('notes', {
@@ -135,7 +139,7 @@ export async function updateNoteWithMentions(
     ['notes', 'links', 'customers', 'todos', 'ledgers', 'projects', 'noteFolders', 'syncQueue'],
     async (tx) => {
       const prev = await tx.get<Note>('notes', id)
-      if (!prev || prev.deleted) return
+      if (!prev || prev.deleted) throw new Error('NOT_FOUND: 目标记录不存在或已删除')
       const now = Date.now()
       await tx.update('notes', id, { ...patch, updatedAt: now, rev: (prev.rev ?? 0) + 1 })
       await tx.enqueue('notes', id, 'upsert', now)
@@ -165,7 +169,7 @@ export async function deleteNoteCascade(noteId: string): Promise<void> {
   const now = Date.now()
   await storage.transaction(['notes', 'links', 'syncQueue'], async (tx) => {
     const prev = await tx.get<Note>('notes', noteId)
-    if (!prev || prev.deleted) return
+    if (!prev || prev.deleted) throw new Error('NOT_FOUND: 目标记录不存在或已删除')
     const cascadeLinkIds = await cascadeSoftDeleteLinks(tx, [{ type: 'notes', id: noteId }], now)
     const trashSnapshot: TrashSnapshot = {
       children: [],
@@ -197,7 +201,7 @@ export async function setCustomerGroup(
   const now = Date.now()
   await storage.transaction(['customers', 'customerGroups', 'links', 'syncQueue'], async (tx) => {
     const customer = await tx.get<Customer>('customers', customerId)
-    if (!customer || customer.deleted) return
+    if (!customer || customer.deleted) throw new Error('NOT_FOUND: 目标记录不存在或已删除')
     await syncMemberLinks(tx, { type: 'customers', id: customerId }, 'customerGroups', groupId, now)
   })
   storage.requestSync()
@@ -214,7 +218,7 @@ export async function setNoteFolder(
   const now = Date.now()
   await storage.transaction(['notes', 'noteFolders', 'links', 'syncQueue'], async (tx) => {
     const note = await tx.get<Note>('notes', noteId)
-    if (!note || note.deleted) return
+    if (!note || note.deleted) throw new Error('NOT_FOUND: 目标记录不存在或已删除')
     await syncMemberLinks(tx, { type: 'notes', id: noteId }, 'noteFolders', folderId, now)
   })
   storage.requestSync()
@@ -238,7 +242,7 @@ export async function clearOtherDefaultLedgers(keepId?: string): Promise<void> {
   )
   for (const l of others) {
     const { isDefault: _drop, ...rest } = l
-    await ledgerRepo.put({ ...rest, updatedAt: now, rev: l.rev + 1 })
+    await ledgerRepo.put({ ...rest, isDefault: false, updatedAt: now })
   }
 }
 
@@ -270,16 +274,16 @@ export async function checkinHabit(
   opts: { evidence?: string } = {},
 ): Promise<{ created: boolean }> {
   const id = habitLogId(habitId, date)
-  const prev = await habitLogRepo.get(id)
-  // 已存在（未软删）→ 幂等空操作，不落库不 emit
-  if (prev) return { created: false }
-  await habitLogRepo.put({
-    id,
-    habitId,
-    date,
-    completedAt: Date.now(),
-    ...(opts.evidence ? { evidence: opts.evidence } : {}),
-  } as PutInput<HabitLog>)
+  let created = false
+  await storage.transaction(['habitLogs', 'syncQueue'], async tx => {
+    const prev = await tx.get<HabitLog>('habitLogs', id)
+    if (prev && !prev.deleted) return
+    const now = Date.now()
+    await tx.put('habitLogs', { id, habitId, date, completedAt: now, ...(opts.evidence ? {evidence:opts.evidence} : {}), updatedAt:now, rev:(prev?.rev || 0)+1, deleted:0, ...(prev?.deleted ? {restoredAt:now} : {}) })
+    await tx.enqueue('habitLogs',id,'upsert',now)
+    created = true
+  })
+  if (!created) return { created: false }
   // 事务 commit 之后 emit（仅实际新建/复活时）
   eventBus.emit('habit:checked', { habitId, date })
   return { created: true }
@@ -301,7 +305,7 @@ export async function deleteHabitCascade(habitId: string): Promise<void> {
   const now = Date.now()
   await storage.transaction(['habits', 'habitLogs', 'links', 'syncQueue'], async (tx) => {
     const prevHabit = await tx.get<Habit>('habits', habitId)
-    if (!prevHabit || prevHabit.deleted) return
+    if (!prevHabit || prevHabit.deleted) throw new Error('NOT_FOUND: 目标记录不存在或已删除')
 
     const logs = (await tx.list<HabitLog>('habitLogs')).filter(
       (l) => l.habitId === habitId && !l.deleted,
@@ -365,7 +369,7 @@ export async function deleteLedgerCascade(ledgerId: string): Promise<void> {
   const now = Date.now()
   await storage.transaction(['ledgers', 'transactions', 'links', 'syncQueue'], async (tx) => {
     const prevLedger = await tx.get<Ledger>('ledgers', ledgerId)
-    if (!prevLedger || prevLedger.deleted) return
+    if (!prevLedger || prevLedger.deleted) throw new Error('NOT_FOUND: 目标记录不存在或已删除')
 
     const txnCount = (await tx.list<Transaction>('transactions')).filter(
       (t) => t.ledgerId === ledgerId && !t.deleted,
@@ -415,6 +419,8 @@ export async function saveTodoWithList(
   const now = Date.now()
   await storage.transaction(['todos', 'todoLists', 'links', 'syncQueue'], async (tx) => {
     const prev = await tx.get<Todo>('todos', todo.id)
+    assertExpectedRevision(todo, prev)
+    if (prev?.deleted) throw new Error('DELETED: 请从回收站显式恢复待办')
     const reviving = prev?.deleted === 1
     const restoredAt = reviving ? now : (todo.restoredAt ?? prev?.restoredAt)
     await tx.put('todos', {
@@ -448,7 +454,7 @@ export async function setTodoList(todoId: string, listId: string | undefined): P
   const now = Date.now()
   await storage.transaction(['todos', 'todoLists', 'links', 'syncQueue'], async (tx) => {
     const todo = await tx.get<Todo>('todos', todoId)
-    if (!todo || todo.deleted) return
+    if (!todo || todo.deleted) throw new Error('NOT_FOUND: 目标记录不存在或已删除')
     await syncMemberLinks(tx, { type: 'todos', id: todoId }, 'todoLists', listId, now)
   })
   storage.requestSync()
@@ -479,7 +485,7 @@ export async function saveTransactionWithAttachments(
   const now = Date.now()
   let created = false
   await storage.transaction(
-    ['transactions', 'attachments', 'links', 'customers', 'todos', 'projects', 'syncQueue'],
+    ['transactions', 'attachments', 'links', 'customers', 'todos', 'projects', 'ledgers', 'syncQueue'],
     async (tx) => {
       const putStamped = async <T extends { id: string }>(
         tableName: 'transactions' | 'attachments',
@@ -496,6 +502,11 @@ export async function saveTransactionWithAttachments(
       }
       // create 门控判据：事务开始前交易记录是否已存在（edited 既有记录 → prev 有值 → 不发事件）
       const prevTxn = await tx.get<Transaction>('transactions', txn.id)
+      assertExpectedRevision(txn, prevTxn)
+      const ledger = await tx.get<Ledger>('ledgers', txn.ledgerId)
+      if (!ledger || ledger.deleted) throw new Error('REFERENCE_NOT_FOUND: 账本不存在')
+      txn = { ...txn, amountMinor: minorUnits(txn.amount), currency: prevTxn?.currency || ledger.currency }
+      if (prevTxn?.deleted) throw new Error('DELETED: 请从回收站恢复流水')
       created = !prevTxn || !!prevTxn.deleted
       await putStamped('transactions', txn as Transaction & Partial<SyncMeta>)
       for (const att of attachments) {
@@ -554,6 +565,7 @@ export async function saveInteractionAndTouchCustomer(
   const now = Date.now()
   await storage.transaction(['interactions', 'customers', 'syncQueue'], async (tx) => {
     const prevInteraction = await tx.get<Interaction>('interactions', interaction.id)
+    assertExpectedRevision(interaction, prevInteraction)
     await tx.put('interactions', {
       ...interaction,
       updatedAt: now,
@@ -568,7 +580,7 @@ export async function saveInteractionAndTouchCustomer(
       throw new Error(`saveInteractionAndTouchCustomer: customer ${customerId} not found`)
     }
     await tx.update('customers', customerId, {
-      lastContactAt: touchAt ?? interaction.at,
+      lastContactAt: Math.max(prevCustomer.lastContactAt || 0, touchAt ?? interaction.at),
       updatedAt: now,
       rev: prevCustomer.rev + 1,
     })
@@ -630,6 +642,8 @@ export async function saveCustomer(
   const now = Date.now()
   await storage.transaction(['customers', 'links', 'syncQueue'], async (tx) => {
     const prev = await tx.get<Customer>('customers', customer.id)
+    assertExpectedRevision(customer, prev)
+    if (prev?.deleted) throw new Error('DELETED: 请从回收站显式恢复联系人')
     const reviving = prev?.deleted === 1
     const restoredAt = reviving ? now : (customer.restoredAt ?? prev?.restoredAt)
     await tx.put('customers', {
@@ -665,7 +679,7 @@ export async function deleteCustomerCascade(customerId: string): Promise<void> {
     ['customers', 'interactions', 'todos', 'projects', 'links', 'syncQueue'],
     async (tx) => {
       const prevCustomer = await tx.get<Customer>('customers', customerId)
-      if (!prevCustomer || prevCustomer.deleted) return
+      if (!prevCustomer || prevCustomer.deleted) throw new Error('NOT_FOUND: 目标记录不存在或已删除')
 
       const interactions = (await tx.list<Interaction>('interactions')).filter(
         (it) => it.customerId === customerId && !it.deleted,
@@ -793,6 +807,8 @@ export async function createCustomerWithInit(
     ['customers', 'todos', 'interactions', 'transactions', 'links', 'syncQueue'],
     async (tx) => {
       const prev = await tx.get<Customer>('customers', customer.id)
+    assertExpectedRevision(customer, prev)
+    if (prev?.deleted) throw new Error('DELETED: 请从回收站显式恢复联系人')
       await tx.put('customers', {
         ...customer,
         updatedAt: now,
@@ -857,7 +873,7 @@ export async function deleteTransactionCascade(txnId: string): Promise<void> {
   const now = Date.now()
   await storage.transaction(['transactions', 'attachments', 'links', 'syncQueue'], async (tx) => {
     const prev = await tx.get<Transaction>('transactions', txnId)
-    if (!prev || prev.deleted) return
+    if (!prev || prev.deleted) throw new Error('NOT_FOUND: 目标记录不存在或已删除')
 
     // 附件归属已迁 links（v15）：按 kind='attachment' 的 from 方向找子附件
     // （含墓碑 link —— 归属关系一旦建立就随流水走，墓碑只代表「当下已删」而非「从未归属」）
@@ -927,7 +943,7 @@ export async function deleteProjectCascade(projectId: string): Promise<void> {
     ['projects', 'projectMilestones', 'todos', 'notes', 'interactions', 'links', 'syncQueue'],
     async (tx) => {
       const prev = await tx.get<Project>('projects', projectId)
-      if (!prev || prev.deleted) return
+      if (!prev || prev.deleted) throw new Error('NOT_FOUND: 目标记录不存在或已删除')
 
       const milestones = (await tx.list<ProjectMilestone>('projectMilestones')).filter(
         (m) => m.projectId === projectId && !m.deleted,
@@ -1014,4 +1030,23 @@ export async function deleteProjectCascade(projectId: string): Promise<void> {
     },
   )
   storage.requestSync()
+}
+
+/** 默认账本唯一性和目标账本在同一事务内提交，取消默认必须显式写 false。 */
+export async function saveLedger(record: PutInput<Ledger>): Promise<string> {
+  await storage.transaction(['ledgers', 'transactions', 'syncQueue'], async tx => {
+    const rows = await tx.list<Ledger>('ledgers')
+    const previous = rows.find(r => r.id === record.id)
+    assertExpectedRevision(record, previous)
+    if (previous && previous.currency !== record.currency && (await tx.list<Transaction>('transactions')).some(t => t.ledgerId === record.id)) throw new Error('CURRENCY_CONFLICT: 有流水的账本不可更换币种')
+    const now = Date.now()
+    for (const row of rows) if (record.isDefault && row.id !== record.id && row.isDefault && !row.deleted) {
+      await tx.update('ledgers', row.id, { isDefault: false, updatedAt: now, rev: row.rev + 1 })
+      await tx.enqueue('ledgers', row.id, 'upsert', now)
+    }
+    await tx.put('ledgers', { ...record, openingBalanceMinor: minorUnits(record.openingBalance), isDefault: !!record.isDefault, updatedAt: now, rev: (previous?.rev || 0) + 1, deleted: 0 })
+    await tx.enqueue('ledgers', record.id, 'upsert', now)
+  })
+  storage.requestSync()
+  return record.id
 }

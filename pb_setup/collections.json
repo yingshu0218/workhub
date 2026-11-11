@@ -3,11 +3,11 @@
     "name": "workspaces",
     "type": "base",
     "system": false,
-    "listRule": "@request.auth.id != ''",
-    "viewRule": "@request.auth.id != ''",
-    "createRule": "@request.auth.id != ''",
-    "updateRule": "@request.auth.id != ''",
-    "deleteRule": "@request.auth.id != ''",
+    "listRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "viewRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
     "fields": [
       {
         "name": "id",
@@ -81,11 +81,11 @@
     "name": "customers",
     "type": "base",
     "system": false,
-    "listRule": "@request.auth.id != ''",
-    "viewRule": "@request.auth.id != ''",
-    "createRule": "@request.auth.id != ''",
-    "updateRule": "@request.auth.id != ''",
-    "deleteRule": "@request.auth.id != ''",
+    "listRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "viewRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
     "fields": [
       {
         "name": "id",
@@ -221,11 +221,11 @@
     "name": "interactions",
     "type": "base",
     "system": false,
-    "listRule": "@request.auth.id != ''",
-    "viewRule": "@request.auth.id != ''",
-    "createRule": "@request.auth.id != ''",
-    "updateRule": "@request.auth.id != ''",
-    "deleteRule": "@request.auth.id != ''",
+    "listRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "viewRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
     "fields": [
       {
         "name": "id",
@@ -318,11 +318,11 @@
     "name": "ledgers",
     "type": "base",
     "system": false,
-    "listRule": "@request.auth.id != ''",
-    "viewRule": "@request.auth.id != ''",
-    "createRule": "@request.auth.id != ''",
-    "updateRule": "@request.auth.id != ''",
-    "deleteRule": "@request.auth.id != ''",
+    "listRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "viewRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
     "fields": [
       {
         "name": "id",
@@ -406,6 +406,11 @@
         "name": "deletedAt",
         "type": "number",
         "required": false
+      },
+      {
+        "name": "openingBalanceMinor",
+        "type": "number",
+        "onlyInt": true
       }
     ],
     "indexes": [
@@ -418,11 +423,11 @@
     "name": "transactions",
     "type": "base",
     "system": false,
-    "listRule": "@request.auth.id != ''",
-    "viewRule": "@request.auth.id != ''",
-    "createRule": "@request.auth.id != ''",
-    "updateRule": "@request.auth.id != ''",
-    "deleteRule": "@request.auth.id != ''",
+    "listRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "viewRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
     "fields": [
       {
         "name": "id",
@@ -558,6 +563,15 @@
         "name": "trashSnapshot",
         "type": "json",
         "required": false
+      },
+      {
+        "name": "amountMinor",
+        "type": "number",
+        "onlyInt": true
+      },
+      {
+        "name": "currency",
+        "type": "text"
       }
     ],
     "indexes": [
@@ -570,11 +584,11 @@
     "name": "todos",
     "type": "base",
     "system": false,
-    "listRule": "@request.auth.id != ''",
-    "viewRule": "@request.auth.id != ''",
-    "createRule": "@request.auth.id != ''",
-    "updateRule": "@request.auth.id != ''",
-    "deleteRule": "@request.auth.id != ''",
+    "listRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "viewRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
     "fields": [
       {
         "name": "id",
@@ -717,11 +731,11 @@
     "name": "noteFolders",
     "type": "base",
     "system": false,
-    "listRule": "@request.auth.id != ''",
-    "viewRule": "@request.auth.id != ''",
-    "createRule": "@request.auth.id != ''",
-    "updateRule": "@request.auth.id != ''",
-    "deleteRule": "@request.auth.id != ''",
+    "listRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "viewRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
     "fields": [
       {
         "name": "id",
@@ -807,11 +821,11 @@
     "name": "notes",
     "type": "base",
     "system": false,
-    "listRule": "@request.auth.id != ''",
-    "viewRule": "@request.auth.id != ''",
-    "createRule": "@request.auth.id != ''",
-    "updateRule": "@request.auth.id != ''",
-    "deleteRule": "@request.auth.id != ''",
+    "listRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "viewRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
     "fields": [
       {
         "name": "id",
@@ -916,11 +930,11 @@
     "name": "quickNotes",
     "type": "base",
     "system": false,
-    "listRule": "@request.auth.id != ''",
-    "viewRule": "@request.auth.id != ''",
-    "createRule": "@request.auth.id != ''",
-    "updateRule": "@request.auth.id != ''",
-    "deleteRule": "@request.auth.id != ''",
+    "listRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "viewRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
     "fields": [
       {
         "name": "id",
@@ -1002,11 +1016,11 @@
     "name": "habits",
     "type": "base",
     "system": false,
-    "listRule": "@request.auth.id != ''",
-    "viewRule": "@request.auth.id != ''",
-    "createRule": "@request.auth.id != ''",
-    "updateRule": "@request.auth.id != ''",
-    "deleteRule": "@request.auth.id != ''",
+    "listRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "viewRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
     "fields": [
       {
         "name": "id",
@@ -1119,11 +1133,11 @@
     "name": "habitLogs",
     "type": "base",
     "system": false,
-    "listRule": "@request.auth.id != ''",
-    "viewRule": "@request.auth.id != ''",
-    "createRule": "@request.auth.id != ''",
-    "updateRule": "@request.auth.id != ''",
-    "deleteRule": "@request.auth.id != ''",
+    "listRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "viewRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
     "fields": [
       {
         "name": "id",
@@ -1212,11 +1226,11 @@
     "name": "trophies",
     "type": "base",
     "system": false,
-    "listRule": "@request.auth.id != ''",
-    "viewRule": "@request.auth.id != ''",
-    "createRule": "@request.auth.id != ''",
-    "updateRule": "@request.auth.id != ''",
-    "deleteRule": "@request.auth.id != ''",
+    "listRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "viewRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
     "fields": [
       {
         "name": "id",
@@ -1310,11 +1324,11 @@
     "name": "attachments",
     "type": "base",
     "system": false,
-    "listRule": "@request.auth.id != ''",
-    "viewRule": "@request.auth.id != ''",
-    "createRule": "@request.auth.id != ''",
-    "updateRule": "@request.auth.id != ''",
-    "deleteRule": "@request.auth.id != ''",
+    "listRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "viewRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
     "fields": [
       {
         "name": "id",
@@ -1418,11 +1432,11 @@
     "name": "sync_state",
     "type": "base",
     "system": false,
-    "listRule": "@request.auth.id != ''",
-    "viewRule": "@request.auth.id != ''",
-    "createRule": "@request.auth.id != ''",
-    "updateRule": "@request.auth.id != ''",
-    "deleteRule": "@request.auth.id != ''",
+    "listRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "viewRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
     "fields": [
       {
         "name": "id",
@@ -1487,11 +1501,11 @@
     "name": "todoLists",
     "type": "base",
     "system": false,
-    "listRule": "@request.auth.id != ''",
-    "viewRule": "@request.auth.id != ''",
-    "createRule": "@request.auth.id != ''",
-    "updateRule": "@request.auth.id != ''",
-    "deleteRule": "@request.auth.id != ''",
+    "listRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "viewRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
     "fields": [
       {
         "name": "id",
@@ -1567,11 +1581,11 @@
     "name": "projects",
     "type": "base",
     "system": false,
-    "listRule": "@request.auth.id != ''",
-    "viewRule": "@request.auth.id != ''",
-    "createRule": "@request.auth.id != ''",
-    "updateRule": "@request.auth.id != ''",
-    "deleteRule": "@request.auth.id != ''",
+    "listRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "viewRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
     "fields": [
       {
         "name": "id",
@@ -1683,11 +1697,11 @@
     "name": "projectMilestones",
     "type": "base",
     "system": false,
-    "listRule": "@request.auth.id != ''",
-    "viewRule": "@request.auth.id != ''",
-    "createRule": "@request.auth.id != ''",
-    "updateRule": "@request.auth.id != ''",
-    "deleteRule": "@request.auth.id != ''",
+    "listRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "viewRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
     "fields": [
       {
         "name": "id",
@@ -1794,11 +1808,11 @@
     "name": "module_configs",
     "type": "base",
     "system": false,
-    "listRule": "@request.auth.id != ''",
-    "viewRule": "@request.auth.id != ''",
-    "createRule": "@request.auth.id != ''",
-    "updateRule": "@request.auth.id != ''",
-    "deleteRule": "@request.auth.id != ''",
+    "listRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "viewRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
     "fields": [
       {
         "name": "id",
@@ -1864,11 +1878,11 @@
     "name": "customerGroups",
     "type": "base",
     "system": false,
-    "listRule": "@request.auth.id != ''",
-    "viewRule": "@request.auth.id != ''",
-    "createRule": "@request.auth.id != ''",
-    "updateRule": "@request.auth.id != ''",
-    "deleteRule": "@request.auth.id != ''",
+    "listRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "viewRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
     "fields": [
       {
         "name": "id",
@@ -1958,9 +1972,9 @@
   {
     "name": "agent_events",
     "type": "base",
-    "listRule": "@request.auth.id != ''",
-    "viewRule": "@request.auth.id != ''",
-    "createRule": "@request.auth.id != ''",
+    "listRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "viewRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "createRule": null,
     "updateRule": null,
     "deleteRule": null,
     "fields": [
@@ -1993,11 +2007,11 @@
     "name": "links",
     "type": "base",
     "system": false,
-    "listRule": "@request.auth.id != ''",
-    "viewRule": "@request.auth.id != ''",
-    "createRule": "@request.auth.id != ''",
-    "updateRule": "@request.auth.id != ''",
-    "deleteRule": "@request.auth.id != ''",
+    "listRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "viewRule": "@request.auth.id != '' && @collection.command_state.ownerId ?= @request.auth.id",
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
     "fields": [
       {
         "name": "id",
@@ -2095,5 +2109,209 @@
       "CREATE UNIQUE INDEX idx_links_localId ON links (localId)",
       "CREATE INDEX idx_links_tombstonePushed ON links (tombstonePushed)"
     ]
+  },
+  {
+    "name": "operations",
+    "type": "base",
+    "listRule": null,
+    "viewRule": null,
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
+    "fields": [
+      {
+        "name": "owner",
+        "type": "text"
+      },
+      {
+        "name": "requestId",
+        "type": "text"
+      },
+      {
+        "name": "fingerprint",
+        "type": "text"
+      },
+      {
+        "name": "generation",
+        "type": "text"
+      },
+      {
+        "name": "status",
+        "type": "text"
+      },
+      {
+        "name": "result",
+        "type": "json"
+      },
+      {
+        "name": "committedAt",
+        "type": "number"
+      },
+      {
+        "name": "sequence",
+        "type": "number",
+        "onlyInt": true
+      },
+      {
+        "name": "planFingerprint",
+        "type": "text"
+      },
+      {
+        "name": "plan",
+        "type": "json"
+      }
+    ],
+    "indexes": [
+      "CREATE UNIQUE INDEX idx_operation_request ON operations (owner, requestId)"
+    ]
+  },
+  {
+    "name": "operation_effects",
+    "type": "base",
+    "listRule": null,
+    "viewRule": null,
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
+    "fields": [
+      {
+        "name": "operationId",
+        "type": "text"
+      },
+      {
+        "name": "tableName",
+        "type": "text"
+      },
+      {
+        "name": "recordId",
+        "type": "text"
+      },
+      {
+        "name": "beforeRev",
+        "type": "number"
+      },
+      {
+        "name": "afterRev",
+        "type": "number"
+      },
+      {
+        "name": "before",
+        "type": "json"
+      },
+      {
+        "name": "after",
+        "type": "json"
+      },
+      {
+        "name": "action",
+        "type": "text"
+      },
+      {
+        "name": "sourceScope",
+        "type": "text"
+      },
+      {
+        "name": "sequence",
+        "type": "number"
+      },
+      {
+        "name": "ordinal",
+        "type": "number"
+      },
+      {
+        "name": "redacted",
+        "type": "bool"
+      }
+    ],
+    "indexes": [
+      "CREATE INDEX idx_effect_operation ON operation_effects (operationId)",
+      "CREATE INDEX idx_effect_record ON operation_effects (tableName, recordId, sequence, ordinal)"
+    ]
+  },
+  {
+    "name": "deletion_registry",
+    "type": "base",
+    "listRule": null,
+    "viewRule": null,
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
+    "fields": [
+      {
+        "name": "tableName",
+        "type": "text"
+      },
+      {
+        "name": "recordId",
+        "type": "text"
+      },
+      {
+        "name": "generation",
+        "type": "text"
+      },
+      {
+        "name": "purgedAt",
+        "type": "number"
+      }
+    ],
+    "indexes": [
+      "CREATE UNIQUE INDEX idx_deleted_entity ON deletion_registry (tableName, recordId)"
+    ]
+  },
+  {
+    "name": "command_state",
+    "type": "base",
+    "listRule": null,
+    "viewRule": null,
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
+    "fields": [
+      {
+        "name": "generation",
+        "type": "text"
+      },
+      {
+        "name": "schemaVersion",
+        "type": "number"
+      },
+      {
+        "name": "ownerId",
+        "type": "text"
+      },
+      {
+        "name": "sequence",
+        "type": "number",
+        "onlyInt": true
+      }
+    ],
+    "indexes": []
+  },
+  {
+    "name": "attachment_staging",
+    "type": "base",
+    "listRule": null,
+    "viewRule": "owner = @request.auth.id",
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
+    "fields": [
+      {
+        "name": "owner",
+        "type": "text"
+      },
+      {
+        "name": "file",
+        "type": "file",
+        "maxSelect": 1,
+        "maxSize": 5242880,
+        "protected": true
+      },
+      {
+        "name": "expiresAt",
+        "type": "number"
+      }
+    ],
+    "indexes": []
   }
 ]

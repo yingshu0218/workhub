@@ -1,3 +1,4 @@
+import { moneySummary } from '@/modules/finance/money'
 import { useMemo, useState } from 'react'
 import { Icon } from '@/design-system/Icon'
 import { useNavigate } from 'react-router-dom'
@@ -44,12 +45,12 @@ export default function ProjectsPage() {
 
   /** 每个项目的轻量统计（从源记录实时推导，不存快照） */
   const stats = useMemo(() => {
-    const map = new Map<string, { income: number; expense: number; openTodos: number }>()
+    const map = new Map<string, { income: string; expense: string; openTodos: number }>()
     for (const p of projects) {
       const txns = transactions.filter((t) => txnLinksOf(txnLinkIndex, t.id).projectIds.includes(p.id))
       map.set(p.id, {
-        income: txns.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0),
-        expense: txns.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amount, 0),
+        income: moneySummary(txns, 'income'),
+        expense: moneySummary(txns, 'expense'),
         openTodos: todos.filter((t) => t.projectId === p.id && isTodoOpen(t)).length,
       })
     }
@@ -101,7 +102,7 @@ export default function ProjectsPage() {
         // key 随筛选变化 → 切换 scope 时整块重挂、配合条目错峰重新入场
         <div key={scope} className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {filtered.map((p, i) => {
-            const st = stats.get(p.id) ?? { income: 0, expense: 0, openTodos: 0 }
+            const st = stats.get(p.id) ?? { income: 'CNY 0', expense: 'CNY 0', openTodos: 0 }
             const meta = projectStatusMeta(p.status)
             return (
               /* ⚠️ hover 触发 .card-hover:hover 的 translateY —— 依赖 .anim-list-item
@@ -128,13 +129,13 @@ export default function ProjectsPage() {
                 <div className="mt-4 grid grid-cols-3 gap-2 text-center">
                   <div className="rounded-lg bg-surface-container-low/60 py-2">
                     <div className="text-[0.9286rem] font-bold text-success">
-                      +¥{st.income.toLocaleString('zh-CN')}
+                      +{st.income}
                     </div>
                     <div className="text-[0.7857rem] text-outline">收入</div>
                   </div>
                   <div className="rounded-lg bg-surface-container-low/60 py-2">
                     <div className="text-[0.9286rem] font-bold text-danger">
-                      -¥{st.expense.toLocaleString('zh-CN')}
+                      -{st.expense}
                     </div>
                     <div className="text-[0.7857rem] text-outline">支出</div>
                   </div>

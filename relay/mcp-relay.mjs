@@ -81,6 +81,10 @@ const rpcError = (id, code, message, data) => ({
  * 语义（§四.4）：preview 系工具签发 → Agent 转述用户确认 → execute 携带 confirmToken 核销。
  * 单次有效（核销即删）、超时作废、token 不匹配拒绝。
  */
+export function confirmationFingerprint(tool, args, meta = {}) {
+  return argsFingerprint(tool, meta.requestId ? { arguments: args, requestId: meta.requestId, generation: meta.generation } : args)
+}
+
 export class ConfirmTokenStore {
   constructor({ ttlMs = CONFIRM_TTL_MS, now = () => Date.now() } = {}) {
     this.ttlMs = ttlMs
@@ -97,8 +101,10 @@ export class ConfirmTokenStore {
     const rec = { ...meta, expiresAt: this.now() + this.ttlMs }
     // 参数指纹：票据一旦携带，redeem 时须与本次执行参数逐字节对得上（堵死越权路径）
     if (meta && meta.tool !== undefined) {
-      rec.fingerprint = argsFingerprint(meta.tool, meta.args ?? {})
+      rec.fingerprint = confirmationFingerprint(meta.tool, meta.args ?? {}, meta)
     }
+    for (const [key, item] of this.map) if (item.expiresAt < this.now()) this.map.delete(key)
+    if (this.map.size >= 1024) throw new Error('确认票据过多，请稍后重试')
     this.map.set(token, rec)
     return { confirmToken: token, expiresAt: rec.expiresAt }
   }
@@ -249,18 +255,19 @@ export function createMcpRouter({
         //   ① Agent 侧（如本地 CLI/IDE 插件）在用户确认后自取票据 → issueConfirm()；
         //   ② relay --dev：把「预览」与「签发」并成一步，供本地联调/自动化跑通
         //      preview → confirm → execute 全链路（非 dev 一律不签发，防被静默绕过确认）。
-        const meta = { confirmToken: params?.confirmToken }
+        const meta = { confirmToken: params?.confirmToken, requestId: params?.requestId || params?._meta?.requestId, generation: params?.generation || params?._meta?.generation }
         if (meta.confirmToken) {
           // 核销时必须带上「本次执行参数」的指纹：票据绑定的是「用户确认过的那组参数」，
           // 对不上即拒 —— 否则「预览 A 拿票执行 B」的越权路径成立。
-          const redeemed = confirmStore.redeem(meta.confirmToken, argsFingerprint(name, args))
-          if (!redeemed.ok) {
+          const redeemed = confirmStore.redeem(meta.confirmToken, confirmationFingerprint(name, args, meta))
+          if (!redeemed.ok && !meta.requestId) {
             return rpcResult(id, {
               content: [{ type: 'text', text: redeemed.reason }],
               isError: true,
             })
           }
-          meta.redeemed = redeemed.meta
+          if (!redeemed.ok) { meta.replayOnly = true; meta.confirmToken = undefined }
+          else meta.redeemed = redeemed.meta
         }
         let res
         try {

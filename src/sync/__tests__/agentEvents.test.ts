@@ -42,41 +42,8 @@ describe('eventBus 转发器（服务端事件出口）', () => {
   })
 })
 
-describe('pbAdapter.recordEvent（服务端事件落库）', () => {
-  it('POST agent_events（type/payload/tool/occurredAt 齐全）', async () => {
-    const bodies: unknown[] = []
-    const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
-      const url = new URL(String(input))
-      if (url.pathname.endsWith('/auth-with-password')) {
-        return new Response(JSON.stringify({ token: 'tok' }), { status: 200 })
-      }
-      if (url.pathname.includes('/agent_events') && init?.method === 'POST') {
-        bodies.push(JSON.parse(String(init.body)))
-        return new Response(JSON.stringify({ id: 'ev1' }), { status: 200 })
-      }
-      return new Response('{}', { status: 200 })
-    }) as unknown as typeof fetch
-    const adapter = createPocketBaseAdapter({ baseUrl: 'http://127.0.0.1:9999', account: 'u', password: 'p', fetchImpl })
-    await adapter.recordEvent!('habit:checked', { habitId: 'h1', date: 'd1' }, 'server-executor')
-    expect(bodies).toHaveLength(1)
-    const body = bodies[0] as Record<string, unknown>
-    expect(body.type).toBe('habit:checked')
-    expect(body.payload).toEqual({ habitId: 'h1', date: 'd1' })
-    expect(body.tool).toBe('server-executor')
-    expect(typeof body.occurredAt).toBe('number')
-  })
-
-  it('事件落库失败不抛出（写操作本身已成功，评估延迟不丢失）', async () => {
-    const fetchImpl = vi.fn(async (input: string | URL | Request) => {
-      const url = new URL(String(input))
-      if (url.pathname.endsWith('/auth-with-password')) {
-        return new Response(JSON.stringify({ token: 'tok' }), { status: 200 })
-      }
-      return new Response('{"message":"nope"}', { status: 400 })
-    }) as unknown as typeof fetch
-    const adapter = createPocketBaseAdapter({ baseUrl: 'http://127.0.0.1:9999', account: 'u', password: 'p', fetchImpl })
-    await expect(adapter.recordEvent!('habit:checked', {}, 'x')).resolves.toBeUndefined()
-  })
+it('服务端事件不再允许事务外单独写入（业务与通知原子性由真实 PB 集成验证）', () => {
+  expect(createPocketBaseAdapter({baseUrl:'http://127.0.0.1:9999'}).recordEvent).toBeUndefined()
 })
 
 describe('drainAgentEvents（客户端 replay + 游标）', () => {

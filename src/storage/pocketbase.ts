@@ -1,35 +1,16 @@
-import type { SyncOp, StorageAdapter, StorageTx, TableName } from './types'
+import type { StorageAdapter, TableName } from './types'
+import type { Command } from '@/commands/core'
 import type { SyncMeta } from '@/db/types'
+import { stagePlan, requestId, type CommandTransport, type Receipt } from './commandPlan'
 import {
   escapePbFilterValue,
   isTombstone,
   pbCollection,
   reviveRemoteJsonFields,
-  sha256ToBase36_15,
-  stripLocalOnlyFields,
   stripPbMeta,
-  toPayload,
 } from '@/sync/remoteNormalize'
 
-/**
- * PocketBaseAdapter —— StorageAdapter 的服务端实现（agentOps 服务端化 P2，**只读**）
- *
- * 职责：服务端执行器（relay 内置，跑在 VPS）经本适配器**直读 PocketBase 中心**，
- * 读工具（resolveEntity / list* / getCustomer / searchEntities）不再依赖某台浏览器在线。
- * 集合名映射与远端记录归一化复用 `sync/remoteNormalize`（与客户端同步引擎同一套协议，
- * 单一事实源）。
- *
- * ⚠️ P2 边界（方案 §6）：**只实现读路径**。transaction 的写原语（put/update/enqueue）
- * 一律抛可操作错误——写工具在 P3 落地（需 LWW 盖章 + 确认票据 + 事件集合），提前放行
- * 会绕过全部业务编排产出脏数据。读工具链（reads.ts / resolver.ts）只调 get/list，不受影响。
- *
- * id 口径（与 sync/pocketbaseAdapter.ts 一致）：本地业务 id（如 `ws-main:td:abc123`）
- * 存在服务端 `localId` 字段，服务端记录 id 是确定性哈希——读取按 localId 过滤/映射。
- *
- * 鉴权：users/auth-with-password（与客户端同步同端点），token 内存缓存、401 重登一次。
- * 凭据由调用方（serve.mjs env）注入，不落盘、不进日志。
- */
-
+/** 服务端读取与命令传输宿主；写入只能经共享计划和 PB 事务，不逐条 HTTP 写集合。 */
 export interface PocketBaseAdapterOptions {
   /** PB 基址（如 http://127.0.0.1:9002，服务端执行器与 PB 同机走回环） */
   baseUrl: string
@@ -41,6 +22,7 @@ export interface PocketBaseAdapterOptions {
   password?: string
   /** 测试注入用；缺省 globalThis.fetch（Node 18+ 原生） */
   fetchImpl?: typeof fetch
+  token?: () => string | null
 }
 
 interface PbListResult {
@@ -49,7 +31,7 @@ interface PbListResult {
   items: Record<string, unknown>[]
 }
 
-export function createPocketBaseAdapter(opts: PocketBaseAdapterOptions): StorageAdapter {
+export function createPocketBaseAdapter(opts: PocketBaseAdapterOptions): StorageAdapter & { transport: CommandTransport; queryFinance(input: unknown): Promise<Record<string, unknown>> } {
   const fetchImpl = opts.fetchImpl ?? ((...a: Parameters<typeof fetch>) => fetch(...a))
   const base = opts.baseUrl.replace(/\/$/, '')
   let token: string | null = null
@@ -76,14 +58,16 @@ export function createPocketBaseAdapter(opts: PocketBaseAdapterOptions): Storage
     init?: { method?: string; body?: unknown },
     retry = true,
   ): Promise<Response> {
+    if (opts.token) token = opts.token()
     if (!token && hasCreds) await auth()
     const res = await fetchImpl(`${base}${path}`, {
+      signal: AbortSignal.timeout(15000),
       method: init?.method ?? 'GET',
       headers: {
-        ...(init?.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+        ...(init?.body !== undefined && !(init.body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}),
         ...(token ? { Authorization: token } : undefined),
       },
-      ...(init?.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
+      ...(init?.body !== undefined ? { body: init.body instanceof FormData ? init.body : JSON.stringify(init.body) } : {}),
     })
     if (res.status === 401 && retry) {
       if (!hasCreds) {
@@ -109,6 +93,7 @@ export function createPocketBaseAdapter(opts: PocketBaseAdapterOptions): Storage
       const data = (await res.json()) as PbListResult
       out.push(...(data.items ?? []))
       if (!data.totalPages || page >= data.totalPages) break
+      if (page === 500) throw new Error('LIMIT_EXCEEDED: 读取超限，请使用分页查询')
     }
     return out
   }
@@ -149,141 +134,57 @@ export function createPocketBaseAdapter(opts: PocketBaseAdapterOptions): Storage
     return first ? normalize(table, first) ?? undefined : undefined
   }
 
-  /**
-   * 物理删除远端记录（按 localId 定位 PB 记录 id 后 DELETE）。
-   *
-   * 幂等：查不到即视为已删除，直接返回（与 `pbDeleteRemote` 同口径）。
-   * 注意这是**真删**，不是写墓碑 —— 服务端脚本/执行器侧只应在回收站永久删除的
-   * 收尾处调用（墓碑已由客户端先行写入并同步收敛），否则会把删除传播断掉。
-   */
-  async function apiDelete(table: TableName, id: string): Promise<void> {
-    const collection = pbCollection(table)
-    const params = new URLSearchParams({
-      filter: `localId='${escapePbFilterValue(id)}'`,
-      perPage: '1',
-    })
-    const found = await api(`/api/collections/${collection}/records?${params}`)
-    if (!found.ok) throw new Error(`[pb-adapter] 删除前查询 ${table}/${id} 失败（HTTP ${found.status}）`)
-    const data = (await found.json()) as PbListResult
-    const first = (data.items ?? [])[0]
-    if (!first) return
-    const res = await api(`/api/collections/${collection}/records/${encodeURIComponent(String(first.id))}`, {
-      method: 'DELETE',
-    })
-    if (!res.ok && res.status !== 404) {
-      throw new Error(`[pb-adapter] 删除 ${table}/${id} 失败（HTTP ${res.status}）`)
-    }
+  const transport: CommandTransport = {
+    async preview(command) {
+      const res = await api('/api/workhub/preview', { method: 'POST', body: command })
+      const body = await res.json() as Command & { error?: string }
+      if (!res.ok) throw new Error(body.error || '预览保存失败')
+      return body
+    },
+    async stageAttachment(row, blob) {
+      const data = new FormData()
+      data.append('file', blob, String(row.name || 'attachment'))
+      const res = await api('/api/workhub/stage-attachment', { method: 'POST', body: data })
+      const body = await res.json() as { stageId?: string; error?: string }
+      if (!res.ok || !body.stageId) throw new Error(body.error || '附件暂存失败')
+      return body.stageId
+    },
+    async generation() {
+      const res = await api('/api/workhub/state')
+      const data = await res.json() as { generation?: string; error?: string }
+      if (!res.ok || !data.generation) throw new Error(data.error || '命令服务不可用，请升级服务端')
+      return data.generation
+    },
+    async commit(command) {
+      const res = await api('/api/workhub/commands', { method: 'POST', body: command })
+      const data = await res.json() as Receipt & { error?: string }
+      if (!res.ok) throw new Error(data.error || `命令失败 HTTP ${res.status}`)
+      return data
+    },
+    async lookup(requestId, generation, intent) {
+      const res = await api('/api/workhub/operations/lookup', { method: 'POST', body: { requestId, generation, intent } })
+      const data = await res.json() as { committed: boolean; receipt?: Receipt; pending?: Command; error?: string }
+      if (!res.ok) throw new Error(data.error || '操作状态查询失败')
+      return data
+    },
   }
-
-  // ───────────────────────── 写路径（P3：服务端执行器直写 PB 中心） ─────────────────────────
-
-  /**
-   * 幂等 upsert（与客户端同步引擎 pbUpsert 同协议，**但无 LWW 拒绝**）：
-   * 按 localId 判存 → 存在 PATCH / 不存在 POST（body.id = sha256ToBase36_15(localId)）。
-   *
-   * 为什么不做 LWW/skip：客户端推送侧的 skip 语义防的是「迟到的旧副本覆盖新数据」；
-   * 服务端执行器是**当下被确认的写意图**（用户确认过/低风险直执行），若目标记录已被
-   * 删除，写工具链上游的 mustExist 早已拒绝——能走到这里的 put 都是合法写入，直写。
-   *
-   * SyncMeta（updatedAt/rev/deleted）由调用方（repository 复合函数）盖章——层内不盖章
-   * 的原则与 DexieAdapter 一致；PB hook 会另盖 server_received_at。
-   */
-  async function upsert(table: TableName, record: Record<string, unknown>): Promise<void> {
-    const localId = String(record.id ?? '')
-    if (!localId) throw new Error('[pb-adapter] put 缺少记录 id')
-    const collection = pbCollection(table)
-    const payload: Record<string, unknown> = {
-      ...toPayload(record),
-      localId,
-    }
-    stripLocalOnlyFields(table, payload)
-    // 判存：按 localId 精确过滤（与 push 侧同口径）
-    const findParams = new URLSearchParams({
-      filter: `localId='${escapePbFilterValue(localId)}'`,
-      perPage: '1',
-    })
-    const found = await api(`/api/collections/${collection}/records?${findParams}`)
-    if (!found.ok) throw new Error(`[pb-adapter] 判存失败 ${table}/${localId}（HTTP ${found.status}）`)
-    const foundData = (await found.json()) as PbListResult
-    const existing = (foundData.items ?? [])[0]
-    const base_ = `/api/collections/${collection}/records`
-    if (existing) {
-      const res = await api(`${base_}/${encodeURIComponent(String(existing.id))}`, {
-        method: 'PATCH',
-        body: payload,
-      })
-      if (!res.ok) {
-        const detail = await res.text().catch(() => '')
-        throw new Error(`[pb-adapter] 更新 ${table}/${localId} 失败（HTTP ${res.status}）：${detail.slice(0, 200)}`)
-      }
-      return
-    }
-    const res = await api(base_, {
-      method: 'POST',
-      body: { ...payload, id: sha256ToBase36_15(localId) },
-    })
-    if (!res.ok) {
-      const detail = await res.text().catch(() => '')
-      throw new Error(`[pb-adapter] 创建 ${table}/${localId} 失败（HTTP ${res.status}）：${detail.slice(0, 200)}`)
-    }
-  }
-
+  const source = { get: async (table: string, id: string) => await apiGet(table, id) as never, list: async (table: string) => await apiList(table) as never }
   return {
-    /**
-     * 事务语义（P3）：PB 无跨表事务 API，这里**不伪装原子性**——tx 的 get/put/update/list
-     * 逐操作即时落 PB（put 即 upsert），任一步失败即抛错交由 executor 转可操作错误。
-     * 复合函数的「先读后写」一致性由「PB 写入立即可读」保证；跨表原子性本就不存在
-     * （与客户端同步队列的逐条推送同量级），LWW 保证最终收敛。
-     */
+    commandMode: true,
+    ...source, transport,
+    async queryFinance(input) {
+      const res = await api('/api/workhub/finance', { method: 'POST', body: input || {} })
+      const body = await res.json() as Record<string, unknown>
+      if (!res.ok) throw new Error(String(body.error || '财务查询失败'))
+      return body
+    },
     async transaction(_tables, fn) {
-      const tx: StorageTx = {
-        async get(table, id) {
-          return (await apiGet(table, id)) as never
-        },
-        async put(table, record) {
-          await upsert(table, record as Record<string, unknown>)
-        },
-        async update(table, id, patch) {
-          // 服务端无原地 update：get 当前值 → merge → upsert（复合函数已带新盖章）
-          const cur = await apiGet(table, id)
-          const merged = { ...(cur ?? { id }), ...patch, id }
-          await upsert(table, merged)
-        },
-        async delete(table, id) {
-          await apiDelete(table, id)
-        },
-        async enqueue() {
-          // no-op：服务端写的 PB 就是同步中心本身，无本地队列
-        },
-        async list(table) {
-          return (await apiList(table)) as never
-        },
-      }
-      return fn(tx)
+      const generation = await transport.generation()
+      const plan = stagePlan(source)
+      const result = await fn(plan.tx)
+      if (plan.writes().length) await transport.commit(plan.command(generation, requestId()))
+      return result
     },
-    // 归一化产物是运行时形状（Record & SyncMeta）；调用方（reads/resolver）以各自实体
-    // 泛型消费——与 DexieAdapter 的 `as never` 同款处理，运行时字段即实体字段。
-    get: async (table, id) => (await apiGet(table, id)) as never,
-    list: async (table) => (await apiList(table)) as never,
-    /** 服务端直写中心：写后无需触发同步（客户端靠既有 pull 心跳收敛） */
     requestSync() {},
-    /** P4 agent_events：服务端复合函数 emit 的领域事件落 PB，客户端 pull 后 replay（方案 §5.4-A） */
-    recordEvent: async (event, payload, tool, occurredAt) => {
-      const res = await api('/api/collections/agent_events/records', {
-        method: 'POST',
-        // occurredAt = emit 时刻（T3 信封 as-built：事件发生与 PB 落库之间隔着队列，
-        // 落库时刻是错误的语义）；缺省回落 Date.now()（兼容旧调用方）
-        body: { type: event, payload, tool, occurredAt: occurredAt ?? Date.now() },
-      })
-      if (!res.ok) {
-        // 事件落库失败**不阻断写操作本身**（写已成功）：记错误日志，客户端评估会延迟但不丢
-        // （该客户端下次任意本地事件仍会触发全量评估）。这里吞掉异常只打 stderr。
-        const detail = await res.text().catch(() => '')
-        console.error(`[pb-adapter] agent_events 落库失败 ${event}（HTTP ${res.status}）：${detail.slice(0, 150)}`)
-      }
-    },
   }
 }
-
-/** 供类型引用（SyncOp 语义与 syncQueue 同源；P3 写路径启用） */
-export type { SyncOp }

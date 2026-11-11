@@ -62,6 +62,7 @@ const ALLOWED: Record<string, string> = {}
  * ⚠️ 每条都必须写清「为什么不能经 StorageAdapter」，而不是「没来得及改」。
  */
 const ALLOWED_IMPL: Record<string, string> = {
+  'src/storage/serverFirst.ts': 'StorageAdapter 自身：只为非同步本地表提交镜像事务；业务事实先由 PB 命令事务提交。',
   'src/repositories/localAdmin.ts':
     'settingsRepo.save：settings 表主键是 `key`（非 `id`），与 StorageTx 的 `T extends { id: string }` ' +
     '约束类型不兼容；且它是本地 singleton、刻意不进同步队列，无「随 StorageAdapter 迁移」诉求。' +

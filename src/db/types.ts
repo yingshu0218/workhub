@@ -178,6 +178,7 @@ export interface Ledger extends SyncMeta {
   name: string
   currency: string
   openingBalance: number
+  openingBalanceMinor?: number
   closingCycle: '月结' | '季结' | '年结' | '不封账'
   /** 左侧账本树排序（拖拽重写；旧记录缺省按 createdAt 兜底） */
   sortOrder?: number
@@ -191,6 +192,9 @@ export interface Transaction extends SyncMeta {
   ledgerId: string
   type: 'income' | 'expense'
   amount: number
+  /** 最小货币单位整数；旧 amount 保持主单位，兼容历史读取。 */
+  amountMinor?: number
+  currency?: string
   summary: string
   channel: string
   occurredAt: number

@@ -38,7 +38,8 @@ function stubPb(overrides = {}) {
     if (u.includes('/api/collections/users/records?perPage=1')) {
       return jsonResponse(200, { totalItems: totalItems + created, items: [] })
     }
-    if (u.endsWith('/api/collections/users/records') && method === 'POST') {
+    if (u.endsWith('/api/workhub/initialize') && method === 'POST') {
+      if (totalItems + created > 0) return jsonResponse(409, { error: '已完成初始化' })
       if (createStatus < 300) created += 1
       return jsonResponse(createStatus, createBody)
     }
@@ -98,39 +99,20 @@ describe('setupRoutes.createUser', () => {
     const result = await service.createUser({ identity: 'alice', password: 'password1' })
 
     expect(result).toEqual({ status: 200, body: { ok: true } })
-    const created = calls.find((c) => c.method === 'POST' && c.url.endsWith('/api/collections/users/records'))
+    const created = calls.find((c) => c.method === 'POST' && c.url.endsWith('/api/workhub/initialize'))
     expect(created?.body).toMatchObject({
-      username: 'alice',
+      identity: 'alice',
       email: 'alice@workhub.local',
       password: 'password1',
-      passwordConfirm: 'password1',
     })
     // 登录标识始终只有 email：任何请求都不许再写 passwordAuth（0.40 加 username 必被拒）
     expect(calls.some((c) => c.body?.passwordAuth)).toBe(false)
   })
 
-  it('老库没有 username 字段且补字段失败：仍能建号，请求体不带 username', async () => {
-    // 补字段是 best-effort：失败时若还把 username 发上去，PB 会以「未知字段」拒绝建号 —— 首启锁死。
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const { service, calls } = stubPb({ hasUsernameField: false, addUsernameFieldStatus: 400 })
-    const result = await service.createUser({ identity: 'alice', password: 'password1' })
-    warn.mockRestore()
-
-    expect(result).toEqual({ status: 200, body: { ok: true } })
-    const created = calls.find((c) => c.method === 'POST' && c.url.endsWith('/api/collections/users/records'))
-    expect(created?.body).toMatchObject({ email: 'alice@workhub.local' })
-    expect(created?.body).not.toHaveProperty('username')
-  })
-
-  it('老库没有 username 字段：补成功后再写入（展示字段）', async () => {
-    const { service, calls } = stubPb({ hasUsernameField: false })
-    const result = await service.createUser({ identity: 'alice', password: 'password1' })
-
-    expect(result).toEqual({ status: 200, body: { ok: true } })
-    const patched = calls.find((c) => c.method === 'PATCH' && c.url.endsWith('/api/collections/users'))
-    expect(patched?.body?.fields?.some((f) => f.name === 'username')).toBe(true)
-    const created = calls.find((c) => c.method === 'POST' && c.url.endsWith('/api/collections/users/records'))
-    expect(created?.body).toMatchObject({ username: 'alice', email: 'alice@workhub.local' })
+  it('初始化交给 PB 事务，不在 Node 里先计数再创建或改 schema', async () => {
+    const { service, calls } = stubPb()
+    expect((await service.createUser({identity:'alice',password:'password1'})).status).toBe(200)
+    expect(calls.some(c=>c.method==='PATCH'||c.url.includes('users/records'))).toBe(false)
   })
 
   it('非空库：409，且不发创建请求', async () => {
@@ -138,7 +120,7 @@ describe('setupRoutes.createUser', () => {
     const result = await service.createUser({ identity: 'alice', password: 'password1' })
 
     expect(result).toEqual({ status: 409, body: { error: '已完成初始化' } })
-    expect(calls.some((c) => c.method === 'POST' && c.url.endsWith('/api/collections/users/records'))).toBe(false)
+    expect(calls.filter(c=>c.url.endsWith('/api/workhub/initialize'))).toHaveLength(1)
   })
 
   it('弱密码：400，且一次 PB 请求都不发', async () => {
@@ -179,7 +161,7 @@ describe('setupRoutes.createUser', () => {
     await service.createUser({ identity: 'bob', password: 'password1' })
 
     // 第二次是 409（库已非空），不能再写标记 —— 只有建成账号那次算数
-    expect(calls.filter((c) => c.method === 'POST' && c.url.endsWith('/records'))).toHaveLength(1)
+    expect(calls.filter((c) => c.method === 'POST' && c.url.endsWith('/api/workhub/initialize'))).toHaveLength(2)
     expect(onUserCreated).toHaveBeenCalledTimes(1)
   })
 

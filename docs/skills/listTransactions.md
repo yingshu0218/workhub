@@ -16,6 +16,11 @@
 | `type` | enum(income / expense) | 否 | — |  |
 | `from` | string | 否 | — |  |
 | `to` | string | 否 | — |  |
+| `offset` | number | 否 | — |  |
+| `limit` | number | 否 | — |  |
+| `sequence` | number | 否 | — |  |
+| `generation` | string | 否 | — |  |
+| `queryKey` | string | 否 | — |  |
 
 ## 副作用
 

@@ -3,7 +3,7 @@
  * Phase 3 集合层 · customers 族（v16）：手动分组归属 → kind='member' link
  *
  * docs/集合层设计方案-20261026.md 裁决 B/C 的语义锁（customers 特化面）：
- * 1. setCustomerGroup：member link 落库（确定性 id）、幽灵分组抛错回滚、幽灵客户静默；
+ * 1. setCustomerGroup：member link 落库（确定性 id）、幽灵分组抛错回滚、幽灵客户明确失败；
  * 2. 单选 diff：换组 = 旧 link 墓碑化 + 新 link 建立；undefined = 移出（回「全部客户」）；
  * 3. rule 组不落 member（裁决 C）—— deleteCustomerGroup 对 rule 组的清扫是 no-op，
  *    对 manual 组统一墓碑化 + 快照留档；恢复按两端存活复活；
@@ -80,11 +80,11 @@ describe('手动分组归属（member link）', () => {
     expect(links.find((l) => l.toId === m2.id)!.deleted).toBe(1)
   })
 
-  it('③ 幽灵分组抛错回滚；幽灵客户静默', async () => {
+  it('③ 幽灵分组抛错回滚；幽灵客户明确失败', async () => {
     await createCustomerWithInit(baseCustomer('c1') as never, {})
     await expect(setCustomerGroup('c1', 'ghost')).rejects.toThrow('目标容器已不存在')
     expect(await memberLinksOf('c1')).toHaveLength(0)
-    await expect(setCustomerGroup('nope', 'ghost')).resolves.toBeUndefined()
+    await expect(setCustomerGroup('nope', 'ghost')).rejects.toThrow('NOT_FOUND')
   })
 })
 

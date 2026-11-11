@@ -28,7 +28,7 @@ import { createRelay } from '../relay/server.mjs'
 import { createSetupService } from './setupRoutes.mjs'
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)))
-const dist = join(root, 'dist')
+const dist = resolve(process.env.WORKHUB_DIST_DIR || join(root, 'dist'))
 const port = Number(process.env.PORT || 9001)
 const host = process.env.HOST || '0.0.0.0'
 const relayPath = process.env.WORKHUB_RELAY_PATH || '/relay'
@@ -214,7 +214,7 @@ const relay = createRelay({
  * 可安全长缓存；index.html 与 SPA 回退不带指纹，必须每次协商（ETag）。
  */
 const IMMUTABLE_PATTERN = /\/assets\/[^/]+-[A-Za-z0-9_-]{8,}\.[a-zA-Z0-9]+$/
-const etagOf = (filePath) => `"${createHash('sha1').update(filePath).update(String(statSync(filePath).size)).digest('hex')}"`
+const etagOf = (filePath) => `"${createHash('sha256').update(readFileSync(filePath)).digest('hex')}"`
 
 /** 静态文件：命中即返回，否则回退 index.html（SPA 路由） */
 function serveStatic(req, res) {
@@ -274,10 +274,12 @@ const server = createServer((req, res) => {
       try {
         registered = await setup.hasUsers()
       } catch {
-        /* 拿不到就维持旧判据 */
+        res.writeHead(503, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
+        res.end(JSON.stringify({ enabled: true, error: '认证服务暂时不可用，请重试' }))
+        return
       }
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' })
-      res.end(JSON.stringify({ enabled: authEnabled || registered, initialized: existsSync(adminMarker) }))
+      res.end(JSON.stringify({ enabled: process.env.NODE_ENV === 'production' || authEnabled || registered, initialized: existsSync(adminMarker) }))
     })()
     return
   }
@@ -315,6 +317,10 @@ const server = createServer((req, res) => {
   if (relay.handleHttp(req, res)) return
   serveStatic(req, res)
 })
+server.maxConnections = 128
+server.headersTimeout = 10_000
+server.requestTimeout = 20_000
+server.maxRequestsPerSocket = 100
 server.on('upgrade', (req, socket, head) => relay.handleUpgrade(req, socket, head))
 
 server.once('error', (e) => {

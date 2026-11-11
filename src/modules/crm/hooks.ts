@@ -1,3 +1,4 @@
+import { moneySummary, moneyAmount } from '@/modules/finance/money'
 import { useMemo } from 'react'
 import dayjs from 'dayjs'
 import { db } from '@/db/db'
@@ -46,6 +47,7 @@ export interface CanvasGraph {
     customerId: string
     type: 'income' | 'expense'
     amount: number
+    currency?: string
     summary: string
     projectId?: string
     ledgerId?: string
@@ -167,7 +169,8 @@ export function useCanvasGraph(): CanvasGraph {
           id: t.id,
           customerId: cid,
           type: t.type,
-          amount: t.amount,
+          amount: moneyAmount(t),
+          currency: t.currency,
           summary: t.summary,
           projectId: links.projectIds[0],
           ledgerId: t.ledgerId ?? undefined,
@@ -336,7 +339,7 @@ export interface CustomerListStats {
   /** 待跟进：超 7 天未联系（含从未联系） */
   staleFollowUp: number
   /** 待回收款：关联客户「收入 且 待对账」流水的金额合计 */
-  pendingReceivable: number
+  pendingReceivable: string
   /** 待回收款中金额最大一笔的「客户名 · 摘要」；无待收款时为 null（卡片副标题用） */
   topReceivable: string | null
 }
@@ -356,7 +359,7 @@ export function useCustomerListStats(visible: Customer[]): CustomerListStats {
   const ids = visible.map((c) => c.id)
   // 依赖用 join 后的 key 而非 ids 数组：调用方每次渲染都新建数组，直接依赖会无限重算
   const key = ids.join(',')
-  const receivables = useQuery<{ customerId: string; amount: number; summary: string }[]>(
+  const receivables = useQuery<(Transaction & { customerId: string })[]>(
     async () => {
       if (ids.length === 0) return []
       const idSet = new Set(ids)
@@ -365,12 +368,11 @@ export function useCustomerListStats(visible: Customer[]): CustomerListStats {
       const rows = await db.transactions
         .filter((t) => !t.deleted && t.type === 'income' && t.status === '待对账')
         .toArray()
-      // 一笔款分摊多客户时各方各记一份（与健康分因子 / 图谱建边同一展开口径）
-      return rows.flatMap((t) =>
-        txnLinksOf(txnIndex, t.id)
-          .customerIds.filter((id) => idSet.has(id))
-          .map((id) => ({ customerId: id, amount: t.amount, summary: t.summary })),
-      )
+      // 金额按实体 ID 计一次；多联系人只影响可见范围，不能复制财务事实。
+      return rows.flatMap(t => {
+        const customerId = txnLinksOf(txnIndex, t.id).customerIds.find(id => idSet.has(id))
+        return customerId ? [{...t, customerId}] : []
+      })
     },
     [key],
   )
@@ -388,7 +390,7 @@ export function useCustomerListStats(visible: Customer[]): CustomerListStats {
       total: visible.length,
       newThisMonth: visible.filter((c) => c.createdAt >= monthStart).length,
       staleFollowUp: visible.filter((c) => !c.lastContactAt || c.lastContactAt < staleBefore).length,
-      pendingReceivable: list.reduce((sum, r) => sum + r.amount, 0),
+      pendingReceivable: moneySummary(list, 'income'),
       topReceivable: top ? `${nameOf.get(top.customerId) ?? '未知客户'} · ${top.summary}` : null,
     }
   }, [visible, receivables])

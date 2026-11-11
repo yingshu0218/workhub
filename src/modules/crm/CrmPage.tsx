@@ -21,7 +21,6 @@ import { CustomerGroupNav } from './CustomerGroupNav'
 import { GroupEditorDrawer } from './GroupEditorDrawer'
 import { CustomerRow, CustomerCard, IntimacyFilterMenu } from './CrmListParts'
 import { tagsForGroupJoin } from './shared'
-import { fmtMoney } from './timeline'
 import { filterBlacklisted, useIntimacyConfig, resolveIntimacyLevel } from './intimacy'
 import {
   useCustomerGroups,
@@ -113,7 +112,7 @@ export default function CrmPage() {
   )
   const groupCounts = useCustomerGroupCounts(visibleCustomers, customGroups, groupIdOf)
   const selectedGroup = customGroups.find((g) => g.id === selectedGroupId) ?? null
-  // 顶部统计（改版）：口径全部与分层无关 —— 总数 / 本月新增 / 待跟进 / 待回收款
+  // 顶部统计（改版）：口径全部与分层无关 —— 总数 / 本月新增 / 待跟进 / 待核对收入
   const stats = useCustomerListStats(visibleCustomers)
 
   /**
@@ -233,10 +232,10 @@ export default function CrmPage() {
               sub={`超 ${STALE_FOLLOW_UP_DAYS} 天未联系`}
             />
             <StatCard
-              label="待回收款"
+              label="待核对收入"
               icon="account_balance_wallet"
               iconCls="bg-success-container/60 text-success"
-              value={fmtMoney(stats.pendingReceivable)}
+              value={stats.pendingReceivable}
               sub={stats.topReceivable ?? '暂无待对账收入'}
             />
           </div>

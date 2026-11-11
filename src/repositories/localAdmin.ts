@@ -229,6 +229,7 @@ function attachmentRowToRecord(row: Record<string, unknown>): PutInput<Attachmen
 }
 
 export async function restoreFromJson(payload: unknown): Promise<number> {
+  if (import.meta.env.PROD) throw new Error('在线版本的恢复必须使用服务端隔离迁移流程；本地存档可导出核对，不覆盖服务器事实')
   const parsed = payload as {
     app?: string
     data?: Partial<Record<(typeof RESTORE_TABLES)[number], unknown[]>>

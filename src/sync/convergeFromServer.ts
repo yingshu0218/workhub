@@ -1,42 +1,13 @@
 import { db } from '@/db/db'
-import { buildPendingUpsertIndex, mergeRemoteRecord } from '@/sync/mergeRemote'
-import { SYNC_TABLES } from '@/sync/remoteNormalize'
+import { isTombstone, reviveRemoteJsonFields, stripPbMeta, SYNC_TABLES } from '@/sync/remoteNormalize'
 import { classifySyncTarget } from '@/sync/connectivity'
 import { useSyncStore } from '@/sync/store'
 import { fetchAttachmentBlob, listRemoteAll, serverFirstCfg } from '@/sync/pocketbaseAdapter'
-import { installConvergeRunner } from '@/storage/serverFirst'
+import { createPocketBaseAdapter } from '@/storage/pocketbase'
+import { getAuthToken } from '@/shared/authToken'
+import { installConvergeRunner, withMirrorLock, pinCacheGeneration } from '@/storage/serverFirst'
 
-/**
- * 以服务端为准的全量对齐（2026-11-03，配合「服务端唯一真源」）
- *
- * ## 它解决什么
- *
- * 旧模型里本地库是**独立真源**：同步只做 LWW 合并、从不删除本地多余的记录，
- * 于是「服务器被清空」这种操作在页面上不可见 —— 2026-11-03 正式站事故即此：
- * PB 8 个集合全 0，浏览器仍显示 ¥18.5 万演示数据，双方都以为对方错。
- *
- * 本函数把方向定死：**远端有什么，本地就是什么**。
- * - 远端没有的本地行 → 物理删除（不是丢进回收站：回收站是「本地操作」的历史，
- *   不对齐语义；服务端没有它，它就不该存在于 Web 实例）
- * - 远端有的行 → 先删本地再 merge ⇒ `mergeRemoteRecord` 必然走「新建」分支，
- *   即 **远端必胜**，不受本地 updatedAt 影响
- *
- * ## 为什么不自己写归一化
- *
- * `mergeRemoteRecord` 已经处理了 PB 的三种 json 形态（真数组 / 双重编码字符串 / 纯文本）、
- * 墓碑判定、localId 还原、link 派生等全部细节。自己再写一份必漂移（AGENTS.md §6.2）。
- * 「先删再 merge」是这里唯一的技巧，目的只是绕过 LWW 的「本地更新则不覆盖」分支。
- *
- * ## 附件
- *
- * `attachments` 也纳入对齐，但**内容没变就跳过重下**（比对 `updatedAt` + 本地 blob 是否已在）：
- * 每 60 秒把所有附件重下一遍是不可接受的，而「先删再 merge」默认会强制重下。
- *
- * ## 边界
- *
- * - 未登录（无 token）直接抛错：服务端唯一真源模式下没有「匿名离线」这条路。
- */
-
+/** 可重建的服务端镜像；提交和对齐互斥，保留墓碑、正文和恢复快照。 */
 export interface ConvergeResult {
   upserted: number
   removed: number
@@ -52,12 +23,14 @@ export interface ConvergeResult {
 export type RemoteRow = { id: string } & Record<string, unknown>
 
 export interface ConvergeDeps {
+  generation?(): Promise<string>
   hasToken(): boolean
   listRemote(table: string): Promise<RemoteRow[]>
   loadAttachment?(remote: RemoteRow): Promise<Blob | undefined>
 }
 
 const DEFAULT_DEPS: ConvergeDeps = {
+  generation: () => createPocketBaseAdapter({ baseUrl: '', token: getAuthToken }).transport.generation(),
   hasToken: () => Boolean(serverFirstCfg().token),
   listRemote: (table) => listRemoteAll(table),
   loadAttachment: (remote) => fetchAttachmentBlob(remote as never),
@@ -89,7 +62,7 @@ function attachmentUnchanged(
   return typeof blob?.size === 'number'
 }
 
-export async function convergeFromServer(
+async function convergeUnlocked(
   overrides: Partial<ConvergeDeps> = {},
 ): Promise<ConvergeResult> {
   const deps: ConvergeDeps = { ...DEFAULT_DEPS, ...overrides }
@@ -97,8 +70,9 @@ export async function convergeFromServer(
     throw new Error('[converge] 未登录：服务端唯一真源模式需要先登录')
   }
 
+  if (!overrides.listRemote && deps.generation) pinCacheGeneration(await deps.generation())
+
   // 无队列（ServerFirstAdapter 的 enqueue 是 no-op），索引必为空；传进去只为复用同一签名
-  const pendingIndex = await buildPendingUpsertIndex()
   let upserted = 0
   let removed = 0
   let failed = 0
@@ -134,15 +108,18 @@ export async function convergeFromServer(
       if (table === 'attachments' && attachmentUnchanged(localById.get(localId), remote, localId)) {
         continue
       }
-      await mirror.delete(localId)
       try {
-        const outcome = await mergeRemoteRecord(
-          table,
-          remote,
-          table === 'attachments' ? deps.loadAttachment : undefined,
-          pendingIndex,
-        )
-        if (outcome === 'write') upserted++
+        const revived = { ...stripPbMeta(remote), id: localId, deleted: isTombstone(remote) ? 1 : 0 }
+        reviveRemoteJsonFields(table, revived)
+        const current = localById.get(localId)
+        if (current && JSON.stringify(current) === JSON.stringify(revived)) continue
+        if (table === 'attachments') {
+          const blob = await deps.loadAttachment?.(remote)
+          if (blob) Object.assign(revived, { blob })
+        }
+        // 保留墓碑正文和恢复快照；新设备的回收站与服务端一致。
+        await db.table(table).put(revived)
+        upserted++
       } catch (err) {
         // 单条坏数据不该拖垮整轮对齐（否则一条畸形记录会让整个 Web 实例永远停在旧镜像）
         failed++
@@ -152,6 +129,10 @@ export async function convergeFromServer(
   }
 
   return { upserted, removed, failed }
+}
+
+export function convergeFromServer(overrides: Partial<ConvergeDeps> = {}): Promise<ConvergeResult> {
+  return withMirrorLock(() => convergeUnlocked(overrides))
 }
 
 let loopTimer: ReturnType<typeof setInterval> | undefined
@@ -176,6 +157,7 @@ export async function runConverge(overrides: Partial<ConvergeDeps> = {}): Promis
   try {
     const result = await convergeFromServer(overrides)
     const done = useSyncStore.getState()
+    if (result.failed) throw new Error(`对齐有 ${result.failed} 条记录失败，请重试`)
     done.setStatus('synced')
     done.setConnectivity({
       serverUrl: origin,

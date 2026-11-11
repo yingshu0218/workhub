@@ -4,6 +4,9 @@ import 'dayjs/locale/zh-cn'
 import dayjs from 'dayjs'
 // 浏览器端 StorageAdapter 注册（Dexie）：eager 加载，保证执行链首个 storage 调用前已就绪
 import './storage/browser'
+import { createDexieAdapter } from './storage/dexie'
+import { db } from './db/db'
+import { BUSINESS_TABLES } from './commands/core'
 import AppRouter from './app/router'
 import { AuthGate } from './app/AuthGate'
 import './styles/index.css'
@@ -31,6 +34,13 @@ dayjs.locale('zh-cn')
  * 早于任何 `storage.*` 调用，晚于 Dexie 注册，才能「覆盖」而不是「未注册」。
  */
 const SERVER_FIRST = isServerFirstWeb()
+if (import.meta.env.PROD && isTauri()) {
+  const local = createDexieAdapter({ db, syncEngine })
+  setStorageAdapter({ ...local, transaction: async (tables, fn) => {
+    if (tables.some(t => BUSINESS_TABLES.includes(t))) throw new Error('UPGRADE_REQUIRED: 此原生版本只读；请导出未同步数据并在在线 Web 版本核对录入')
+    return local.transaction(tables, fn)
+  } })
+}
 if (SERVER_FIRST) {
   setStorageAdapter(createServerFirstAdapter())
   console.info('[server-first] Web 端启用「服务端唯一真源」：写直达 PocketBase，本地仅镜像')
@@ -93,7 +103,14 @@ function Bootstrap() {
         }
       })
       .catch((err) => console.warn('[sync] 同源自动同步检测失败（本地模式照常）', err))
-    if (SERVER_FIRST) {
+    if (import.meta.env.PROD && isTauri()) {
+  const local = createDexieAdapter({ db, syncEngine })
+  setStorageAdapter({ ...local, transaction: async (tables, fn) => {
+    if (tables.some(t => BUSINESS_TABLES.includes(t))) throw new Error('UPGRADE_REQUIRED: 此原生版本只读；请导出未同步数据并在在线 Web 版本核对录入')
+    return local.transaction(tables, fn)
+  } })
+}
+if (SERVER_FIRST) {
       // 服务端唯一真源：没有队列、没有 LWW，改为「启动对齐 + 周期对齐」（convergeFromServer）
       void runConverge()
         .then((r) =>

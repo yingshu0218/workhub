@@ -16,7 +16,7 @@
  */
 import { randomBytes, randomInt } from 'node:crypto'
 import { acceptKey } from './ws-server.mjs'
-import { createMcpRouter, generateToken, MCP_PROTOCOL_VERSION, argsFingerprint, safeEqual } from './mcp-relay.mjs'
+import { createMcpRouter, generateToken, MCP_PROTOCOL_VERSION, confirmationFingerprint, safeEqual } from './mcp-relay.mjs'
 
 /** 预览记录 TTL：中风险「预览 → 确认 → 执行」的绑定窗口 */
 const PREVIEW_TTL_MS = 5 * 60 * 1000
@@ -63,6 +63,7 @@ export function createRelay({
 } = {}) {
   /** 当前已连出的浏览器连接（首版单浏览器配对；多标签页取最近一条） */
   let browserConn = null
+  const browserCandidates = new Set()
   /** 浏览器回包等待表：requestId -> {resolve, reject, timer, track} */
   const pending = new Map()
   let seq = 0
@@ -94,7 +95,8 @@ export function createRelay({
       }, 15_000)
       // track：tools/call 记录 {name,args}，供预览回包落地为 confirm_preview 的校验依据
       const track = payload.kind === 'tools/call' ? { name: payload.name, args: payload.args } : undefined
-      pending.set(requestId, { resolve, reject, timer, track })
+      if (pending.size >= 256) { clearTimeout(timer); reject(new Error('relay 请求繁忙，请稍后重试')); return }
+      pending.set(requestId, { resolve, reject, timer, track, connection: browserConn })
       browserConn.send(JSON.stringify({ type: 'agentops:call', requestId, ...payload }))
     })
   }
@@ -109,12 +111,17 @@ export function createRelay({
    */
   const previewStore = new Map()
 
-  function argsHash(tool, args) {
-    return argsFingerprint(tool, args)
+  function argsHash(tool, args, meta = {}) {
+    return confirmationFingerprint(tool, args, meta)
+  }
+
+  function boundedSet(map, key, value, max = 1024) {
+    if (!map.has(key) && map.size >= max) map.delete(map.keys().next().value)
+    map.set(key, value)
   }
 
   function rememberPreview(key) {
-    previewStore.set(key, Date.now() + PREVIEW_TTL_MS)
+    boundedSet(previewStore, key, Date.now() + PREVIEW_TTL_MS)
     for (const [k, exp] of previewStore) if (Date.now() > exp) previewStore.delete(k)
   }
 
@@ -135,14 +142,14 @@ export function createRelay({
     const tool = String(args?.tool ?? '')
     const toolArgs = args?.args ?? {}
     if (!tool) return { ok: false, error: 'confirm_preview 缺少 tool' }
-    const key = argsHash(tool, toolArgs)
+    const key = argsHash(tool, toolArgs, args)
     if (!consumePreview(key)) {
       return {
         ok: false,
         error: `未找到工具 ${tool} 的预览记录（须先以相同参数调用一次本工具取得预览，票据绑定该组参数且 5 分钟内有效）`,
       }
     }
-    const issued = router.issueConfirm({ tool, args: toolArgs, source: 'confirm_preview' })
+    const issued = router.issueConfirm({ tool, args: toolArgs, requestId: args?.requestId, generation: args?.generation, source: 'confirm_preview' })
     return { ok: true, data: { ...issued, tool, note: '请以同一参数重试该工具，并携带 confirmToken。' } }
   }
 
@@ -190,6 +197,7 @@ export function createRelay({
             type: 'object',
             properties: {
               tool: { type: 'string', description: '要执行的中风险工具名' },
+              requestId: { type: 'string' }, generation: { type: 'string' },
               args: { type: 'object', description: '与该次预览完全一致的入参' },
             },
             required: ['tool', 'args'],
@@ -210,25 +218,26 @@ export function createRelay({
       // 否则 Agent 转述用户确认后调 confirm_preview 会「找不到预览记录」（取票闸门死循环）
       if (serverExecutor?.handles(name)) {
         return serverExecutor
-          .callTool(name, toolArgs, { confirmToken: meta?.confirmToken })
+          .callTool(name, toolArgs, meta)
           .then((r) => {
-            if (r.ok && r.data?.preview === true) rememberPreview(argsHash(name, toolArgs))
+            if (r.ok && r.data?.preview === true) rememberPreview(argsHash(name, toolArgs, r.data))
             return r
           })
           .catch((e) => ({ ok: false, error: e?.message ?? String(e) }))
       }
+      if (meta?.replayOnly) return Promise.resolve({ ok: false, error: '票据已失效，请核对原操作或重新确认' })
       return requestFromBrowser({
         kind: 'tools/call',
         name,
         args: toolArgs,
-        meta: { confirmToken: meta?.confirmToken },
+        meta: { confirmToken: meta?.confirmToken, requestId: meta?.requestId, generation: meta?.generation },
       })
     },
     log,
   })
 
   /** 处理浏览器回包 */
-  function onBrowserMessage(raw) {
+  function onBrowserMessage(raw, connection) {
     let msg
     try {
       msg = JSON.parse(raw)
@@ -238,7 +247,7 @@ export function createRelay({
     if (msg?.type === 'agentops:result' && msg.requestId) {
       if (process.env.WORKHUB_RELAY_DEBUG) log(`[relay] 浏览器回包：${raw.slice(0, 200)}`)
       const p = pending.get(msg.requestId)
-      if (!p) return
+      if (!p || p.connection !== connection) return
       pending.delete(msg.requestId)
       clearTimeout(p.timer)
       if (process.env.WORKHUB_RELAY_DEBUG) log(`[relay] 匹配到 pending，准备回给 MCP 客户端：${msg.requestId}`)
@@ -268,6 +277,7 @@ export function createRelay({
       socket.destroy()
       return
     }
+    if (connections.size >= 64) { socket.end('HTTP/1.1 503 Service Unavailable\r\n\r\n'); return }
     const key = req.headers['sec-websocket-key']
     const upgrade = String(req.headers.upgrade || '').toLowerCase()
     if (upgrade !== 'websocket' || !key) {
@@ -283,6 +293,9 @@ export function createRelay({
     )
     socket.setNoDelay(true)
     const conn = new WsConnection(socket, head)
+    const authTimer = setTimeout(() => conn.close(), 5000)
+    authTimer.unref?.()
+    conn.on('close', () => clearTimeout(authTimer))
     connections.add(conn)
     conn.on('close', () => connections.delete(conn))
 
@@ -303,12 +316,20 @@ export function createRelay({
         conn.close()
         return
       }
-      browserConn = conn
+      clearTimeout(authTimer)
+      browserCandidates.add(conn)
+      if (!browserConn) browserConn = conn
       log('[relay] 浏览器已连出，桥就绪')
-      conn.on('message', onBrowserMessage)
+      conn.on('message', raw => onBrowserMessage(raw, conn))
       conn.on('close', () => {
+        browserCandidates.delete(conn)
+        for (const [id, p] of pending) {
+          if (p.connection !== conn) continue
+          pending.delete(id); clearTimeout(p.timer)
+          p.reject(new Error('执行连接断开；结果未知，请按原 requestId 核对，禁止自动换页重放'))
+        }
         if (browserConn === conn) {
-          browserConn = null
+          browserConn = browserCandidates.values().next().value || null
           log('[relay] 浏览器已断开，桥离线')
         }
       })
@@ -318,7 +339,11 @@ export function createRelay({
     if (role === null) {
       // MCP Agent 端点：走标准 MCP 路由；鉴权在 initialize（accessToken）
       const ctx = { authed: false }
+      let inFlight = 0
       conn.on('message', async (raw) => {
+        if (inFlight >= 16) { conn.close(); return }
+        inFlight++
+        try {
         let msg
         try {
           msg = JSON.parse(raw)
@@ -327,7 +352,9 @@ export function createRelay({
           return
         }
         const out = await router.handle(msg, ctx)
+        if (ctx.authed) clearTimeout(authTimer)
         if (out) conn.send(JSON.stringify(out))
+        } catch { conn.close() } finally { inFlight-- }
       })
       log('[relay] MCP Agent 已连入（标准 MCP 端点），等待 initialize')
       return
@@ -452,7 +479,7 @@ export function createRelay({
       code = Array.from({ length: 6 }, () => PAIR_ALPHABET[randomInt(PAIR_ALPHABET.length)]).join('')
     } while (pairCodes.has(code))
     const expiresAt = ttlMs > 0 ? now + ttlMs : Number.POSITIVE_INFINITY
-    pairCodes.set(code, { expiresAt })
+    boundedSet(pairCodes, code, { expiresAt })
     return { code, expiresAt }
   }
 
@@ -461,7 +488,7 @@ export function createRelay({
     const now = Date.now()
     const rec = pairAttempts.get(ip)
     if (!rec || now > rec.resetAt) {
-      pairAttempts.set(ip, { count: 1, resetAt: now + 60_000 })
+      boundedSet(pairAttempts, ip, { count: 1, resetAt: now + 60_000 }, 4096)
       return true
     }
     rec.count += 1
@@ -473,7 +500,7 @@ export function createRelay({
     const now = Date.now()
     const rec = devicePolls.get(ip)
     if (!rec || now > rec.resetAt) {
-      devicePolls.set(ip, { count: 1, resetAt: now + 60_000 })
+      boundedSet(devicePolls, ip, { count: 1, resetAt: now + 60_000 }, 4096)
       return true
     }
     rec.count += 1
@@ -496,6 +523,10 @@ export function createRelay({
   /** 签发一枚设备码：8 位用户码（XXXX-XXXX）+ 32 字节 device_code（只回给 CLI） */
   function mintDevice() {
     sweepDevices()
+    if (devices.size >= 1024) {
+      const oldest = devices.keys().next().value
+      userCodeIndex.delete(devices.get(oldest).userCode); devices.delete(oldest)
+    }
     const raw = Array.from({ length: 8 }, () => PAIR_ALPHABET[randomInt(PAIR_ALPHABET.length)]).join('')
     const userCode = `${raw.slice(0, 4)}-${raw.slice(4)}`
     const deviceCode = randomBytes(24).toString('base64url')

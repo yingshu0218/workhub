@@ -48,11 +48,13 @@ const PB_PORT = Number(PB_PORT_RAW)
 
 const PB_DATA_DIR = process.env.PB_DATA_DIR || '/data/pb_data'
 const PB_HOOKS_DIR = process.env.PB_HOOKS_DIR || '/app/pb_hooks'
-const PB_MIGRATIONS_DIR = process.env.PB_MIGRATIONS_DIR || join(PB_DATA_DIR, '..', 'pb_migrations')
+const PB_MIGRATIONS_DIR = process.env.PB_MIGRATIONS_DIR || join(APP_DIR, 'pb_migrations')
 const PB_SUPERUSER = process.env.PB_SUPERUSER || ''
 const PB_SUPERUSER_PASSWORD = process.env.PB_SUPERUSER_PASSWORD || ''
 const PB_IMPORT_COLLECTIONS = process.env.PB_IMPORT_COLLECTIONS === '1'
 const PB_COLLECTIONS = process.env.PB_COLLECTIONS || '/app/pb_setup/collections.json'
+
+if (existsSync(join(PB_DATA_DIR, 'RESTORE_REVIEW_REQUIRED')) && process.env.WORKHUB_RESTORE_REVIEWED !== '1') throw new Error('恢复环境待核对，禁止开放访问')
 
 const WEB_TARGET = { host: WEB_HOST, port: WEB_PORT }
 const PB_TARGET = { host: PB_HOST, port: PB_PORT }
@@ -141,16 +143,15 @@ async function ensureAppUser() {
       log(`应用管理员已存在：${user}`)
       return
     }
-    const created = await fetch(`http://${PB_HTTP}/api/collections/users/records`, {
+    const created = await fetch(`http://${PB_HTTP}/api/workhub/initialize`, {
       method: 'POST',
       headers,
       body: JSON.stringify({
         // 登录时 identity 走 email：用户名由前端映射成同一个占位邮箱，这里不再写 username
         //（它不参与登录，且新库可能还没有该字段，写上去反而可能被 PB 拒）。
+        identity: user,
         email,
         password: pass,
-        passwordConfirm: pass,
-        verified: true,
       }),
     })
     if (!created.ok) throw new Error(`HTTP ${created.status} ${await created.text()}`)
@@ -362,8 +363,8 @@ async function main() {
   server.on('upgrade', (req, socket, head) => {
     proxyUpgrade(req, socket, head, routeToPb(req.url) ? PB_TARGET : WEB_TARGET)
   })
-  server.listen(PUBLIC_PORT, '0.0.0.0', () => {
-    log(`对外监听 0.0.0.0:${PUBLIC_PORT}`)
+  server.listen(PUBLIC_PORT, process.env.PUBLIC_HOST || '0.0.0.0', () => {
+    log(`对外监听 ${process.env.PUBLIC_HOST || '0.0.0.0'}:${PUBLIC_PORT}`)
     log(`  /api 、/_/            → ${PB_TARGET.host}:${PB_TARGET.port}（PocketBase，管理台在 /_/）`)
     log(`  其余（含 /relay、WS） → ${WEB_TARGET.host}:${WEB_TARGET.port}（静态站 + relay）`)
   })

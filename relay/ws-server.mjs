@@ -12,6 +12,7 @@ import { createServer } from 'node:http'
 import { createHash } from 'node:crypto'
 import { EventEmitter } from 'node:events'
 
+const MAX_MESSAGE_BYTES = 1024 * 1024
 const GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
 
 /** 计算 Sec-WebSocket-Accept */
@@ -35,6 +36,10 @@ export class WsConnection extends EventEmitter {
     this.fragmentOpcode = 0
     this.closed = false
     this.alive = true
+    this.fragmentBytes = 0
+    // 连接错误由连接自己收口，不能成为进程级未处理的 EventEmitter error。
+    this.on('error', () => {})
+    if (this.buffer.length) queueMicrotask(() => this.#onData(Buffer.alloc(0)))
     socket.on('data', (chunk) => this.#onData(chunk))
     socket.on('error', (e) => this.#fail(e))
     socket.on('close', () => {
@@ -55,6 +60,7 @@ export class WsConnection extends EventEmitter {
   }
 
   #onData(chunk) {
+    if (this.buffer.length + chunk.length > MAX_MESSAGE_BYTES + 14) return this.#fail(new Error('消息过大'))
     this.buffer = Buffer.concat([this.buffer, chunk])
     // 循环解帧（一次 data 可能含多帧或半帧）
     for (;;) {
@@ -87,6 +93,9 @@ export class WsConnection extends EventEmitter {
       len = Number(big)
       offset += 8
     }
+    if (len > MAX_MESSAGE_BYTES || this.fragmentBytes + len > MAX_MESSAGE_BYTES) return this.#fail(new Error('消息过大'))
+    if ((b0 & 0x70) || ![0, 1, 2, 8, 9, 10].includes(opcode)) return this.#fail(new Error('非法帧'))
+    if (opcode >= 8 && (!fin || len > 125)) return this.#fail(new Error('非法控制帧'))
     // 客户端 -> 服务端必须掩码（RFC6455 §5.1）
     if (!masked) return this.#fail(new Error('客户端帧必须掩码'))
     if (buf.length < offset + 4) return null
@@ -117,20 +126,25 @@ export class WsConnection extends EventEmitter {
     }
     if (opcode === 0x0) {
       // 续帧
+      if (!this.fragmentOpcode) return this.#fail(new Error('孤立续帧'))
+      this.fragmentBytes += payload.length
       this.fragments.push(payload)
       if (fin) {
         const full = Buffer.concat(this.fragments)
         const op = this.fragmentOpcode
         this.fragments = []
         this.fragmentOpcode = 0
+        this.fragmentBytes = 0
         this.#deliver(op, full)
       }
       return
     }
+    if (this.fragmentOpcode) return this.#fail(new Error('分片尚未结束'))
     // 文本/二进制起始帧
     if (!fin) {
       this.fragmentOpcode = opcode
       this.fragments = [payload]
+      this.fragmentBytes = payload.length
       return
     }
     this.#deliver(opcode, payload)
@@ -145,6 +159,7 @@ export class WsConnection extends EventEmitter {
   #sendFrame(opcode, payload) {
     if (this.closed || this.socket.destroyed) return
     const len = payload.length
+    if (len > MAX_MESSAGE_BYTES || this.socket.writableLength > 2 * MAX_MESSAGE_BYTES) return this.#fail(new Error('发送缓冲已满'))
     let header
     if (len < 126) {
       header = Buffer.alloc(2)
@@ -180,7 +195,10 @@ export class WsConnection extends EventEmitter {
     if (this.closed) return
     this.#sendFrame(0x8, Buffer.alloc(0))
     this.closed = true
+    this.emit('close')
     this.socket.end()
+    const timer = setTimeout(() => this.socket.destroy(), 1000)
+    timer.unref?.()
   }
 }
 

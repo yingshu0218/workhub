@@ -208,6 +208,7 @@ async function seedAttLink(txnId: string, attId: string): Promise<void> {
 
 beforeEach(async () => {
   await Promise.all(db.tables.map((t) => t.clear()))
+  await db.ledgers.put({ id: 'l1', name: 'fixture', currency: 'CNY', openingBalance: 0, createdAt: 1, updatedAt: 1, rev: 1, deleted: 0 } as never)
 })
 
 describe('habit_createHabit / habit_updateHabit', () => {

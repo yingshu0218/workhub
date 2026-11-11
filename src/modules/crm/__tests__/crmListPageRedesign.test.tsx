@@ -188,7 +188,7 @@ describe('客户管理列表改版：分层不进左栏', () => {
     expect(screen.queryByText('T3 · 合作')).toBeNull()
   })
 
-  it('顶部统计卡口径：总数 / 本月新增 / 待跟进 / 待回收款（均非分层派生）', async () => {
+  it('顶部统计卡口径：总数 / 本月新增 / 待跟进 / 待核对收入（均非分层派生）', async () => {
     await seed()
     renderPage()
     expect(await screen.findByText('王五')).toBeTruthy()
@@ -199,8 +199,8 @@ describe('客户管理列表改版：分层不进左栏', () => {
     expect(within(statCard('待跟进')).getByText('2')).toBeTruthy()
     expect(within(statCard('待跟进')).getByText('超 7 天未联系')).toBeTruthy()
     // 待对账收入走 transactions 查询（liveQuery 回填比 customers 晚一拍），故用 findBy
-    expect(await within(statCard('待回收款')).findByText('¥120,000')).toBeTruthy()
-    expect(await within(statCard('待回收款')).findByText('张三 · 二期款')).toBeTruthy()
+    expect(await within(statCard('待核对收入')).findByText('CNY 120,000')).toBeTruthy()
+    expect(await within(statCard('待核对收入')).findByText('张三 · 二期款')).toBeTruthy()
   })
 
   it('点开「亲密度」浮层能看到全部分层与人数，选中即成为筛选条件', async () => {

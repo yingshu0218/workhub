@@ -132,7 +132,11 @@ export function TodoFormDrawer({
     }
   }
 
+  const submitLock = useRef(false)
+  const draftId = useRef<string | null>(null)
+  const draftCreatedAt = useRef<number | null>(null)
   async function save() {
+    if (submitLock.current) return
     // 标签结算（Issue #148）：把未按回车的草稿与正文尾部残留的 `#词` 一并收成标签，
     // 避免「打了 # 没回车 → 标签变成备注文字」这种静默丢失。
     const settledDraft = appendTodoTags(tags, [tagDraft])
@@ -158,7 +162,7 @@ export function TodoFormDrawer({
     // 以旧记录展开为基底，仅覆盖表单字段，保留 habitId/ledgerId/completedAt 等
     const base: Todo = {
       ...todo,
-      id: todo?.id ?? newId('td'),
+      id: todo?.id ?? (draftId.current ??= newId('td')),
       title,
       desc: body,
       priority,
@@ -172,21 +176,24 @@ export function TodoFormDrawer({
       tags: finalTags.length ? finalTags : undefined,
       customerId: customerId || undefined,
       projectId: projectId || undefined,
-      createdAt: todo?.createdAt ?? Date.now(),
+      createdAt: todo?.createdAt ?? (draftCreatedAt.current ??= Date.now()),
       updatedAt: 0,
       deleted: 0,
-      rev: 0,
+      rev: todo?.rev ?? 0,
     }
     // 错误处理（审计 P1 同类项）：此前无 try/catch，落库失败的 Promise 无人处理 → 静默失败零提示。
+    submitLock.current = true
     try {
       // 清单归属已迁 links（v16 member）：与待办行同事务（null = 移回收集箱）
       await saveTodoWithList(base, listId || null)
       if (reactivated) toast.success(`已恢复为未完成：${title}`)
       onSaved?.(base, listId || undefined)
+      draftId.current = null
+      draftCreatedAt.current = null
       onClose()
     } catch (e) {
       setError(e instanceof Error ? `保存失败：${e.message}` : '保存失败，请重试')
-    }
+    } finally { submitLock.current = false }
   }
 
   return (

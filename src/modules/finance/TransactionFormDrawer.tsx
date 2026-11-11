@@ -167,7 +167,12 @@ export default function TransactionFormDrawer({
     }
   }
 
+  const submitLock = useRef(false)
+  const draftId = useRef<string | null>(null)
+  const draftCreatedAt = useRef<number | null>(null)
+  const attachmentIds = useRef(new Map<File, string>())
   async function save() {
+    if (submitLock.current) return
     if (!summary.trim()) {
       setError('请填写交易名称')
       return
@@ -196,7 +201,7 @@ export default function TransactionFormDrawer({
       setError(`附件「${oversized.name}」超过单文件 5MB 限制`)
       return
     }
-    const txnId = editTxn?.id ?? newId('txn')
+    const txnId = editTxn?.id ?? (draftId.current ??= newId('txn'))
     // 记账时间口径走领域层 `normalizeOccurredAt`（仅日期录入 → 落当天 00:00）。
     // 该口径与 agentOps 的 fin_recordTransaction 同源一份实现（P1 补强：消除 UI/AI 两份内联拼接）。
     const occurredAtMs = normalizeOccurredAt(occurredAt)
@@ -238,21 +243,24 @@ export default function TransactionFormDrawer({
     // 类型用 PutInput：同步盖章（updatedAt/rev/deleted）由 saveTransactionWithAttachments
     // 在同一事务内统一盖（与 transactions 同款），这里不应自带。
     const attachments: PutInput<Attachment>[] = files.map((f) => ({
-      id: newId('att'),
+      id: attachmentIds.current.get(f) ?? (() => { const id = newId('att'); attachmentIds.current.set(f, id); return id })(),
       name: f.name,
       mime: f.type,
       size: f.size,
       blob: f,
-      createdAt: Date.now(),
+      createdAt: (draftCreatedAt.current ??= Date.now()),
     }))
+    submitLock.current = true
     try {
       // 事件（transaction:created）已下沉 saveTransactionWithAttachments：事务 commit 后、
       // 仅新建时发出（编辑不再误发，修 §9.5 bug1）。UI 侧不再内联 emit，避免双发。
       await saveTransactionWithAttachments(record, attachments, related)
+      draftId.current = null
+      draftCreatedAt.current = null
       onClose()
     } catch (e) {
       setError(e instanceof Error ? `保存失败：${e.message}` : '保存失败，请重试')
-    }
+    } finally { submitLock.current = false }
   }
 
   return (

@@ -1,3 +1,4 @@
+import { moneySummary } from '@/modules/finance/money'
 import { useCollection, useTodayFocusMinutes, useBestHabitStreak } from '@/queries/hooks'
 import { Card, PageHeader, Button } from '@/design-system/ui'
 import type { Todo, Customer, Transaction } from '@/db/types'
@@ -43,7 +44,7 @@ export default function DashboardPage() {
   // 五轮：逾期改为按天口径（截止日早于今天），故传 todayStr 而非默认值。
   const overdueToday = todos.filter((t) => isTodoOverdue(t, todayStr)).length
   const dueTodayOnly = openToday - overdueToday
-  const income = transactions.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0)
+  const income = moneySummary(transactions, 'income')
 
   // 今日专注分钟（本地推导）
   const focusMinutes = useTodayFocusMinutes()
@@ -144,7 +145,7 @@ export default function DashboardPage() {
             key={`income-${income}`}
             className="anim-enter mt-1 text-[1.8571rem] font-bold whitespace-nowrap text-success"
           >
-            ¥{income >= 10000 ? `${(income / 10000).toFixed(1)}万` : income.toLocaleString()}
+            {income}
           </div>
           <div className="mt-0.5 text-[0.7857rem] text-outline">{customers.length} 位客户在册</div>
         </Card>

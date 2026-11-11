@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "node scripts/check-icons.mjs && tsc -b && vite build",
-    "build:server": "node scripts/build-server-executor.mjs",
+    "build:server": "npm run build:commands && node scripts/build-server-executor.mjs",
     "preview": "vite preview",
     "lint": "eslint src",
     "check:all": "node scripts/check-icons.mjs && tsc -b && eslint src && vitest run --maxWorkers=4",
@@ -23,7 +23,9 @@
     "tauri": "tauri",
     "app:dev": "tauri dev",
     "app:build": "tauri build",
-    "app:android": "tauri android build --target aarch64"
+    "app:android": "tauri android build --target aarch64",
+    "build:commands": "node scripts/build-commands.mjs",
+    "test:integration": "node scripts/integration/reliability.mjs && node scripts/integration/migration.mjs"
   },
   "dependencies": {
     "@codemirror/commands": "^6.11.0",

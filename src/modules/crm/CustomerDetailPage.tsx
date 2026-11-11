@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { moneySummary } from '@/modules/finance/money'
+import { useRef, useState } from 'react'
 import { Icon } from '@/design-system/Icon'
 import { FilterChip } from '@/design-system/FilterChip'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -91,8 +92,8 @@ export default function CustomerDetailPage() {
     todo: timeline.filter((e) => e.kind === 'todo').length,
   }
   // 资金汇总（概览数字，与「资金」Tab 共享同一批源记录，只是呈现粒度不同）
-  const income = transactions.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0)
-  const expense = transactions.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
+  const income = moneySummary(transactions, 'income')
+  const expense = moneySummary(transactions, 'expense')
   const pendingReconcile = transactions.filter((t) => t.status === '待对账')
   const recentInteractionCount = timeline.filter(
     (e) => e.kind === 'interaction' && e.at >= dayjs().subtract(7, 'day').valueOf(),
@@ -309,8 +310,8 @@ export default function CustomerDetailPage() {
           icon="payments"
           tone="text-success"
           label="资金往来"
-          value={fmtMoney(income + expense)}
-          hint={`收 ${fmtMoney(income)} · 支 ${fmtMoney(expense)}`}
+          value={moneySummary(transactions, 'turnover')}
+          hint={`收 ${income} · 支 ${expense}`}
           onClick={() => setTab('finance')}
         />
         <DrillDownStatCard
@@ -835,29 +836,38 @@ function copyText(text: string) {
 function QuickLog({ customerId }: { customerId: string }) {
   const [content, setContent] = useState('')
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
+  const lock = useRef(false)
+  const pending = useRef<{ id: string; at: number } | null>(null)
 
   async function save() {
-    if (!content.trim() || saving) return
+    if (!content.trim() || lock.current) return
+    lock.current = true
+    setSaveError('')
     setSaving(true)
     try {
       // 原子双写：日志落库 + 客户 lastContactAt 刷新在同一事务完成
-      const at = Date.now()
+      const draft = pending.current ??= { id: newId('itx'), at: Date.now() }
+      const at = draft.at
       // 事件（customer:contacted）已下沉 saveInteractionAndTouchCustomer（事务 commit 后统一 emit），
       // UI 侧不再内联 emit，避免双发。
       await saveInteractionAndTouchCustomer(
-        { id: newId('itx'), customerId, content: content.trim(), at },
+        { id: draft.id, customerId, content: content.trim(), at },
         customerId,
       )
+      pending.current = null
       setContent('')
     } catch (err) {
-      console.error('[QuickLog] 保存沟通日志失败', err)
+      setSaveError(err instanceof Error ? err.message : '保存失败，请重试')
     } finally {
+      lock.current = false
       setSaving(false)
     }
   }
 
   return (
     <div className="rounded-xl bg-surface-container-low/60 p-3">
+      {saveError && <p role="alert" className="text-error">{saveError}</p>}
       <div className="flex gap-2">
         <input
           className={inputCls}

@@ -50,3 +50,5 @@ export const storage: StorageAdapter = {
     return (await ensureAdapter()).requestSync(...args)
   },
 }
+
+export async function onlineCommandStorage(): Promise<boolean> { return (await ensureAdapter()).commandMode === true }

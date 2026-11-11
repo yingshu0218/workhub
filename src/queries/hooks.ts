@@ -90,20 +90,13 @@ export function useRecordState<T extends { id: string; deleted?: 0 | 1 }>(
   tableName: keyof typeof db,
   id: string | undefined,
 ): { record: T | undefined; checked: boolean } {
-  const data = useLiveQuery(
-    () =>
-      id
-        ? (db[tableName] as unknown as { get(id: string): Promise<T | undefined> }).get(id)
-        : undefined,
-    [tableName, id],
-    undefined,
-  )
-  // useLiveQuery 的 initialValue 为 undefined 时无法区分「未回填」与「查无」，
-  // 故用「是否已解析出非空结果或已针对当前 id 拿到 undefined」的显式判据：
-  // 这里以「id 为空 → 视为已确定」（抽屉未打开，无需加载态）作为唯一边界，
-  // 其余情况在拿到首个结果前 checked 恒为 false。
-  const checked = id === undefined || data !== undefined
-  const record = data && !data.deleted ? data : undefined
+  const data = useLiveQuery(async () => ({
+    id,
+    record: id ? await (db[tableName] as unknown as { get(id: string): Promise<T | undefined> }).get(id) : undefined,
+  }), [tableName, id])
+  // 用结果信封区分「查询完成但不存在」与首帧 undefined，幽灵详情不再永久加载。
+  const checked = !id || (data !== undefined && data.id === id)
+  const record = checked && data?.record && !data.record.deleted ? data.record : undefined
   return { record, checked }
 }
 

@@ -19,7 +19,7 @@
  */
 import dayjs from 'dayjs'
 import { storage } from '@/storage'
-import { ledgerRepo, newId, saveTransactionWithAttachments } from '@/repositories'
+import { saveLedger, newId, saveTransactionWithAttachments } from '@/repositories'
 import type { PutInput } from '@/repositories/repository'
 import type { Ledger, Transaction } from '@/db/types'
 
@@ -130,11 +130,9 @@ export interface CreateLedgerInput {
 }
 
 export async function createLedger(input: CreateLedgerInput): Promise<string> {
-  const { clearOtherDefaultLedgers } = await import('@/repositories')
-  if (input.isDefault) await clearOtherDefaultLedgers()
   const id = newId('ldg')
   const active = (await storage.list<Ledger>('ledgers')).filter((l) => !l.deleted)
-  await ledgerRepo.put({
+  await saveLedger({
     id,
     name: input.name,
     currency: input.currency,

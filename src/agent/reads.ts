@@ -73,6 +73,11 @@ export const listTransactionsSchema = z.object({
   /** 日期范围（YYYY-MM-DD，含端点；仅日期粒度，与 UI 记账口径一致） */
   from: z.string().date('开始日期格式须为 YYYY-MM-DD').optional(),
   to: z.string().date('结束日期格式须为 YYYY-MM-DD').optional(),
+  offset: z.number().int().min(0).max(20000).optional(),
+  limit: z.number().int().min(1).max(50).optional(),
+  sequence: z.number().int().min(0).optional(),
+  generation: z.string().optional(),
+  queryKey: z.string().optional(),
 })
 
 /** getCustomer(id)：基本档案 + 关系档位摘要，不含 relations 全量与附件（§2.2，上限 1） */

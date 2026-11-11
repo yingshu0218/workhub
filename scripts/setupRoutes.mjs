@@ -256,44 +256,15 @@ export function createSetupService({
       return { status: 503, body: { error: e?.message ?? String(e) } }
     }
 
-    let total
-    try {
-      total = await countUsers(token)
-    } catch (e) {
-      return { status: 503, body: { error: e?.message ?? String(e) } }
-    }
-    // 空库判据在写入前再确认一次：并发两个请求时后到的那个必须落 409，不能建出第二个账号
-    if (total > 0) return { status: 409, body: { error: '已完成初始化' } }
-
-    // 用户名**不做** PB 的登录标识：0.40 的 text 字段无法声明 UNIQUE 约束，
-    // identityFields 里加 username 必被 PB 拒（validation_missing_unique_constraint）。
-    // 登录走前端映射的 `<用户名>@workhub.local` 邮箱 —— 用户无感。
-    // username 只用于展示：补得上就一并写入，补不上（老库没这个字段 / PATCH 失败）就不带，
-    // 绝不能因为它让首启建号失败。
-    let hasUsernameField = false
-    try {
-      hasUsernameField = (await ensureUsernameField(token)).hasUsernameField
-    } catch (e) {
-      console.warn('[setup] 补 username 展示字段失败（不影响建号）：', e?.message ?? e)
-    }
-
-    const payload = {
-      email: parsed.email,
-      password: parsed.password,
-      passwordConfirm: parsed.password,
-      verified: true,
-    }
-    if (hasUsernameField) payload.username = parsed.identity
-
-    const created = await fetchImpl(`${base}/api/collections/users/records`, {
+    const created = await fetchImpl(`${base}/api/workhub/initialize`, {
       method: 'POST',
       headers: { authorization: token, 'content-type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(parsed),
       signal: AbortSignal.timeout(10_000),
     })
     if (!created.ok) {
       const body = await created.json().catch(() => ({}))
-      return { status: 400, body: { error: pbErrorMessage(body, `创建账号失败（HTTP ${created.status}）`) } }
+      return { status: created.status, body: { error: body.error || pbErrorMessage(body, `创建账号失败（HTTP ${created.status}）`) } }
     }
 
     try {
@@ -321,7 +292,7 @@ export function createSetupService({
         } catch (e) {
           // 拿不到判据时回 200 + 原因：页面据此回落到普通登录表单（fail-open），
           // 而不是把所有人挡在「正在检查」上
-          writeJson(res, 200, { needsSetup: false, error: e?.message ?? String(e) })
+          writeJson(res, 503, { needsSetup: false, error: e?.message ?? String(e) })
         }
       })()
       return true

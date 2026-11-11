@@ -46,6 +46,9 @@ export function setEventForwarder(
   forwarder = fn
 }
 
+let interceptor: ((event: keyof AppEvent, payload: unknown) => boolean) | null = null
+export function setEventInterceptor(fn: typeof interceptor): void { interceptor = fn }
+
 export const eventBus = {
   on<K extends keyof AppEvent>(event: K, handler: Handler<K>): () => void {
     if (!registry.has(event)) registry.set(event, new Set())
@@ -55,6 +58,7 @@ export const eventBus = {
   },
 
   emit<K extends keyof AppEvent>(event: K, payload: AppEvent[K]) {
+    if (interceptor?.(event, payload)) return
     registry.get(event)?.forEach((h) => {
       try {
         ;(h as (p: AppEvent[K]) => void)(payload)

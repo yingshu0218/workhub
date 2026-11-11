@@ -1,3 +1,7 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
+import { stagePlan, requestId as newRequestId } from '@/storage/commandPlan'
+import type { StorageAdapter } from '@/storage/types'
+import { eventBus, setEventInterceptor, type AppEvent } from '@/shared/eventBus'
 import { z } from 'zod'
 import { createPocketBaseAdapter } from '@/storage/pocketbase'
 import { setStorageAdapter } from '@/storage'
@@ -5,7 +9,6 @@ import { dispatchAgentTool, AGENT_TOOLS } from './executor'
 import { TOOL_RISK, TOOL_DOMAIN, resolveEntitySchema } from './schema'
 import { zodToJsonSchema } from './jsonSchema'
 import { needsPreview, previewEnvelope } from './confirmFlow'
-import { setEventForwarder } from '@/shared/eventBus'
 import { resolveEntity, type ResolveResult } from './resolver'
 import {
   listTransactions,
@@ -102,7 +105,7 @@ export type ServerReadToolName = keyof typeof SERVER_READ_TOOLS
 
 /** 工具描述（与浏览器桥同口径：域 + 风险级，参数细节在 schema） */
 function describeTool(name: string, risk: string): string {
-  return `${name}（域：${name.split('_')[0]}，风险：${risk}）—— 参数见 inputSchema；实体引用须先 resolveEntity，候选不唯一必须反问用户。`
+  return `${name}（域：${name.split('_')[0]}，风险：${risk}）—— 参数见 inputSchema；实体引用须先 resolveEntity，候选不唯一必须反问用户。写入前先用读工具取得 generation，并在 tools/call.params._meta 发送稳定 requestId 与原 generation；网络重试复用二者。具体预览返回 confirmHint，按原提示取票和提交。`
 }
 
 /** 服务端工具清单（MCP tools/list 条目；risk/domain 与 schema.ts 的声明表同源） */
@@ -186,14 +189,23 @@ export interface ServerExecutorOptions {
  */
 export function initServerExecutor(opts: ServerExecutorOptions): {
   listTools: () => ReturnType<typeof serverToolsList>
-  callTool: (name: string, input: unknown, meta?: { confirmToken?: string }) => Promise<ServerOpResult>
+  callTool: (name: string, input: unknown, meta?: { confirmToken?: string; requestId?: string; generation?: string; replayOnly?: boolean }) => Promise<ServerOpResult>
   handles: (name: string) => boolean
 } {
   const pbAdapter = createPocketBaseAdapter(opts.pb)
-  setStorageAdapter(pbAdapter)
-  // P4 agent_events：服务端复合函数 emit 的领域事件落 PB（§5.4-A「事件源多一个、评估不动」）
-  setEventForwarder((event, payload, meta) => {
-    void pbAdapter.recordEvent?.(String(event), payload, 'server-executor', meta?.occurredAt)
+  const context = new AsyncLocalStorage<{ adapter: StorageAdapter; events: { type: keyof AppEvent; payload: unknown; occurredAt: number }[] }>()
+  setStorageAdapter({
+    commandMode: true,
+    get: (...args) => (context.getStore()?.adapter || pbAdapter).get(...args),
+    list: (...args) => (context.getStore()?.adapter || pbAdapter).list(...args),
+    transaction: (...args) => (context.getStore()?.adapter || pbAdapter).transaction(...args),
+    requestSync() {},
+  })
+  setEventInterceptor((type, payload) => {
+    const current = context.getStore()
+    if (!current) return false
+    current.events.push({ type, payload, occurredAt: Date.now() })
+    return true
   })
   const domains = opts.domains ?? {}
 
@@ -215,14 +227,45 @@ export function initServerExecutor(opts: ServerExecutorOptions): {
           error: `工具 ${name} 不在服务端白名单内（域：${TOOL_DOMAIN[name] ?? '未知'}；服务端白名单由部署配置 WORKHUB_AI_DOMAINS 控制，与浏览器设置相互独立）`,
         }
       }
-      // 中/高风险闸门（与浏览器桥同一判定/同一信封形状）：无票先 preview；
-      // 带票的 meta.confirmToken 已在 relay 侧核销过（mcp-relay tools/call 统一 redeem）
-      if (needsPreview(name, meta)) {
-        return { ok: true, data: previewEnvelope(name, input) as unknown as Record<string, unknown> }
+      const isRead = Object.hasOwn(SERVER_READ_TOOLS, name)
+      if (isRead) {
+        try {
+          if (name === 'listTransactions') return { ok: true, data: await pbAdapter.queryFinance(listTransactionsSchema.parse(input || {})) }
+          const result = await dispatchServerReadTool(name, input)
+          return result.ok ? { ...result, data: { ...result.data, generation: await pbAdapter.transport.generation(), protocol: 1 } } : result
+        } catch (e) { return { ok: false, error: (e as Error).message } }
       }
       try {
-        const r = await dispatchAgentTool(name, input, domains)
-        return { ok: r.ok, data: r.data as Record<string, unknown> | undefined, error: r.error }
+        if (meta?.requestId && !meta.generation) throw new Error('GENERATION_REQUIRED: 稳定请求必须携带原数据世代，恢复后禁止自动重录')
+        if (meta?.confirmToken && (!meta.requestId || !meta.generation)) throw new Error('PREVIEW_REQUIRED: 确认时必须携带具体预览的 requestId 和 generation')
+        const generation = meta?.generation || await pbAdapter.transport.generation()
+        const id = meta?.requestId || newRequestId()
+        const intent = { tool: name, input }
+        // 已提交请求优先读持久回执，票据消费或进程重启都不影响安全重试。
+        const prior = await pbAdapter.transport.lookup(id, generation, intent)
+        const reply = (receipt: import('@/storage/commandPlan').Receipt): ServerOpResult => { const r = receipt.result as ServerOpResult; return { ...r, data: { ...r.data, requestId: id, operationId: receipt.operationId, generation, retrySafe: !!meta?.requestId } } }
+        if (prior.committed && prior.receipt) return reply(prior.receipt)
+        if (meta?.replayOnly) return { ok: false, error: '确认票据已失效且没有提交回执，请重新预览确认' }
+        const preview = (command: import('@/commands/core').Command): ServerOpResult => ({ok:true,data:{...previewEnvelope(name,input),requestId:id,generation,confirmHint:{...previewEnvelope(name,input).confirmHint,args:{tool:name,args:input,requestId:id,generation}},targets:command.reads,changes:command.writes}})
+        if (prior.pending) {
+          if (needsPreview(name, meta)) return preview(prior.pending)
+          return reply(await pbAdapter.transport.commit(prior.pending))
+        }
+        const plan = stagePlan(pbAdapter)
+        const events: { type: keyof AppEvent; payload: unknown; occurredAt: number }[] = []
+        const adapter: StorageAdapter = {
+          get: plan.tx.get, list: plan.tx.list,
+          transaction: async (_tables, fn) => fn(plan.tx), requestSync() {},
+        }
+        const result = await context.run({ adapter, events }, () => dispatchAgentTool(name, input, domains))
+        if (!result.ok) return result as ServerOpResult
+        const command = plan.command(generation, id, intent, result)
+        command.events = events
+        if (needsPreview(name, meta)) return preview(await pbAdapter.transport.preview!(command))
+        const receipt = await pbAdapter.transport.commit(command)
+        // 真实事务结束后才向本进程观察者投递，通知记录已在同一事务持久化。
+        for (const ev of events) eventBus.emit(ev.type, ev.payload as never)
+        return reply(receipt)
       } catch (e) {
         return { ok: false, error: (e as Error).message }
       }

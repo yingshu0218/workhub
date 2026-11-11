@@ -45,6 +45,8 @@ export function createRepository<T extends { id: string } & Partial<SyncMeta>>(
       // 盖章、落库、入队必须在同一事务：落库成功而入队失败 = 变更永远不再推送
       await storage.transaction([tableName, 'syncQueue'], async (tx) => {
         const prev = await tx.get<T>(tableName, record.id)
+        assertExpectedRevision(record, prev)
+        if (prev?.deleted) throw new Error('DELETED: 请从回收站显式恢复记录')
         /**
          * 回收站恢复标记（粘性）：
          * - 对墓碑 put = 显式复活，盖 restoredAt（这是同步层允许复活的唯一凭证）；
@@ -73,7 +75,7 @@ export function createRepository<T extends { id: string } & Partial<SyncMeta>>(
     async update(id, patch) {
       await storage.transaction([tableName, 'syncQueue'], async (tx) => {
         const prev = await tx.get<T>(tableName, id)
-        if (!prev) return // 不存在的 id：不动库、不入队（幽灵写入防护，与 softDelete 同口径）
+        if (!prev || prev.deleted) throw new Error(`NOT_FOUND: ${tableName}/${id}`)
         const now = Date.now()
         await tx.update(tableName, id, {
           ...patch,
@@ -88,7 +90,7 @@ export function createRepository<T extends { id: string } & Partial<SyncMeta>>(
     async softDelete(id) {
       await storage.transaction([tableName, 'syncQueue'], async (tx) => {
         const prev = await tx.get<T>(tableName, id)
-        if (!prev) return // 不存在的 id：不动库、不入队
+        if (!prev || prev.deleted) throw new Error(`NOT_FOUND: ${tableName}/${id}`)
         const now = Date.now()
         await tx.update(tableName, id, {
           deleted: 1,
@@ -110,4 +112,9 @@ export function createRepository<T extends { id: string } & Partial<SyncMeta>>(
 /** 新实体 id 助手（带 workspace 前缀便于排查） */
 export function newId(prefix: string): string {
   return `${DEFAULT_WORKSPACE_ID}:${prefix}:${nanoid(10)}`
+}
+
+/** 表单打开时的版本不能被保存前的一次读取悄悄升级，否则会覆盖其他设备的新修改。 */
+export function assertExpectedRevision(record: { rev?: number }, previous?: { rev?: number; deleted?: number }): void {
+  if (record.rev !== undefined && record.rev > 0 && previous && record.rev !== previous.rev) throw new Error('VERSION_CONFLICT: 记录已变化，请保留输入并重新核对')
 }

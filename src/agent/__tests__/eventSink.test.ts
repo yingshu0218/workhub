@@ -92,18 +92,15 @@ describe('边界① create 门控：仅新 id 才发 transaction:created', () =>
     expect((await db.transactions.get(txnId))!.amount).toBe(999)
   })
 
-  it('软删后再落库视为「新建」（墓碑重建语义），仍发事件', async () => {
+  it('软删后普通编辑明确拒绝，不能当新建重发事件', async () => {
     await seedLedger()
-    const txnId = newId('txn')
-    await saveTransactionWithAttachments(newTxn(txnId), [])
-    await db.transactions.update(txnId, { deleted: 1 })
-
+    const input = { id: 't1', ledgerId: 'l1', amount: 10, type: 'income', summary: 'test', occurredAt: Date.now(), channel: '', tags: [], status: '待对账' } as const
+    await saveTransactionWithAttachments(input as never)
+    await db.transactions.update('t1', { deleted: 1 })
     const cap = capture()
-    const r = await saveTransactionWithAttachments(newTxn(txnId), [])
+    await expect(saveTransactionWithAttachments(input as never)).rejects.toThrow('DELETED')
     cap.restore()
-
-    expect(r.created).toBe(true)
-    expect(cap.events).toHaveLength(1)
+    expect(cap.events).toHaveLength(0)
   })
 
   it('agentOps 路径经同一 repositories emit：一次调用只发一次事件', async () => {

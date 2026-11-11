@@ -58,22 +58,24 @@ async function refreshToken(token: string): Promise<boolean> {
       method: 'POST',
       headers: { Authorization: token },
     })
+    if (res.status >= 500) throw new Error('认证服务暂时不可用，请重试')
     if (!res.ok) return false
     const body = (await res.json()) as { token?: string }
     // 续期后的 token 写回（PB 每次 refresh 会签发新 token，沿用旧的会在过期后突然失效）
     if (body?.token) localStorage.setItem(TOKEN_KEY, body.token)
     return true
   } catch {
-    return false
+    throw new Error('认证服务暂时不可用，请重试')
   }
 }
 
-type Phase = 'checking' | 'open' | 'login' | 'change' | 'setup'
+type Phase = 'unavailable' | 'checking' | 'open' | 'login' | 'change' | 'setup'
 
 /** 与服务端 `scripts/setupRoutes.mjs#parseSetupInput` 同口径（客户端先拦，省一次往返） */
 const IDENTITY_PATTERN = /^[A-Za-z0-9_][A-Za-z0-9_.-]*$/
 
 export function AuthGate({ children }: { children: ReactNode }) {
+  const [retry, setRetry] = useState(0)
   const [phase, setPhase] = useState<Phase>('checking')
   const [identity, setIdentity] = useState('')
   const [password, setPassword] = useState('')
@@ -104,16 +106,20 @@ export function AuthGate({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false
     void (async () => {
+      setPhase('checking')
+      try {
       // 首启引导优先于一切：空库时登录页毫无意义（没有任何账号可登）。
       // 走 env 建号的部署在 entrypoint 阶段就先建好了账号，所以这里只在真正空库时命中。
       try {
         const res = await fetch('/setup/status', { cache: 'no-store' })
+        if (!res.ok && isServerFirstWeb()) throw new Error('初始化状态不可用')
         const body = (await res.json()) as { needsSetup?: boolean }
         if (body?.needsSetup) {
           if (!cancelled) setPhase('setup')
           return
         }
-      } catch {
+      } catch (err) {
+        if (isServerFirstWeb()) throw err
         // 旧版 serve.mjs 没有这个端点（404）→ 按普通流程继续
       }
       if (cancelled) return
@@ -122,15 +128,17 @@ export function AuthGate({ children }: { children: ReactNode }) {
       let initialized = true
       try {
         const res = await fetch('/relay/auth-status', { cache: 'no-store' })
+        if (!res.ok) throw new Error('认证服务暂时不可用')
         const body = (await res.json()) as { enabled?: boolean; initialized?: boolean }
         enabled = Boolean(body?.enabled)
         initialized = body?.initialized !== false
-      } catch {
+      } catch (err) {
+        if (isServerFirstWeb()) throw err
         // 拿不到状态时按「未启用」处理：宁可先不挡，也不能把用户关在门外
         enabled = false
       }
       if (cancelled) return
-      if (!enabled) {
+      if (!enabled && !isServerFirstWeb()) {
         setPhase('open')
         return
       }
@@ -142,11 +150,12 @@ export function AuthGate({ children }: { children: ReactNode }) {
         return
       }
       if (!cancelled) setPhase('login')
+      } catch { if (!cancelled) setPhase('unavailable') }
     })()
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [retry])
 
   const submitLogin = useCallback(
     async (e: React.FormEvent) => {
@@ -318,6 +327,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const label = 'mt-3 block text-[0.8214rem] font-medium text-on-surface-variant'
   const input =
     'mt-1 w-full rounded-lg border border-outline-variant bg-surface px-3 py-2 text-[0.9286rem] text-on-surface'
+
+  if (phase === 'unavailable') return <div role="alert" className="flex min-h-screen flex-col items-center justify-center gap-4 bg-surface"><p>认证服务暂时不可用，请重试</p><Button onClick={() => setRetry(n => n + 1)}>重试</Button></div>
 
   if (phase === 'checking') {
     return (

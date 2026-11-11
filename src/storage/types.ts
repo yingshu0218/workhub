@@ -23,8 +23,7 @@ export type TableName = string
 export type SyncOp = 'upsert' | 'delete'
 
 /**
- * 事务内原语。浏览器端 = Dexie 原生事务体内操作；服务端 = 顺序执行 + 失败中止
- * （PB 无跨表事务，P2 落地时以「失败即中止且已写步骤补偿」近似，见方案 §8 风险表）。
+ * 事务内原语。浏览器端 = Dexie 原生事务体内操作；服务端 = 暂存计划并在 PocketBase runInTransaction 内校验、提交。
  */
 export interface StorageTx {
   /** 读单条（含软删行，调用方按 `deleted` 判活） */
@@ -49,6 +48,8 @@ export interface StorageTx {
 }
 
 export interface StorageAdapter {
+  /** 已关闭逐表写入，只通过 PB 命令事务提交。 */
+  commandMode?: true
   /**
    * 原子事务。调用方传的 tables **必须含 `syncQueue`**（浏览器端 Dexie 事务要显式列出全部触碰表；
    * 服务端忽略该参数）。事务体内任一步抛错 → 整体回滚（浏览器端 Dexie 原生保证）。

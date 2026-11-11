@@ -63,9 +63,9 @@ describe('deleteLedgerCascade：守卫收口 + mention 级联', () => {
     expect((await db.ledgers.get('l1'))?.deleted).toBe(0)
   })
 
-  it('③ 账本不存在 / 已删：幂等静默', async () => {
-    await expect(deleteLedgerCascade('nope')).resolves.toBeUndefined()
+  it('③ 账本不存在 / 已删：明确失败', async () => {
+    await expect(deleteLedgerCascade('nope')).rejects.toThrow('NOT_FOUND')
     await db.ledgers.put({ id: 'l1', name: 'X', currency: 'CNY', createdAt: 1, ...meta({ deleted: 1 }) } as never)
-    await expect(deleteLedgerCascade('l1')).resolves.toBeUndefined()
+    await expect(deleteLedgerCascade('l1')).rejects.toThrow('NOT_FOUND')
   })
 })

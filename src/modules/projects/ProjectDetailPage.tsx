@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { moneySummary, totalsByCurrency } from '@/modules/finance/money'
+import { useRef, useState } from 'react'
 import { Icon } from '@/design-system/Icon'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useCollection, useRecord } from '@/queries/hooks'
@@ -86,8 +87,8 @@ export default function ProjectDetailPage() {
     )
   }
 
-  const income = transactions.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0)
-  const expense = transactions.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
+  const income = moneySummary(transactions, 'income')
+  const expense = moneySummary(transactions, 'expense')
   const openTodos = todos.filter(isTodoOpen)
   // 作废条目（Issue #128）不属于未完成，也不出现在项目待办清单的默认口径里
   const visibleTodos = todos.filter((t) => !isTodoVoided(t))
@@ -184,17 +185,17 @@ export default function ProjectDetailPage() {
               <div className="min-w-0 flex-1 space-y-1.5 text-[0.8571rem]">
                 <div className="flex justify-between">
                   <span className="text-on-surface-variant">累计收入</span>
-                  <span className="font-bold text-success">+{fmtMoney(income)}</span>
+                  <span className="font-bold text-success">+{income}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-on-surface-variant">累计支出</span>
-                  <span className="font-bold text-danger">-{fmtMoney(expense)}</span>
+                  <span className="font-bold text-danger">-{expense}</span>
                 </div>
                 {project.budget != null && (
                   <div className="flex justify-between">
                     <span className="text-on-surface-variant">预算执行</span>
                     <span className="font-bold">
-                      {project.budget > 0 ? Math.round((expense / project.budget) * 100) : 0}%
+                      {project.budget > 0 ? Math.round(((totalsByCurrency(transactions).CNY?.expenseMinor || 0) / 100 / project.budget) * 100) : 0}%
                     </span>
                   </div>
                 )}
@@ -624,14 +625,20 @@ function MilestoneCard({
 function QuickLog({ projectId }: { projectId: string }) {
   const [content, setContent] = useState('')
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
+  const lock = useRef(false)
+  const pending = useRef<{ id: string; at: number } | null>(null)
 
   async function save() {
-    if (!content.trim() || saving) return
+    if (!content.trim() || lock.current) return
+    lock.current = true
+    setSaveError('')
     setSaving(true)
     try {
-      const at = Date.now()
+      const draft = pending.current ??= { id: newId('itx'), at: Date.now() }
+      const at = draft.at
       const interaction: PutInput<Interaction> = {
-        id: newId('itx'),
+        id: draft.id,
         customerId: '',
         content: content.trim(),
         at,
@@ -640,14 +647,17 @@ function QuickLog({ projectId }: { projectId: string }) {
       // 有挂靠客户时复用原子双写刷新 lastContactAt；无客户直接落库
       const project = await db.projects.get(projectId)
       if (project?.customerId) {
+        interaction.customerId = project.customerId
         await saveInteractionAndTouchCustomer(interaction, project.customerId)
       } else {
         await interactionRepo.put(interaction)
       }
+      pending.current = null
       setContent('')
     } catch (err) {
-      console.error('[ProjectQuickLog] 保存跟进失败', err)
+      setSaveError(err instanceof Error ? err.message : '保存失败，请重试')
     } finally {
+      lock.current = false
       setSaving(false)
     }
   }
@@ -658,6 +668,7 @@ function QuickLog({ projectId }: { projectId: string }) {
         <Icon name="bolt" className="text-[1.1429rem]" />
         快速记一笔
       </div>
+      {saveError && <p role="alert" className="text-error">{saveError}</p>}
       <div className="flex gap-2">
         <input
           className={inputCls}
