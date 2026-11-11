@@ -26,7 +26,7 @@
     "app:android": "tauri android build --target aarch64",
     "build:commands": "node scripts/build-commands.mjs",
     "test:integration": "node scripts/integration/reliability.mjs && node scripts/integration/migration.mjs",
-    "test:personal": "node scripts/build-integration-harness.mjs && node scripts/integration/personal.mjs"
+    "test:personal": "npm run build:server && node scripts/build-integration-harness.mjs && node scripts/integration/personal.mjs"
   },
   "dependencies": {
     "@codemirror/commands": "^6.11.0",
