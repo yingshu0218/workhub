@@ -236,6 +236,7 @@ export function initServerExecutor(opts: ServerExecutorOptions): {
         } catch (e) { return { ok: false, error: (e as Error).message } }
       }
       try {
+        if (!meta?.requestId && !needsPreview(name, meta)) throw new Error('REQUEST_CONTEXT_REQUIRED: 写入必须携带稳定 requestId 和原 generation；缺少原上下文的旧请求不可自动补新标识重录，请先核对既有事实')
         if (meta?.requestId && !meta.generation) throw new Error('GENERATION_REQUIRED: 稳定请求必须携带原数据世代，恢复后禁止自动重录')
         if (meta?.confirmToken && (!meta.requestId || !meta.generation)) throw new Error('PREVIEW_REQUIRED: 确认时必须携带具体预览的 requestId 和 generation')
         const generation = meta?.generation || await pbAdapter.transport.generation()

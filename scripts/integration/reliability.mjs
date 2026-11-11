@@ -131,6 +131,7 @@ try {
     const {initServerExecutor}=await import(join(root,'dist-server/server-executor.mjs'))
     const owner=(await records('users')).find(u=>u.email.startsWith('owner'))
     const executor=initServerExecutor({pb:{baseUrl:base,account:owner.email,password},domains:{read:true,fin:true,crm:true,todo:true}})
+    const legacyWrite=await executor.callTool('todo_createTodo',{title:'缺少原世代的旧请求'});assert.equal(legacyWrite.ok,false);assert.match(legacyWrite.error,/REQUEST_CONTEXT_REQUIRED/)
     const defaultLedger=await executor.callTool('fin_createLedger',{name:'真实默认账本',currency:'CNY',openingBalance:0,closingCycle:'不封账',isDefault:true},{requestId:'agent_default_ledger',generation});assert.equal(defaultLedger.ok,true,JSON.stringify(defaultLedger));assert.equal((await records('ledgers')).find(r=>r.localId===defaultLedger.data.ledgerId).isDefault,true)
     const input={summary:'真实 Agent',amount:3.14,type:'income',ledgerId:ledger.id,customerIds:[c1.id,c2.id]}
     const meta={requestId:'agent_persistent_request',generation}
