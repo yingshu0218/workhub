@@ -1,9 +1,9 @@
+import { endpointFetch } from '@/platform/endpoint'
 import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Button, Card, inputCls } from '@/design-system/ui'
 import { Icon } from '@/design-system/Icon'
 import { clearAuthSession, getAuthIdentity, getAuthToken } from '@/shared/authToken'
-import { resolveBridgeBase } from '@/agent/bridge'
 
 /**
  * 设备授权确认页（`/authorize?user_code=XXXX-XXXX`）。
@@ -18,11 +18,6 @@ import { resolveBridgeBase } from '@/agent/bridge'
  * 3. **token 不经过本页**：批准只改服务端状态，token 由 CLI 轮询拿走并写进
  *    `~/.workhub/relay.json`；页面不会显示、也不会保存长期 token。
  */
-
-function relayHttpBase(): string {
-  // 与设置页同口径：默认同源 `/relay`；ws(s) → http(s) 才能发普通请求
-  return resolveBridgeBase('').replace(/^ws(s?):/, 'http$1:')
-}
 
 export default function AuthorizePage() {
   const [params] = useSearchParams()
@@ -47,7 +42,7 @@ export default function AuthorizePage() {
     }
     setState({ busy: true, ok: '', error: '' })
     try {
-      const res = await fetch(`${relayHttpBase()}/device/approve`, {
+      const res = await endpointFetch('/relay/device/approve', {
         method: 'POST',
         headers: { 'content-type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ user_code: trimmed }),

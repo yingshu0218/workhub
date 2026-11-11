@@ -120,8 +120,8 @@ export class NexusDB extends Dexie {
   customerGroups!: Table<import('./types').CustomerGroup, string>
   links!: Table<import('./types').Link, string>
 
-  constructor() {
-    super('nexus-workspace')
+  constructor(name = 'nexus-workspace') {
+    super(name)
     this.version(1).stores({
       workspaces: 'id, updatedAt',
       customers: 'id, workspaceId, tier, updatedAt, [workspaceId+tier]',
@@ -317,7 +317,11 @@ export class NexusDB extends Dexie {
   }
 }
 
-export const db = new NexusDB()
+export let db = new NexusDB()
+/** 旧库保留为导出来源；不同站点、身份和世代绝不混在同一个镜像里。 */
+export function selectCacheDatabase(name: string): void {
+  if (db.name !== name) db = new NexusDB(name)
+}
 
 /** 当前工作区（本期单工作区：Personal，种子写入）——常量本体在 @/storage/workspace（服务端 bundle 不拖 Dexie） */
 export { DEFAULT_WORKSPACE_ID } from '@/storage/workspace'

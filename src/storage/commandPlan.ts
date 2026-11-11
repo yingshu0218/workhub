@@ -6,6 +6,7 @@ export interface Receipt {
   operationId: string
   requestId: string
   generation: string
+  sequence?: number
   changes: { table: string; id: string; row: Row | null }[]
   result?: unknown
 }

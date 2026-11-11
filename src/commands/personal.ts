@@ -412,7 +412,7 @@ export function taskRows(h: PersonalHost, d: Record<string, unknown>): Row[] {
     const next=new Set([...direct.map(t=>t.id),...links(h,table,id,20000).map(l=>other(l,table,id)).filter(r=>r.table==='todos').map(r=>r.id)])
     ids=ids?new Set([...ids].filter(value=>next.has(value))):next
   }
-  const rows = h.select('todos', { where: { deleted: 0, ...(d.status === 'all' ? {} : { status: String(d.status || 'todo') }) }, ...(ids?{ids:[...ids]}:{}), projection:'list', limit: 20001, sort: 'dueAt,localId' })
+  const rows = h.select('todos', { where: { deleted: 0, ...(d.status === 'all' ? {} : { status: String(d.status || 'todo') }) }, ...(ids?{ids:[...ids]}:{}), ...(d.q?{q:text(d.q,120)}:{}), projection:'list', limit: 20001, sort: 'dueAt,localId' })
   if (rows.length > 20000) fail('LIMIT_EXCEEDED', '请缩小待办范围')
   const now = Number(d.referenceAt || h.now), zone = String(d.timeZone || 'Asia/Shanghai')
   if (!['Asia/Shanghai', 'UTC'].includes(zone)) fail('UNSUPPORTED_TIME_ZONE', '日界查询当前支持 Asia/Shanghai 与 UTC；其它时区请明确绝对范围')

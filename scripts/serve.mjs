@@ -19,6 +19,7 @@
  *   WORKHUB_RELAY_PATH      relay 挂载路径（默认 /relay）
  *   WORKHUB_RELAY_AUTO_CONFIRM=1  dev 便利：预览自动附票（**勿用于生产**）
  */
+import { applyClientCors } from './client-cors.mjs'
 import { createServer } from 'node:http'
 import { createReadStream, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { createHash, randomBytes } from 'node:crypto'
@@ -267,6 +268,7 @@ function serveStatic(req, res) {
 }
 
 const server = createServer((req, res) => {
+  if(applyClientCors(req,res))return
   // 页面登录开关：前端据此决定是否显示登录页（2026-10-28）。
   // 必须放在 relay 接管之前 —— 否则这个路径会被 SPA 回退成 200 + HTML，前端拿到的是网页。
   //

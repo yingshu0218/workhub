@@ -1,3 +1,4 @@
+import { clientSession,requireClientSession } from '@/storage/clientSession'
 import { db } from '@/db/db'
 import type { Attachment, FocusSession } from '@/db/db'
 import type { Table } from 'dexie'
@@ -91,8 +92,10 @@ export const settingsRepo = {
      * 结论：此为**能力边界**而非纪律漂移。已在防漂移锁里逐条署名放行
      * （`writeThroughStorage.test.ts` 的 ALLOWED）。
      */
-    const merged = await db.transaction('rw', [db.settings], async () => {
-      const prev = await SETTINGS_TABLE().get('singleton')
+    const context=clientSession(),cache=db
+    const merged = await cache.transaction('rw', [cache.settings], async () => {
+      if(context)requireClientSession(context)
+      const prev = await cache.settings.get('singleton')
       const next: Settings = {
         ...DEFAULT_SETTINGS,
         ...prev,
@@ -110,7 +113,8 @@ export const settingsRepo = {
         // 新增段必须在此登记，否则段内单字段 patch 会整体丢失（本函数是段内展开合并）
         ai: { ...DEFAULT_SETTINGS.ai, ...prev?.ai, ...patch.ai },
       }
-      await SETTINGS_TABLE().put(next)
+      await cache.settings.put(next)
+      if(context)requireClientSession(context)
       return next
     })
     // ⚠️ 事件永在事务之后（AGENTS.md §6.1）：emit 必须在 db.transaction **commit 之后**。
@@ -118,6 +122,7 @@ export const settingsRepo = {
     // 的 applySettingsToDom、graph/themes.ts 的画布主题）已应用一份**未落库**的设置 = 幽灵状态。
     // 全仓其余 6 处 emit（repositories/index.ts、crm/intimacy/config.ts、quickCapture.ts）
     // 都严格在事务块之外，此处曾是唯一反例。
+    if(context)requireClientSession(context)
     eventBus.emit('settings:changed', { settings: merged })
     return merged
   },

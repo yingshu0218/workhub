@@ -1,3 +1,5 @@
+import { connectionEpoch } from '@/platform/endpoint'
+import { DEFAULT_SETTINGS } from '@/db/types'
 import { eventBus } from './eventBus'
 import { habitRepo, checkinHabit } from '@/repositories'
 import { settingsRepo } from '@/repositories/localAdmin'
@@ -147,12 +149,13 @@ function watchSystemTheme(): void {
 }
 
 export function installModuleEffects() {
-  if (installed) return
+  if (installed) return () => {}
   installed = true
 
-  eventBus.on('focus:completed', async ({ minutes }) => {
+  const offFocus=eventBus.on('focus:completed', async ({ minutes }) => {
     try {
       const habits = await habitRepo.list()
+      if(epoch!==connectionEpoch() || !installed)return
       const focusHabit = habits.find(
         (h) => h.crossModuleSync && h.targetMinutes > 0 && h.category === '工作',
       )
@@ -167,13 +170,16 @@ export function installModuleEffects() {
   })
 
   // 设置实时生效：启动应用一次 + 监听变更广播 + 跟随系统主题
-  eventBus.on('settings:changed', ({ settings }) => applySettingsToDom(settings))
+  const offSettings=eventBus.on('settings:changed', ({ settings }) => applySettingsToDom(settings))
+  const epoch=connectionEpoch()
+  applySettingsToDom(DEFAULT_SETTINGS)
   void settingsRepo
     .get()
-    .then(applySettingsToDom)
+    .then(settings=>{if(epoch===connectionEpoch())applySettingsToDom(settings)})
     .catch((err) => console.error('[effects] 设置应用失败', err))
   watchSystemTheme()
 
   // 奖杯引擎（幂等安装）：监听 focus:completed / habit:checked + 启动全量检查
-  installTrophyEngine()
+  const offTrophies=installTrophyEngine()
+  return ()=>{installed=false;offFocus();offSettings();offTrophies?.();lastSettings=undefined;if(mediaHandler)window.matchMedia('(prefers-color-scheme: dark)').removeEventListener('change',mediaHandler)}
 }

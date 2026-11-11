@@ -780,7 +780,7 @@ function taskRows(h, d) {
     const next = /* @__PURE__ */ new Set([...direct.map((t) => t.id), ...links(h, table, id, 2e4).map((l) => other(l, table, id)).filter((r) => r.table === "todos").map((r) => r.id)]);
     ids = ids ? new Set([...ids].filter((value) => next.has(value))) : next;
   }
-  const rows = h.select("todos", __spreadProps(__spreadValues({ where: __spreadValues({ deleted: 0 }, d.status === "all" ? {} : { status: String(d.status || "todo") }) }, ids ? { ids: [...ids] } : {}), { projection: "list", limit: 20001, sort: "dueAt,localId" }));
+  const rows = h.select("todos", __spreadProps(__spreadValues(__spreadValues({ where: __spreadValues({ deleted: 0 }, d.status === "all" ? {} : { status: String(d.status || "todo") }) }, ids ? { ids: [...ids] } : {}), d.q ? { q: text(d.q, 120) } : {}), { projection: "list", limit: 20001, sort: "dueAt,localId" }));
   if (rows.length > 2e4) fail("LIMIT_EXCEEDED", "\u8BF7\u7F29\u5C0F\u5F85\u529E\u8303\u56F4");
   const now = Number(d.referenceAt || h.now), zone = String(d.timeZone || "Asia/Shanghai");
   if (!["Asia/Shanghai", "UTC"].includes(zone)) fail("UNSUPPORTED_TIME_ZONE", "\u65E5\u754C\u67E5\u8BE2\u5F53\u524D\u652F\u6301 Asia/Shanghai \u4E0E UTC\uFF1B\u5176\u5B83\u65F6\u533A\u8BF7\u660E\u786E\u7EDD\u5BF9\u8303\u56F4");

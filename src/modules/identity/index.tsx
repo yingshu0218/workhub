@@ -1,3 +1,4 @@
+import { scopedClientKey } from '@/storage/clientSession'
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 
 /**
@@ -12,8 +13,8 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 /** 默认用户显示名（Issue #123 口径）：系统内默认用户名 */
 export const DEFAULT_IDENTITY_NAME = '阿蓝'
 /** 默认工作区（AppLayout WORKSPACES 与个人主页共用同一份） */
-export const DEFAULT_WORKSPACE_NAME = '青枫工作室'
-export const DEFAULT_WORKSPACE_ROLE = 'Owner'
+export const DEFAULT_WORKSPACE_NAME = '个人空间'
+export const DEFAULT_WORKSPACE_ROLE = 'Personal'
 /** 工作区副标题的默认展示串 */
 export const DEFAULT_WORKSPACE_SUB = '个人空间'
 
@@ -48,7 +49,7 @@ function normalize(raw: unknown): Identity {
 /** 读身份（localStorage 不可用/无值时回落默认档案） */
 export function loadIdentity(): Identity {
   try {
-    const raw = localStorage.getItem(IDENTITY_KEY)
+    const raw = localStorage.getItem(scopedClientKey(IDENTITY_KEY))
     return raw ? normalize(JSON.parse(raw)) : DEFAULT_IDENTITY
   } catch {
     return DEFAULT_IDENTITY
@@ -73,7 +74,7 @@ export function onIdentityChange(fn: () => void): () => void {
 export function setIdentity(patch: Partial<Identity>): Identity {
   current = normalize({ ...current, ...patch })
   try {
-    localStorage.setItem(IDENTITY_KEY, JSON.stringify(current))
+    localStorage.setItem(scopedClientKey(IDENTITY_KEY), JSON.stringify(current))
   } catch {
     // 持久化失败不影响本次会话内生效
   }
@@ -85,7 +86,7 @@ export function setIdentity(patch: Partial<Identity>): Identity {
 export function resetIdentity(): Identity {
   current = { ...DEFAULT_IDENTITY }
   try {
-    localStorage.removeItem(IDENTITY_KEY)
+    localStorage.removeItem(scopedClientKey(IDENTITY_KEY))
   } catch {
     /* 忽略 */
   }
@@ -96,7 +97,7 @@ export function resetIdentity(): Identity {
 const IdentityContext = createContext<Identity>(current)
 
 export function IdentityProvider({ children }: { children: ReactNode }) {
-  const [identity, set] = useState<Identity>(current)
+  const [identity, set] = useState<Identity>(() => { current=loadIdentity();return current })
   useEffect(() => onIdentityChange(() => set(getIdentity())), [])
   return <IdentityContext.Provider value={identity}>{children}</IdentityContext.Provider>
 }

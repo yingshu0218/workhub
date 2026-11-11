@@ -1461,7 +1461,7 @@
         "maxSelect": 1,
         "maxSize": 20971520,
         "thumbs": [],
-        "protected": false
+        "protected": true
       },
       {
         "name": "updatedAt",
@@ -2377,7 +2377,8 @@
     "indexes": [
       "CREATE INDEX idx_effect_operation ON operation_effects (operationId)",
       "CREATE INDEX idx_effect_record ON operation_effects (tableName, recordId, sequence, ordinal)",
-      "CREATE INDEX idx_effect_time ON operation_effects(tableName,occurredAt,id)"
+      "CREATE INDEX idx_effect_time ON operation_effects(tableName,occurredAt,id)",
+      "CREATE INDEX idx_effect_sync ON operation_effects (sequence, ordinal, id)"
     ]
   },
   {

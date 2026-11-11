@@ -29,6 +29,7 @@
  *   PB_COLLECTIONS         collections.json 路径（默认 /app/pb_setup/collections.json）
  */
 import { spawn, spawnSync } from 'node:child_process'
+import { applyClientCors } from '../../scripts/client-cors.mjs'
 import { createServer, request as httpRequest } from 'node:http'
 import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -358,6 +359,7 @@ async function main() {
   await importCollectionsIfFresh()
 
   const server = createServer((req, res) => {
+    if(applyClientCors(req,res))return
     proxyHttp(req, res, routeToPb(req.url) ? PB_TARGET : WEB_TARGET)
   })
   server.on('upgrade', (req, socket, head) => {

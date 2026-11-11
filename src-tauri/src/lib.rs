@@ -10,10 +10,8 @@
 //!   管（返回键、后台回收、电池优化白名单），硬留一个「隐藏窗口」既没意义也不符合
 //!   平台习惯。所以下面所有托盘/关闭拦截的代码都带 `#[cfg(desktop)]`。
 
-#[cfg(desktop)]
 use tauri::Manager;
 
-#[cfg(desktop)]
 use tauri::WindowEvent;
 
 /// 把主窗口唤起（显示 + 取消最小化 + 抢焦点）。
@@ -91,6 +89,12 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
+            #[cfg(mobile)]
+            if let WindowEvent::Resumed = event {
+                if let Some(webview) = window.get_webview_window(window.label()) {
+                    let _ = webview.eval("window.dispatchEvent(new Event('workhub:resume'))");
+                }
+            }
             // 桌面端：点关闭 = 收进托盘，而不是退出应用（见文件头注释）
             #[cfg(desktop)]
             if let WindowEvent::CloseRequested { api, .. } = event {

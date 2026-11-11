@@ -1,3 +1,5 @@
+import { isServerFirstWeb } from '@/platform/env'
+import { connectionEpoch } from '@/platform/endpoint'
 import { create } from 'zustand'
 import { db } from '@/db/db'
 import { newId } from '@/repositories'
@@ -42,7 +44,8 @@ function elapsedSec(startedAt: number, pausedAccumMs: number): number {
 async function recordSession(startedAt: number, seconds: number, _todoId?: string) {
   const minutes = Math.floor(seconds / 60)
   if (minutes < 1) return
-  await db.focusSessions.put({
+  const epoch=connectionEpoch(),cache=db
+  await cache.focusSessions.put({
     id: newId('fs'),
     startedAt,
     completedAt: Date.now(),
@@ -50,7 +53,7 @@ async function recordSession(startedAt: number, seconds: number, _todoId?: strin
   })
   // 口径统一（Issue #74）：「专注中」是运行时 UI 状态，不回写 todo.status（已收窄两态）
   void _todoId
-  eventBus.emit('focus:completed', { minutes })
+  if(epoch===connectionEpoch())eventBus.emit('focus:completed', { minutes })
 }
 
 /** 写 sessionStorage 快照（失败静默：持久化是增强，不阻塞计时） */
@@ -187,7 +190,8 @@ export const useFocusStore = create<FocusState>((set, get) => {
       /* 快照损坏：忽略 */
     }
   }
-  restore()
+  // 在线客户端只在已验证会话内启动计时，旧进程快照不能在登录前写入另一空间。
+  if(!isServerFirstWeb())restore()
 
   return {
     status: 'idle',

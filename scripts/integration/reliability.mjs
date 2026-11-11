@@ -159,7 +159,8 @@ try {
     const stage=await r.json();assert.equal(r.status,200,JSON.stringify(stage))
     await commit(command([put('attachments','test:attachment',{name:'fixture.txt',size:18,mime:'text/plain',createdAt:1,stagedFileId:stage.stageId})],[missing('attachments','test:attachment')]))
     const att=(await records('attachments'))[0];assert.ok(att.file)
-    const file=await fetch(`${base}/api/files/${att.collectionId}/${att.id}/${att.file}`);assert.equal(await file.text(),'fixture attachment')
+    const filePath=`${base}/api/files/${att.collectionId}/${att.id}/${att.file}`;assert.ok([401,403,404].includes((await fetch(filePath)).status));
+    const file=await fetch(base+'/api/workhub/attachments/test%3Aattachment/file',{headers:{Authorization:token}});assert.equal(file.status,200);assert.equal(await file.text(),'fixture attachment')
   })
   await stop()
   await test('A25 A32 冷备份校验、空环境恢复、世代轮换、旧请求拒绝',async()=>{

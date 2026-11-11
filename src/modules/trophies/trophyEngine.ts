@@ -1,3 +1,4 @@
+import { connectionEpoch } from '@/platform/endpoint'
 import { trophyRepo } from '@/repositories'
 import { eventBus } from '@/shared/eventBus'
 import { collectTrophyStats, computeConditionValue } from './hooks'
@@ -23,12 +24,14 @@ export async function evaluateTrophies(): Promise<void> {
     return
   }
   evaluating = true
+  const epoch=connectionEpoch()
   try {
     do {
       dirty = false
       const stats = await collectTrophyStats()
       const trophies = await trophyRepo.list()
       for (const trophy of trophies) {
+        if(epoch!==connectionEpoch())return
         if (trophy.unlockedAt) continue // 已解锁不重复评估
         if (!trophy.conditionType || trophy.conditionValue == null) continue // 无条件奖杯跳过
         const current = computeConditionValue(trophy.conditionType, stats)
@@ -48,12 +51,13 @@ export async function evaluateTrophies(): Promise<void> {
 }
 
 /** 安装奖杯引擎（幂等）：监听专注完成/习惯打卡/交易创建事件 + 启动时全量检查一次 */
-export function installTrophyEngine(): void {
-  if (installed) return
+export function installTrophyEngine() {
+  if (installed) return () => {}
   installed = true
 
-  eventBus.on('focus:completed', () => void evaluateTrophies())
-  eventBus.on('habit:checked', () => void evaluateTrophies())
-  eventBus.on('transaction:created', () => void evaluateTrophies())
+  const a=eventBus.on('focus:completed', () => void evaluateTrophies())
+  const b=eventBus.on('habit:checked', () => void evaluateTrophies())
+  const c=eventBus.on('transaction:created', () => void evaluateTrophies())
   void evaluateTrophies()
+  return ()=>{installed=false;a();b();c();dirty=false}
 }

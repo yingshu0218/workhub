@@ -57,7 +57,20 @@ print(json.dumps({'counts':counts,'synthetic':{'customers':1000,'topics':100,'ac
   results.push({label:'compound-commit',...stats(times)})
   const hardware={cpu:os.cpus()[0]?.model,logicalCpus:os.cpus().length,hostMemoryBytes:os.totalmem(),node:process.version,platform:os.platform(),network:'同机回环 HTTP；完整 JSON 响应读取；排除初始化和登录；3 次预热；串行样本'}
   try{const group=readFileSync('/proc/self/cgroup','utf8').split('\n').find(x=>x.startsWith('0::'))?.slice(3) || '';hardware.cpuMax=readFileSync('/sys/fs/cgroup'+group+'/cpu.max','utf8').trim();hardware.memoryMax=readFileSync('/sys/fs/cgroup'+group+'/memory.max','utf8').trim()}catch{}
-  const report={dataset,hardware,results,targets:{queryP95ms:500,commitP95ms:1000},passed:results.every(r=>r.p95ms<(r.label==='compound-commit'?1000:500))}
+  async function syncWindow(mode,cursor){
+    const started=performance.now();let pages=0,rows=0,readCount=0,bytes=0
+    for(;pages<10000;){const batch=await ok('/api/workhub/sync',{mode,limit:200,...(cursor?{cursor}:{})});pages++;assert.ok(batch.changes.length<=200);rows+=batch.changes.length;readCount+=batch.readCount;bytes+=Buffer.byteLength(JSON.stringify(batch));cursor=batch.nextCursor;if(batch.complete)return {cursor,pages,rows,readCount,bytes,elapsedMs:+(performance.now()-started).toFixed(2)}}
+    throw new Error('sync exceeded bounded page budget')
+  }
+  const initialSync=await syncWindow('snapshot'),idleSync=await syncWindow('delta',initialSync.cursor)
+  assert.equal(idleSync.rows,0);assert.equal(idleSync.readCount,0)
+  const contact=(await query('get_record',{table:'customers',id:'scale:c0'})).items[0],requestId='scale_sync_one_change'
+  const change=await ok('/api/workhub/personal/preview',{kind:'amend',input:{changes:[{table:'customers',id:'scale:c0',expectedRev:contact.revision,patch:{name:'规模同步变更'}}]},requestId,generation})
+  await ok('/api/workhub/personal/commit',{requestId,generation,previewId:change.previewId,planFingerprint:change.planFingerprint},undefined,undefined,{'X-Workhub-Plan':change.planFingerprint})
+  const deltaSync=await syncWindow('delta',idleSync.cursor);assert.equal(deltaSync.rows,1);assert.equal(deltaSync.readCount,1)
+  const safe=({cursor:_cursor,...rest})=>rest
+  const clientSync={limit:200,initial:safe(initialSync),unchanged:safe(idleSync),oneRecord:safe(deltaSync),scope:'真实PB有界HTTP读取；不代表浏览器绘制或Android真机性能'}
+  const report={dataset,hardware,results,clientSync,targets:{queryP95ms:500,commitP95ms:1000},passed:results.every(r=>r.p95ms<(r.label==='compound-commit'?1000:500))}
   writeFileSync(join(temp,'scale-report.json'),JSON.stringify(report,null,2));console.log('SCALE_REPORT',JSON.stringify(report))
   return report
 }

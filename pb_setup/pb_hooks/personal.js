@@ -141,14 +141,14 @@ exports.query=e=>{
           const effects=h.select('operation_effects',{where:{operationId:r.id},sort:'sequence,ordinal',limit:501}).filter(x=>h.can(x.tableName))
           result=envelope(effects.slice(offset,offset+limit).map(x=>({id:x.id,table:x.tableName,recordId:x.recordId,beforeRev:x.beforeRev,afterRev:x.afterRev,action:x.action,redacted:!!x.redacted,path:core.recordPath(x.tableName,x.recordId)})),effects.length>offset+limit);return
         }
-        if(name==='list_operations'){result=envelope(rows.slice(0,limit).map(r=>({id:r.id,path:core.recordPath('operations',r.id),requestId:r.requestId,status:r.status,kind:r.kind,generation:r.generation,watermark:r.sequence,committedAt:r.committedAt,updatedAt:r.updatedAt,detailsQuery:{name:'get_operation',input:{operationId:r.id}}})),rows.length>limit);return}
+        if(name==='list_operations'){result=envelope(rows.slice(0,limit).map(r=>({id:r.id,path:core.recordPath('operations',r.id),requestId:r.requestId,status:r.status,kind:r.kind,initiator:r.clientId==='owner'?'拥有者网页':'Agent客户端',canCancel:(!r.clientId || r.clientId===h.client),generation:r.generation,watermark:r.sequence,committedAt:r.committedAt,updatedAt:r.updatedAt,detailsQuery:{name:'get_operation',input:{operationId:r.id}}})),rows.length>limit);return}
         result=envelope(rows.slice(0,limit).map(r=>{
           if(r.owner!==h.owner || h.client!=='owner' && r.clientId && r.clientId!==h.client)throw new Error('FORBIDDEN: operation')
           const effects=h.select('operation_effects',{where:{operationId:r.id},sort:'sequence,ordinal',limit:501}).filter(x=>h.can(x.tableName))
           const effectRows=effects.map(x=>({id:x.id,table:x.tableName,recordId:x.recordId,beforeRev:x.beforeRev,afterRev:x.afterRev,action:x.action,redacted:!!x.redacted,path:core.recordPath(x.tableName,x.recordId)}))
           const receipt=auth.receipt(h.principal,r.result)
           if(receipt){receipt.changesTruncated=(receipt.changes || []).length>100;receipt.changes=(receipt.changes || []).slice(0,100).map(c=>({table:c.table,id:c.id,redacted:c.redacted || false,record:c.row?core.projectRecord(h,c.table,c.row):null}));receipt.result={committed:true,redacted:effects.some(x=>x.redacted)}}
-          return {id:r.id,path:core.recordPath('operations',r.id),requestId:r.requestId,status:r.status,kind:r.kind,generation:r.generation,watermark:r.sequence,committedAt:r.committedAt,updatedAt:r.updatedAt,receipt,effects:effectRows.slice(0,50),effectsTruncated:effects.length>50,effectsQuery:{name:'get_operation',input:{operationId:r.id,view:'effects'}}}
+          return {id:r.id,path:core.recordPath('operations',r.id),requestId:r.requestId,status:r.status,kind:r.kind,initiator:r.clientId==='owner'?'拥有者网页':'Agent客户端',canCancel:(!r.clientId || r.clientId===h.client),generation:r.generation,watermark:r.sequence,committedAt:r.committedAt,updatedAt:r.updatedAt,receipt,effects:effectRows.slice(0,50),effectsTruncated:effects.length>50,effectsQuery:{name:'get_operation',input:{operationId:r.id,view:'effects'}}}
         }),rows.length>limit);return
       }
       if(name==='query_graph'){

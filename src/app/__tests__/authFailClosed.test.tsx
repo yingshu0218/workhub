@@ -3,7 +3,7 @@ import {afterEach,it,expect,vi} from 'vitest'
 import {render,screen,cleanup,fireEvent} from '@testing-library/react'
 import {AUTH_TOKEN_KEY} from '@/shared/authToken'
 import {AuthGate} from '../AuthGate'
-vi.mock('@/platform/env',()=>({isServerFirstWeb:()=>true}))
+vi.mock('@/platform/env',()=>({isServerFirstWeb:()=>true,isTauri:()=>false}))
 vi.mock('@/sync/convergeFromServer',()=>({runConverge:async()=>({upserted:0,removed:0,failed:0})}))
 afterEach(()=>{cleanup();localStorage.clear();vi.unstubAllGlobals()})
 it('生产初始化/认证状态故障保留关闭，可重试且不显示私人缓存',async()=>{
