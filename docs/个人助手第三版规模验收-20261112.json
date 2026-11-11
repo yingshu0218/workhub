@@ -1,0 +1,156 @@
+{
+  "dataset": {
+    "counts": {
+      "customers": 1054,
+      "activities": 10011,
+      "transactions": 10002,
+      "todos": 5002,
+      "links": 50070
+    },
+    "synthetic": {
+      "customers": 1000,
+      "topics": 100,
+      "activities": 10000,
+      "transactions": 10000,
+      "todos": 5000,
+      "links": 50000
+    },
+    "activityText": {
+      "summaryChars": 320,
+      "sourceChars": 1200
+    },
+    "distribution": {
+      "days": 300,
+      "contactsPerEvent": 1,
+      "topicsPerEvent": 1,
+      "eventsPerContact": 10,
+      "financeEventLinkRatio": 0.5,
+      "currencies": [
+        "CNY",
+        "USD",
+        "EUR"
+      ],
+      "incomeRatio": 0.75,
+      "doneTaskRatio": 0.2
+    },
+    "totals": {
+      "CNY": {
+        "incomeMinor": 37500001,
+        "expenseMinor": 12508332
+      },
+      "USD": {
+        "incomeMinor": 37499999,
+        "expenseMinor": 12491668
+      },
+      "EUR": {
+        "incomeMinor": 37500000,
+        "expenseMinor": 12495000
+      }
+    }
+  },
+  "hardware": {
+    "cpu": "Intel(R) Xeon(R) Platinum",
+    "logicalCpus": 2,
+    "hostMemoryBytes": 3733340160,
+    "node": "v24.19.0",
+    "platform": "linux",
+    "network": "同机回环 HTTP；完整 JSON 响应读取；排除初始化和登录；3 次预热；串行样本",
+    "cpuMax": "100000 100000",
+    "memoryMax": "805306368"
+  },
+  "results": [
+    {
+      "label": "events-all",
+      "samples": 30,
+      "p50ms": 248.42,
+      "p95ms": 383.57,
+      "maxMs": 426.57
+    },
+    {
+      "label": "events-person",
+      "samples": 30,
+      "p50ms": 162.18,
+      "p95ms": 287.06,
+      "maxMs": 328.14
+    },
+    {
+      "label": "tasks",
+      "samples": 30,
+      "p50ms": 147.29,
+      "p95ms": 195.6,
+      "maxMs": 230.53
+    },
+    {
+      "label": "finance-all",
+      "samples": 30,
+      "p50ms": 18.37,
+      "p95ms": 29.2,
+      "maxMs": 34.49
+    },
+    {
+      "label": "graph-person",
+      "samples": 30,
+      "p50ms": 74.59,
+      "p95ms": 126.86,
+      "maxMs": 139.89
+    },
+    {
+      "label": "event-detail",
+      "samples": 30,
+      "p50ms": 48.57,
+      "p95ms": 94.84,
+      "maxMs": 102.09
+    },
+    {
+      "label": "contact-context",
+      "samples": 30,
+      "p50ms": 152.05,
+      "p95ms": 271.88,
+      "maxMs": 305.28
+    },
+    {
+      "label": "operations",
+      "samples": 30,
+      "p50ms": 3.54,
+      "p95ms": 5.55,
+      "maxMs": 7.23
+    },
+    {
+      "label": "compound-commit",
+      "samples": 30,
+      "p50ms": 64.48,
+      "p95ms": 93.52,
+      "maxMs": 101.09
+    }
+  ],
+  "clientSync": {
+    "limit": 200,
+    "initial": {
+      "pages": 383,
+      "rows": 76546,
+      "readCount": 76546,
+      "bytes": 83472611,
+      "elapsedMs": 21439.04
+    },
+    "unchanged": {
+      "pages": 1,
+      "rows": 0,
+      "readCount": 0,
+      "bytes": 318,
+      "elapsedMs": 8.69
+    },
+    "oneRecord": {
+      "pages": 1,
+      "rows": 1,
+      "readCount": 1,
+      "bytes": 785,
+      "elapsedMs": 2.85
+    },
+    "scope": "真实PB有界HTTP读取；不代表浏览器绘制或Android真机性能"
+  },
+  "targets": {
+    "queryP95ms": 500,
+    "commitP95ms": 1000
+  },
+  "passed": true
+}

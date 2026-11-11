@@ -7,9 +7,9 @@
 
 ## 1. 项目是什么
 
-面向个人/小团队的**一体化数字工作台**：CRM · 财务 · 待办 · 笔记 · 习惯五大模块闭环，外加游戏化成长体系（EXP / 等级 / 奖杯）。
-当前产品为个人助手：自托管 VPS 是网页与 Agent 的事实权威，未来 Android 客户端复用同一命令/回执协议。
-历史 Local-First/团队实现仍有兼容代码；当前网页的周期全量对齐不是有界增量同步，后续多端接线见 PROGRESS。
+完全个人使用的助手，以事件与联系人为核心，外部 Agent 自然语言录入为主要入口；收支、待办、笔记、习惯与成长体系作为业务基础。
+自托管 VPS 是 Web / Agent / 未来 Android 的事实权威，生产与原生共用服务端命令和有界增量镜像。
+断网仅已验证会话的只读缓存与未提交草稿；旧库、旧队列保留核对，不自动推送。当前交付与验证只认 PROGRESS。
 
 ⚠️ **开发阶段**：接口与结构随时调整，不可用于生产。
 
@@ -26,9 +26,9 @@
 ## 3. 技术栈（已锁定，勿擅自替换）
 
 React 18 · Vite · TypeScript strict · Tailwind 4 · Zustand · Dexie(IndexedDB) · react-router v7（2026-10-21 由 v6 升级）
-预留：d3-force · CodeMirror 6 · marked · SQLite WASM（迁移口已留）
+可视化/编辑：d3-force · CodeMirror 6 · marked；SQLite WASM 仅预留迁移口
 
-后端：**自托管 PocketBase**（自有云服务器）。
+后端：**自托管 PocketBase 0.40.2**（自有云服务器）。
 **明确禁止引入第三方云服务**（LeanCloud / Supabase / 腾讯云开发等）—— 数据主权是本项目的硬前提，
 有替代方案时先列对比再等拍板，不要直接装依赖。
 
@@ -45,7 +45,9 @@ src/repositories/   写入口唯一层：所有落库走这里（存储无关，
                     读路径（`db.<table>` 查询）不受此限。
 src/domain/         动作编排唯一层：跨表编排（记账口径、默认账本策略…）
 src/agent/          agentOps：MCP 工具 schema / 执行器 / 浏览器侧桥
-src/sync/           历史 LWW 同步与当前 Web 全量对齐；新多端增量协议尚待第三版
+src/sync/           clientSync：跨表固定水位、有界增量、原子游标发布；旧LWW仅开发/历史兼容
+src/platform/       统一endpoint/连接epoch；原生不得回退到WebView本地origin
+src/storage/        server/owner/generation/schema隔离镜像、草稿与未知请求
 relay/              MCP relay：内嵌于站点，同源挂载 /relay
 scripts/            构建 / 部署 / skill 生成 / Agent 配置
 design/prototypes/  21 页原型（01-dashboard ~ 21-profile）—— UI 对齐基准
@@ -63,6 +65,7 @@ npm run lint           # eslint src
 npm run gen:skills     # 从 skillSource.ts 重新生成 docs/skills/*（自动生成物，勿手改）
 npm run agent:setup    # 一键把本项目接入本机已有的 Agent 工具（见 §8）
 npm run serve          # 生产形态：同进程托管 dist + relay（同源 wss）
+PB_BIN=<0.40.2> npm run test:clients  # 显式构建双缓存进程harness，仅合成隔离库
 ```
 
 ## 6. 硬性工程纪律（都是踩过坑换来的，不要绕过）
@@ -107,61 +110,26 @@ npm run serve          # 生产形态：同进程托管 dist + relay（同源 ws
   | **项目里程碑版本** | git tag（`v1.2.1` …）+ `CHANGELOG.md` 章节 | **项目/交付**里程碑；发版打 tag 时与 PROGRESS 同提交追加一节 |
   | **应用包版本** | `package.json` 的 `"version"` | **应用自身的包版本**；原生壳产物名（`Nexus Workspace_0.1.0_aarch64.dmg`）取自它 |
   ⚠️ 二者**刻意不同步**：`package.json` 停在 `0.1.0` 表示「应用仍是 0.x、未进入稳定 API 承诺」，
-  而项目已交付到 v1.2.1。**不要**为了「看起来一致」把 package.json 改成 1.2.1 ——
+  而项目里程碑版本已另行交付。**不要**为了「看起来一致」把 package.json 改成 1.2.1 ——
   那会**丢失这条真实信号**，并让原生安装包版本号跟着虚高。
 
 ## 8. 接入 Agent（本项目自带的桥）
 
-本项目把 **61 个业务工具**（含事件查询、复合录入/纠错撤销；`tools/list` 另含 `confirm_preview` 共 62 条）通过 MCP 暴露给外部 Agent。
-当前 VPS 服务端执行器在网页关闭时仍可用；业务数据保留在自托管 PocketBase，浏览器是镜像。relay 只做认证/转发与票据核销，不 import 业务代码。
+当前 **61 个业务工具**（`tools/list` 另含 `confirm_preview`，共62条），schema唯一源仍是 `src/agent/skillSource.ts`。
+远程 Agent 直连 `https://<站点>/relay/mcp`，标准 MCP over HTTP、`Authorization: Bearer <独立凭据>`；不需要仓库、本机进程或在线网页。
 
-**接入点（2026-10-27 起）**：远程 Agent 直连 **`https://<站点>/relay/mcp`**（标准 MCP over HTTP，
-`Authorization: Bearer <token>`），**不需要本仓库、不需要本机进程**。本机的 `relay/mcp-stdio-shim.mjs`
-（WS→stdio）只是另一条可选路径。一次性配对码：`POST /relay/pair/new` 签发（须持 token，5 分钟、一次）、
-`POST /relay/pair` 兑换。⚠️ 别再把它接成 `cd <仓库> && npm run agent:setup` 那一套 —— 那是本机接法。
+- 主路径：拥有者登录 → 设置「Agent 接入」→ 按客户端名称及最小能力签发独立凭据，只显示一次；服务端仅保存散列。可单独撤销，恢复世代也使旧凭据失效。
+- 设备授权可用 `npm run agent:setup -- --url wss://<站点>/relay --login`。CLI持有device_code并轮询，页面只提交user_code；长期凭据不经过页面，落在 `~/.workhub/relay.json`，不放到可复制命令或Agent配置。
+- 页面及原生客户端用拥有者登录态走同一命令；Agent预览仍绑定原客户端，网页不能代另一Agent确认或撤回。
+- 旧浏览器桥/共享token是兼容路径，当前设置不再展示旧桥入口。共享秘密来源固定为 `WORKHUB_RELAY_TOKEN` → `<dataDir>/relay-token`（0600）→ 首次生成，不允许构建期随机或页面自造；升级世代绑定的7天过渡到期/恢复后不能重开。
+- **禁止用空串/缺失token表示共享身份**：外部HTTP/WS/stdio先拒绝空白凭据；仅实际匹配共享秘密后构造显式内部身份。此P0边界由真实协议回归固定。
 
-```bash
-npm run agent:setup                    # 探测本机 Agent 工具并写好 MCP + 规则 + skills
-npm run agent:setup -- --url wss://<站点>/relay --login   # 浏览器授权接入（推荐，token 不出现在命令里）
-npm run agent:setup -- --print-prompt  # 打印「一条指令」：零凭证，可整段复制给任意 Agent
-npm run agent:setup -- --check         # 连通性自检
-npm run agent:setup -- --dry-run       # 只预览改动，不落盘
-```
+兼容桥仍由宿主注入 `authorizeMint`（PocketBase auth-refresh），relay不能自行导入业务鉴权。`mintPairCode`的JS签名在 `src/agent/relay-modules.d.ts` 有声明副本，改JS必须同步声明，相关回归在 `aiBridgePair.test.tsx`。
 
-接入后 **Agent 配置里不要出现 token**：token 集中在 `~/.workhub/relay.json`（由上面的命令写入），
-由 `relay/mcp-stdio-shim.mjs` 读取并透传。
+安全边界：凭据鉴权 · 能力白名单 · 中风险一次性票据绑定客户端、requestId、generation、参数及具体计划指纹 · relay不import业务代码 · 数据仅自托管，MCP只返回授权投影。
+客户端跨表镜像接口只给拥有者，不能用Agent有限凭据下载全库。正文/来源/历史显式有界续读；永久清理后旧查询缓存、旧回执与修复快照都不能复活资料。
 
-**历史浏览器桥的前置条件**（服务端执行器模式不需要页面在线）：relay 要有浏览器工具清单，前提是**站点页面在线并已在
-「设置 → AI Agent 桥」启用桥**。否则 `tools/list` 返回 `-32001 工具清单不可用` —— 这不是配置错误。
-
-**旧共享 relay token 只有一个来源**（不能让页面自造；下表仅描述共享桥兼容路径）：
-
-| 环节 | 谁做 | 怎么拿 |
-|---|---|---|
-| 定 token | relay 启动 | `WORKHUB_RELAY_TOKEN` → `<dataDir>/relay-token`（0600）→ 首次生成写盘。**不允许构建期随机**（镜像要可复现，重建/回滚不能让已配对身份失效） |
-| 页面首次接入 | 人（已登录） | 设置页「生成接入 token」：页面带 **PocketBase 登录态**调 `/pair/new` 签码并立即兑换，写入 `settings.ai.bridgeToken`。**不需要先持有 relay token**；启动日志引导码仅作兜底（`docker logs <容器> \| grep 配对码`，一次性、不限期） |
-| Agent 接入 | 人 / Agent | 一条命令 `npm run agent:setup -- --url wss://<站点>/relay --login`：打印并打开 `/authorize`，登录后点「授权」即自动写入凭据；也可把页面显示的「接入 token」填进 `Authorization: Bearer`，或让 Agent 用 5 分钟配对码 `POST <relay>/pair` 兑换 |
-
-⚠️ **页面不得自造 token**：`AiBridgeSection` 里原来的 `genToken()` 已删除。它让页面 token 与 relay token
-永不相等 —— 症状是页面永久「连接中…」而 Agent 只看到「未连接 relay」，两边都以为是对方配错。
-现在的「生成接入 token」是**向 relay 签码再兑换**（token 仍由 relay 下发），不是本地随机生成。
-⚠️ `/pair/new` 的第二鉴权通道由宿主注入（`createRelay({ authorizeMint })`，`scripts/serve.mjs` 用
-PB `auth-refresh` 校验），relay 本体仍不 import 任何业务代码。同一回调也用于设备授权的
-`/device/approve`（`authorizeMint` 是「站点登录态」的通用授权通道）。
-设备授权（`/device/code` → `/authorize` 页面 → `/device/token`）是「一条命令 + 浏览器点授权」的路径：
-`device_code` 只在 CLI 手里，页面只提交 `user_code`，长期 token 由 CLI 轮询写入
-`~/.workhub/relay.json`，**不经过页面、也不出现在可复制的命令里**。
-证据锁在 `src/modules/settings/__tests__/aiBridgePair.test.tsx`。⚠️ `mintPairCode` 的签名在
-`src/agent/relay-modules.d.ts` 另有一份 `.d.ts` 副本，改 JS 必须同步改它（否则类型仍按旧签名报错）。
-
-**第二版独立身份**：新 Agent 按客户端签发独立凭据，PB 仅保存散列、名称、能力与 generation；撤销立即影响已有会话与重试。
-设备授权的新服务路径签发独立凭据，旧共享 token 只保留与升级世代绑定的 7 天过渡，恢复不能重开。
-**禁止以空串/缺失 token 表示共享过渡**：所有外部入口先拒绝空白凭据，仅实际匹配共享秘密后构造显式内部身份；此规则由 HTTP/WS/真实 PB 回归固定。
-标准 MCP 的 requestId/generation/confirmToken 在公开 arguments 内；票据绑定客户端、参数和具体计划指纹。
-见 [事件协议](docs/个人助手事件协议-20261111.md)。
-
-安全边界（改动前先想清楚，五条都不许放宽）：凭据鉴权 · 按域能力白名单 · 中风险一次性确认票据
-（**票据绑定参数指纹**，防「预览 A 执行 B」）· relay 不 import 业务代码 · 业务落库仅自托管，MCP 只返回授权投影。
+协议详见 [事件协议](docs/个人助手事件协议-20261111.md)、[客户端协议](docs/个人助手客户端协议-20261112.md)。Android仅未来接线与自动分支验证，未新增APK或真机验收；历史包不代表支持本协议。
 
 ## 9. 禁区
 

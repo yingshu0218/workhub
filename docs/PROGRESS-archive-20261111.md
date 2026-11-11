@@ -2,6 +2,16 @@
 
 从 PROGRESS 正文迁入的较早轮次，保留当时口径。当前状态以 PROGRESS 为准。
 
+**上一轮**：2026-11-01（**Android 包改由 GitHub Actions 构建；CNB → GitHub 镜像同步停用**）
+**背景（均为实测，非推断）**：① CNB 侧虽已写好 `.android-builder-image` + `.android-apk` 两个 job，但那套要自建约 3GB 的 android-builder 镜像，且 `compileSdk` 被腾讯镜像站绑死在 36；② **本机直接出包也不成** —— 实测 JDK / Android SDK / NDK / rust android target **全都没有**（`java` 都找不到、`ANDROID_HOME` 为空），10-27 那个 APK 不是在当前这台 Mac 上编的；③ GitHub 的 `ubuntu-latest` 预装 Android SDK、Google 源直连，整套镜像维护成本直接消失。
+**① 新增 `.github/workflows/android.yml`**：`workflow_dispatch` 手动触发（`abi` = arm64/universal、`build_type` = release/debug）+ `push: tags v*`。流程＝腾磁盘（免费 runner 可用约 14GB，删 dotnet/boost/ghc/CodeQL，**不删** `/usr/local/lib/android` —— 那是预装 SDK，删了要重下）→ node 22 / temurin 17 → `android-actions/setup-android` 装 `platforms;android-36` + `build-tools;36.0.0` + `ndk;27.0.12077973` → 4 个 rust android target → `npm ci` → 从 secrets 写 `keystore.properties` → `npx tauri android build --target aarch64 --apk` → 上传 artifact（30 天）+ tag 触发时 `gh release upload`。⚠️ 构建命令**刻意不走** `npm run app:android` —— 那个脚本已把 `--target aarch64` 写死，再传一次会撞参数（`.cnb.yml` 的 `.android-apk` 正是这么写的）。
+**② 签名密钥搬家**：从 devtest `/root/.workhub/android/`（`nexus-release.jks` + `keystore.properties`）经 ssh 管道直接写进 GitHub Secrets（`ANDROID_KEYSTORE_B64` / `ANDROID_KEY_ALIAS` / `ANDROID_KEY_PASSWORD`），**本地不落盘、不进日志**。`storeFile` 仍写 `/tmp/nexus-release.jks`，与 `.cnb.yml` 同口径，`build.gradle.kts` 不用改。
+**③ 停掉 CNB → GitHub 镜像**：`.cnb.yml` 的 `main.push` 与每日 `crontab` 两处 `*mirror-to-github` 引用已摘除（**锚点定义保留**，恢复时加回引用即可）。原因不止「不再需要自动同步」—— GitHub 会拒绝无 workflow 权限的 token 推送 `.github/workflows/`，仓库里一旦有这个目录，镜像是**整个同步**挂掉，而不只是 Android 那一环。
+**④ 首跑实测（2026-11-01 18:40，run `41297716889`）**：**10 分 52 秒全绿**，产物 `app-universal-release.apk` **12MB**（文件名不带 `-unsigned` ⇒ 签名成功），artifact `nexus-android-release-arm64` 4.7MB（zip）。⚠️ **首次运行 28 秒就挂，根因在 action 本身而非配置**：`android-actions/setup-android@v3` 内部固定执行 `sdkmanager tools`，而 runner 的 cmdline-tools 已是 16.x、**`tools` 包已从 SDK 移除** → `Failed to find package 'tools'` → 退出码 1。修法：**弃用该 action**，直接用镜像预装的 `/usr/local/lib/android/sdk`，显式把 `cmdline-tools/*/bin` 加进 PATH，预接受 licenses 后自行 `sdkmanager` 补装 platform-36 / build-tools-36 / NDK 27。⚠️ 另一处认知修正：`npx tauri android build --target aarch64 --apk` 产出的是 **universal** 包（`--target` 只决定 Rust 编哪个 ABI，Gradle 仍按 universal 打），不是单 ABI 小包。
+
+⚠️ **代价（记下来）**：GitHub 仓库从此是**手动双推**的第二副本（`origin` = CNB、`github` = GitHub 各推一次），**不会自动跟上 CNB**。停用前实测三方一致：本地 HEAD / CNB `origin/main` / GitHub `main` 同为 `9c55fea`，tag v1.3.0~v1.1.0 两边齐全。
+⚠️ **仍未真机验收**：手机端「安装 / 首启 / 登录 / 同步」四项照旧没被点过（无真机）。GitHub 出包解决的是「怎么构建」，不是「验过」。
+
 **上一轮**：2026-10-28（**修掉「桥永远连不上」的根因：token 收敛成单一来源**。现象：设置页「AI Agent 桥」永久 `连接中…`、relay 日志每 3 秒一条 `浏览器 WS 连接 token 无效，已拒绝`、Agent 侧只拿到 `-32001 工具清单不可用：寻鸽工作台未连接 relay` —— 两端都以为是对方配错。⚠️ **根因不在配置**：页面「启用」时用 `genToken()` **本地随机造 token**，relay 只认自己启动时那份（`WORKHUB_RELAY_TOKEN`），两端从不握手；且 token 输入框 `readOnly`，连手抄对齐都做不到。实测证据：nginx 记录页面发的是 `token=8vOe…`，容器环境里是 `sNn…`，12+ 次握手全被拒。）
 **① 页面不得自造 token**：删除 `genToken()` 与「重置」按钮（改为「解绑」）；`toggleBridge` 只切开关，不再顺带发 token —— 那行 `ai.bridgeToken || genToken()` 就是故障源头。
 **② 设置页新增配对码兑换**：`POST <relay>/pair`（**普通 HTTP** —— 此刻页面还没有 token，连不上 WS）→ 拿回 relay 下发的 token → 写 `settings.ai.bridgeToken` 并重连；另有「生成配对码」按钮（带 Bearer 打 `/pair/new`），签 5 分钟码给 Agent 或第二台设备 —— 即「后台签发、客户端填 token」的模型。

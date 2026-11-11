@@ -1,0 +1,208 @@
+{
+  "release": {
+    "codeCommit": "96fdfc662e39236b395c2122677b937fd2746b4c",
+    "archiveSha256": "cc65e8fc1b03347ef18bfe532328094949e6bd5d982cb46765bb03cc0b57f0fb",
+    "pocketbase": "0.40.2",
+    "clientSyncProtocol": 1,
+    "clientCacheSchema": 6,
+    "migrationSha256": {
+      "1794355203_client_sync.js": "7c728ac05d78e97203a7a5e1d8e08204ce1b816356f1a97f1562ab42d91ded88",
+      "1794355201_sync_metadata.js": "959642cf76a7db45f460ec3a8775729eb28a4d8beb94b5f58ca34ad99ed38026",
+      "1794355202_personal_activities.js": "f7ea842517cba39049d4b2ab0ecd5b61bdb5563f85383b05d0d1ecd4cceba88b",
+      "1794355200_reliability.js": "2c62ca1c18a6dc7d2cbc99a7d0f42e32c83410de5d40c3db5d178c082e4e7a45"
+    },
+    "unit": "workhub-devtest-20261111.service"
+  },
+  "preservation": {
+    "ok": true,
+    "generationPreserved": true,
+    "credentialsUnchanged": true,
+    "coldBackupVerified": true,
+    "existingTablesPreserved": {
+      "activities": {
+        "count": 2,
+        "sha256": "fa220123274dc9d857e09ad457de023994577378a8f989328e70085fc9c2cc81"
+      },
+      "workspaces": {
+        "count": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
+      "customers": {
+        "count": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
+      "interactions": {
+        "count": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
+      "ledgers": {
+        "count": 5,
+        "sha256": "6168a8ca14dd388cd9c80113f21cb7a752571ced6a11a3ba1277b0bab08e0762"
+      },
+      "transactions": {
+        "count": 6,
+        "sha256": "8b2c7a32e4cb7ed4a6881116c89e50afc594498b9d644a830548a730b8684ae2"
+      },
+      "todos": {
+        "count": 2,
+        "sha256": "8ef6959f39f7fbf79ad29eb688106ee292dfebd102c966d6c07ebcb4d1b89ba0"
+      },
+      "todoLists": {
+        "count": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
+      "noteFolders": {
+        "count": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
+      "projects": {
+        "count": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
+      "projectMilestones": {
+        "count": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
+      "notes": {
+        "count": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
+      "quickNotes": {
+        "count": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
+      "habits": {
+        "count": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
+      "habitLogs": {
+        "count": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
+      "trophies": {
+        "count": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
+      "attachments": {
+        "count": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
+      "module_configs": {
+        "count": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
+      "customerGroups": {
+        "count": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
+      "links": {
+        "count": 4,
+        "sha256": "b5fee52c6f9c4aefc3fc503b183844fc6d194ed3b06b204619debd96a1101be5"
+      },
+      "operations": {
+        "count": 11,
+        "sha256": "4d0d948af7ab3025ba83768f35cf9a5bf9f648d507f3d7ab3f6a5afa0c481651"
+      },
+      "operation_effects": {
+        "count": 19,
+        "sha256": "1834c431289fce0b18c7598bd835aa9d6bc64dd937cb0a169f54618cfa87df35"
+      },
+      "deletion_registry": {
+        "count": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
+      "agent_credentials": {
+        "count": 3,
+        "sha256": "2e7e0287bb2daf88872eef79e90725b2c2d17c6c7fea4486fe1dee25d114c848"
+      },
+      "command_state": {
+        "count": 1,
+        "sha256": "69e82b81cabf815cb2c43a7ff7a9389319f0989239743a19b3929d1521f9c7c8"
+      }
+    },
+    "filesPreserved": {
+      "count": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    }
+  },
+  "validation": {
+    "checkAll": {
+      "passed": 1213,
+      "skipped": 7,
+      "filesPassed": 163,
+      "filesSkipped": 4
+    },
+    "businessGroups": 18,
+    "reliabilityGroups": 10,
+    "migrationGroups": 2,
+    "clientSyncGroups": 9,
+    "realClientRuntimeGroups": 6,
+    "independentSyncFileGroups": 7,
+    "independentEnhancedClientRuntimeGroups": 7
+  },
+  "live": {
+    "active": "active",
+    "subState": "running",
+    "restarts": 0,
+    "memoryMax": 805306368,
+    "cpuQuotaPercent": 100,
+    "personalMcp": {
+      "ok": true,
+      "codeCommit": "96fdfc662e39236b395c2122677b937fd2746b4c",
+      "protocol": 1,
+      "anonymousQueriesWritesAndConfirmDenied": true,
+      "standardMcpArguments": true,
+      "browserRequired": false,
+      "independentCredential": true,
+      "credentialRevocation": true,
+      "planTamperingRejected": true,
+      "atomicEventFinanceTask": true,
+      "persistentRetry": true,
+      "productionHtmlHashMatches": true,
+      "amountMinor": 250,
+      "currency": "CNY",
+      "operationId": "c4ee83b1e8dbb19",
+      "requestId": "v2_smoke_c37abe14eeaa4365a882298f855055af",
+      "generation": "MeRGHSoLsl9gJloXDjksRF68s0cSjxSy",
+      "toolCount": 62
+    },
+    "legacyCommandMcp": {
+      "ok": true,
+      "protocol": 1,
+      "productionHtmlHashMatches": true,
+      "closedPageMcp": true,
+      "concretePreview": true,
+      "confirmationContextBound": true,
+      "persistentReplay": true,
+      "oldProtocolBlocked": true,
+      "totalMatched": 1,
+      "incomeMinor": 1234,
+      "operationId": "d89v2r6go3uusu6",
+      "requestId": "smoke_117935975bbd4b198ee17dbbe962f81d_transaction",
+      "generation": "MeRGHSoLsl9gJloXDjksRF68s0cSjxSy"
+    },
+    "rootAuthenticationCases": 30,
+    "runtimeFilesSha256Matched": 80,
+    "extraRetainedStaticHashAssets": 121,
+    "corsAndStableCursor": "passed root final read-only audit",
+    "cors": {
+      "passed": 9,
+      "allowed": 8,
+      "rejected": 1
+    },
+    "nativeOriginLoginStateAndCustomApi": true,
+    "anonymousClientRoutesRejected": true,
+    "clientSchema": 6,
+    "clientSyncProtocol": 1,
+    "existingSnapshotRows": 26,
+    "existingSnapshotPages": 1,
+    "unchangedReadCount": 0,
+    "existingAttachmentChecked": false
+  },
+  "limits": [
+    "No production access or deployment",
+    "No browser or Playwright",
+    "No Android SDK/NDK/APK/CI/device testing",
+    "No push or tag"
+  ]
+}

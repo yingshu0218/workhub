@@ -2,9 +2,17 @@
 
 > **本仓库的唯一进度事实来源。** 所有人（含 AI 开发代理）推进或变更任何开发工作，必须在**同一个 commit** 里同步更新本文件对应状态。CHANGELOG 记录版本级交付，逐项实施记录以本文件及 Git 提交历史为准。
 >
-> **当前口径（2026-11-11）**：产品为完全个人使用的助手；开发验证环境重新建立于用户授权的 `devtest` 独立目录，旧 9001 环境仍已停用。正式站未在本轮修改。历史轮次中的团队、Local-First Web 和旧环境描述不代表当前实现；见 [开发测试环境说明](开发测试环境说明.md)。
+> **当前口径（2026-11-12）**：产品为完全个人使用的助手；开发验证环境重新建立于用户授权的 `devtest` 独立目录，旧 9001 环境仍已停用。正式站未在本轮修改。历史轮次中的团队、Local-First Web 和旧环境描述不代表当前实现；见 [开发测试环境说明](开发测试环境说明.md)。
 
-**最后更新**：2026-11-12（个人助手第三版界面完成，待保留原库升级 devtest）
+**最后更新**：2026-11-12（个人助手第三次交付完成：原库升级、实站独立复核放行）
+- 实际 devtest **96fdfc6**（前置 **cec7233**），active/running、0重启，1 CPU/768 MiB。冷备份逐文件验证，原25表全行指纹、generation与凭据文件不变；原库文件数0。000/001/002冻结hash不变，新增003冻结为 `7c728ac0…91ded88`。
+- 完整个人视图、名称筛选、事实图谱、来源/历史续页与互相定位、预览纠错/撤销/范围清理、个人设置已交付。生产Web/原生共用endpoint、身份/世代隔离镜像与真正有界增量；草稿和未知请求保留原上下文，旧队列不自动迁移或推送。
+- 最终门禁 **1213 passed / 7 skipped**，图标/TypeScript/lint及Web/服务端构建通过。真实PB/MCP **18+10+2组**、同步/附件 **9组**、独立缓存/MCP **6组**；root独立同步/文件 **7组**、实际代码增强双缓存 **7组**通过。
+- 实站独立/旧兼容命令冒烟通过；root **30项HTTP/WS认证**、MCP只读、**9项CORS**、原生来源认证/状态、匿名客户端路由拒绝、schema6/protocol1、26行快照和空增量readCount0通过；**80个当前运行文件SHA一致**。保留121个旧dist哈希资源，无额外PB hooks/迁移。
+- 规模查询P95 **5.55–383.57ms**、复合提交 **93.52ms**；首轮快照76,546行/383页/83,472,611字节/21.44s，无变更0行、单改1行。不是浏览器/手机性能。未运行浏览器/Playwright、SDK/NDK、新APK、CI或真机；正式环境未涉及、未推送/打tag。
+- [完整A01–A34矩阵与边界](个人助手第三版验收-20261112.md)、[客户端协议](个人助手客户端协议-20261112.md)、[部署证据](个人助手第三版部署证据-20261112.json)、[规模原始JSON](个人助手第三版规模验收-20261112.json)。AGENTS/README已按当前事实收口，旧轮次保留为历史。
+
+**上一轮**：2026-11-12（个人助手第三版界面完成，待保留原库升级 devtest）
 - 今天/时间线/联系人/图谱成为主线；桌面与移动导航收口，待办/收支/笔记直接可达。事件、联系人与事项按名称搜索，发生/录入时间、仅日期精度、承诺变化、明确关系证据及分币种金额共用第二版查询。
 - 来源、正文、关系、历史和 effects 有界续读；旧深链回到同一活动。纠错只提交改动字段，长正文读全后才可改；预览/撤销/范围清理/联系人合并保留确认边界。查询失败与清理销毁旧正文/图谱，未提交内容及原 rev 单独保存；明确校验/版本拒绝不锁死输入。
 - 设置收为账号服务器、独立 Agent、数据备份、外观偏好、关于五组，保留既有主题与 d3-force。已建立可复跑 `test:clients`，区分服务器双游标与两个独立缓存进程。旧世代输入可见、可导出、可按原上下文核对。
@@ -112,22 +120,12 @@
 ⚠️ **与兜底管理员的关系**：`WORKHUB_ADMIN_*` 保留（env 配错/服务器异常时的自救入口，`entrypoint.mjs` 逻辑未动），但**两者取一** —— 配了它容器启动就建出 `admin`，首启引导随即不再出现。compose 的默认值已改为**空**（`6277aa4`），开箱即走页面自助注册；要用兜底管理员就显式填这两项（见 `deploy/docker/README.md`）。
 > **本轮验证**：`scripts/__tests__/setupRoutes.test.mjs` **13 条** + `authGate.test.tsx` **+3 条**；`check:all` 全绿 —— **1121 passed / 7 skipped**。
 
-**上一轮**：2026-11-01（**Android 包改由 GitHub Actions 构建；CNB → GitHub 镜像同步停用**）
-**背景（均为实测，非推断）**：① CNB 侧虽已写好 `.android-builder-image` + `.android-apk` 两个 job，但那套要自建约 3GB 的 android-builder 镜像，且 `compileSdk` 被腾讯镜像站绑死在 36；② **本机直接出包也不成** —— 实测 JDK / Android SDK / NDK / rust android target **全都没有**（`java` 都找不到、`ANDROID_HOME` 为空），10-27 那个 APK 不是在当前这台 Mac 上编的；③ GitHub 的 `ubuntu-latest` 预装 Android SDK、Google 源直连，整套镜像维护成本直接消失。
-**① 新增 `.github/workflows/android.yml`**：`workflow_dispatch` 手动触发（`abi` = arm64/universal、`build_type` = release/debug）+ `push: tags v*`。流程＝腾磁盘（免费 runner 可用约 14GB，删 dotnet/boost/ghc/CodeQL，**不删** `/usr/local/lib/android` —— 那是预装 SDK，删了要重下）→ node 22 / temurin 17 → `android-actions/setup-android` 装 `platforms;android-36` + `build-tools;36.0.0` + `ndk;27.0.12077973` → 4 个 rust android target → `npm ci` → 从 secrets 写 `keystore.properties` → `npx tauri android build --target aarch64 --apk` → 上传 artifact（30 天）+ tag 触发时 `gh release upload`。⚠️ 构建命令**刻意不走** `npm run app:android` —— 那个脚本已把 `--target aarch64` 写死，再传一次会撞参数（`.cnb.yml` 的 `.android-apk` 正是这么写的）。
-**② 签名密钥搬家**：从 devtest `/root/.workhub/android/`（`nexus-release.jks` + `keystore.properties`）经 ssh 管道直接写进 GitHub Secrets（`ANDROID_KEYSTORE_B64` / `ANDROID_KEY_ALIAS` / `ANDROID_KEY_PASSWORD`），**本地不落盘、不进日志**。`storeFile` 仍写 `/tmp/nexus-release.jks`，与 `.cnb.yml` 同口径，`build.gradle.kts` 不用改。
-**③ 停掉 CNB → GitHub 镜像**：`.cnb.yml` 的 `main.push` 与每日 `crontab` 两处 `*mirror-to-github` 引用已摘除（**锚点定义保留**，恢复时加回引用即可）。原因不止「不再需要自动同步」—— GitHub 会拒绝无 workflow 权限的 token 推送 `.github/workflows/`，仓库里一旦有这个目录，镜像是**整个同步**挂掉，而不只是 Android 那一环。
-**④ 首跑实测（2026-11-01 18:40，run `41297716889`）**：**10 分 52 秒全绿**，产物 `app-universal-release.apk` **12MB**（文件名不带 `-unsigned` ⇒ 签名成功），artifact `nexus-android-release-arm64` 4.7MB（zip）。⚠️ **首次运行 28 秒就挂，根因在 action 本身而非配置**：`android-actions/setup-android@v3` 内部固定执行 `sdkmanager tools`，而 runner 的 cmdline-tools 已是 16.x、**`tools` 包已从 SDK 移除** → `Failed to find package 'tools'` → 退出码 1。修法：**弃用该 action**，直接用镜像预装的 `/usr/local/lib/android/sdk`，显式把 `cmdline-tools/*/bin` 加进 PATH，预接受 licenses 后自行 `sdkmanager` 补装 platform-36 / build-tools-36 / NDK 27。⚠️ 另一处认知修正：`npx tauri android build --target aarch64 --apk` 产出的是 **universal** 包（`--target` 只决定 Rust 编哪个 ABI，Gradle 仍按 universal 打），不是单 ABI 小包。
-
-⚠️ **代价（记下来）**：GitHub 仓库从此是**手动双推**的第二副本（`origin` = CNB、`github` = GitHub 各推一次），**不会自动跟上 CNB**。停用前实测三方一致：本地 HEAD / CNB `origin/main` / GitHub `main` 同为 `9c55fea`，tag v1.3.0~v1.1.0 两边齐全。
-⚠️ **仍未真机验收**：手机端「安装 / 首启 / 登录 / 同步」四项照旧没被点过（无真机）。GitHub 出包解决的是「怎么构建」，不是「验过」。
-
 更早轮次见 [本轮归档](PROGRESS-archive-20261111.md)。
 
 ## 一、当前状态总览
 
 | 项 | 状态 |
-| 个人助手第三版 | 完整视图与在线客户端已实现；真实基线 18+10+2、同步9、双缓存6及独立7+6通过；待原 devtest 保留升级 |
+| 个人助手第三版 | ✅ 完整视图/有界缓存及原库升级完成；devtest 96fdfc6；1213+7门禁、实站独立审计放行（Android/视觉边界见报告） |
 |---|---|
 | 版本 | 第二次交付（阶段三、四）模型/闭环、规模、原库部署及 P0 实站复验完成；已放行第三版（视图、多端共用增量协议及 Android 接线）接续 |
 | 全站回收站 | ✅ 代码与 `/trash` 页面已落盘；**服务端 Schema 已升级**（14 个集合 `restoredAt` + 7 个父级 `trashSnapshot`，2026-10-24 双站导入完成；2026-10-26 复查两站 `check:schema` 均「完全一致」） |
