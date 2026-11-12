@@ -30,6 +30,7 @@
  */
 import { spawn, spawnSync } from 'node:child_process'
 import { applyClientCors } from '../../scripts/client-cors.mjs'
+import { forwardHeaders } from './proxy-headers.mjs'
 import { createServer, request as httpRequest } from 'node:http'
 import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -57,7 +58,7 @@ const PB_COLLECTIONS = process.env.PB_COLLECTIONS || '/app/pb_setup/collections.
 
 if (existsSync(join(PB_DATA_DIR, 'RESTORE_REVIEW_REQUIRED')) && process.env.WORKHUB_RESTORE_REVIEWED !== '1') throw new Error('恢复环境待核对，禁止开放访问')
 
-const WEB_TARGET = { host: WEB_HOST, port: WEB_PORT }
+const WEB_TARGET = { host: WEB_HOST, port: WEB_PORT, preserveHost: true }
 const PB_TARGET = { host: PB_HOST, port: PB_PORT }
 
 const log = (m) => process.stderr.write(`[entry] ${m}\n`)
@@ -231,25 +232,6 @@ async function importCollectionsIfFresh() {
 }
 
 // ── 反代 ────────────────────────────────────────────────────────────────────
-/**
- * 补齐反代头。
- *
- * ⚠️ 这里必须**先把原始 Host 记进 `X-Forwarded-Host`，再改写 `Host`**（2026-10-28 修）。
- * 原先只改写 `Host`、不补 forwarded 头，导致上游 serve.mjs 里 `req.headers.host` 变成
- * `127.0.0.1:9001` —— relay 拿它拼配对响应里的 `url`，返回
- * `https://127.0.0.1:9001/relay/mcp`，任何照着这个字段配置的 MCP 客户端都必然连不上，
- * 而错误现场看起来完全像「客户端配错」。
- */
-function forwardHeaders(req, target) {
-  // 外层 nginx 已透传时沿用它的值（多级反代只有最外层知道真实域名）
-  const originalHost = req.headers['x-forwarded-host'] || req.headers.host
-  const headers = { ...req.headers, host: `${target.host}:${target.port}` }
-  if (originalHost) headers['x-forwarded-host'] = originalHost
-  const ip = req.socket?.remoteAddress
-  if (ip) headers['x-forwarded-for'] = headers['x-forwarded-for'] ? `${headers['x-forwarded-for']}, ${ip}` : ip
-  headers['x-forwarded-proto'] = req.headers['x-forwarded-proto'] || 'http'
-  return headers
-}
 
 function proxyHttp(req, res, target) {
   const up = httpRequest(

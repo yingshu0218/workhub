@@ -82,7 +82,9 @@ COPY relay ./relay
 # 否则运行期 ERR_MODULE_NOT_FOUND，容器直接退出（2026-11-01 已踩：setupRoutes.mjs）。
 COPY scripts/serve.mjs ./scripts/serve.mjs
 COPY scripts/setupRoutes.mjs ./scripts/setupRoutes.mjs
-COPY deploy/docker/entrypoint.mjs ./entrypoint.mjs
+COPY scripts/client-cors.mjs ./scripts/client-cors.mjs
+COPY deploy/docker/entrypoint.mjs ./deploy/docker/entrypoint.mjs
+COPY deploy/docker/proxy-headers.mjs ./deploy/docker/proxy-headers.mjs
 
 # PocketBase 的初始化物料（hooks 生效；collections 供首次启动按需导入）
 COPY pb_setup/pb_hooks ./pb_hooks
@@ -112,4 +114,4 @@ LABEL org.opencontainers.image.title="nexus-workspace-web" \
       org.opencontainers.image.source="https://cnb.cool/blueteam0715/workhub" \
       org.opencontainers.image.revision="$GIT_REVISION"
 
-ENTRYPOINT ["node", "/app/entrypoint.mjs"]
+ENTRYPOINT ["node", "/app/deploy/docker/entrypoint.mjs"]
