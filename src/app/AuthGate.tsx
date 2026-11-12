@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Button, Card } from '@/design-system/ui'
-import { endpointFetch, endpointBase, setEndpoint, onConnectionChange } from '@/platform/endpoint'
+import { endpointFetch, endpointBase, setEndpoint, onConnectionChange, connectionEpoch, debugHttpAvailable } from '@/platform/endpoint'
 import { activateClientSession, clientSession, suspendClientSession } from '@/storage/clientSession'
 import { saveAuthSession, getAuthOwner, getAuthIdentity, clearAuthSession } from '@/shared/authToken'
-import { isServerFirstWeb } from '@/platform/env'
+import { isServerFirstWeb, isTauri } from '@/platform/env'
 
 /** 生产与原生必须在线核实身份、恢复世代和客户端协议，失败时关闭业务界面。 */
 
@@ -35,20 +35,52 @@ export function clearAuth(): void {
   }
 }
 
-async function refreshToken(token: string): Promise<boolean> {
+const sessionChanged = (error: unknown) =>
+  error instanceof Error && error.message.startsWith('SESSION_CHANGED')
+
+function authOperation() {
+  const epoch = connectionEpoch(), server = endpointBase()
+  return () => {
+    if (connectionEpoch() !== epoch || endpointBase() !== server)
+      throw new Error('SESSION_CHANGED: 旧服务器认证操作已取消')
+  }
+}
+
+function sessionChangedGuard(check: () => void): boolean {
+  try { check(); return false } catch { return true }
+}
+
+async function jsonOrEmpty<T>(response: Response, check: () => void): Promise<T> {
   try {
+    const body = await response.json()
+    check()
+    return body as T
+  } catch (error) {
+    check()
+    if (sessionChanged(error)) throw error
+    return {} as T
+  }
+}
+
+async function refreshToken(token: string, check: () => void): Promise<boolean> {
+  try {
+    check()
     const res = await endpointFetch('/api/collections/users/auth-refresh', {
       method: 'POST',
       headers: { Authorization: token },
     })
+    check()
     if (res.status >= 500) throw new Error('认证服务暂时不可用，请重试')
     if (!res.ok) return false
     const body = (await res.json()) as { token?: string }
+    check()
     if(!body.token)throw new Error('认证响应缺少有效凭据')
     // 续期后的 token 写回（PB 每次 refresh 会签发新 token，沿用旧的会在过期后突然失效）
     if (body?.token) saveAuthSession(body.token,getAuthIdentity(),getAuthOwner())
     return true
-  } catch {
+  } catch (error) {
+    check()
+    if (sessionChanged(error)) throw error
     throw new Error('认证服务暂时不可用，请重试')
   }
 }
@@ -63,17 +95,42 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const [cacheKey,setCacheKey] = useState('')
   const [server,setServer] = useState(endpointBase())
   const [needsServer,setNeedsServer] = useState(!endpointBase() && isServerFirstWeb())
-  async function openSession() {
+  const [allowHttp, setAllowHttp] = useState(false)
+  const activeEndpoint = useRef(endpointBase())
+  async function openSession(check: () => void) {
+    check()
     if(isServerFirstWeb()){
       const res=await endpointFetch('/api/workhub/client-state',{headers:{Authorization:getAuthToken()}})
+      check()
       const state=await res.json() as {owner:string;generation:string;schema:number;syncProtocol:number}
-      if(!res.ok || state.syncProtocol!==1)throw new Error('UPGRADE_REQUIRED: 服务器尚不支持当前客户端协议')
+      check()
+      if(!res.ok || state.syncProtocol!==1 || state.schema!==6 || !state.owner || !state.generation)
+        throw new Error('UPGRADE_REQUIRED: 服务器尚不支持当前客户端协议')
+      check()
       saveAuthSession(getAuthToken(),getAuthIdentity(),state.owner)
-      const session=activateClientSession(state.owner,state.generation,state.schema);setCacheKey(session.key)
+      const session=activateClientSession(state.owner,state.generation,state.schema)
+      setCacheKey(session.key)
+      setBusy(false);setSetupBusy(false)
     }
     setPhase('open')
   }
-  useEffect(()=>{const fault=()=>{suspendClientSession();setPhase('unavailable')};const off=onConnectionChange(()=>{queueMicrotask(()=>{if(!clientSession() || clientSession()?.server!==endpointBase()){if(clientSession())suspendClientSession();setPhase('checking');setRetry(n=>n+1)}})});window.addEventListener('workhub:auth-fault',fault);return()=>{off();window.removeEventListener('workhub:auth-fault',fault)}},[])
+  useEffect(()=>{
+    const fault=()=>{suspendClientSession();setPhase('unavailable')}
+    const off=onConnectionChange(()=>{
+      const next=endpointBase()
+      if(next===activeEndpoint.current)return
+      activeEndpoint.current=next
+      if(clientSession())suspendClientSession()
+      // 旧表单内容在新站点不可复用，尤其不能保留待提交密码。
+      setIdentity('');setPassword('');setNewPw('');setConfirmPw('')
+      setSetupIdentity('');setSetupPw('');setSetupConfirm('')
+      setBusy(false);setSetupBusy(false);setError('');setSetupError('')
+      setServer(next);setAllowHttp(false);setNeedsServer(!next && isServerFirstWeb())
+      setPhase('checking');setRetry(n=>n+1)
+    })
+    window.addEventListener('workhub:auth-fault',fault)
+    return()=>{off();window.removeEventListener('workhub:auth-fault',fault)}
+  },[])
   const [phase, setPhase] = useState<Phase>('checking')
   const [identity, setIdentity] = useState('')
   const [password, setPassword] = useState('')
@@ -87,6 +144,16 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const [setupConfirm, setSetupConfirm] = useState('')
   const [setupError, setSetupError] = useState('')
   const [setupBusy, setSetupBusy] = useState(false)
+  function editServer() {
+    // 打开编辑器就是取消旧认证链，不能让尚在途的密码提交继续跑到新地址。
+    suspendClientSession()
+    setServer(endpointBase());setAllowHttp(false);setNeedsServer(true);setPhase('checking')
+    setIdentity('');setPassword('');setNewPw('');setConfirmPw('')
+    setSetupIdentity('');setSetupPw('');setSetupConfirm('')
+    setBusy(false);setSetupBusy(false);setError('');setSetupError('')
+  }
+  const serverButton = isTauri() ?
+    <Button type="button" variant="ghost" onClick={editServer}>修改服务器地址</Button> : null
 
   /**
    * 放行后立刻以服务端为准对齐一次（2026-11-03，配合「服务端唯一真源」）。
@@ -97,6 +164,11 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false
+    const operation = authOperation()
+    const check = () => {
+      if (cancelled) throw new Error('SESSION_CHANGED: 登录检查已取消')
+      operation()
+    }
     void (async () => {
       if(needsServer)return
       setPhase('checking')
@@ -105,45 +177,52 @@ export function AuthGate({ children }: { children: ReactNode }) {
       // 走 env 建号的部署在 entrypoint 阶段就先建好了账号，所以这里只在真正空库时命中。
       try {
         const res = await endpointFetch('/setup/status', { cache: 'no-store' })
+        check()
         if (!res.ok && isServerFirstWeb()) throw new Error('初始化状态不可用')
         const body = (await res.json()) as { needsSetup?: boolean }
+        check()
         if (body?.needsSetup) {
-          if (!cancelled) setPhase('setup')
+          setPhase('setup')
           return
         }
       } catch (err) {
+        check()
         if (isServerFirstWeb()) throw err
         // 旧版 serve.mjs 没有这个端点（404）→ 按普通流程继续
       }
-      if (cancelled) return
+      check()
 
       let enabled = false
       let initialized = true
       try {
         const res = await endpointFetch('/relay/auth-status', { cache: 'no-store' })
+        check()
         if (!res.ok) throw new Error('认证服务暂时不可用')
         const body = (await res.json()) as { enabled?: boolean; initialized?: boolean }
+        check()
         enabled = Boolean(body?.enabled)
         initialized = body?.initialized !== false
       } catch (err) {
+        check()
         if (isServerFirstWeb()) throw err
         // 拿不到状态时按「未启用」处理：宁可先不挡，也不能把用户关在门外
         enabled = false
       }
-      if (cancelled) return
+      check()
       if (!enabled && !isServerFirstWeb()) {
-        await openSession()
+        await openSession(check)
         return
       }
       const token = getAuthToken()
-      if (token && (await refreshToken(token))) {
-        if (cancelled) return
+      if (token && (await refreshToken(token, check))) {
+        check()
         // 已登录但还没改过初始密码 → 仍然先改密
-        if(initialized)await openSession();else setPhase('change')
+        if(initialized)await openSession(check);else setPhase('change')
         return
       }
-      if (!cancelled) setPhase('login')
-      } catch { if (!cancelled) setPhase('unavailable') }
+      check()
+      setPhase('login')
+      } catch { if (!sessionChangedGuard(check)) setPhase('unavailable') }
     })()
     return () => {
       cancelled = true
@@ -154,34 +233,41 @@ export function AuthGate({ children }: { children: ReactNode }) {
     async (e: React.FormEvent) => {
       e.preventDefault()
       if (busy) return
+      const check = authOperation()
+      const submittedIdentity = identity.trim(), submittedPassword = password
       setError('')
       setBusy(true)
       try {
         const res = await endpointFetch('/api/collections/users/auth-with-password', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ identity: toIdentity(identity), password }),
+          body: JSON.stringify({ identity: toIdentity(submittedIdentity), password: submittedPassword }),
         })
-        const body = (await res.json().catch(() => ({}))) as {
+        check()
+        const body = await jsonOrEmpty<{
           token?: string
           record?: { id?: string }
           message?: string
-        }
+        }>(res, check)
+        check()
         if (!res.ok || !body.token) {
           throw new Error(body.message || `登录失败（HTTP ${res.status}）`)
         }
-        saveAuthSession(body.token,identity.trim(),body.record?.id || '')
+        check()
+        saveAuthSession(body.token,submittedIdentity,body.record?.id || '')
 
         // 初始密码还没被替换掉 → 强制先改密（初始值是 compose 默认值，公开可知）
         const statusResponse=await endpointFetch('/relay/auth-status', { cache: 'no-store' })
+        check()
         if(!statusResponse.ok)throw new Error('认证状态不可用，请重试')
         const st=await statusResponse.json() as {initialized?:boolean}
-        if(st?.initialized===false)setPhase('change');else await openSession()
-        if (st?.initialized !== false) setPassword('')
+        check()
+        if(st?.initialized===false)setPhase('change')
+        else { setPassword(''); await openSession(check) }
       } catch (err) {
-        setError(err instanceof Error ? err.message : String(err))
+        if (!sessionChangedGuard(check)) setError(err instanceof Error ? err.message : String(err))
       } finally {
-        setBusy(false)
+        if (!sessionChangedGuard(check)) setBusy(false)
       }
     },
     [busy, identity, password],
@@ -191,16 +277,18 @@ export function AuthGate({ children }: { children: ReactNode }) {
     async (e: React.FormEvent) => {
       e.preventDefault()
       if (busy) return
+      const check = authOperation()
+      const oldPassword = password, nextPassword = newPw
       setError('')
-      if (newPw.length < 8) {
+      if (nextPassword.length < 8) {
         setError('新密码至少 8 位')
         return
       }
-      if (newPw !== confirmPw) {
+      if (nextPassword !== confirmPw) {
         setError('两次输入的新密码不一致')
         return
       }
-      if (newPw === password) {
+      if (nextPassword === oldPassword) {
         setError('新密码不能与当前密码相同')
         return
       }
@@ -208,29 +296,36 @@ export function AuthGate({ children }: { children: ReactNode }) {
       try {
         const token = getAuthToken()
         const userId = getAuthOwner()
+        check()
         if (!token || !userId) throw new Error('登录态已失效，请重新登录')
         const res = await endpointFetch(`/api/collections/users/records/${userId}`, {
           method: 'PATCH',
           headers: { 'content-type': 'application/json', Authorization: token },
-          body: JSON.stringify({ oldPassword: password, password: newPw, passwordConfirm: newPw }),
+          body: JSON.stringify({ oldPassword, password: nextPassword, passwordConfirm: nextPassword }),
         })
+        check()
         if (!res.ok) {
-          const b = (await res.json().catch(() => ({}))) as { message?: string }
+          const b = await jsonOrEmpty<{ message?: string }>(res, check)
+          check()
           throw new Error(b.message || `修改密码失败（HTTP ${res.status}）`)
         }
         // 密码已经换掉，初始密码自此失效；再落标记让下次不再要求改密
         await endpointFetch('/relay/admin-initialized', {
           method: 'POST',
           headers: { Authorization: token },
-        }).catch(() => undefined)
+        }).catch((error) => {
+          if (sessionChanged(error)) throw error
+          return undefined
+        })
+        check()
         setPassword('')
         setNewPw('')
         setConfirmPw('')
-        await openSession()
+        await openSession(check)
       } catch (err) {
-        setError(err instanceof Error ? err.message : String(err))
+        if (!sessionChangedGuard(check)) setError(err instanceof Error ? err.message : String(err))
       } finally {
-        setBusy(false)
+        if (!sessionChangedGuard(check)) setBusy(false)
       }
     },
     [busy, confirmPw, newPw, password],
@@ -247,8 +342,10 @@ export function AuthGate({ children }: { children: ReactNode }) {
     async (e: React.FormEvent) => {
       e.preventDefault()
       if (setupBusy) return
+      const check = authOperation()
       setSetupError('')
       const user = setupIdentity.trim()
+      const submittedPassword = setupPw
       if (user.length < 3 || user.length > 32) {
         setSetupError('用户名需 3–32 位')
         return
@@ -257,11 +354,11 @@ export function AuthGate({ children }: { children: ReactNode }) {
         setSetupError('用户名只能用字母、数字、下划线、点、横线，且不能以点或横线开头')
         return
       }
-      if (setupPw.length < 8) {
+      if (submittedPassword.length < 8) {
         setSetupError('密码至少 8 位')
         return
       }
-      if (setupPw !== setupConfirm) {
+      if (submittedPassword !== setupConfirm) {
         setSetupError('两次输入的密码不一致')
         return
       }
@@ -272,9 +369,11 @@ export function AuthGate({ children }: { children: ReactNode }) {
           headers: { 'content-type': 'application/json' },
           // ⚠️ 这里必须传**原始用户名**：后端 parseSetupInput 会校验「不能含 @」并自行拼
           // `<用户名>@workhub.local` 作为 PB 的 email。传 toIdentity(user) 会被判非法。
-          body: JSON.stringify({ identity: user, password: setupPw }),
+          body: JSON.stringify({ identity: user, password: submittedPassword }),
         })
-        const body = (await res.json().catch(() => ({}))) as { error?: string; ok?: boolean }
+        check()
+        const body = await jsonOrEmpty<{ error?: string; ok?: boolean }>(res, check)
+        check()
         if (!res.ok) {
           if (res.status === 409) {
             // 别人先初始化了：让位给登录页，别让用户对着一个必然失败的按钮反复点
@@ -286,27 +385,31 @@ export function AuthGate({ children }: { children: ReactNode }) {
           throw new Error(body.error || `创建账号失败（HTTP ${res.status}）`)
         }
 
+        check()
         const login = await endpointFetch('/api/collections/users/auth-with-password', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ identity: toIdentity(user), password: setupPw }),
+          body: JSON.stringify({ identity: toIdentity(user), password: submittedPassword }),
         })
-        const auth = (await login.json().catch(() => ({}))) as {
+        check()
+        const auth = await jsonOrEmpty<{
           token?: string
           record?: { id?: string }
           message?: string
-        }
+        }>(login, check)
+        check()
         if (!login.ok || !auth.token) {
           throw new Error(auth.message || `账号已创建，但自动登录失败（HTTP ${login.status}），请到登录页手动登录`)
         }
+        check()
         saveAuthSession(auth.token,user,auth.record?.id || '')
         setSetupPw('')
         setSetupConfirm('')
-        await openSession()
+        await openSession(check)
       } catch (err) {
-        setSetupError(err instanceof Error ? err.message : String(err))
+        if (!sessionChangedGuard(check)) setSetupError(err instanceof Error ? err.message : String(err))
       } finally {
-        setSetupBusy(false)
+        if (!sessionChangedGuard(check)) setSetupBusy(false)
       }
     },
     [setupBusy, setupConfirm, setupIdentity, setupPw],
@@ -317,14 +420,14 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const input =
     'mt-1 w-full rounded-lg border border-outline-variant bg-surface px-3 py-2 text-[0.9286rem] text-on-surface'
 
-  if (phase === 'unavailable') return <div role="alert" className="flex min-h-screen flex-col items-center justify-center gap-4 bg-surface"><p>认证服务暂时不可用，请重试</p><Button onClick={() => setRetry(n => n + 1)}>重试</Button></div>
+  if(needsServer) return <div className="mx-auto max-w-lg space-y-4 p-6"><h1>连接个人服务器</h1><label>VPS HTTPS 地址<input className={input} type="url" inputMode="url" autoCapitalize="none" spellCheck={false} value={server} onChange={e=>{setServer(e.target.value);setAllowHttp(false)}} placeholder="https://你的服务器或IP" /></label>{debugHttpAvailable() && /^http:\/\//i.test(server.trim()) && <label className="flex items-center gap-2"><input type="checkbox" checked={allowHttp} onChange={e=>setAllowHttp(e.target.checked)} />仅在此调试包允许当前 HTTP 地址</label>}{error&&<p role="alert">{error}</p>}<Button onClick={()=>{try{setEndpoint(server,allowHttp);setNeedsServer(false);setPhase('checking');setRetry(n=>n+1)}catch(e){setError(String(e))}}}>连接并登录</Button></div>
 
-  if(needsServer) return <div className="mx-auto max-w-lg p-6"><h1>连接个人服务器</h1><label>VPS HTTPS 地址<input className={input} value={server} onChange={e=>setServer(e.target.value)} /></label>{error&&<p role="alert">{error}</p>}<Button onClick={()=>{try{setEndpoint(server);setNeedsServer(false);setRetry(n=>n+1)}catch(e){setError(String(e))}}}>连接并登录</Button></div>
+  if (phase === 'unavailable') return <div role="alert" className="flex min-h-screen flex-col items-center justify-center gap-4 bg-surface"><p>认证服务暂时不可用，请重试</p><Button onClick={() => setRetry(n => n + 1)}>重试</Button>{serverButton}</div>
 
   if (phase === 'checking') {
     return (
       <div className="flex min-h-screen items-center justify-center bg-surface text-on-surface-variant">
-        <span className="text-[0.9286rem]">正在检查登录状态…</span>
+        <div className="flex flex-col items-center gap-4"><span className="text-[0.9286rem]">正在检查登录状态…</span>{serverButton}</div>
       </div>
     )
   }
@@ -381,6 +484,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
               {setupBusy ? '创建中…' : '创建并进入'}
             </Button>
           </form>
+          {serverButton}
         </Card>
       </div>
     )
@@ -419,6 +523,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
           <Button type="submit" disabled={busy || !identity.trim() || !password} className="mt-4 w-full justify-center">
             {busy ? '登录中…' : '登录'}
           </Button>
+          {serverButton}
         </form>
       </div>
     )
@@ -470,6 +575,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
           <Button type="submit" disabled={busy || !password || !newPw || !confirmPw} className="mt-4 w-full justify-center">
             {busy ? '提交中…' : '设置并进入'}
           </Button>
+          {serverButton}
         </form>
       </div>
     )

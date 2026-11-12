@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Button, Card, PageHeader, inputCls } from '@/design-system/ui'
-import { endpointBase, setEndpoint } from '@/platform/endpoint'
+import { endpointBase, setEndpoint, connectionEpoch, debugHttpAvailable } from '@/platform/endpoint'
 import { isTauri } from '@/platform/env'
 import { clearAuthSession, getAuthIdentity } from '@/shared/authToken'
-import { suspendClientSession, clientSession } from '@/storage/clientSession'
+import { suspendClientSession, clientSession, requireClientSession } from '@/storage/clientSession'
 import { pullClientChanges } from '@/sync/clientSync'
 import { useSyncStore } from '@/sync/store'
 import { downloadText } from '@/shared/download'
@@ -25,6 +25,7 @@ const TABS = [
 ]
 function Account() {
   const [server, setServer] = useState(endpointBase()),
+    [allowHttp, setAllowHttp] = useState(false),
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false),
     sync = useSyncStore()
@@ -37,14 +38,16 @@ function Account() {
           className={inputCls}
           value={server}
           readOnly={!isTauri()}
-          onChange={(e) => setServer(e.target.value)}
+          onChange={(e) => { setServer(e.target.value); setAllowHttp(false) }}
         />
       </label>
+      {isTauri() && debugHttpAvailable() && /^http:\/\//i.test(server.trim()) &&
+        <label className="flex items-center gap-2"><input type="checkbox" checked={allowHttp} onChange={(e) => setAllowHttp(e.target.checked)} />仅在此调试包允许当前 HTTP 地址</label>}
       {isTauri() ? (
         <Button
           onClick={() => {
             try {
-              setEndpoint(server)
+              setEndpoint(server, allowHttp)
             } catch (e) {
               setError(String(e))
             }
@@ -96,44 +99,52 @@ function Data() {
   const [error, setError] = useState(''),
     [busy, setBusy] = useState(false)
   async function exportCache(legacy = false) {
+    const context = clientSession(), epoch = connectionEpoch()
+    const check = () => {
+      if (connectionEpoch() !== epoch) throw new Error('SESSION_CHANGED: 导出已取消')
+      if (context) requireClientSession(context)
+    }
     setBusy(true)
+    const source = legacy ? new NexusDB('nexus-workspace') : db
     try {
-      const source = legacy ? new NexusDB('nexus-workspace') : db
+      check()
       const tables: Record<string, unknown> = {}
-      for (const table of [...SYNC_TABLES, ...(legacy ? ['syncQueue'] : [])])
+      for (const table of [...SYNC_TABLES, ...(legacy ? ['syncQueue'] : [])]) {
         tables[table] = await source.table(table).toArray()
+        check()
+      }
       const drafts: Record<string, unknown> = {}
-      const session = clientSession()
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i)!
         if (
           (key.startsWith('workhub.draft.') ||
             key.startsWith('workhub.pending.') ||
             key.startsWith('workhub.action.')) &&
-          (legacy ? !key.includes(':%5B') : session && key.endsWith(':' + session.key))
+          (legacy ? !key.includes(':%5B') : context && key.endsWith(':' + context.key))
         )
           drafts[key] = localStorage.getItem(key)
       }
+      check()
       downloadText(
         JSON.stringify(
           {
             format: 'nexus-client-review-copy',
             kind: legacy ? 'legacy-review' : 'cache-copy',
             completeServerBackup: false,
-            session: legacy ? undefined : session,
+            session: legacy ? undefined : context,
             tables,
             drafts,
           },
           null,
           2,
         ),
-        (legacy ? '旧客户端待核对' : '当前缓存副本') + '.json',
         'application/json',
+        (legacy ? '旧客户端待核对' : '当前缓存副本') + '.json',
       )
-      if (legacy) source.close()
     } catch (e) {
       setError(String(e))
     } finally {
+      if (legacy) source.close()
       setBusy(false)
     }
   }
@@ -154,15 +165,18 @@ function Data() {
           disabled={busy}
           variant="ghost"
           onClick={() => {
+            const context = clientSession(), epoch = connectionEpoch()
             setBusy(true)
             void exportBusinessCopy()
-              .then((copy) =>
+              .then((copy) => {
+                if (connectionEpoch() !== epoch) throw new Error('SESSION_CHANGED: 导出已取消')
+                if (context) requireClientSession(context)
                 downloadText(
                   JSON.stringify(copy, null, 2),
-                  '业务数据副本.json',
                   'application/json',
-                ),
-              )
+                  '业务数据副本.json',
+                )
+              })
               .catch((e) => setError(String(e)))
               .finally(() => setBusy(false))
           }}

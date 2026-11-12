@@ -17,9 +17,17 @@ const pkgVersion = (
   JSON.parse(readFileSync(path.resolve(dirname, 'package.json'), 'utf8')) as { version: string }
 ).version
 
+// Tauri 的 debug APK 也使用 Vite production bundle。仅 Android debug 构建可注入明文许可；
+// release 即使继承了 VITE_* 环境变量也只能得到 false。
+const androidDebugHttp =
+  process.env.TAURI_ENV_PLATFORM === 'android' &&
+  process.env.TAURI_ENV_DEBUG === 'true' &&
+  process.env.VITE_WORKHUB_ANDROID_DEBUG_HTTP === '1'
+
 export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(pkgVersion),
+    __WORKHUB_ANDROID_DEBUG_HTTP__: JSON.stringify(androidDebugHttp),
   },
   // Relay 内嵌进 dev/preview server（Issue #33）：同源 `/relay`，一条命令跑通，无需第二个进程/端口。
   // 同源 → 现有 CSP `connect-src 'self'` 本身即覆盖 ws/wss 同源，**不再需要注入额外 ws 源**。

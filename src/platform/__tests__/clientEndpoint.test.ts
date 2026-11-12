@@ -22,6 +22,37 @@ it('原生所有服务请求使用配置的HTTPS站点，未配置或非法地�
   expect(p.endpointUrl('/api/workhub/sync')).toBe('https://one.example.test/api/workhub/sync')
   expect(() => p.endpointUrl('//other.example.test')).toThrow()
 })
+it('HTTP 只在 Android debug 显式按地址许可，release 不接受残留地址', async () => {
+  window.__TAURI_INTERNALS__ = {}
+  const p = await import('../endpoint')
+  localStorage.setItem('workhub.server', 'http://legacy.example.test')
+  expect(p.endpointBase()).toBe('')
+  vi.stubGlobal('__WORKHUB_ANDROID_DEBUG_HTTP__', true)
+  expect(p.endpointBase()).toBe('') // 旧值没有逐地址同意，不得自动升级为许可。
+  expect(() => p.setEndpoint('http://legacy.example.test')).toThrow('HTTPS')
+  p.setEndpoint('http://legacy.example.test', true)
+  expect(p.endpointBase()).toBe('http://legacy.example.test')
+  p.setEndpoint('https://secure.example.test')
+  expect(localStorage.getItem('workhub.debugHttpOrigin')).toBeNull()
+  p.setEndpoint('http://second.example.test', true)
+  vi.stubGlobal('__WORKHUB_ANDROID_DEBUG_HTTP__', false)
+  expect(p.endpointBase()).toBe('')
+  expect(() => p.endpointUrl('/setup/status')).toThrow('ENDPOINT_REQUIRED')
+  expect(() => p.setEndpoint('http://second.example.test', true)).toThrow('HTTPS')
+})
+it('含认证信息的请求禁止重定向，即使调用方要求 follow', async () => {
+  window.__TAURI_INTERNALS__ = {}
+  const p = await import('../endpoint')
+  p.setEndpoint('https://one.example.test')
+  const fetchFn = vi.fn(async (_url: string, _init?: RequestInit) => ({ redirected: true, json: async () => ({}) }))
+  vi.stubGlobal('fetch', fetchFn)
+  await expect(p.endpointFetch('/setup/user', {
+    method: 'POST',
+    redirect: 'follow',
+    body: JSON.stringify({ password: 'A private password' }),
+  })).rejects.toThrow('UNEXPECTED_REDIRECT')
+  expect(fetchFn.mock.calls[0][1]).toMatchObject({ redirect: 'error' })
+})
 it('收到headers后切换endpoint，晚到正文仍被拒绝且在途请求被取消', async () => {
   window.__TAURI_INTERNALS__ = {}
   const p = await import('../endpoint')

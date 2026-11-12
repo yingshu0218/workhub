@@ -1,6 +1,7 @@
 import { isTauri } from './env'
 
 const KEY = 'workhub.server'
+const HTTP_CONSENT_KEY = 'workhub.debugHttpOrigin'
 let epoch = 0
 const controllers = new Set<AbortController>()
 const listeners = new Set<() => void>()
@@ -12,10 +13,20 @@ export function normalizeEndpoint(raw: string, allowHttp = false): string {
     throw new Error('原生客户端需要 HTTPS 站点地址')
   return u.origin
 }
+export function debugHttpAvailable(): boolean {
+  return isTauri() &&
+    typeof __WORKHUB_ANDROID_DEBUG_HTTP__ !== 'undefined' &&
+    __WORKHUB_ANDROID_DEBUG_HTTP__
+}
 export function endpointBase(): string {
   if (!isTauri()) return typeof location === 'undefined' ? '' : location.origin
   try {
-    return localStorage.getItem(KEY) || ''
+    const stored = localStorage.getItem(KEY)
+    if (!stored) return ''
+    // 旧版持久化地址不能绕过本次构建的网络策略；debug HTTP 许可只绑定当前手填地址。
+    const value = normalizeEndpoint(stored, debugHttpAvailable())
+    if (value.startsWith('http:') && localStorage.getItem(HTTP_CONSENT_KEY) !== value) return ''
+    return value
   } catch {
     return ''
   }
@@ -35,10 +46,12 @@ export function invalidateConnection() {
   controllers.clear()
   listeners.forEach((fn) => fn())
 }
-export function setEndpoint(raw: string) {
-  const value = normalizeEndpoint(raw, import.meta.env.DEV)
+export function setEndpoint(raw: string, allowDebugHttp = false) {
+  const value = normalizeEndpoint(raw, allowDebugHttp && debugHttpAvailable())
   if (value === endpointBase()) return
   localStorage.setItem(KEY, value)
+  if (value.startsWith('http:')) localStorage.setItem(HTTP_CONSENT_KEY, value)
+  else localStorage.removeItem(HTTP_CONSENT_KEY)
   invalidateConnection()
 }
 export function onConnectionChange(fn: () => void) {
@@ -62,8 +75,10 @@ export async function endpointFetch(path: string, init: RequestInit = {}): Promi
     init.signal?.removeEventListener('abort', abort)
   }
   try {
-    const response = await fetch(endpointUrl(path), { ...init, signal: controller.signal })
+    // 307/308 不能把认证头或表单正文转送到用户未选择的 origin。
+    const response = await fetch(endpointUrl(path), { ...init, redirect: 'error', signal: controller.signal })
     if (started !== epoch) throw new Error('SESSION_CHANGED: 会话已改变，旧响应已丢弃')
+    if (response.redirected) throw new Error('UNEXPECTED_REDIRECT: 服务器请求不可重定向')
     // headers先到不代表正文已到；身份检查和取消覆盖解析完成后的边界。
     for (const method of ['json', 'text', 'blob', 'arrayBuffer', 'formData'] as const) {
       if (typeof response[method] !== 'function') continue
