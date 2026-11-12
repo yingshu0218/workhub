@@ -23,6 +23,24 @@ const androidDebugHttp =
   process.env.TAURI_ENV_PLATFORM === 'android' &&
   process.env.TAURI_ENV_DEBUG === 'true' &&
   process.env.VITE_WORKHUB_ANDROID_DEBUG_HTTP === '1'
+const androidBuild = process.env.TAURI_ENV_PLATFORM === 'android'
+
+// 历史更新日志含旧站点域名；Android 包只展示脱敏文本，仓库原文与 Web 页面不变。
+const redactNativeChangelog = {
+  name: 'workhub-native-changelog-redaction',
+  enforce: 'pre' as const,
+  load(id: string) {
+    const [file, query] = id.split('?')
+    if (!androidBuild || file !== path.resolve(dirname, 'CHANGELOG.md') ||
+      !new URLSearchParams(query).has('raw')) return
+    const source = readFileSync(file, 'utf8')
+    const safe = source.replace(
+      /^- 明确真实工作流：.*$/m,
+      '- 历史部署流程：测试与正式环境分离；Android 客户端服务器地址在运行时填写。',
+    )
+    return `export default ${JSON.stringify(safe)}`
+  },
+}
 
 export default defineConfig({
   define: {
@@ -35,7 +53,7 @@ export default defineConfig({
   // tauriCspPlugin：仅在 Tauri 原生壳构建时生效（靠 TAURI_ENV_PLATFORM 判定），
   // 给页面 CSP 的 connect-src 追加 `ipc:` / `http://ipc.localhost`。
   // 不加会「页面正常但所有原生 invoke 被 CSP 静默拦掉」，原因见该插件头部注释。
-  plugins: [react(), tailwindcss(), relayPlugin(), tauriCspPlugin()],
+  plugins: [redactNativeChangelog, react(), tailwindcss(), relayPlugin(), tauriCspPlugin()],
   resolve: {
     alias: { '@': path.resolve(dirname, 'src') },
   },

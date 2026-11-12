@@ -94,6 +94,7 @@ it('登录正文切站后旧 token 不能写到新站点', async () => {
   }))
   render(<AuthGate><p>PRIVATE VIEW</p></AuthGate>)
   await screen.findByText('请使用管理员账号登录')
+  expect(screen.getByText('当前服务器：https://a.example.test')).toBeTruthy()
   fireEvent.change(screen.getByLabelText('用户名或邮箱'), { target: { value: 'Alice' } })
   fireEvent.change(screen.getByLabelText('密码'), { target: { value: 'old-secret-123' } })
   fireEvent.click(screen.getByRole('button', { name: '登录' }))
@@ -157,4 +158,22 @@ it('schema 版本不匹配时不打开业务缓存，仍能修改服务器', asy
   await screen.findByText('认证服务暂时不可用，请重试')
   expect(screen.queryByText('PRIVATE VIEW')).toBeNull()
   expect(screen.getByRole('button', { name: '修改服务器地址' })).toBeTruthy()
+})
+
+it.each([
+  [{ owner: 123, generation: 'g', schema: 6, syncProtocol: 1 }, '数字 owner'],
+  [{ owner: 'A', generation: '   ', schema: 6, syncProtocol: 1 }, '空白 generation'],
+])('客户端状态 %s（%s）不能放行私人界面', async (state, _label) => {
+  setEndpoint('https://a.example.test')
+  localStorage.setItem('workhub.auth.token:' + encodeURIComponent('https://a.example.test'), 'A-token')
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+    if (url.endsWith('/setup/status')) return response({ needsSetup: false })
+    if (url.endsWith('/relay/auth-status')) return response({ enabled: true, initialized: true })
+    if (url.endsWith('/auth-refresh')) return response({ token: 'fresh-A-token' })
+    if (url.endsWith('/client-state')) return response(state)
+    throw new Error('unexpected ' + url)
+  }))
+  render(<AuthGate><p>PRIVATE VIEW</p></AuthGate>)
+  await screen.findByText('认证服务暂时不可用，请重试')
+  expect(screen.queryByText('PRIVATE VIEW')).toBeNull()
 })

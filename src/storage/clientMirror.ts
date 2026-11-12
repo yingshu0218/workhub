@@ -50,6 +50,7 @@ export async function publishMirror(
           throw new Error('RECEIPT_WATERMARK_REQUIRED: 回执缺少水位，请同步重建缓存')
         if (watermark <= Number(completed.value)) {
           changed = false
+          requireClientSession(context)
           return
         }
       }
@@ -113,6 +114,8 @@ export async function publishMirror(
         await target.meta.bulkDelete(keys.filter((k) => String(k).startsWith('query:')))
       }
       await target.meta.delete('client:stage')
+      // 必须在 Dexie 回调内发现切站，才能把已写的记录和游标一起回滚。
+      requireClientSession(context)
     },
   )
   requireClientSession(context)

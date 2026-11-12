@@ -212,8 +212,8 @@ function Data() {
             onClick={() =>
               downloadText(
                 JSON.stringify(reviewDraftCopy(group), null, 2),
-                '旧世代待核对.json',
                 'application/json',
+                '旧世代待核对.json',
               )
             }
           >

@@ -24,7 +24,9 @@ export async function exportBusinessCopy() {
     SYNC_TABLES.map((t) => cache.table(t)),
     async () => {
       for (const table of SYNC_TABLES) {
+        requireClientSession(session)
         const rows = await cache.table(table).toArray()
+        requireClientSession(session)
         if (table === 'activities')
           mapped = new Set(
             rows
@@ -33,8 +35,10 @@ export async function exportBusinessCopy() {
           )
         data[table] = rows.filter((row) => !row.deleted)
       }
+      requireClientSession(session)
     },
   )
+  requireClientSession(session)
   data.interactions = (data.interactions as { id: string }[]).filter((r) => !mapped.has(r.id))
   const attachments = data.attachments as {
     id: string
@@ -45,10 +49,12 @@ export async function exportBusinessCopy() {
   const files = []
   for (const { blob: _blob, remoteFile: _remote, ...row } of attachments) {
     requireClientSession(session)
-    files.push({
-      ...row,
-      ...(!row.deleted ? { dataUrl: await dataUrl(await attachmentBlob(row.id)) } : {}),
-    })
+    if (row.deleted) { files.push(row); continue }
+    const blob = await attachmentBlob(row.id)
+    requireClientSession(session)
+    const encoded = await dataUrl(blob)
+    requireClientSession(session)
+    files.push({ ...row, dataUrl: encoded })
   }
   data.attachments = files
   requireClientSession(session)

@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
-import { it, expect, vi } from 'vitest'
+import { it, expect, vi, beforeEach } from 'vitest'
 import 'fake-indexeddb/auto'
-vi.mock('@/sync/clientSync', () => ({ pullClientChanges: async () => {} }))
+const { pull } = vi.hoisted(() => ({ pull: vi.fn() }))
+vi.mock('@/sync/clientSync', () => ({ pullClientChanges: pull }))
 import { db } from '@/db/db'
 import { activateClientSession } from '../clientSession'
 import { exportBusinessCopy } from '../clientExport'
+beforeEach(() => pull.mockReset().mockResolvedValue(undefined))
 it('业务副本先从完整活动快照建立旧别名映射，软删活动不泄漏冻结沟通原文', async () => {
   activateClientSession('export-privacy', 'export-generation', 6)
   Object.defineProperty(navigator, 'onLine', { configurable: true, value: true })
@@ -25,4 +27,15 @@ it('业务副本先从完整活动快照建立旧别名映射，软删活动不�
   expect(copy.data.activities).toEqual([])
   expect(JSON.stringify(copy)).not.toContain('PRIVATE FROZEN TEXT')
   expect((copy.data.interactions as { id: string }[]).map((r) => r.id)).toEqual(['unmapped-legacy'])
+})
+it('rejects an export resumed after A→B→A while the server pull was pending', async () => {
+  let release: () => void = () => {}
+  pull.mockImplementationOnce(() => new Promise<void>((resolve) => { release = resolve }))
+  activateClientSession('export-aba-a', 'same-generation', 6)
+  Object.defineProperty(navigator, 'onLine', { configurable: true, value: true })
+  const pending = exportBusinessCopy()
+  activateClientSession('export-aba-b', 'same-generation', 6)
+  activateClientSession('export-aba-a', 'same-generation', 6)
+  release()
+  await expect(pending).rejects.toThrow('SESSION_CHANGED')
 })

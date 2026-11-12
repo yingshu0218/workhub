@@ -2,6 +2,7 @@ import { clientRequest } from '@/platform/request'
 import { applyClientReceipt, notifyMirrorChanged } from '@/storage/clientMirror'
 import { clientSession, scopedClientKey,requireClientSession } from '@/storage/clientSession'
 import { db } from '@/db/db'
+import { connectionEpoch } from '@/platform/endpoint'
 
 /** 统一endpoint、认证与镜像应用；UI和Agent仍使用同一PB业务命令。 */
 export function personalRequest(path:string,body:unknown,headers:Record<string,string>={}) { return clientRequest('/api/workhub/'+path,body,headers) }
@@ -19,8 +20,15 @@ export async function queryPersonal(name:string,input:unknown={}) {
 }
 export function previewPersonal(kind:string,input:unknown,context:{requestId:string;generation:string}) { return personalRequest('personal/preview',{kind,input,...context}) }
 export async function commitPersonal(context:{requestId:string;generation:string;previewId:string;planFingerprint:string}) {
+  const session = clientSession(), epoch = connectionEpoch()
+  const check = () => {
+    if (connectionEpoch() !== epoch) throw new Error('SESSION_CHANGED: 旧会话的提交回执不能写入当前缓存')
+    if (session) requireClientSession(session)
+  }
   const receipt=await personalRequest('personal/commit',context,{'X-Workhub-Plan':context.planFingerprint})
-  try{await applyClientReceipt(receipt)}catch(error){console.warn('[client] 已提交，缓存待重建',error)}
+  check()
+  try{await applyClientReceipt(receipt,session)}catch(error){console.warn('[client] 已提交，缓存待重建',error)}
+  check()
   notifyMirrorChanged(); return receipt
 }
-export async function cancelPersonal(context:{requestId:string;generation:string}) { const result=await personalRequest('personal/cancel',context);notifyMirrorChanged();return result }
+export async function cancelPersonal(context:{requestId:string;generation:string}) { const session=clientSession(),epoch=connectionEpoch();const result=await personalRequest('personal/cancel',context);if(connectionEpoch()!==epoch)throw new Error('SESSION_CHANGED: 旧会话的撤回结果不能更新当前页面');if(session)requireClientSession(session);notifyMirrorChanged();return result }

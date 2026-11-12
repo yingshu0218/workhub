@@ -1,4 +1,5 @@
 import type { StorageAdapter } from './types'
+import { connectionEpoch } from '@/platform/endpoint'
 
 /**
  * StorageAdapter 单例入口 —— 执行链统一从这里 import（agentOps 服务端化 P2 重组）
@@ -38,22 +39,58 @@ function ensureAdapter(): Promise<StorageAdapter> {
 /** 执行链统一入口：方法转发到当前适配器（保证 setStorageAdapter 后所有既有 import 立即生效） */
 export const storage: StorageAdapter = {
   async query(table, scope) {
+    const epoch = connectionEpoch()
+    const check = () => { if (connectionEpoch() !== epoch) throw new Error('SESSION_CHANGED: 旧会话不能读取当前缓存') }
     const adapter = await ensureAdapter()
-    if (adapter.query) return adapter.query(table, scope)
+    check()
+    if (adapter.query) {
+      const rows = await adapter.query(table, scope)
+      check()
+      return rows as never
+    }
     const { inScope } = await import('@/commands/scope')
-    return (await adapter.list<import('@/commands/core').Row>(table)).filter(r => inScope(r, scope)) as never
+    check()
+    const rows = (await adapter.list<import('@/commands/core').Row>(table)).filter(r => inScope(r, scope)) as never
+    check()
+    return rows
   },
   async transaction(...args) {
-    return (await ensureAdapter()).transaction(...args)
+    // 适配器初始化前就固定连接；否则旧表单可能被新账号适配器接收。
+    const epoch = connectionEpoch()
+    const check = () => { if (connectionEpoch() !== epoch) throw new Error('SESSION_CHANGED: 旧会话不能继续提交') }
+    const adapter = await ensureAdapter()
+    check()
+    const [tables, fn] = args
+    const result = await adapter.transaction(tables, async (tx) => {
+      check()
+      const value = await fn(tx)
+      check()
+      return value
+    })
+    check()
+    return result
   },
   async get(...args) {
-    return (await ensureAdapter()).get(...args)
+    const epoch = connectionEpoch()
+    const adapter = await ensureAdapter()
+    if (connectionEpoch() !== epoch) throw new Error('SESSION_CHANGED: 旧会话不能读取当前缓存')
+    const result = await adapter.get(...args)
+    if (connectionEpoch() !== epoch) throw new Error('SESSION_CHANGED: 旧会话不能读取当前缓存')
+    return result as never
   },
   async list(...args) {
-    return (await ensureAdapter()).list(...args)
+    const epoch = connectionEpoch()
+    const adapter = await ensureAdapter()
+    if (connectionEpoch() !== epoch) throw new Error('SESSION_CHANGED: 旧会话不能读取当前缓存')
+    const result = await adapter.list(...args)
+    if (connectionEpoch() !== epoch) throw new Error('SESSION_CHANGED: 旧会话不能读取当前缓存')
+    return result as never
   },
   async requestSync(...args) {
-    return (await ensureAdapter()).requestSync(...args)
+    const epoch = connectionEpoch()
+    const adapter = await ensureAdapter()
+    if (connectionEpoch() !== epoch) throw new Error('SESSION_CHANGED: 旧会话不能 requestSync')
+    return adapter.requestSync(...args)
   },
 }
 

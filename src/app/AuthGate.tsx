@@ -104,7 +104,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
       check()
       const state=await res.json() as {owner:string;generation:string;schema:number;syncProtocol:number}
       check()
-      if(!res.ok || state.syncProtocol!==1 || state.schema!==6 || !state.owner || !state.generation)
+      if(!res.ok || state.syncProtocol!==1 || state.schema!==6 ||
+        typeof state.owner!=='string' || !state.owner.trim() ||
+        typeof state.generation!=='string' || !state.generation.trim())
         throw new Error('UPGRADE_REQUIRED: 服务器尚不支持当前客户端协议')
       check()
       saveAuthSession(getAuthToken(),getAuthIdentity(),state.owner)
@@ -154,6 +156,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
   }
   const serverButton = isTauri() ?
     <Button type="button" variant="ghost" onClick={editServer}>修改服务器地址</Button> : null
+  const currentServer = endpointBase()
+  const serverInfo = isTauri() && currentServer ?
+    <p className="mt-2 break-all text-[0.8214rem] text-on-surface-variant">当前服务器：{currentServer}{currentServer.startsWith('http:') ? ' · 调试 HTTP' : ''}</p> : null
 
   /**
    * 放行后立刻以服务端为准对齐一次（2026-11-03，配合「服务端唯一真源」）。
@@ -422,12 +427,12 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
   if(needsServer) return <div className="mx-auto max-w-lg space-y-4 p-6"><h1>连接个人服务器</h1><label>VPS HTTPS 地址<input className={input} type="url" inputMode="url" autoCapitalize="none" spellCheck={false} value={server} onChange={e=>{setServer(e.target.value);setAllowHttp(false)}} placeholder="https://你的服务器或IP" /></label>{debugHttpAvailable() && /^http:\/\//i.test(server.trim()) && <label className="flex items-center gap-2"><input type="checkbox" checked={allowHttp} onChange={e=>setAllowHttp(e.target.checked)} />仅在此调试包允许当前 HTTP 地址</label>}{error&&<p role="alert">{error}</p>}<Button onClick={()=>{try{setEndpoint(server,allowHttp);setNeedsServer(false);setPhase('checking');setRetry(n=>n+1)}catch(e){setError(String(e))}}}>连接并登录</Button></div>
 
-  if (phase === 'unavailable') return <div role="alert" className="flex min-h-screen flex-col items-center justify-center gap-4 bg-surface"><p>认证服务暂时不可用，请重试</p><Button onClick={() => setRetry(n => n + 1)}>重试</Button>{serverButton}</div>
+  if (phase === 'unavailable') return <div role="alert" className="flex min-h-screen flex-col items-center justify-center gap-4 bg-surface"><p>认证服务暂时不可用，请重试</p>{serverInfo}<Button onClick={() => setRetry(n => n + 1)}>重试</Button>{serverButton}</div>
 
   if (phase === 'checking') {
     return (
       <div className="flex min-h-screen items-center justify-center bg-surface text-on-surface-variant">
-        <div className="flex flex-col items-center gap-4"><span className="text-[0.9286rem]">正在检查登录状态…</span>{serverButton}</div>
+        <div className="flex flex-col items-center gap-4"><span className="text-[0.9286rem]">正在检查登录状态…</span>{serverInfo}{serverButton}</div>
       </div>
     )
   }
@@ -439,6 +444,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
           <form onSubmit={submitSetup}>
             <h1 className="text-[1.1429rem] font-semibold text-on-surface">初始化工作台</h1>
             <p className="mt-1 text-[0.8214rem] text-on-surface-variant">这是第一次启动，请设置你的账号</p>
+            {serverInfo}
 
             <label className={label}>
               用户名
@@ -496,6 +502,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
         <form onSubmit={submitLogin} className={box}>
           <h1 className="text-[1.1429rem] font-semibold text-on-surface">寻鸽工作台</h1>
           <p className="mt-1 text-[0.8214rem] text-on-surface-variant">请使用管理员账号登录</p>
+          {serverInfo}
 
           <label className={label}>
             用户名或邮箱
@@ -537,6 +544,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
           <p className="mt-1 text-[0.8214rem] text-on-surface-variant">
             初始密码是公开的默认值，必须换掉后才能进入工作台。改完即失效。
           </p>
+          {serverInfo}
 
           <label className={label}>
             当前密码
