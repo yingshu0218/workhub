@@ -1,6 +1,7 @@
 import type { StorageAdapter, StorageTx } from './types'
 import { fail, stable, type Command, type Row, type Write } from '@/commands/core'
 import { inScope } from '@/commands/scope'
+import { nanoid } from 'nanoid'
 
 export interface Receipt {
   operationId: string
@@ -87,7 +88,8 @@ export function stagePlan(source: Pick<StorageAdapter, 'get' | 'list' | 'query'>
     },
   }
 }
-export function requestId(): string { return 'req_' + crypto.randomUUID().replace(/-/g, '') }
+// IP 直连的 HTTP 页面没有 randomUUID；沿用已有 nanoid 的 getRandomValues 安全随机源。
+export function requestId(): string { return 'req_' + nanoid(32) }
 /** UI 相同实体与版本的网络重试沿用请求号；不同 payload 由服务端指纹拒绝。 */
 export function planRequestId(writes: Write[]): string {
   const first = writes[0]

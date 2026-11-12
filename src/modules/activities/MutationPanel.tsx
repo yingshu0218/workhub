@@ -3,6 +3,7 @@ import { useState, type ReactNode } from 'react'
 import { previewPersonal, commitPersonal, cancelPersonal, queryPersonal } from '@/domain/personal'
 import { clientSession, scopedClientKey } from '@/storage/clientSession'
 import { notifyMirrorChanged } from '@/storage/clientMirror'
+import { requestId } from '@/storage/commandPlan'
 import { Button, Card } from '@/design-system/ui'
 import { moneyLabel, formatFactTime, recordPath } from '@/shared/records'
 import { Link } from 'react-router-dom'
@@ -54,7 +55,7 @@ export default function MutationPanel({
       const generation =
         clientSession()?.generation ||
         String((await queryPersonal('list_operations', { limit: 1 })).generation)
-      const context = pending || { requestId: 'ui-' + crypto.randomUUID(), generation, input }
+      const context = pending || { requestId: requestId(), generation, input }
       // 预览失败也保留原请求；断线时不得悄悄换号重录。
       save(context)
       const result = await previewPersonal(kind, context.input, context)
