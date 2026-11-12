@@ -16,12 +16,13 @@ import { queryPersonal } from '@/domain/personal'
 import AgentAccessPanel from './AgentAccessPanel'
 import PreferencesPanel from './PreferencesPanel'
 import { AboutTab } from './AboutTab'
+import { Icon } from '@/design-system/Icon'
 const TABS = [
-  ['account', '账号与服务器'],
-  ['agent', 'Agent 接入'],
-  ['data', '数据与备份'],
-  ['appearance', '外观与偏好'],
-  ['about', '关于'],
+  ['account', '账号与服务器', 'manage_accounts'],
+  ['agent', 'Agent 接入', 'smart_toy'],
+  ['data', '数据与备份', 'settings_backup_restore'],
+  ['appearance', '外观与偏好', 'palette'],
+  ['about', '关于', 'info'],
 ]
 function Account() {
   const [server, setServer] = useState(endpointBase()),
@@ -29,10 +30,16 @@ function Account() {
     [busy, setBusy] = useState(false),
     sync = useSyncStore()
   return (
-    <Card className="space-y-4 p-5">
-      <h2>当前账号：{getAuthIdentity() || '已登录'}</h2>
-      <label>
-        权威服务器
+    <Card className="space-y-5 p-6">
+      <h2 className="flex items-center gap-2 text-[1.0714rem] font-semibold">
+        <Icon name="manage_accounts" className="text-primary" />
+        账号与连接
+      </h2>
+      <div className="rounded-lg bg-surface-container-low p-4 text-sm">
+        当前账号：<strong>{getAuthIdentity() || '已登录'}</strong>
+      </div>
+      <label className="block space-y-1.5 text-sm text-on-surface-variant">
+        服务器地址
         <input
           className={inputCls}
           value={server}
@@ -140,7 +147,10 @@ function Data() {
   return (
     <div className="space-y-4">
       <Card className="space-y-3 p-5">
-        <h2>副本与恢复范围</h2>
+        <h2 className="flex items-center gap-2 text-[1.0714rem] font-semibold">
+          <Icon name="settings_backup_restore" className="text-primary" />
+          副本与恢复范围
+        </h2>
         <p>
           客户端缓存导出用于人工核对，不是完整业务副本，也不包含全部附件、操作历史或服务器恢复资料。
         </p>
@@ -239,12 +249,18 @@ export default function SettingsPage() {
   const [tab, setTab] = useState('account')
   return (
     <div className="mx-auto max-w-[1200px] space-y-5">
-      <PageHeader title="设置" />
-      <nav className="flex flex-wrap gap-2" aria-label="设置分组">
-        {TABS.map(([id, label]) => (
-          <Button key={id} variant={tab === id ? 'primary' : 'ghost'} onClick={() => setTab(id)}>
+      <PageHeader title="系统设置" />
+      <nav className="surface-card-xl flex flex-wrap gap-1.5 p-1.5" aria-label="设置分组">
+        {TABS.map(([id, label, icon]) => (
+          <button
+            key={id}
+            aria-pressed={tab === id}
+            className={`flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-[0.9286rem] transition-colors ${tab === id ? 'bg-primary font-semibold text-on-primary' : 'text-on-surface-variant hover:bg-surface-hover'}`}
+            onClick={() => setTab(id)}
+          >
+            <Icon name={icon} size={16} />
             {label}
-          </Button>
+          </button>
         ))}
       </nav>
       {tab === 'account' ? (

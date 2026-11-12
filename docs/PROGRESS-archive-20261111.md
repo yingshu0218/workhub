@@ -243,3 +243,14 @@
 **⑥ 本轮验证**：⚠️ **`check:all` 未一次跑绿，如实记录**：本机 **2 核**，`--maxWorkers=4` 下两次分别有**不同**用例 15s 级超时（`entityLinkField` Esc 关闭、`todoRowDetail` 深链），二者**单独跑均通过**（0.6s / 3.1s）→ 属负载假红，非代码回归；改 `--maxWorkers=2` 全量 **1064 passed / 0 failed / 7 skipped**（130 文件 1071 用例），`tsc -b` 与 `eslint` 均 0 错。⚠️ **未做真机验收**：本机无 Android 设备、无 `/dev/kvm`（模拟器跑不起来），**安装/首启/登录/同步四项均未经真机点击**，只验到「能构建、签名有效、资源新鲜」。
 **⑦ 明确未做**：存储仍是 Dexie（文档里的「阶段 2」SQLite 迁移未动）；release 未上架分发渠道、未做 AAB；APK 仅 arm64（未出 armv7/x86_64，老设备与模拟器装不上）。
 **⑧ CNB 上出包（仅 tag 触发，2026-10-27 追加）**：新增 `.cnb/android/Dockerfile`（JDK 17 + Android SDK/NDK + Rust + Node，走腾讯云镜像）+ `.cnb.yml` 两个锚点：`.android-builder-image`（仅 `.cnb/android/Dockerfile` 变更时重建）与 `.android-apk`（只挂 `v*` 的 `tag_push`，流程＝写签名 → 构建 → `git:release` → `cnbcool/attachments` 挂 APK）。⚠️ **为让 CI 全链路走国内镜像，`compileSdk`/`targetSdk` 由 37 钉到 36**：腾讯镜像站只同步到 `platforms;android-36`，37 只能访问 `dl.google.com`（国内不可达）；36 与 37 对本应用无行为差异。`gradle-wrapper.properties` 的 `distributionUrl` 同步改腾讯镜像（官方地址会 302 到 GitHub）。**SDK36 的本地重打已完成（同日补）**：`app/build/outputs/apk/arm64/release/app-arm64-release.apk`，targetSdk 36、已签名、资源哈希与 `dist` 一致。⚠️ 本地**不要**跑 `assembleRelease`（universal 要编 4 个 ABI，2 核机 20 分钟以上）；单 ABI 用 `./gradlew app:assembleArm64Release -x rustBuildArm64Release`（6 分钟；`-x` 只在 Rust 产物已存在时可用）。密钥需人工在 `blueteam0715/keystore` 新建 `android-signing.yml`（base64 jks + alias + password），首次启用顺序与额度见 `docs/多端App改造方案-Tauri.md` §12.8。
+
+## 界面恢复轮次补归档
+
+**上一轮**：2026-11-02（**首启自助注册：用户名与密码由用户自己设**）
+**背景**：账号此前只能由容器按 `WORKHUB_ADMIN_USER/PASSWORD` 写死创建（`admin` + 公开默认密码 `password`），既不是用户自己的账号，还得靠「强制首改」补救。
+**① 后端 `/setup/*`**（新增 `scripts/setupRoutes.mjs`，`scripts/serve.mjs` 挂载）：`GET /setup/status` 用超管凭据查 `users.totalItems === 0`；`POST /setup/user` 仅在空库时建号（否则 **409「已完成初始化」**），identity 3–32 位、密码 ≥8 位，PB 的 400 原话**透传**（重复用户名不吞成「创建失败」）。两条路由**刻意不用 `/api` 前缀** —— 那条被 entrypoint 整体转给 PB。页面无 token 也能调，但建出第一个账号后接口自动失效（判据是空库，不需要另加开关）。
+**② 登录标识 = 邮箱，用户名只作展示**：PB 0.40 的文本字段没有 UNIQUE 约束，`identityFields` 里不能放 username。建号邮箱 = `<用户名>@workhub.local`（`parseSetupInput`），登录时前端把不含 `@` 的输入补成同一邮箱（`AuthGate.toIdentity`）—— 登录框写「用户名或邮箱」仍然成立。username 只用于展示，首启时 best-effort 补字段。
+**③ 前端 `AuthGate`**：挂载先问 `/setup/status`，`needsSetup:true` 出「初始化工作台」（用户名 / 密码 / 确认密码，两次不一致就地报错），建号后**直接用该账号登录**进应用；`needsSetup:false` 保持原登录页。顺手删掉登录页那句「页面不提供自助注册」（已不成立，也属页面旁白）。
+**④ `/relay/auth-status` 的启用判据**多一条「`users` 已有账号」：否则没配 `WORKHUB_ADMIN_*` 的部署在自助注册完仍回 `enabled:false` 直接放行，用户刚设的密码形同虚设。PB 不可用时仍按未启用处理，**fail-open 不变**。
+⚠️ **与兜底管理员的关系**：`WORKHUB_ADMIN_*` 保留（env 配错/服务器异常时的自救入口，`entrypoint.mjs` 逻辑未动），但**两者取一** —— 配了它容器启动就建出 `admin`，首启引导随即不再出现。compose 的默认值已改为**空**（`6277aa4`），开箱即走页面自助注册；要用兜底管理员就显式填这两项（见 `deploy/docker/README.md`）。
+> **本轮验证**：`scripts/__tests__/setupRoutes.test.mjs` **13 条** + `authGate.test.tsx` **+3 条**；`check:all` 全绿 —— **1121 passed / 7 skipped**。

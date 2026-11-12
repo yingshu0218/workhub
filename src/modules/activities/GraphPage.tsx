@@ -3,6 +3,7 @@ import { Link, useParams, useSearchParams } from 'react-router-dom'
 import EntityPicker from './EntityPicker'
 import { usePersonalQuery, type Value } from '@/queries/personal'
 import { Button, Card, PageHeader, inputCls } from '@/design-system/ui'
+import { Icon } from '@/design-system/Icon'
 import { useForceGraph } from '@/modules/crm/graph/useForceGraph'
 import { CANVAS_THEMES, useCanvasTheme, type CanvasThemePref } from '@/modules/crm/graph/themes'
 import { usePanZoom } from '@/modules/crm/usePanZoom'
@@ -155,14 +156,14 @@ export default function GraphPage() {
   return (
     <div className="mx-auto max-w-[1200px] space-y-4">
       <PageHeader
-        title="事实图谱"
+        title="关系图谱"
         actions={
-          <Button variant="ghost" onClick={query.reload}>
+          <Button variant="ghost" icon="refresh" onClick={query.reload}>
             刷新
           </Button>
         }
       />
-      <Card className="grid gap-3 p-4 sm:grid-cols-4">
+      <Card className="grid items-start gap-4 p-5 text-sm text-on-surface-variant sm:grid-cols-2 lg:grid-cols-4 [&_label]:block [&_label]:space-y-1.5">
         <label>
           模式
           <select
@@ -226,24 +227,42 @@ export default function GraphPage() {
           </label>
         ))}
       </Card>
-      <p className="text-sm text-outline">
+      <p className="flex items-center gap-2 text-xs text-outline">
+        <Icon name="info" size={15} />
         聚焦{table === 'projects' ? '两跳' : '一跳'} ·
         最多100节点、200边。共同参与事件不表示长期关系。
       </p>
       {query.error ? <p role="alert">{query.error}</p> : null}
-      {!id ? <p>请选择联系人、事件或事项；也可从时间线和记录详情打开同一对象。</p> : null}
       {query.data?.truncated ? (
         <p role="status">范围已截断，请聚焦下列节点或缩小日期范围。</p>
       ) : null}
       <Card className="overflow-hidden">
         <div
+          className="relative min-h-[320px]"
           ref={(el) => {
             wrap.current = el
             pan.wheelRef.current = el
           }}
           {...pan.containerProps}
-          style={{ height: 480, touchAction: 'none', background: theme.bg }}
+          style={{
+            height: 'min(58vh, 560px)',
+            touchAction: 'none',
+            backgroundColor: theme.bg,
+            backgroundImage: 'radial-gradient(var(--color-outline-variant) 1px, transparent 1px)',
+            backgroundSize: '24px 24px',
+          }}
         >
+          {!id || (query.data && !nodes.length) ? (
+            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center">
+              <Icon name="hub" size={40} className="text-primary" />
+              <h2 className="text-lg font-semibold text-on-surface">
+                {id ? '还没有相关事实' : '从一个联系人或事件开始'}
+              </h2>
+              <p className="max-w-sm text-sm text-on-surface-variant">
+                选择上方的聚焦对象，查看事件、承诺与收支之间的关联。
+              </p>
+            </div>
+          ) : null}
           <svg
             viewBox={`0 0 ${size.w} ${size.h}`}
             width="100%"
@@ -345,8 +364,8 @@ export default function GraphPage() {
             </g>
           </svg>
         </div>
-        <div className="flex flex-wrap gap-3 p-3">
-          <label>
+        <div className="flex flex-wrap items-end gap-3 border-t border-outline-variant/40 bg-surface-container-lowest p-4">
+          <label className="mr-auto space-y-1 text-xs text-outline">
             画布配色
             <select
               className={inputCls}
@@ -415,8 +434,10 @@ export default function GraphPage() {
           )}
         </Card>
       ) : null}
-      <details open>
-        <summary className="cursor-pointer font-semibold">节点与关系列表（键盘可用）</summary>
+      <details className="surface-card p-5" open={!!id}>
+        <summary className="cursor-pointer text-sm font-semibold">
+          节点与关系列表（键盘可用）
+        </summary>
         <ul className="grid gap-2 py-3 sm:grid-cols-2">
           {visibleNodes.map((node) => (
             <li key={String(node.key)}>

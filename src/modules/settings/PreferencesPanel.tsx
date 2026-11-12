@@ -38,11 +38,11 @@ export default function PreferencesPanel() {
   }
   return (
     <div className="space-y-4">
-      <nav className="flex flex-wrap gap-3">
+      <nav className="flex flex-wrap gap-2" aria-label="外观与偏好分组">
         {TABS.map(([id, label]) => (
           <button
             aria-pressed={tab === id}
-            className="rounded-lg bg-surface-container-low px-3 py-2"
+            className={`rounded-lg border px-3 py-2 text-sm transition-colors ${tab === id ? 'border-primary/30 bg-primary-fixed/40 font-medium text-primary' : 'border-transparent text-on-surface-variant hover:bg-surface-hover'}`}
             key={id}
             onClick={() => setTab(id)}
           >

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Icon } from '@/design-system/Icon'
 import { useNavigate } from 'react-router-dom'
 import { useCollection } from '@/queries/hooks'
@@ -7,14 +7,7 @@ import { useIsMobile } from '@/shared/useIsMobile'
 import type { Customer, CustomerGroup, IntimacyLevel } from '@/db/types'
 import { INTIMACY_VISUAL, customerInGroup } from '@/db/types'
 import { setCustomerGroup } from '@/repositories'
-import {
-  Button,
-  Card,
-  EmptyState,
-  PageHeader,
-  StatCard,
-  inputCls,
-} from '@/design-system/ui'
+import { Button, Card, EmptyState, PageHeader, StatCard, inputCls } from '@/design-system/ui'
 import { FilterChip } from '@/design-system/FilterChip'
 import CustomerFormDrawer from './CustomerFormDrawer'
 import { CustomerGroupNav } from './CustomerGroupNav'
@@ -32,7 +25,7 @@ import {
 } from './hooks'
 
 /** 客户管理主页面（对齐原型 08-crm-list） */
-export default function CrmPage() {
+export default function CrmPage({ personal = false }: { personal?: boolean }) {
   const customers = useCollection<Customer>('customers')
   const navigate = useNavigate()
   /**
@@ -59,6 +52,8 @@ export default function CrmPage() {
   // 自定义分组（Issue #63）：选中分组 id 与编辑弹层
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
   const [editorGroup, setEditorGroup] = useState<CustomerGroup | 'new' | null>(null)
+  const [page, setPage] = useState(0)
+  useEffect(() => setPage(0), [keyword, levelFilter, selectedGroupId])
 
   const customGroups = useCustomerGroups()
   // 手动分组归属已迁 links（v16 member）：Map<customerId, groupId> 索引代替行字段
@@ -136,7 +131,14 @@ export default function CrmPage() {
       if (selectedGroup && !customerInGroup(c, selectedGroup, groupIdOf.get(c.id))) return false
       if (keyword.trim()) {
         const kw = keyword.trim().toLowerCase()
-        const haystack = [c.name, c.company, c.title, c.tags.join(' ')]
+        const haystack = [
+          c.name,
+          c.preferredName,
+          ...(c.aliases || []),
+          c.company,
+          c.title,
+          c.tags.join(' '),
+        ]
           .join(' ')
           .toLowerCase()
         if (!haystack.includes(kw)) return false
@@ -144,6 +146,8 @@ export default function CrmPage() {
       return true
     })
     .sort((a, b) => b.lastContactAt - a.lastContactAt)
+  const currentPage = Math.min(page, Math.max(0, Math.ceil(list.length / 50) - 1))
+  const pageRows = list.slice(currentPage * 50, (currentPage + 1) * 50)
 
   return (
     <div className="mx-auto max-w-[1200px]">
@@ -151,14 +155,14 @@ export default function CrmPage() {
       {!isMobile && (
         <div className="hidden md:block">
           <PageHeader
-            title="客户管理"
+            title={personal ? '联系人' : '客户管理'}
             actions={
               <>
                 <Button variant="ghost" icon="hub" onClick={() => navigate('/crm/canvas')}>
                   关系画布
                 </Button>
                 <Button icon="person_add" onClick={() => setFormOpen(true)}>
-                  新建客户
+                  {personal ? '新建联系人' : '新建客户'}
                 </Button>
               </>
             }
@@ -171,11 +175,13 @@ export default function CrmPage() {
           关系画布入口另有落位，见列表上方的次级操作行。 */}
       {isMobile && (
         <header className="mb-4 flex items-center justify-between gap-3 md:hidden">
-          <h1 className="min-w-0 truncate text-[1.2857rem] font-bold tracking-[-0.01em]">客户</h1>
+          <h1 className="min-w-0 truncate text-[1.2857rem] font-bold tracking-[-0.01em]">
+            {personal ? '联系人' : '客户'}
+          </h1>
           <button
             type="button"
-            aria-label="新建客户"
-            title="新建客户"
+            aria-label={personal ? '新建联系人' : '新建客户'}
+            title={personal ? '新建联系人' : '新建客户'}
             onClick={() => setFormOpen(true)}
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary text-on-primary transition-colors hover:bg-primary-container"
           >
@@ -213,7 +219,7 @@ export default function CrmPage() {
               按用户拍板一并移出列表页 —— 换成本页自己的业务指标，与分层维度彻底解耦 */}
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             <StatCard
-              label="客户总数"
+              label={personal ? '联系人总数' : '客户总数'}
               icon="group"
               iconCls="bg-primary-fixed text-primary"
               value={stats.total}
@@ -249,7 +255,8 @@ export default function CrmPage() {
                 className={inputCls}
                 value={keyword}
                 onChange={(e) => setKeyword(e.target.value)}
-                placeholder="按姓名、公司、职位、标签检索…"
+                placeholder={personal ? '按姓名、别名、机构检索…' : '按姓名、公司、职位、标签检索…'}
+                aria-label="搜索联系人"
               />
               {/* 横向滚动而不是 flex-wrap：档位数由配置决定（可能 7 档），换行会把工具栏
                   挤成三四排、把列表压到屏幕外。滚动条在触摸端没有操作价值，一并隐藏。 */}
@@ -295,7 +302,10 @@ export default function CrmPage() {
                   className={inputCls}
                   value={keyword}
                   onChange={(e) => setKeyword(e.target.value)}
-                  placeholder="按姓名、公司、职位、标签检索…"
+                  placeholder={
+                    personal ? '按姓名、别名、机构检索…' : '按姓名、公司、职位、标签检索…'
+                  }
+                  aria-label="搜索联系人"
                 />
               </div>
               <IntimacyFilterMenu
@@ -374,7 +384,7 @@ export default function CrmPage() {
               {/* 桌面（≥768px）：原结构逐像素不变 */}
               {!isMobile && (
                 <Card className="hidden divide-y divide-outline-variant/30 px-5 md:block">
-                  {list.map((c, i) => (
+                  {pageRows.map((c, i) => (
                     <CustomerRow
                       key={c.id}
                       customer={c}
@@ -390,7 +400,7 @@ export default function CrmPage() {
                   390px 下这两列没有摆放空间（连名带公司都会截断），所以整体换成卡片。 */}
               {isMobile && (
                 <div className="flex flex-col gap-2 md:hidden">
-                  {list.map((c, i) => (
+                  {pageRows.map((c, i) => (
                     <CustomerCard
                       key={c.id}
                       customer={c}
@@ -407,6 +417,23 @@ export default function CrmPage() {
         </div>
       </div>
 
+      {list.length > 50 ? (
+        <nav aria-label="联系人分页" className="mt-4 flex items-center justify-end gap-3">
+          <span className="text-sm text-outline">
+            第 {currentPage + 1} / {Math.ceil(list.length / 50)} 页
+          </span>
+          <Button variant="ghost" disabled={!currentPage} onClick={() => setPage(currentPage - 1)}>
+            上一页
+          </Button>
+          <Button
+            variant="ghost"
+            disabled={(currentPage + 1) * 50 >= list.length}
+            onClick={() => setPage(currentPage + 1)}
+          >
+            下一页
+          </Button>
+        </nav>
+      ) : null}
       <CustomerFormDrawer open={formOpen} customer={null} onClose={() => setFormOpen(false)} />
 
       <GroupEditorDrawer

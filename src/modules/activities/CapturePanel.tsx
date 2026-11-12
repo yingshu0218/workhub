@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import MutationPanel from './MutationPanel'
 import { inputCls } from '@/design-system/ui'
+import { Icon } from '@/design-system/Icon'
 import { scopedClientKey } from '@/storage/clientSession'
 
 export default function CapturePanel({
@@ -53,16 +54,20 @@ export default function CapturePanel({
         setDraft({ ...draft, title: '', summary: '' })
       }}
     >
-      <h2 className="font-semibold">快速记录已发生的事</h2>
-      <label className="block text-sm">
+      <h2 className="flex items-center gap-2 text-[1.0714rem] font-semibold">
+        <Icon name="edit_note" className="text-primary" />
+        随手记录
+      </h2>
+      <label className="block space-y-1.5 text-sm text-on-surface-variant">
         主题
         <input
           className={inputCls}
+          placeholder="给这件事起个名字"
           value={draft.title}
           onChange={(e) => edit('title', e.target.value)}
         />
       </label>
-      <label className="block text-sm">
+      <label className="block space-y-1.5 text-sm text-on-surface-variant">
         发生日期
         <input
           type="date"
@@ -71,18 +76,17 @@ export default function CapturePanel({
           onChange={(e) => edit('date', e.target.value)}
         />
       </label>
-      <label className="block text-sm">
+      <label className="block space-y-1.5 text-sm text-on-surface-variant">
         事实内容
         <textarea
           className={inputCls}
-          rows={3}
+          rows={4}
+          placeholder="记下发生了什么、和谁有关，稍后预览确认。"
           value={draft.summary}
           onChange={(e) => edit('summary', e.target.value)}
         />
       </label>
-      <p className="text-sm text-outline">
-        草稿 · 尚未记入正式数据。复杂讲述可交给已授权的外部 Agent。
-      </p>
+      <p className="text-sm text-outline">草稿自动保留，预览确认后记入时间线。</p>
     </MutationPanel>
   )
 }

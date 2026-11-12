@@ -3,7 +3,8 @@ import { Link, useParams } from 'react-router-dom'
 import { usePersonalQuery, type Value } from '@/queries/personal'
 import { useRecord } from '@/queries/hooks'
 import type { Customer } from '@/db/types'
-import { Button, Card, PageHeader } from '@/design-system/ui'
+import { Avatar, Button, Card } from '@/design-system/ui'
+import { Icon } from '@/design-system/Icon'
 import CustomerFormDrawer from '@/modules/crm/CustomerFormDrawer'
 import { FeedList } from './FeedList'
 import CapturePanel from './CapturePanel'
@@ -34,23 +35,38 @@ export default function ContactPage() {
       {query.loading ? <p role="status">正在读取联系人…</p> : null}
       {contact ? (
         <>
-          <PageHeader
-            title={String(contact.preferredName || contact.name)}
-            subtitle={String(contact.company || '')}
-            actions={
-              <Button disabled={!customer} onClick={() => setEditing(true)}>
+          <Card className="p-5 md:p-6">
+            <div className="flex flex-wrap items-center gap-4">
+              <Avatar name={String(contact.preferredName || contact.name)} size={56} />
+              <div className="min-w-0 flex-1">
+                <h1 className="break-words text-[1.5714rem] font-bold">
+                  {String(contact.preferredName || contact.name)}
+                </h1>
+                <p className="mt-1 text-sm text-on-surface-variant">
+                  {String(contact.company || '个人联系人')}
+                </p>
+              </div>
+              <Button
+                icon="edit"
+                variant="ghost"
+                disabled={!customer}
+                onClick={() => setEditing(true)}
+              >
                 编辑资料
               </Button>
-            }
-          />
-          <nav className="flex flex-wrap gap-4 text-primary">
-            <Link to={'/timeline?contactId=' + encodeURIComponent(id!)}>联系人时间线</Link>
-            <Link to={'/graph?table=customers&id=' + encodeURIComponent(id!)}>关系图谱</Link>
-            <Link to="/crm">全部联系人</Link>
-          </nav>
-          <div className="grid gap-5 lg:grid-cols-2">
-            <section className="space-y-4">
-              <h2 className="text-lg font-semibold">近期事件</h2>
+            </div>
+            <nav className="mt-5 flex flex-wrap gap-x-5 gap-y-2 border-t border-outline-variant/30 pt-4 text-sm font-medium text-primary">
+              <Link to={'/timeline?contactId=' + encodeURIComponent(id!)}>联系人时间线</Link>
+              <Link to={'/graph?table=customers&id=' + encodeURIComponent(id!)}>关系图谱</Link>
+              <Link to="/crm">全部联系人</Link>
+            </nav>
+          </Card>
+          <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+            <section className="min-w-0 space-y-4">
+              <h2 className="flex items-center gap-2 text-[1.0714rem] font-semibold">
+                <Icon name="timeline" className="text-primary" />
+                近期事件
+              </h2>
               <FeedList items={recent?.items || []} />
               {recent?.truncated ? (
                 <Link
@@ -62,9 +78,12 @@ export default function ContactPage() {
               ) : null}
               <CapturePanel contactId={id} />
             </section>
-            <section className="space-y-4">
+            <section className="min-w-0 space-y-4 text-sm">
               <Card className="space-y-3 p-5">
-                <h2 className="font-semibold">未完成承诺</h2>
+                <h2 className="flex items-center gap-2 text-[1.0714rem] font-semibold">
+                  <Icon name="check_circle" size={18} className="text-primary" />
+                  未完成承诺
+                </h2>
                 <ul className="space-y-2">
                   {tasks?.items.map((task) => (
                     <li key={String(task.id)}>
@@ -88,7 +107,10 @@ export default function ContactPage() {
                 </Link>
               </Card>
               <Card className="space-y-3 p-5">
-                <h2 className="font-semibold">相关收支</h2>
+                <h2 className="flex items-center gap-2 text-[1.0714rem] font-semibold">
+                  <Icon name="account_balance_wallet" size={18} className="text-primary" />
+                  相关收支
+                </h2>
                 {Object.entries(finance?.totals || {}).map(([currency, total]) => (
                   <p key={currency}>
                     {currency} · 收入 {moneyLabel(total.incomeMinor, currency)} · 支出{' '}
@@ -103,7 +125,10 @@ export default function ContactPage() {
                 </Link>
               </Card>
               <Card className="space-y-3 p-5">
-                <h2 className="font-semibold">关系与资料</h2>
+                <h2 className="flex items-center gap-2 text-[1.0714rem] font-semibold">
+                  <Icon name="group" size={18} className="text-primary" />
+                  关系与资料
+                </h2>
                 <p>别名：{((contact.aliases as string[]) || []).join('、') || '未填写'}</p>
                 <p>
                   类型：

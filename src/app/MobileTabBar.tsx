@@ -12,7 +12,7 @@ import { Icon } from '@/design-system/Icon'
  * 玻璃等形态，施加到胶囊导航上会把造型打散。
  */
 export const MOBILE_TABS = [
- {to:'/',icon:'dashboard',label:'今天',matches:['/']},
+ {to:'/',icon:'dashboard',label:'工作台',matches:['/']},
  {to:'/timeline',icon:'timeline',label:'时间线',matches:['/timeline','/activities','/operations','/interactions']},
  {to:'/crm',icon:'group',label:'联系人',matches:['/crm']},
  {to:'/graph',icon:'hub',label:'图谱',matches:['/graph']},

@@ -90,7 +90,7 @@ describe('侧栏伸缩按钮（2026-10-19）', () => {
     fireEvent.click(screen.getByLabelText('收起左侧菜单'))
     const todoLink = document.querySelector('a[href="/todo"]') as HTMLElement
     expect(todoLink.textContent?.trim()).toBe('')
-    expect(todoLink.getAttribute('title')).toBe('待办')
+    expect(todoLink.getAttribute('title')).toBe('待办事项')
   })
 
   it('②c 展开态菜单项带文案、不带冗余 title（不打扰鼠标）', () => {

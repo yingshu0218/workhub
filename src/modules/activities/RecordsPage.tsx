@@ -30,7 +30,7 @@ export default function RecordsPage({ detail = false }: { detail?: boolean }) {
       {query.data?.items.map((row) => (
         <Card key={String(row.id)} className="space-y-3 p-5">
           <Link
-            className="text-primary"
+            className="break-words text-lg font-semibold text-primary"
             to={
               detail
                 ? recordPath(kind, String(row.id))
@@ -72,7 +72,7 @@ export default function RecordsPage({ detail = false }: { detail?: boolean }) {
             const r = result as typeof relations
             return (
               <Card key={String(title)} className="space-y-3 p-5">
-                <h2>{String(title)}</h2>
+                <h2 className="text-[1.0714rem] font-semibold">{String(title)}</h2>
                 {r.error ? <p role="alert">{r.error}</p> : null}
                 {r.data?.items.map((row, i) => (
                   <p key={String(row.id || i)}>

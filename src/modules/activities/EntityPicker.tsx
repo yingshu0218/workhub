@@ -26,8 +26,8 @@ export default function EntityPicker({
   const choices = (search.data?.candidates || []) as Value[],
     current = (selected.data?.candidates as Value[] | undefined)?.[0]
   return (
-    <div className="space-y-1">
-      <label className="block text-sm">
+    <div className="min-w-0 space-y-1">
+      <label className="block space-y-1.5 text-sm text-on-surface-variant">
         {label}
         <input
           aria-label={label + '搜索'}

@@ -21,7 +21,7 @@ function PagedReferences({
   const [open, setOpen] = useState(false),
     query = usePersonalQuery(queryName, input, open)
   return (
-    <section className="space-y-3">
+    <section className="space-y-3 border-t border-outline-variant/30 pt-4">
       <Button variant="ghost" onClick={() => setOpen((v) => !v)}>
         {title}
       </Button>
@@ -220,8 +220,8 @@ function Details({
 
   return (
     <>
-      <Card className="space-y-4 p-5">
-        <h1 className="text-2xl font-semibold">
+      <Card className="space-y-4 p-5 md:p-7">
+        <h1 className="break-words text-[1.5714rem] font-bold">
           {operation ? '操作记录' : String(row.title || '事件')}
         </h1>
         {error ? <p role="alert">{error}</p> : null}
@@ -272,7 +272,7 @@ function Details({
                 ? '仅记录日期，未指定钟点'
                 : String(row.timeZone || '时区未记录')}
             </p>
-            <p className="whitespace-pre-wrap break-words">
+            <p className="whitespace-pre-wrap break-words rounded-lg bg-surface-container-low/60 p-4 leading-relaxed">
               {chunk?.text || String(row.summary || '')}
               {tail}
             </p>
@@ -293,7 +293,7 @@ function Details({
                 {source}
               </blockquote>
             ) : null}
-            <div className="flex flex-wrap gap-4 text-primary">
+            <div className="flex flex-wrap gap-4 text-sm font-medium text-primary">
               <Link to={'/graph?table=activities&id=' + encodeURIComponent(String(row.id))}>
                 事件图谱
               </Link>

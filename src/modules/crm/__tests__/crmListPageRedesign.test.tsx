@@ -22,6 +22,7 @@ import 'fake-indexeddb/auto'
 import { db } from '@/db/db'
 import type { IntimacyLevel } from '@/db/types'
 import CrmPage from '../CrmPage'
+import ContactsPage from '@/modules/activities/ContactsPage'
 
 const DAY = 86_400_000
 
@@ -71,6 +72,23 @@ function group(over: { id: string; name: string; includeTags: string[] }) {
 beforeEach(async () => {
   await Promise.all(db.tables.map((t) => t.clear()))
   vi.spyOn(console, 'error').mockImplementation(() => {})
+})
+it('个人入口保留别名与常用称呼搜索，翻页后筛选仍能找到联系人', async () => {
+  await db.customers.bulkPut(Array.from({ length: 51 }, (_, i) => ({
+    ...customer({ id: `personal-${i}`, name: `回归联系人${i}`, tags: [], level: 'T5', lastContactAt: 1000 - i }),
+    ...(i === 50 ? { preferredName: '常用称呼', aliases: ['专用别名'] } : {}),
+  })))
+  render(<MemoryRouter><ContactsPage /></MemoryRouter>)
+  expect(await screen.findByText('回归联系人0')).toBeTruthy()
+  expect(screen.queryByText('常用称呼')).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: '下一页' }))
+  expect(screen.getByText('常用称呼')).toBeTruthy()
+  expect(screen.queryByText('回归联系人0')).toBeNull()
+  fireEvent.change(screen.getByRole('textbox', { name: '搜索联系人' }), { target: { value: '专用别名' } })
+  expect(screen.getByText('常用称呼')).toBeTruthy()
+  expect(screen.queryByRole('button', { name: '下一页' })).toBeNull()
+  fireEvent.change(screen.getByRole('textbox', { name: '搜索联系人' }), { target: { value: '常用称呼' } })
+  expect(screen.getByText('常用称呼')).toBeTruthy()
 })
 afterEach(() => {
   cleanup()

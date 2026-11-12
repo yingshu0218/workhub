@@ -181,10 +181,10 @@ export function CustomerRow({
       style={staggerStyle(index)}
       className="anim-list-item group flex cursor-pointer items-center gap-4 px-2 py-3.5 transition-colors hover:bg-surface-hover-low"
     >
-      <Avatar name={c.name} size={40} />
+      <Avatar name={c.preferredName || c.name} size={40} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="truncate text-[1rem] font-semibold">{c.name}</span>
+          <span className="truncate text-[1rem] font-semibold">{c.preferredName || c.name}</span>
         </div>
         <div className="mt-0.5 truncate text-[0.8571rem] text-on-surface-variant">
           {c.company || '—'}
@@ -261,10 +261,12 @@ export function CustomerCard({
          自己拼一份就会在换皮肤时变成唯一不长皮肤的那张卡。 */
       className="anim-list-item card flex w-full cursor-pointer items-center gap-3 p-3 text-left"
     >
-      <Avatar name={c.name} size={40} />
+      <Avatar name={c.preferredName || c.name} size={40} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
-          <span className="min-w-0 truncate text-[1rem] font-semibold">{c.name}</span>
+          <span className="min-w-0 truncate text-[1rem] font-semibold">
+            {c.preferredName || c.name}
+          </span>
           {/* 档位色与桌面同源（resolveHealthScoreDisplay）；底色取同色 12% 透明，
               另配一套 chip 色板会与图谱/详情页漂移 */}
           <span

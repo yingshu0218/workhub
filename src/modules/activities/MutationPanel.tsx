@@ -116,8 +116,8 @@ export default function MutationPanel({
     }
   }
   return (
-    <Card className="space-y-3 p-4">
-      <fieldset disabled={!!pending || busy} className="space-y-3">
+    <Card className="space-y-4 p-5 md:p-6">
+      <fieldset disabled={!!pending || busy} className="min-w-0 space-y-4 disabled:opacity-70">
         {children}
       </fieldset>
       {error ? (
