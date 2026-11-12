@@ -1,4 +1,21 @@
-# 寻鸽工作台 · 2026-11-02 轮次归档
+# 寻鸽工作台 · 2026-11-03 至 11-02 轮次归档
+
+**上一轮**：2026-11-03（**Web 端改为「服务端唯一真源」：浏览器不再持有第二份真源**）
+**背景（正式站实况）**：镜像部署后服务端 8 个业务集合全 0，浏览器打开却仍是 ¥18.5 万演示数据。根因是 Local-First 下浏览器本地库**本身就是一份真源**，同步只做 LWW 合并、从不删除本地多余行，于是「服务器被清空」在页面上不可见，两端都以为对方错。用户裁决：**Web 版就是服务器上的那一套；离线由桌面端承担，Web 不做离线兜底。**
+**① 写入直达 PB**：新增 `storage/serverFirst.ts`（`createServerFirstAdapter`）—— `put/update/delete` 先打 PocketBase，**服务端成功后才落 Dexie**（Dexie 从此只是镜像）；`enqueue` 变 no-op（没有队列，也就没有「攒着等同步」的窗口）。被 LWW 判为过期或远端是墓碑时**不写镜像**，2s 去抖触发一次对齐，让镜像跟随服务端。
+**② 启动与周期全量对齐**：新增 `sync/convergeFromServer.ts` —— 逐表拉服务端全量，**远端没有的本地行物理删除**；远端有的行**先删本地再 `mergeRemoteRecord`**（必然走「新建」分支 ⇒ 绕开 LWW 的「本地更新则不覆盖」，实现远端必胜）。复用既有归一化，不自写第二套（json 三形态、墓碑、localId 还原、link 派生都在那里）。`attachments` 一并纳入，但**内容没变就跳过重下**（比对 `updatedAt` + 本地是否已有文件）——否则每 60 秒把所有附件重下一遍。
+**③ 只对 Web 生产生效**：`platform/env.ts#isServerFirstWeb()` = `import.meta.env.PROD && !isTauri()`。`main.tsx` 覆盖适配器注册，并跳过 seed / backfillDemoRelations / `autoConfigureSameOriginSync` / `syncEngine.start`；`AuthGate` 放行后动态 import 对齐一次（token 只有登录后才有，启动时对齐必然失败）。**桌面端与 dev 完全不变**。
+**④ 摘掉 Web 的离线壳**：`public/sw.js` 导航从「network-first + 回退缓存 `index.html`」改为**只走网络**，断网返回 503 提示页；缓存名 bump 到 `nexus-static-v3`。旧行为是断网也能打开旧页面、再读本地库 —— 正是这次事故的复现路径。
+**⑤ token 键收口**：新增 `shared/authToken.ts`（`AuthGate` 与服务端直连适配器共用同一份键与读取口），避免存储层反向依赖 React 组件。
+**⑥ 徽章改说人话**：`sync/badge.ts` 增加 `mode: 'server'` 分支 —— Web 生产显示「服务器／无法连接／对齐中」，不再出现「仅本机／待推送 N 条」这种描述不存在对象的文案；`AppLayout` 按 `isServerFirstWeb()` 传 mode。
+**⑥′ 对齐兼作连通性探测（真机验收当场发现并修）**：首版上线后徽章**永远停在「检测连接…」**——因为 server-first 下同步引擎没启动，而连通性一直是由引擎心跳写的。新增 `runConverge()`：对齐前写 `checking`，成功写 `online/synced/lastSyncAt`，失败写 `offline/lastError`；生产三处调用点（`main` / `AuthGate` / 设置页）全部改走它，`convergeFromServer` 保持纯函数供测试。
+**⑦ 设置页换掉旧的同步表单**：server-first 下「云端同步」页签改为一张卡片（数据在服务器上 + 「以服务器为准重新对齐」按钮），隐藏服务器地址/同步账号/全量推送 —— 那套是「本地库 + 手动接中心」的旧模型。
+**⑧ 补齐用例**：新增 `storage/__tests__/serverFirst.test.ts`（8 条）+ `sync/__tests__/convergeFromServer.test.ts`（7 条，含 `runConverge` 的 online/offline 状态上报），锁住「先服务端后镜像／跳过不写镜像／失败抛错不落库／本地专属表不上行／远端必胜／附件未变不重下／未登录抛错／对齐即探测」。⚠️ 两个坑记下来：① 测试里**不能 `vi.mock('@/sync/pocketbaseAdapter')`**（会把同模块其他导出抹成 undefined 拖挂并发用例），改用依赖注入；② **fake-indexeddb 不能可靠往返 Blob**，附件用例用「有 `size` 的对象」这个最小等价形状，实现侧的判据也据此写成鸭子类型（不用 `instanceof Blob`，跨 realm 会假阴性）。
+**⑨ 为「桌面端连服务器」补一条前置修正**（用户 2026-11-03 决定：桌面端要连）：`ServerFirstAdapter` 的 `delete` 不再一律物理删——**活记录**先在服务端落墓碑（`deleted:1` + `updatedAt` + `rev+1`）再删镜像；**墓碑记录**才走物理删（说明墓碑已收敛，对应回收站 30 天清理）。不这么改，脱机设备只要还持有活副本，下次 push「查不到远端」就会 POST 新建，把已删记录复活。同时实测服务端对桌面端 origin 放行：`OPTIONS` 预检回 `access-control-allow-origin: *`、`allow-headers: authorization`，`index.html` 的 `connect-src` 已含 `https:` ⇒ **网络层无障碍，桌面端无需改代码即可接入**。
+**⑩ 同步登录与页面登录同口径**：新增 `shared/authIdentity.ts#toLoginIdentity`（不含 `@` → `<小写>@workhub.local`），`AuthGate` 与 `pocketbaseAdapter.login` 同时改用它。此前同步登录直接发裸用户名，而 PB 的 `identityFields` 只有 email ⇒ **桌面端接服务器时填「用户名」必然 400**（页面能登、同步登不上，最难查的一类形态）。现在三处（页面 / 首启 / 同步）同一套映射。
+> **本轮验证**：`npx tsc -b` 与 `eslint` 干净；新增 15 条用例全过（`serverFirst` 9 条含墓碑/物理删两条分支、`converge` 7 条含 `runConverge` 状态链）+ `authIdentity` 3 条；`npm run check:all` **全绿 —— 1142 passed / 0 failed / 7 skipped（141 个文件）**。
+> **真机验收（2026-11-03 03:0x / 10:4x，正式站 `646a171` → `aaf6189`）**：无头 Chrome 持临时账号打开首页 —— 控制台出现 `[server-first] Web 端启用…` 与 `已与服务端对齐：写入 0 条、清理 0 条`；首屏全空（累计收款 ¥0 / 0 位客户 / 今日待办 0 / 暂存区 0），`18.5` 与「仅本机」字样均不出现；非登录页（token 生效）；徽章显示「服务器」。**写入链路也实测通过**：在页面「随手速记」输入并点「转入待办」后，服务端 `todos` 出现 1 条（`localId = ws-main:td:SxDBLyMaOL`，标题与输入一致）、`quickNotes` 1 条 —— 证明「写直达 PB」真的落到服务器，不只是写了浏览器镜像。验收后已删除该临时账号与 2 条测试记录，服务端恢复为空（`users=1` 仅用户本人账号，其余集合 0）。⚠️ 首轮发现徽章停在「检测连接…」，即上文 ⑥′。
+⚠️ **仍待办**：`docs/多端App改造方案-Tauri.md` 里「桌面端是否要连服务器」还没定（当前按纯本地实现，**本轮不动桌面**）；server-first 只覆盖业务表，`focusSessions`／`trashBatches` 仍是纯本地（设计如此，不参与对齐）。
 
 **上一轮**：2026-11-02（**认证口径复核与收尾**：用户名退成展示字段）
 **范围**：接下面的「首启自助注册」，只补测试锁、统一文档口径、清理旧脚本，不新增功能。

@@ -4,7 +4,11 @@
 >
 > **当前口径（2026-11-12）**：产品为完全个人使用的助手；开发验证环境重新建立于用户授权的 `devtest` 独立目录，旧 9001 环境仍已停用。正式站未在本轮修改。历史轮次中的团队、Local-First Web 和旧环境描述不代表当前实现；见 [开发测试环境说明](开发测试环境说明.md)。
 
-**最后更新**：2026-11-12（Android 上层写入前置读取隔离与源码候选冻结）
+**最后更新**：2026-11-12（Android 调试 APK 干净构建与静态验收）
+- 冻结源码 `7eba6f9da2d19a7a8c31dcfd6fd02d4d861036a0` 的构建输入 Git blob/模式与独立构建树逐项一致；干净构建 arm64 debug APK，160,225,211 字节，SHA256 `db3248fa…2d36754`。`fun.fpigeon.nexus.debug`、v2 签名、ZIP 16 KiB/原生 `LOAD 0x4000` 对齐、minSDK24/targetSDK36 通过静态检查。实际嵌入前端的旧正式/测试地址零命中；debug HTTP 能力 true，release 前端与合并 Manifest 的明文能力 false。
+- 精确源码独立验收：AuthGate 50/50、核心19/19、前置读取6/6、完整笔记编辑4/4；真实本机双origin 3/3、官方PB0.40.2合成loopback客户端15/15。原始日志与包签名公钥指纹见[Android 客户端验收](Android客户端验收-20261112.md)、[调试 APK 构建说明](Android-调试APK构建-20261112.md)。无设备连接、真机安装、实际服务器联调或 release APK；未推送、部署、发布或访问正式数据。
+
+**上一轮**：2026-11-12（Android 上层写入前置读取隔离与源码候选冻结）
 - 将项目、里程碑、清单、客户分组、账本、速记、笔记编辑和回收站等上层写入口在首次异步读取前绑定原会话/连接 epoch；切站后旧输入不能沿新适配器进入新站点。NoteEditor 的编辑草稿先留在原 scope，旧计时器/卸载回调不能代新身份保存。独立合成 transport 复现的 saveProject 串站、NoteEditor 实际组件回归均通过。
 - 最终源码完整门禁 `npm run check:all`：**168 文件通过/4 跳过、1235 例通过/7 跳过**，图标、TypeScript、ESLint 通过；`npm run build` 结果及最终源码提交见 [Android 客户端验收](Android客户端验收-20261112.md)。真实 localhost 双origin 3/3、合成 PB 9+6 组先前已通过；最终独立复核、APK 构建和真机/真实服务器联调仍待完成。未推送、部署或触碰正式数据。
 
@@ -105,24 +109,7 @@
 **② 工作区改为单一「个人空间」**：`WORKSPACES` 从两项（`ws-main` 团队协作者 / `ws-personal` 个人空间）收成一项 `{ id: 'ws-main', sub: '个人空间' }`；`DEFAULT_WORKSPACE_SUB` 同步改为「个人空间」。切换器按 `WORKSPACES.length > 1` 判定：只有一项时不显示下拉箭头、点不开面板、也不再许「加入工作区（即将上线）」的愿 —— 单选项的"切换"是假的。等真有多工作区再放出来。
 > **本轮验证**：`npx tsc -b` / `eslint` 干净；`npm run check:all` **全绿 —— 1142 passed / 0 failed / 7 skipped（141 个文件）**（本轮无新增用例：改动是渲染层文案与可见性）。
 
-**上一轮**：2026-11-03（**Web 端改为「服务端唯一真源」：浏览器不再持有第二份真源**）
-**背景（正式站实况）**：镜像部署后服务端 8 个业务集合全 0，浏览器打开却仍是 ¥18.5 万演示数据。根因是 Local-First 下浏览器本地库**本身就是一份真源**，同步只做 LWW 合并、从不删除本地多余行，于是「服务器被清空」在页面上不可见，两端都以为对方错。用户裁决：**Web 版就是服务器上的那一套；离线由桌面端承担，Web 不做离线兜底。**
-**① 写入直达 PB**：新增 `storage/serverFirst.ts`（`createServerFirstAdapter`）—— `put/update/delete` 先打 PocketBase，**服务端成功后才落 Dexie**（Dexie 从此只是镜像）；`enqueue` 变 no-op（没有队列，也就没有「攒着等同步」的窗口）。被 LWW 判为过期或远端是墓碑时**不写镜像**，2s 去抖触发一次对齐，让镜像跟随服务端。
-**② 启动与周期全量对齐**：新增 `sync/convergeFromServer.ts` —— 逐表拉服务端全量，**远端没有的本地行物理删除**；远端有的行**先删本地再 `mergeRemoteRecord`**（必然走「新建」分支 ⇒ 绕开 LWW 的「本地更新则不覆盖」，实现远端必胜）。复用既有归一化，不自写第二套（json 三形态、墓碑、localId 还原、link 派生都在那里）。`attachments` 一并纳入，但**内容没变就跳过重下**（比对 `updatedAt` + 本地是否已有文件）——否则每 60 秒把所有附件重下一遍。
-**③ 只对 Web 生产生效**：`platform/env.ts#isServerFirstWeb()` = `import.meta.env.PROD && !isTauri()`。`main.tsx` 覆盖适配器注册，并跳过 seed / backfillDemoRelations / `autoConfigureSameOriginSync` / `syncEngine.start`；`AuthGate` 放行后动态 import 对齐一次（token 只有登录后才有，启动时对齐必然失败）。**桌面端与 dev 完全不变**。
-**④ 摘掉 Web 的离线壳**：`public/sw.js` 导航从「network-first + 回退缓存 `index.html`」改为**只走网络**，断网返回 503 提示页；缓存名 bump 到 `nexus-static-v3`。旧行为是断网也能打开旧页面、再读本地库 —— 正是这次事故的复现路径。
-**⑤ token 键收口**：新增 `shared/authToken.ts`（`AuthGate` 与服务端直连适配器共用同一份键与读取口），避免存储层反向依赖 React 组件。
-**⑥ 徽章改说人话**：`sync/badge.ts` 增加 `mode: 'server'` 分支 —— Web 生产显示「服务器／无法连接／对齐中」，不再出现「仅本机／待推送 N 条」这种描述不存在对象的文案；`AppLayout` 按 `isServerFirstWeb()` 传 mode。
-**⑥′ 对齐兼作连通性探测（真机验收当场发现并修）**：首版上线后徽章**永远停在「检测连接…」**——因为 server-first 下同步引擎没启动，而连通性一直是由引擎心跳写的。新增 `runConverge()`：对齐前写 `checking`，成功写 `online/synced/lastSyncAt`，失败写 `offline/lastError`；生产三处调用点（`main` / `AuthGate` / 设置页）全部改走它，`convergeFromServer` 保持纯函数供测试。
-**⑦ 设置页换掉旧的同步表单**：server-first 下「云端同步」页签改为一张卡片（数据在服务器上 + 「以服务器为准重新对齐」按钮），隐藏服务器地址/同步账号/全量推送 —— 那套是「本地库 + 手动接中心」的旧模型。
-**⑧ 补齐用例**：新增 `storage/__tests__/serverFirst.test.ts`（8 条）+ `sync/__tests__/convergeFromServer.test.ts`（7 条，含 `runConverge` 的 online/offline 状态上报），锁住「先服务端后镜像／跳过不写镜像／失败抛错不落库／本地专属表不上行／远端必胜／附件未变不重下／未登录抛错／对齐即探测」。⚠️ 两个坑记下来：① 测试里**不能 `vi.mock('@/sync/pocketbaseAdapter')`**（会把同模块其他导出抹成 undefined 拖挂并发用例），改用依赖注入；② **fake-indexeddb 不能可靠往返 Blob**，附件用例用「有 `size` 的对象」这个最小等价形状，实现侧的判据也据此写成鸭子类型（不用 `instanceof Blob`，跨 realm 会假阴性）。
-**⑨ 为「桌面端连服务器」补一条前置修正**（用户 2026-11-03 决定：桌面端要连）：`ServerFirstAdapter` 的 `delete` 不再一律物理删——**活记录**先在服务端落墓碑（`deleted:1` + `updatedAt` + `rev+1`）再删镜像；**墓碑记录**才走物理删（说明墓碑已收敛，对应回收站 30 天清理）。不这么改，脱机设备只要还持有活副本，下次 push「查不到远端」就会 POST 新建，把已删记录复活。同时实测服务端对桌面端 origin 放行：`OPTIONS` 预检回 `access-control-allow-origin: *`、`allow-headers: authorization`，`index.html` 的 `connect-src` 已含 `https:` ⇒ **网络层无障碍，桌面端无需改代码即可接入**。
-**⑩ 同步登录与页面登录同口径**：新增 `shared/authIdentity.ts#toLoginIdentity`（不含 `@` → `<小写>@workhub.local`），`AuthGate` 与 `pocketbaseAdapter.login` 同时改用它。此前同步登录直接发裸用户名，而 PB 的 `identityFields` 只有 email ⇒ **桌面端接服务器时填「用户名」必然 400**（页面能登、同步登不上，最难查的一类形态）。现在三处（页面 / 首启 / 同步）同一套映射。
-> **本轮验证**：`npx tsc -b` 与 `eslint` 干净；新增 15 条用例全过（`serverFirst` 9 条含墓碑/物理删两条分支、`converge` 7 条含 `runConverge` 状态链）+ `authIdentity` 3 条；`npm run check:all` **全绿 —— 1142 passed / 0 failed / 7 skipped（141 个文件）**。
-> **真机验收（2026-11-03 03:0x / 10:4x，正式站 `646a171` → `aaf6189`）**：无头 Chrome 持临时账号打开首页 —— 控制台出现 `[server-first] Web 端启用…` 与 `已与服务端对齐：写入 0 条、清理 0 条`；首屏全空（累计收款 ¥0 / 0 位客户 / 今日待办 0 / 暂存区 0），`18.5` 与「仅本机」字样均不出现；非登录页（token 生效）；徽章显示「服务器」。**写入链路也实测通过**：在页面「随手速记」输入并点「转入待办」后，服务端 `todos` 出现 1 条（`localId = ws-main:td:SxDBLyMaOL`，标题与输入一致）、`quickNotes` 1 条 —— 证明「写直达 PB」真的落到服务器，不只是写了浏览器镜像。验收后已删除该临时账号与 2 条测试记录，服务端恢复为空（`users=1` 仅用户本人账号，其余集合 0）。⚠️ 首轮发现徽章停在「检测连接…」，即上文 ⑥′。
-⚠️ **仍待办**：`docs/多端App改造方案-Tauri.md` 里「桌面端是否要连服务器」还没定（当前按纯本地实现，**本轮不动桌面**）；server-first 只覆盖业务表，`focusSessions`／`trashBatches` 仍是纯本地（设计如此，不参与对齐）。
-
-更早轮次见 [2026-11-02 轮次归档](PROGRESS-archive-20261112.md)与[本轮归档](PROGRESS-archive-20261111.md)。
+更早轮次见 [2026-11-03 至 11-02 轮次归档](PROGRESS-archive-20261112.md)与[本轮归档](PROGRESS-archive-20261111.md)。
 
 ## 一、当前状态总览
 
@@ -137,7 +124,7 @@
 | 审计问题 | 2026-10 历史批次 P0×2 / P1×19 / P2×60 **全部清零**。**2026-10-26 全仓复审**：P0 = 0 / P1 = 3 / P2 = 12（报告 `docs/审计报告-全仓-20261026.md`），其中 P1 三项已整改（事实源校正 / CI 门禁 / 文档口径），**`zod < 4.6.6` 高危仍待拍板**；P2 已修 10 项、3 项如实挂起 |
 | 同步机制完善（历史问题跟踪，当前协议见第三版） | P0-1 墓碑清理竞态修复 + P0-2 推送侧 LWW ✅；P1-3 服务端墓碑 cron ✅；**P1-4 HTTPS/PWA 未闭环**（2026-10-09 更正，见下方 P1-4 行与「二、遗留问题」）；正式环境 `team.fpigeon.fun` 已上线（LE 证书 + `http→https` 301），但 **PWA 装机/离线能力需在该正式域名上复验**；Issue #140 多关联 json 字段已入 `collections.json`（**自托管端需重新导入并重启**，见部署指南） |
 | 正式环境（历史台账，本轮未访问/未核验） | **https://team.fpigeon.fun** 已部署运行（2026-10-09）。CNB 制品库 `docker.cnb.cool/blueteam0715/workhub:latest` → 主机 `1204pigeon`(<PROD_HOST>) 的 `/opt/workhub/`，**单容器全包**（前端 + relay + PocketBase，同源路由；**不含 Tauri 手机端/桌面端**），只绑回环 `127.0.0.1:8790` + 宿主 nginx 反代（acme.sh 单独签发的 TLS）。数据持久化在 `/opt/workhub/data`；资源上限 768m / 1.0 核 / 256 PIDs。**已关闭 `users` 集合的公开注册**（PB 默认 `createRule` 为空 = 任何人可自助注册，而业务集合规则是「登录即可读写全部」→ 组合起来等于公网裸奔；现设为 Locked，账号改由超管手工建。⚠️ **该设置只存在数据卷的 `data.db` 里、不在代码里**，换机/重建空库后需重做一次）。流程、端口占用、排错与这条加固步骤见 `docs/Docker镜像构建与部署.md`。⚠️ **2026-10-21 已升级**：镜像 label `org.opencontainers.image.revision` = **`cd74317`**（此前停在 `20dac51`/10-10，落后 47 提交）。同批完成 schema 导入 → 业务集合 **19 → 20**（补 `agent_events` + `customers.groupId` + `customerGroups.kind`），`check:schema` 对线上输出「**完全一致**」。判据不靠猜：线上主包含 4 个新工具名（各 2 处）、容器日志确认「20 个集合均已存在，跳过导入（幂等）」。⚠️ **正式站业务数据全为 0 条**（自上线以来就是空库），故本次升级零数据风险。**现状台账 / 上线判据 / 首次验收清单 / 回滚口径见 [`docs/正式站状态与上线清单-20261026.md`](正式站状态与上线清单-20261026.md)**（2026-10-26 实测：镜像 `cd74317` 落后 main **26 提交**，schema 已 21 集合一致 —— 「新 schema + 旧代码」，**先部署再录数据**）。**2026-10-27 进展**：制品库 `latest` 已到 `a5f6bdf` 且**质量门禁每次 push 均通过**；**正式站已部署到 `a5f6bdf`**（容器 healthy / 21 集合幂等跳过导入 / 公网四端点 200 / `check:schema --prod` 完全一致），部署前已备份 `pb_data.bak-20261027-002612` 并打回滚 tag `workhub:rollback-20261027-002557`。⚠️ **本行此前写的「镜像 `cd74317`」是过时记录**：上机实测部署前实为 `ab0d253`（10-26，落后 main 仅 5 提交），误判来源与纠正判据见 `docs/正式站状态与上线清单-20261026.md §二` —— **判断线上版本只认主机 `docker image inspect` 的 revision label，不认文档记录**。**正式站部署无留痕机制**（`.deploy-state` 只记测试站）已列为待补 |
-| 多端 App（Tauri v2） | 运行时改址/恢复入口、认证与上层写入口整链 epoch、会话/镜像/草稿/导出隔离及HTTPS/debug HTTP边界已并入源码候选；完整门禁1235通过/7跳过、真实双origin3/3及合成PB客户端9+6通过。最终独立复核、整合APK与真机待验收。**当前没有已交付并验证的新版正式App**；旧库/队列保留待核对 |
+| 多端 App（Tauri v2） | Android 运行时改址/恢复入口、认证与上层写入口整链 epoch、会话/镜像/草稿/导出隔离及 HTTPS/debug HTTP 边界已并入源码候选；完整门禁1235通过/7跳过、真实双origin3/3及合成PB客户端15/15通过。整合 arm64 debug APK 已干净构建并静态验收：v2签名、16 KiB ZIP/ELF 对齐、实际打包前端及 debug/release HTTP 闸门检查通过。**无真机安装/首启/登录/同步验收，也无 release APK 或正式 App 发布**；旧库/队列保留待核对 |
 | Changelog | **已改为版本级**（2026-10-09）：发版本时往根 `CHANGELOG.md` 追加一节，**不再逐条记流水**；日常记录见本文件与 git 提交历史。旧逐条表格（#1~#128）已归档至 `docs/CHANGELOG-详细流水-v1.0.0至v1.2.1.md` |
 
 ## 二、阶段进度（Phase 0-7）
