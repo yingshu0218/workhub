@@ -7,6 +7,7 @@ import { nextSortOrder, reorderBySortOrder } from '@/repositories/sortOrder'
 import type { TodoList, Todo, TrashSnapshot } from '@/db/types'
 import { useQuery } from '@/queries/hooks'
 import { isTodoOpen } from './domain'
+import { captureClientWriteSession } from '@/modules/clientWriteSession'
 
 /**
  * 待办清单数据层（模块内查询层，组件不直连存储）
@@ -29,12 +30,15 @@ export function useTodoLists(): TodoList[] {
 
 /** 新建清单 */
 export async function createTodoList(name: string): Promise<TodoList> {
+  const checkSession = captureClientWriteSession()
   const now = Date.now()
+  const sortOrder = await nextSortOrder('todoLists')
+  checkSession()
   const list: TodoList = {
     id: newId('tl'),
     name: name.trim(),
     // 尾值走收口实现（max+1，非 length —— length 在删除后会产生重号，见 repositories/sortOrder.ts）
-    sortOrder: await nextSortOrder('todoLists'),
+    sortOrder,
     createdAt: now,
     updatedAt: now,
     deleted: 0,

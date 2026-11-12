@@ -4,6 +4,7 @@ import type { Note, QuickNote, Todo } from '@/db/types'
 import { eventBus } from '@/shared/eventBus'
 import { syncEngine } from '@/sync/engine'
 import { DEFAULT_TODO_PRIORITY } from '@/modules/todo/priority'
+import { captureClientWriteSession } from '@/modules/clientWriteSession'
 
 /**
  * 「随手速记」领域收口（Issue #70 创立，Issue #134 扩为速记的**唯一**处置入口）。
@@ -170,11 +171,13 @@ export async function convertQuickNote(
   to: 'todo' | 'note',
   channel?: ConvertChannel,
 ): Promise<string> {
+  const checkSession = captureClientWriteSession()
   const convertedAt = Date.now()
   const targetId =
     to === 'todo'
       ? await captureToTodo(quickNote.content, channel)
       : await captureToNote(quickNote.content, channel)
+  checkSession()
   // `convertedTo` 记录「去向 + 通道 + 时间」，便于暂存区与审计回溯
   await quickNoteRepo.put({
     ...quickNote,

@@ -7,6 +7,7 @@ import { isImeComposing } from '@/shared/ime'
 import { db } from '@/db/db'
 import { interactionRepo, newId, saveInteractionAndTouchCustomer } from '@/repositories'
 import { nextSortOrder } from '@/repositories/sortOrder'
+import { captureClientWriteSession } from '@/modules/clientWriteSession'
 import type { PutInput } from '@/repositories/repository'
 import type { Customer, Interaction, Project, ProjectMilestone } from '@/db/types'
 import {
@@ -477,21 +478,28 @@ function MilestoneCard({
       setError('权重必须为正数')
       return
     }
-    await saveMilestone({
-      projectId,
-      name,
-      weight: w,
-      status: 'planned',
-      dueAt: dueAt ? dayjs(dueAt).valueOf() : undefined,
-      // 尾值收口（审计 C-9 同类项）：原为 `milestones.length` —— 删除里程碑后会与存活项重号。
-      // 作用域限定「本项目内的里程碑」（不能退化成全表 max，否则会拿到别的项目的尾值）。
-      sortOrder: await nextSortOrder('projectMilestones', (m) => m.projectId === projectId),
-    })
-    setName('')
-    setWeight('1')
-    setDueAt('')
-    setError('')
-    setAdding(false)
+    const checkSession = captureClientWriteSession()
+    try {
+      const sortOrder = await nextSortOrder('projectMilestones', (m) => m.projectId === projectId)
+      checkSession()
+      await saveMilestone({
+        projectId,
+        name,
+        weight: w,
+        status: 'planned',
+        dueAt: dueAt ? dayjs(dueAt).valueOf() : undefined,
+        // 尾值收口（审计 C-9 同类项）：原为 `milestones.length` —— 删除里程碑后会与存活项重号。
+        // 作用域限定「本项目内的里程碑」（不能退化成全表 max，否则会拿到别的项目的尾值）。
+        sortOrder,
+      })
+      setName('')
+      setWeight('1')
+      setDueAt('')
+      setError('')
+      setAdding(false)
+    } catch (error) {
+      setError(error instanceof Error ? error.message : '保存失败，请重试')
+    }
   }
 
   async function cycleStatus(m: ProjectMilestone) {
@@ -635,6 +643,7 @@ function QuickLog({ projectId }: { projectId: string }) {
     setSaveError('')
     setSaving(true)
     try {
+      const checkSession = captureClientWriteSession()
       const draft = pending.current ??= { id: newId('itx'), at: Date.now() }
       const at = draft.at
       const interaction: PutInput<Interaction> = {
@@ -646,6 +655,7 @@ function QuickLog({ projectId }: { projectId: string }) {
       }
       // 有挂靠客户时复用原子双写刷新 lastContactAt；无客户直接落库
       const project = await db.projects.get(projectId)
+      checkSession()
       if (project?.customerId) {
         interaction.customerId = project.customerId
         await saveInteractionAndTouchCustomer(interaction, project.customerId)

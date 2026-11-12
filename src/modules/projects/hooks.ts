@@ -5,6 +5,7 @@ import { newId } from '@/repositories'
 import { useCollection, useQuery } from '@/queries/hooks'
 import type { Project, ProjectMilestone, Todo, Transaction, Note, Interaction } from '@/db/types'
 import { isTodoOpen } from '@/modules/todo/domain'
+import { captureClientWriteSession } from '@/modules/clientWriteSession'
 
 /**
  * 项目模块数据层（组件禁止直连 Dexie）
@@ -148,8 +149,10 @@ export async function saveProject(input: {
   budget?: number
   note?: string
 }): Promise<Project> {
+  const checkSession = captureClientWriteSession()
   const now = Date.now()
   const prev = input.id ? await db.projects.get(input.id) : undefined
+  checkSession()
   const record: Project = {
     id: input.id ?? newId('pj'),
     name: input.name.trim(),
@@ -181,8 +184,10 @@ export async function saveMilestone(input: {
   status: ProjectMilestone['status']
   sortOrder?: number
 }): Promise<void> {
+  const checkSession = captureClientWriteSession()
   const now = Date.now()
   const prev = input.id ? await db.projectMilestones.get(input.id) : undefined
+  checkSession()
   const record: ProjectMilestone = {
     id: input.id ?? newId('ms'),
     projectId: input.projectId,

@@ -23,6 +23,7 @@ import { useCallback, useRef, useState } from 'react'
 import type { Todo, Customer, Ledger, Habit, HabitLog, QuickNote, Note } from '@/db/types'
 import dayjs from 'dayjs'
 import { convertQuickNote } from '@/modules/notes/quickCapture'
+import { captureClientWriteSession } from '@/modules/clientWriteSession'
 
 function fmt(sec: number) {
   return `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`
@@ -629,6 +630,7 @@ export function QuickNoteCard() {
    */
   async function convertDraft() {
     if (busy || !draft.trim()) return
+    const checkSession = captureClientWriteSession()
     setBusy(true)
     try {
       // QuickNote 的同步元数据（updatedAt/deleted/rev）由 repository 落库时统一盖章，
@@ -638,6 +640,7 @@ export function QuickNoteCard() {
       const qnId = newId('qn')
       const content = draft.trim()
       await quickNoteRepo.put({ id: qnId, content, createdAt: Date.now() })
+      checkSession()
       // 处置只需业务字段：库内那份记录由 convertQuickNote 回写 convertedTo/At/Via
       const targetId = await convertQuickNote({ id: qnId, content } as QuickNote, 'todo', 'dashboard')
       setDraft('')

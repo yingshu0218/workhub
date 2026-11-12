@@ -18,6 +18,7 @@ import type {
 } from '@/db/types'
 import { isTodoOpen, isTodoDone } from '@/modules/todo/domain'
 import { normalizeTodoPriority } from '@/modules/todo/priority'
+import { captureClientWriteSession } from '@/modules/clientWriteSession'
 import type { computeIntimacyScore } from './intimacy'
 
 /**
@@ -521,7 +522,10 @@ export async function createCustomerGroup(input: {
   /** 分组模式（2026-10-17 双模式）：缺省 rule 兼容旧调用方 */
   kind?: 'manual' | 'rule'
 }): Promise<CustomerGroup> {
+  const checkSession = captureClientWriteSession()
   const now = Date.now()
+  const sortOrder = await nextSortOrder('customerGroups')
+  checkSession()
   const group: CustomerGroup = {
     id: newId('cg'),
     name: input.name.trim(),
@@ -529,7 +533,7 @@ export async function createCustomerGroup(input: {
     includeTags: input.includeTags,
     excludeTags: input.excludeTags,
     // 尾值走收口实现（max+1，非 length —— length 在删除后会产生重号，见 repositories/sortOrder.ts）
-    sortOrder: await nextSortOrder('customerGroups'),
+    sortOrder,
     createdAt: now,
     updatedAt: now,
     deleted: 0,

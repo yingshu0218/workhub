@@ -4,6 +4,7 @@ import { nextLedgerSortOrder } from './hooks'
 import { useFormReset } from '@/shared/useFormReset'
 import type { Ledger } from '@/db/types'
 import { Button, Field, Modal, inputCls, useAutoFocus } from '@/design-system/ui'
+import { captureClientWriteSession } from '@/modules/clientWriteSession'
 
 const CURRENCIES = ['CNY', 'USD', 'EUR'] as const
 const CYCLES = ['月结', '季结', '年结', '不封账'] as const
@@ -74,6 +75,7 @@ export default function LedgerFormDrawer({
     // 消除「UI 一处 / AI 一处」两条内联路径漂移出「双默认账本」的可能。
     // 错误处理（审计 P1）：此前无 try/catch，落库失败的 Promise 无人处理 → 静默失败零提示。
     try {
+      const checkSession = captureClientWriteSession()
       if (editLedger) {
         await saveLedger({
           ...editLedger,
@@ -85,6 +87,8 @@ export default function LedgerFormDrawer({
           isDefault,
         })
       } else {
+        const sortOrder = await nextLedgerSortOrder()
+        checkSession()
         await saveLedger({
           id: newId('ldg'),
           name: name.trim(),
@@ -92,7 +96,7 @@ export default function LedgerFormDrawer({
           openingBalance: openingNum,
           closingCycle: cycle,
           // 新账本排到左侧树末尾
-          sortOrder: await nextLedgerSortOrder(),
+          sortOrder,
           createdAt: Date.now(),
           isDefault,
         })

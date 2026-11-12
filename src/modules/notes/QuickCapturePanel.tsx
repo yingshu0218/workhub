@@ -4,6 +4,7 @@ import { Icon } from '@/design-system/Icon'
 import { inputCls } from '@/design-system/ui'
 import { settingsRepo } from '@/repositories/localAdmin'
 import { saveQuickCapture } from './quickCapture'
+import { captureClientWriteSession } from '@/modules/clientWriteSession'
 
 const CONFIRM_MS = 2600
 
@@ -61,7 +62,9 @@ export default function QuickCapture({ collapsed = false }: { collapsed?: boolea
     }
     setSaving(true)
     try {
+      const checkSession = captureClientWriteSession()
       const settings = await settingsRepo.get()
+      checkSession()
       const id = await saveQuickCapture({
         content,
         folderId: settings.notes?.defaultFolderId,
@@ -69,6 +72,9 @@ export default function QuickCapture({ collapsed = false }: { collapsed?: boolea
       clearDraft()
       collapse()
       setSavedNoteId(id)
+    } catch (error) {
+      // 会话切换时原输入留在本组件；不把旧速记交给新身份重试。
+      console.warn('[quick-capture] 保存未完成', error)
     } finally {
       setSaving(false)
     }

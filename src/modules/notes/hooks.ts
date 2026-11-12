@@ -5,6 +5,7 @@ import { newId, setNoteFolder } from '@/repositories'
 import { cascadeSoftDeleteLinks, memberIndexOf } from '@/repositories/links'
 import type { Link } from '@/db/types'
 import { useCollection, useQuery } from '@/queries/hooks'
+import { captureClientWriteSession } from '@/modules/clientWriteSession'
 
 /**
  * 笔记模块领域查询 Hook（组件不直碰 Dexie，存储切换只改查询层）
@@ -96,8 +97,10 @@ export function useNoteFolders(): NoteFolder[] {
  * 写一律经 `storage.transaction`（StorageAdapter 原语），读仍走 `db.*`。
  */
 export async function createNoteFolder(name: string): Promise<NoteFolder> {
+  const checkSession = captureClientWriteSession()
   const trimmed = name.trim()
   const existing = await storage.list<NoteFolder>('noteFolders')
+  checkSession()
   const hit = existing.find((f) => !f.deleted && f.name === trimmed)
   if (hit) return hit
   const now = Date.now()

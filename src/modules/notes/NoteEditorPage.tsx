@@ -25,6 +25,8 @@ import { filterBlacklisted, useIntimacyConfig } from '@/modules/crm/intimacy'
 import { useCustomerScoreRows } from '@/modules/crm/hooks'
 import { useProjects, moveNoteToProject } from '@/modules/projects/hooks'
 import { staggerStyle } from '@/shared/stagger'
+import { captureClientWriteSession } from '@/modules/clientWriteSession'
+import { scopedClientKey } from '@/storage/clientSession'
 import {
   NOTE_PROSE_CSS,
   renderMarkdown,
@@ -339,6 +341,14 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   const handleMentionNavRef = useRef<(key: string) => boolean>(() => false)
   const dirtyRef = useRef(false)
+  const draftRevisionRef = useRef(0)
+  const editorScopeRef = useRef<{ id: string; key: string; check: () => void } | null>(null)
+  if (editorScopeRef.current?.id !== note.id)
+    editorScopeRef.current = {
+      id: note.id,
+      key: scopedClientKey('workhub.draft.note-editor:' + note.id),
+      check: captureClientWriteSession(),
+    }
 
   // ===== 预览开关（Issue #158）：切换右栏显隐，并持久化到 localStorage =====
   function togglePreview() {
@@ -372,6 +382,18 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
   // ===== 自动保存：停顿 800ms 防抖 noteRepo.put =====
   const scheduleSaveRef = useRef<() => void>(() => {})
   function scheduleSave() {
+    // 编辑时立即保留原会话草稿；旧 timer/卸载回调不能把这份输入交给新身份。
+    draftRevisionRef.current++
+    const scope = editorScopeRef.current
+    if (scope) {
+      try {
+        localStorage.setItem(scope.key, JSON.stringify({
+          kind: 'note-editor', id: scope.id, title: titleRef.current,
+          markdown: mdRef.current, tags: tagsRef.current,
+          baseRev: noteRef.current.rev, submitted: false,
+        }))
+      } catch { /* 浏览器存储不可用时仍保留组件内输入。 */ }
+    }
     dirtyRef.current = true
     setSaveState('dirty')
     clearTimeout(timerRef.current)
@@ -383,22 +405,41 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
     clearTimeout(timerRef.current)
     const base = noteRef.current
     if (!dirtyRef.current || !base) return
+    // timer 与 pagehide 必须沿用编辑发生时的身份，不能在延迟执行时改认当前身份。
+    const scope = editorScopeRef.current
+    const checkSession = scope?.check ?? captureClientWriteSession()
+    const revision = draftRevisionRef.current
+    const title = titleRef.current.trim() || '未命名笔记'
+    const markdown = mdRef.current
+    const tags = [...tagsRef.current]
+    try { checkSession() } catch { setSaveState('dirty'); return }
     dirtyRef.current = false
     setSaveState('saving')
     // 删除竞态防复活（审计 P2-4）：put 前复查最新记录，若已被软删则放弃写入
-    const latest = await noteRepo.get(base.id)
-    if (!latest) {
-      setSaveState('saved')
-      return
+    try {
+      const latest = await noteRepo.get(base.id)
+      checkSession()
+      if (!latest) {
+        setSaveState('saved')
+        return
+      }
+      await saveNoteWithMentions({
+        ...latest,
+        title,
+        markdown,
+        tags,
+      })
+      checkSession()
+      // 旧保存晚于新编辑返回时，不能删掉新一版尚未提交的草稿。
+      if (draftRevisionRef.current === revision && scope === editorScopeRef.current && scope)
+        localStorage.removeItem(scope.key)
+      // 保存徽章防虚报（审计 P2-5）：await 期间可能有新输入，复查 dirty 再定态
+      setSaveState(dirtyRef.current || draftRevisionRef.current !== revision ? 'dirty' : 'saved')
+    } catch (error) {
+      if (draftRevisionRef.current === revision) dirtyRef.current = true
+      setSaveState('dirty')
+      if (!String(error).includes('SESSION_CHANGED')) console.error('[notes] 自动保存失败', error)
     }
-    await saveNoteWithMentions({
-      ...latest,
-      title: titleRef.current.trim() || '未命名笔记',
-      markdown: mdRef.current,
-      tags: tagsRef.current,
-    })
-    // 保存徽章防虚报（审计 P2-5）：await 期间可能有新输入，复查 dirty 再定态
-    setSaveState(dirtyRef.current ? 'dirty' : 'saved')
   }
 
   // 卸载前兜底：有未保存改动立即落库（fire-and-forget）

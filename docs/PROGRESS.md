@@ -4,7 +4,11 @@
 >
 > **当前口径（2026-11-12）**：产品为完全个人使用的助手；开发验证环境重新建立于用户授权的 `devtest` 独立目录，旧 9001 环境仍已停用。正式站未在本轮修改。历史轮次中的团队、Local-First Web 和旧环境描述不代表当前实现；见 [开发测试环境说明](开发测试环境说明.md)。
 
-**最后更新**：2026-11-12（Android 双origin真实回归与调试构建脚本并入候选）
+**最后更新**：2026-11-12（Android 上层写入前置读取隔离与源码候选冻结）
+- 将项目、里程碑、清单、客户分组、账本、速记、笔记编辑和回收站等上层写入口在首次异步读取前绑定原会话/连接 epoch；切站后旧输入不能沿新适配器进入新站点。NoteEditor 的编辑草稿先留在原 scope，旧计时器/卸载回调不能代新身份保存。独立合成 transport 复现的 saveProject 串站、NoteEditor 实际组件回归均通过。
+- 最终源码完整门禁 `npm run check:all`：**168 文件通过/4 跳过、1235 例通过/7 跳过**，图标、TypeScript、ESLint 通过；`npm run build` 结果及最终源码提交见 [Android 客户端验收](Android客户端验收-20261112.md)。真实 localhost 双origin 3/3、合成 PB 9+6 组先前已通过；最终独立复核、APK 构建和真机/真实服务器联调仍待完成。未推送、部署或触碰正式数据。
+
+**上一轮**：2026-11-12（Android 双origin真实回归与调试构建脚本并入候选）
 - 整合候选 c8f63b6 经独立测试：真实 localhost 双origin **3/3**（同owner/generation缓存、token、草稿、未知请求、晚正文及A→B→A；307/308合成密码POST到B请求数0），官方PocketBase 0.40.2合成loopback库的 `test:clients` **9+6组**通过。上述3例已入库，最终完整门禁待跑。
 - 加入隔离的 Android debug APK 构建脚本与静态验收说明：JDK21/SDK36/NDK27/Rust arm64、显式HTTP调试信号、16KiB页ELF链接参数。固定基线已有原生/Gradle全链构建，最终整合APK与真机仍待验收；不发布、不部署。上层表单在事务前异步读取的切站P1另由独立修复分支处理中。
 - [Android 客户端验收与边界](Android客户端验收-20261112.md)、[调试APK构建说明](Android-调试APK构建-20261112.md)记录原始日志与待验范围；未推送或触碰真实生产数据。
@@ -118,26 +122,7 @@
 > **真机验收（2026-11-03 03:0x / 10:4x，正式站 `646a171` → `aaf6189`）**：无头 Chrome 持临时账号打开首页 —— 控制台出现 `[server-first] Web 端启用…` 与 `已与服务端对齐：写入 0 条、清理 0 条`；首屏全空（累计收款 ¥0 / 0 位客户 / 今日待办 0 / 暂存区 0），`18.5` 与「仅本机」字样均不出现；非登录页（token 生效）；徽章显示「服务器」。**写入链路也实测通过**：在页面「随手速记」输入并点「转入待办」后，服务端 `todos` 出现 1 条（`localId = ws-main:td:SxDBLyMaOL`，标题与输入一致）、`quickNotes` 1 条 —— 证明「写直达 PB」真的落到服务器，不只是写了浏览器镜像。验收后已删除该临时账号与 2 条测试记录，服务端恢复为空（`users=1` 仅用户本人账号，其余集合 0）。⚠️ 首轮发现徽章停在「检测连接…」，即上文 ⑥′。
 ⚠️ **仍待办**：`docs/多端App改造方案-Tauri.md` 里「桌面端是否要连服务器」还没定（当前按纯本地实现，**本轮不动桌面**）；server-first 只覆盖业务表，`focusSessions`／`trashBatches` 仍是纯本地（设计如此，不参与对齐）。
 
-**上一轮**：2026-11-02（**认证口径复核与收尾**：用户名退成展示字段）
-**范围**：接下面的「首启自助注册」，只补测试锁、统一文档口径、清理旧脚本，不新增功能。
-**① 首启请求必须传原始用户名**：`/setup/user` 收用户输入，后端校验「不能含 @」并自行拼 `<用户名>@workhub.local`；只有登录端做映射（`AuthGate.toIdentity`）。`authGate.test.tsx` 补了请求体断言 —— 此前误传映射值也能全绿（已做变异校验：还原旧写法该用例变红）。
-**② username 退成可选展示字段**：`passwordAuth.identityFields` 固定只有 `email`（0.40 文本字段无 UNIQUE，加 username 必被拒）；首启只 best-effort 补字段，**补不上就不往建号请求里带**（否则 PB 以未知字段 400，首启锁死）。旧的 `patch:users-auth` 脚本与 npm 命令已删除，已有部署无需任何 patch。
-**③ 占位邮箱统一小写**（真机发现的边界）：PB 0.40 **不归一化邮箱大小写**（实测 `Alice@...` 与 `alice@...` 是两个值）。现在 `parseSetupInput` / `AuthGate.toIdentity` / `entrypoint` 三处都用 `<用户名 小写>@workhub.local`，username 仍按输入展示 —— 注册 `Alice` 后输 `Alice` 或 `alice` 都能登录。
-**④ 兜底管理员只按 email 建号**：`entrypoint.mjs` 的 filter 不再引用可能不存在的 `username` 字段（新库查询会 unknown field 400）；建号也不写 username。
-**⑤ 顺带**：`AuthGate` 三处表单统一用设计系统 `Button`（补 `type` 透传）；`todoRowDetail` 深链清参断言改为等待导航落地（修全量并发下的假红）。
-> **本轮验证**：`setupRoutes.test.mjs` **14 条** + `authGate.test.tsx` **8 条** + `buttonSubmit.test.tsx` **1 条**；`npm run check:all` 全绿 —— **1123 passed / 0 failed / 7 skipped**（138 文件）。**真实 PB 0.40.2 空库冒烟全过**（临时目录、未进仓库）：全新库按 email filter 查询 200 / 兜底管理员建号 200 / `hasUsers=false` / setup 建号 200 / 映射邮箱自动登录 200 / 第二次 409 / 大写用户名归一化后大小写均可登录。
-⚠️ **状态**：代码已提交，推送与线上部署以 git / 发布记录为准。
-
-**上一轮**：2026-11-02（**首启自助注册：用户名与密码由用户自己设**）
-**背景**：账号此前只能由容器按 `WORKHUB_ADMIN_USER/PASSWORD` 写死创建（`admin` + 公开默认密码 `password`），既不是用户自己的账号，还得靠「强制首改」补救。
-**① 后端 `/setup/*`**（新增 `scripts/setupRoutes.mjs`，`scripts/serve.mjs` 挂载）：`GET /setup/status` 用超管凭据查 `users.totalItems === 0`；`POST /setup/user` 仅在空库时建号（否则 **409「已完成初始化」**），identity 3–32 位、密码 ≥8 位，PB 的 400 原话**透传**（重复用户名不吞成「创建失败」）。两条路由**刻意不用 `/api` 前缀** —— 那条被 entrypoint 整体转给 PB。页面无 token 也能调，但建出第一个账号后接口自动失效（判据是空库，不需要另加开关）。
-**② 登录标识 = 邮箱，用户名只作展示**：PB 0.40 的文本字段没有 UNIQUE 约束，`identityFields` 里不能放 username。建号邮箱 = `<用户名>@workhub.local`（`parseSetupInput`），登录时前端把不含 `@` 的输入补成同一邮箱（`AuthGate.toIdentity`）—— 登录框写「用户名或邮箱」仍然成立。username 只用于展示，首启时 best-effort 补字段。
-**③ 前端 `AuthGate`**：挂载先问 `/setup/status`，`needsSetup:true` 出「初始化工作台」（用户名 / 密码 / 确认密码，两次不一致就地报错），建号后**直接用该账号登录**进应用；`needsSetup:false` 保持原登录页。顺手删掉登录页那句「页面不提供自助注册」（已不成立，也属页面旁白）。
-**④ `/relay/auth-status` 的启用判据**多一条「`users` 已有账号」：否则没配 `WORKHUB_ADMIN_*` 的部署在自助注册完仍回 `enabled:false` 直接放行，用户刚设的密码形同虚设。PB 不可用时仍按未启用处理，**fail-open 不变**。
-⚠️ **与兜底管理员的关系**：`WORKHUB_ADMIN_*` 保留（env 配错/服务器异常时的自救入口，`entrypoint.mjs` 逻辑未动），但**两者取一** —— 配了它容器启动就建出 `admin`，首启引导随即不再出现。compose 的默认值已改为**空**（`6277aa4`），开箱即走页面自助注册；要用兜底管理员就显式填这两项（见 `deploy/docker/README.md`）。
-> **本轮验证**：`scripts/__tests__/setupRoutes.test.mjs` **13 条** + `authGate.test.tsx` **+3 条**；`check:all` 全绿 —— **1121 passed / 7 skipped**。
-
-更早轮次见 [本轮归档](PROGRESS-archive-20261111.md)。
+更早轮次见 [2026-11-02 轮次归档](PROGRESS-archive-20261112.md)与[本轮归档](PROGRESS-archive-20261111.md)。
 
 ## 一、当前状态总览
 
@@ -152,7 +137,7 @@
 | 审计问题 | 2026-10 历史批次 P0×2 / P1×19 / P2×60 **全部清零**。**2026-10-26 全仓复审**：P0 = 0 / P1 = 3 / P2 = 12（报告 `docs/审计报告-全仓-20261026.md`），其中 P1 三项已整改（事实源校正 / CI 门禁 / 文档口径），**`zod < 4.6.6` 高危仍待拍板**；P2 已修 10 项、3 项如实挂起 |
 | 同步机制完善（历史问题跟踪，当前协议见第三版） | P0-1 墓碑清理竞态修复 + P0-2 推送侧 LWW ✅；P1-3 服务端墓碑 cron ✅；**P1-4 HTTPS/PWA 未闭环**（2026-10-09 更正，见下方 P1-4 行与「二、遗留问题」）；正式环境 `team.fpigeon.fun` 已上线（LE 证书 + `http→https` 301），但 **PWA 装机/离线能力需在该正式域名上复验**；Issue #140 多关联 json 字段已入 `collections.json`（**自托管端需重新导入并重启**，见部署指南） |
 | 正式环境（历史台账，本轮未访问/未核验） | **https://team.fpigeon.fun** 已部署运行（2026-10-09）。CNB 制品库 `docker.cnb.cool/blueteam0715/workhub:latest` → 主机 `1204pigeon`(<PROD_HOST>) 的 `/opt/workhub/`，**单容器全包**（前端 + relay + PocketBase，同源路由；**不含 Tauri 手机端/桌面端**），只绑回环 `127.0.0.1:8790` + 宿主 nginx 反代（acme.sh 单独签发的 TLS）。数据持久化在 `/opt/workhub/data`；资源上限 768m / 1.0 核 / 256 PIDs。**已关闭 `users` 集合的公开注册**（PB 默认 `createRule` 为空 = 任何人可自助注册，而业务集合规则是「登录即可读写全部」→ 组合起来等于公网裸奔；现设为 Locked，账号改由超管手工建。⚠️ **该设置只存在数据卷的 `data.db` 里、不在代码里**，换机/重建空库后需重做一次）。流程、端口占用、排错与这条加固步骤见 `docs/Docker镜像构建与部署.md`。⚠️ **2026-10-21 已升级**：镜像 label `org.opencontainers.image.revision` = **`cd74317`**（此前停在 `20dac51`/10-10，落后 47 提交）。同批完成 schema 导入 → 业务集合 **19 → 20**（补 `agent_events` + `customers.groupId` + `customerGroups.kind`），`check:schema` 对线上输出「**完全一致**」。判据不靠猜：线上主包含 4 个新工具名（各 2 处）、容器日志确认「20 个集合均已存在，跳过导入（幂等）」。⚠️ **正式站业务数据全为 0 条**（自上线以来就是空库），故本次升级零数据风险。**现状台账 / 上线判据 / 首次验收清单 / 回滚口径见 [`docs/正式站状态与上线清单-20261026.md`](正式站状态与上线清单-20261026.md)**（2026-10-26 实测：镜像 `cd74317` 落后 main **26 提交**，schema 已 21 集合一致 —— 「新 schema + 旧代码」，**先部署再录数据**）。**2026-10-27 进展**：制品库 `latest` 已到 `a5f6bdf` 且**质量门禁每次 push 均通过**；**正式站已部署到 `a5f6bdf`**（容器 healthy / 21 集合幂等跳过导入 / 公网四端点 200 / `check:schema --prod` 完全一致），部署前已备份 `pb_data.bak-20261027-002612` 并打回滚 tag `workhub:rollback-20261027-002557`。⚠️ **本行此前写的「镜像 `cd74317`」是过时记录**：上机实测部署前实为 `ab0d253`（10-26，落后 main 仅 5 提交），误判来源与纠正判据见 `docs/正式站状态与上线清单-20261026.md §二` —— **判断线上版本只认主机 `docker image inspect` 的 revision label，不认文档记录**。**正式站部署无留痕机制**（`.deploy-state` 只记测试站）已列为待补 |
-| 多端 App（Tauri v2） | 运行时改址/恢复入口、认证整链epoch、会话/镜像/导出隔离与HTTPS/debug HTTP边界已并入候选；中间完整门禁1227+7、真实双origin3/3及合成PB客户端9+6通过。上层写入口P1、最终门禁/整合APK/真机待验收。**当前没有已交付并验证的新版正式App**；旧库/队列保留待核对 |
+| 多端 App（Tauri v2） | 运行时改址/恢复入口、认证与上层写入口整链 epoch、会话/镜像/草稿/导出隔离及HTTPS/debug HTTP边界已并入源码候选；完整门禁1235通过/7跳过、真实双origin3/3及合成PB客户端9+6通过。最终独立复核、整合APK与真机待验收。**当前没有已交付并验证的新版正式App**；旧库/队列保留待核对 |
 | Changelog | **已改为版本级**（2026-10-09）：发版本时往根 `CHANGELOG.md` 追加一节，**不再逐条记流水**；日常记录见本文件与 git 提交历史。旧逐条表格（#1~#128）已归档至 `docs/CHANGELOG-详细流水-v1.0.0至v1.2.1.md` |
 
 ## 二、阶段进度（Phase 0-7）

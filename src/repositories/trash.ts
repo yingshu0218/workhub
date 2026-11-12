@@ -2,6 +2,7 @@ import { queryRows } from '@/storage/scoped'
 import { storage, onlineCommandStorage } from '@/storage'
 import { forgetTombstoneMarks, pushTombstonesNow } from '@/sync/pocketbaseAdapter'
 import { reviveCascadeLinks } from './links'
+import { captureConnectionGuard } from '@/storage/connectionGuard'
 import type {
   CustomerRelation,
   NoteMention,
@@ -265,10 +266,12 @@ export async function restoreTrashRecord(
   revivedCascadeLinks: number
   skippedCascadeLinks: number
 }> {
-  if (table === 'interactions') { const mapped = await queryRows<Rec>(storage,'activities',{where:{sourceTable:'interactions',sourceId:id}}); if (mapped[0]) return restoreTrashRecord('activities',mapped[0].id,opts) }
+  const checkSession = captureConnectionGuard()
+  if (table === 'interactions') { const mapped = await queryRows<Rec>(storage,'activities',{where:{sourceTable:'interactions',sourceId:id}}); checkSession(); if (mapped[0]) return restoreTrashRecord('activities',mapped[0].id,opts) }
   if (!TRASH_TABLES.includes(table)) throw new Error('该类型不支持恢复')
   const now = Date.now()
   const attParent = table === 'attachments' ? await attachmentParentMap() : new Map<string,{table:TrashTable;id:string}>()
+  checkSession()
   return storage.transaction(['syncQueue', 'links', ...TRASH_TABLES], async (tx) => {
     const root = (await tx.get(table, id)) as Rec | undefined
     if (!root || !isDeleted(root)) throw new Error('记录不存在或已恢复')
@@ -547,9 +550,11 @@ type PurgeResult = { purged: number; tables: TrashTable[] }
  * 的那份记录，永久删除后不再回填，语义正确。
  */
 export async function purgeTrashRecord(table: TrashTable, id: string): Promise<PurgeResult> {
-  if (table === 'interactions') { const mapped = await queryRows<Rec>(storage,'activities',{where:{sourceTable:'interactions',sourceId:id}}); if (mapped[0]) return purgeTrashRecord('activities',mapped[0].id) }
+  const checkSession = captureConnectionGuard()
+  if (table === 'interactions') { const mapped = await queryRows<Rec>(storage,'activities',{where:{sourceTable:'interactions',sourceId:id}}); checkSession(); if (mapped[0]) return purgeTrashRecord('activities',mapped[0].id) }
   if (!TRASH_TABLES.includes(table)) throw new Error('该类型不支持永久删除')
   const root = await storage.get<Rec>(table, id)
+  checkSession()
   if (!root) throw new Error('记录不存在（可能已被永久删除）')
   if (!isDeleted(root)) throw new Error('该记录未被删除，不能永久删除')
 
@@ -557,14 +562,18 @@ export async function purgeTrashRecord(table: TrashTable, id: string): Promise<P
   for (const child of readSnapshot(root)?.children ?? []) {
     if (!TRASH_TABLES.includes(child.table)) continue
     const rec = await storage.get<Rec>(child.table, child.id)
+    checkSession()
     if (rec && isDeleted(rec)) targets.push({ table: child.table, id: child.id })
   }
+  checkSession()
   return purgeTargets(targets)
 }
 
 /** 清空回收站：把所有墓碑（含子记录）一次性物理删除 */
 export async function purgeAllTrash(): Promise<PurgeResult> {
+  const checkSession = captureConnectionGuard()
   const items = await listTrash()
+  checkSession()
   return purgeTargets(items.map((i) => ({ table: i.table, id: i.id })))
 }
 
@@ -585,11 +594,14 @@ export async function purgeAllTrash(): Promise<PurgeResult> {
  * 删几条记录，是把简单事做复杂。
  */
 async function purgeTargets(targets: { table: TrashTable; id: string }[]): Promise<PurgeResult> {
+  const checkSession = captureConnectionGuard()
   if (targets.length === 0) return { purged: 0, tables: [] }
 
   const entries = targets.map((t) => ({ table: t.table as string, recordId: t.id }))
   const online = await onlineCommandStorage()
+  checkSession()
   if (!online) await pushTombstonesNow(entries)
+  checkSession()
 
   const tables = [...new Set([...targets.map((t) => t.table), 'activities', 'interactions', 'links', 'attachments'])]
   const purgedTargets: { table: TrashTable; id: string }[] = []
@@ -629,6 +641,11 @@ async function purgeTargets(targets: { table: TrashTable; id: string }[]): Promi
     }
   })
 
-  if (!online) await forgetTombstoneMarks(purgedTargets.map((t) => ({ table: t.table, recordId: t.id })))
+  checkSession()
+  if (!online) for (const t of purgedTargets) {
+    // 旧队列清标记按条核验，避免中途切号后续条目落到新缓存。
+    checkSession()
+    await forgetTombstoneMarks([{ table: t.table, recordId: t.id }])
+  }
   return { purged: purgedTargets.length, tables: [...new Set(purgedTargets.map((t) => t.table))] }
 }

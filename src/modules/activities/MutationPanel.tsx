@@ -7,6 +7,7 @@ import { Button, Card } from '@/design-system/ui'
 import { moneyLabel, formatFactTime, recordPath } from '@/shared/records'
 import { Link } from 'react-router-dom'
 import type { Value } from '@/queries/personal'
+import { captureClientWriteSession } from '@/modules/clientWriteSession'
 
 interface Pending {
   requestId: string
@@ -47,6 +48,7 @@ export default function MutationPanel({
   }
   async function preview() {
     if (busy) return
+    const checkSession = captureClientWriteSession()
     setBusy(true)
     setError('')
     try {
@@ -54,10 +56,12 @@ export default function MutationPanel({
       const generation =
         clientSession()?.generation ||
         String((await queryPersonal('list_operations', { limit: 1 })).generation)
+      checkSession()
       const context = pending || { requestId: 'ui-' + crypto.randomUUID(), generation, input }
       // 预览失败也保留原请求；断线时不得悄悄换号重录。
       save(context)
       const result = await previewPersonal(kind, context.input, context)
+      checkSession()
       if (result.committed) {
         localStorage.removeItem(key)
         setPending(undefined)
@@ -82,6 +86,7 @@ export default function MutationPanel({
   }
   async function commit() {
     if (!pending?.preview || busy) return
+    const checkSession = captureClientWriteSession()
     setBusy(true)
     setError('')
     try {
@@ -90,6 +95,7 @@ export default function MutationPanel({
         previewId: String(pending.preview.previewId),
         planFingerprint: String(pending.preview.planFingerprint),
       })
+      checkSession()
       localStorage.removeItem(key)
       setPending(undefined)
       setDone(true)
@@ -102,9 +108,11 @@ export default function MutationPanel({
   }
   async function cancel() {
     if (!pending || busy) return
+    const checkSession = captureClientWriteSession()
     setBusy(true)
     try {
       await cancelPersonal(pending)
+      checkSession()
       localStorage.removeItem(key)
       setPending(undefined)
       setError('')
