@@ -1,5 +1,7 @@
 import { Link } from 'react-router-dom'
 import { PageHeader, Card } from '@/design-system/ui'
+import { Icon } from '@/design-system/Icon'
+import { MODULE_THEMES, moduleForPath, moduleThemeStyle } from '@/shared/moduleTheme'
 export default function MorePage() {
   return (
     <div className="mx-auto max-w-4xl space-y-5">
@@ -10,14 +12,13 @@ export default function MorePage() {
           ['/finance', '收支'],
           ['/notes', '笔记'],
           ['/projects', '长期事项'],
-          ['/habits', '习惯'],
-          ['/trophies', '奖杯'],
           ['/inspiration', '灵感'],
-          ['/profile', '个人资料'],
+          ['/profile', '账号偏好'],
           ['/trash', '回收站'],
           ['/settings', '设置'],
         ].map(([to, label]) => (
-          <Link key={to} className="rounded-xl bg-surface-container-low p-4 text-primary" to={to}>
+          <Link key={to} className="module-theme flex items-center gap-3 rounded-xl bg-primary-fixed p-4 text-primary" style={moduleThemeStyle(moduleForPath(to))} to={to}>
+            <Icon name={MODULE_THEMES[moduleForPath(to)].icon} />
             {label}
           </Link>
         ))}

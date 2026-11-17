@@ -15,18 +15,18 @@ import { getAuthToken } from '@/shared/authToken'
  * 不 import 任何 repositories 写函数，不直接操作数据。
  */
 
-const DOMAIN_LABELS: Record<AiDomain, { label: string; desc: string }> = {
+type ActiveDomain = Exclude<AiDomain, 'habit'>
+const DOMAIN_LABELS: Record<ActiveDomain, { label: string; desc: string }> = {
   fin: { label: '财务', desc: '记账、建账本' },
   crm: { label: 'CRM', desc: '建客户、沟通日志、客户关系' },
   todo: { label: '待办', desc: '建 / 改 / 删待办、完成待办' },
   project: { label: '项目', desc: '建项目、改项目（含归档 / 搁置）' },
-  habit: { label: '习惯', desc: '打卡 / 取消打卡' },
   note: { label: '笔记', desc: '建 / 改笔记、建文件夹' },
   link: { label: '关联', desc: '原子间建联 / 解联（客户关系、流水关联等）' },
   read: { label: '读取', desc: '实体消解、搜索、列表查询' },
 }
 
-const DOMAIN_ORDER: AiDomain[] = ['fin', 'crm', 'todo', 'project', 'habit', 'note', 'read']
+const DOMAIN_ORDER: ActiveDomain[] = ['fin', 'crm', 'todo', 'project', 'note', 'read']
 
 /**
  * ws(s)://host/relay → http(s)://host/relay。

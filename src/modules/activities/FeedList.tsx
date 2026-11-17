@@ -3,6 +3,7 @@ import { Card } from '@/design-system/ui'
 import { Icon } from '@/design-system/Icon'
 import { formatFactTime, moneyLabel, statusLabel } from '@/shared/records'
 import type { Value } from '@/queries/personal'
+import { feedAppearance, moduleThemeStyle } from '@/shared/moduleTheme'
 export function FeedList({ items }: { items: Value[] }) {
   return (
     <ul className="relative space-y-3 border-l border-outline-variant/50 pl-5">
@@ -10,10 +11,16 @@ export function FeedList({ items }: { items: Value[] }) {
         const record = (item.record || item) as Value,
           before = record.before as Value | undefined,
           after = record.after as Value | undefined
+        const appearance = feedAppearance(item)
         return (
-          <li key={String(item.key || record.id)} className="relative min-w-0">
+          <li
+            key={String(item.key || record.id)}
+            className="module-theme relative min-w-0"
+            data-module={appearance.module}
+            style={moduleThemeStyle(appearance.module)}
+          >
             <span className="absolute -left-[27px] top-5 h-3 w-3 rounded-full border-[3px] border-surface bg-primary" />
-            <Card className="space-y-2 p-4">
+            <Card className="timeline-event-card space-y-2 p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <Link
                   className="min-w-0 break-words font-semibold text-on-surface hover:text-primary"
@@ -21,22 +28,9 @@ export function FeedList({ items }: { items: Value[] }) {
                 >
                   {String(record.title || record.summary || '记录')}
                 </Link>
-                <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-container-low px-2 py-0.5 text-xs text-on-surface-variant">
-                  <Icon
-                    name={
-                      item.sourceType === 'task_change'
-                        ? 'check_circle'
-                        : item.sourceType === 'legacy_finance'
-                          ? 'account_balance_wallet'
-                          : 'timeline'
-                    }
-                    size={13}
-                  />
-                  {item.sourceType === 'task_change'
-                    ? '承诺变化'
-                    : item.sourceType === 'legacy_finance'
-                      ? '独立收支'
-                      : '已发生'}
+                <span className="timeline-event-badge inline-flex max-w-full items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium">
+                  <Icon name={appearance.icon} size={13} className="shrink-0" />
+                  <span className="break-words">{appearance.label}</span>
                 </span>
               </div>
               <p className="text-xs text-on-surface-variant">

@@ -6,7 +6,7 @@
  * TOOL_EVENTS+SUNK_EVENTS 治理表 / emitDeclared 校验），加一种事件要四处同步、漏一处
  * 即静默漂移（交接文档 T3 缺口②）。收敛后 `shared/eventContract.ts#EVENT_DECLARATIONS`
  * 是唯一事实源，其余全部派生。本文件锁「派生不漂移」：
- * 1. TOOL_EVENTS 与 contract 反转一致（工具绑定只增不减不变形）；
+ * 1. TOOL_EVENTS 与 contract 中仍开放工具的反转一致；历史事件类型继续保留；
  * 2. SUNK_EVENTS = contract sunk 标记集合；
  * 3. APP_EVENT_NAMES 覆盖 contract 全键（replay 白名单不漏事件）；
  * 4. emitDeclared 的载荷 zod 校验双向（多给/少给/形状错都拒）；
@@ -30,10 +30,11 @@ describe('契约派生不漂移', () => {
     expect(TOOL_EVENTS).toEqual({
       'fin_recordTransaction': ['transaction:created'],
       'crm_addInteraction': ['customer:contacted'],
-      'habit_checkin': ['habit:checked'],
     })
-    // 派生路径仍要一致（防「有人把派生改回手写表但内容忘了跟 contract」）
-    expect(TOOL_EVENTS).toEqual(toolEventsMap())
+    // 旧打卡事件仍可解析历史回放，但退役工具不能因此重新进入公开工具事件表。
+    const { habit_checkin: historicalHabitEvents, ...activeTools } = toolEventsMap()
+    expect(historicalHabitEvents).toEqual(['habit:checked'])
+    expect(TOOL_EVENTS).toEqual(activeTools)
     // 反向：每个 TOOL_EVENTS 条目都能在 contract 里找到同绑定
     for (const [tool, events] of Object.entries(TOOL_EVENTS)) {
       for (const e of events) {

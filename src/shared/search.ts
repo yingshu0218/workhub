@@ -1,4 +1,4 @@
-import type { Activity, Customer, Todo, Transaction, Note, Habit, Project } from '@/db/types'
+import type { Activity, Customer, Todo, Transaction, Note, Project } from '@/db/types'
 import { financeFocusPath } from '@/modules/finance/links'
 import { todoFocusPath } from '@/modules/todo/domain'
 
@@ -10,7 +10,7 @@ import { todoFocusPath } from '@/modules/todo/domain'
  * 整篇 markdown 不再进入搜索内存；摘要改用标签行。
  */
 
-export type SearchEntityType = 'activity' | 'customer' | 'todo' | 'transaction' | 'note' | 'habit' | 'project'
+export type SearchEntityType = 'activity' | 'customer' | 'todo' | 'transaction' | 'note' | 'project'
 export type ActivitySearchProjection = Pick<Activity, 'id' | 'title' | 'summary' | 'tags'>
 
 /** 搜索用笔记投影（不含 markdown 大字段，与 useCollection pick 对齐） */
@@ -30,7 +30,6 @@ export const SEARCH_TYPE_META: Record<SearchEntityType, { label: string; icon: s
   todo: { label: '待办事项', icon: 'check_circle' },
   transaction: { label: '财务流水', icon: 'account_balance_wallet' },
   note: { label: '笔记', icon: 'description' },
-  habit: { label: '打卡习惯', icon: 'local_fire_department' },
   project: { label: '项目', icon: 'hub' },
 }
 
@@ -42,7 +41,6 @@ const TYPE_ORDER: SearchEntityType[] = [
   'todo',
   'transaction',
   'note',
-  'habit',
 ]
 
 function fmtAmount(amount: number): string {
@@ -57,7 +55,6 @@ export function buildSearchIndex(inputs: {
   todos: Todo[]
   transactions: Transaction[]
   notes: NoteSearchProjection[]
-  habits: Habit[]
 }): SearchItem[] {
   const items: SearchItem[] = []
   for (const a of inputs.activities || []) items.push({id:a.id,type:'activity',title:a.title || '',subtitle:[(a.summary || '').slice(0,500),...(a.tags || []).slice(0,50)].join(' · '),path:'/activities/'+encodeURIComponent(a.id)})
@@ -120,15 +117,6 @@ export function buildSearchIndex(inputs: {
       path: `/notes/${n.id}`,
     })
   }
-  for (const h of inputs.habits) {
-    items.push({
-      id: h.id,
-      type: 'habit',
-      title: h.name,
-      subtitle: [h.category, h.schedule].filter(Boolean).join(' · '),
-      path: '/habits',
-    })
-  }
   return items
 }
 
@@ -138,7 +126,7 @@ export function searchAll(
   query: string,
 ): { type: SearchEntityType; label: string; icon: string; items: SearchItem[] }[] {
   const q = query.trim().toLowerCase()
-  // 消费侧同样兜底（与索引侧双保险）：搜索索引来自多类实体投影（客户/项目/待办/流水/笔记/习惯），
+  // 消费侧同样兜底（与索引侧双保险）：搜索索引来自多类实体投影（事件/客户/项目/待办/流水/笔记），
   // 任一类出现字段缺失都不该让整个搜索崩掉 —— 缺字段的项退化为「匹配不到」而非抛错。
   const matched = q
     ? index.filter(

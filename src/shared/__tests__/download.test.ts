@@ -141,7 +141,7 @@ describe('② 已收口：源码里不应再有内联的对象 URL 释放', () =
     expect(offenders).toEqual([])
   })
 
-  it('至少 5 个导出/下载入口接上了统一实现（settings / trophies / finance / notes ×2）', () => {
+  it('至少 5 个导出/下载入口接上了统一实现（settings / finance / notes 等）', () => {
     const hits = sources.filter(([, text]) => /from '@\/shared\/download'/.test(text))
     expect(hits.length).toBeGreaterThanOrEqual(5)
   })

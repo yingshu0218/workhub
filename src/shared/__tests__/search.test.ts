@@ -27,13 +27,19 @@ const todo = (over: Partial<Todo>): Todo =>
     ...over,
   }) as Todo
 
-const emptyInputs = { customers: [], projects: [], todos: [], transactions: [], notes: [], habits: [] }
+const emptyInputs = { customers: [], projects: [], todos: [], transactions: [], notes: [] }
 
 function build(over: { todos?: Todo[]; customers?: Customer[]; notes?: Note[] }) {
   return buildSearchIndex({ ...emptyInputs, ...over })
 }
 
 describe('搜索索引对字段缺失的健壮性（D13）', () => {
+  it('历史输入即使携带习惯记录，也不再建立可跳转的习惯搜索结果', () => {
+    const inputs = { ...emptyInputs, habits: [{ id: 'legacy-habit', name: '历史习惯' }] }
+    const index = buildSearchIndex(inputs)
+    expect(searchAll(index, '历史习惯')).toEqual([])
+  })
+
   it('① 待办缺 desc → subtitle 为空串（不是 undefined），搜索不抛错', () => {
     const index = build({ todos: [todo({ desc: undefined as unknown as string })] })
     expect(index[0].subtitle).toBe('')

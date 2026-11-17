@@ -8,7 +8,6 @@ import {
   createTodoSchema,
   completeTodoSchema,
   createLedgerSchema,
-  checkinHabitSchema,
   linkLinkSchema,
   linkUnlinkSchema,
   resolveEntitySchema,
@@ -20,9 +19,6 @@ import {
   createNoteSchema,
   updateNoteSchema,
   createFolderSchema,
-  deleteHabitSchema,
-  createHabitSchema,
-  updateHabitSchema,
   updateTransactionSchema,
   deleteTransactionSchema,
   deleteNoteSchema,
@@ -161,15 +157,6 @@ export const WRITE_TOOL_SKILLS: ToolSkillMeta[] = [
     entityRule: `${RESOLVE_FIRST} todoId 必填。`,
     examples: ['标「出方案」完成'],
   },
-  {
-    name: 'habit_checkin',
-    summary: '习惯打卡 / 取消打卡',
-    schema: checkinHabitSchema,
-    sideEffect: '打卡：写入/复活一条习惯日志并广播 `habit:checked`（仅实际新建时）；undo=true 软删日志、不发事件。',
-    idempotency: '幂等：同 habitId+date 重复打卡返回 `{ created:false }`，不重复入队、不重复发事件。',
-    entityRule: `${RESOLVE_FIRST} habitId 必填。date 缺省=今天。`,
-    examples: ['今天跑步打卡', '取消今天跑步的打卡'],
-  },
 
   /* ───── P2 动作扩面：编辑 / 删除 / 项目 / 笔记（UI 与 AI 动作面对齐） ───── */
   {
@@ -244,35 +231,9 @@ export const WRITE_TOOL_SKILLS: ToolSkillMeta[] = [
     entityRule: '无实体引用；建议先 searchEntities 查重。',
     examples: ['新建一个「Q3 复盘」笔记文件夹'],
   },
-  {
-    name: 'habit_deleteHabit',
-    summary: '删除习惯（不可逆，级联清打卡记录）',
-    schema: deleteHabitSchema,
-    sideEffect: '软删习惯并**级联软删其全部打卡日志**（habits + habitLogs）。高风险、不可逆，返回 `sideEffects.cascadedHabitLogs` 供转述。',
-    idempotency: '幂等：对已删习惯重复调用返回可操作错误。',
-    entityRule: `${RESOLVE_FIRST} habitId 必填。执行前必须向用户说明将一并删除的历史打卡数。`,
-    examples: ['把「早起」这个习惯删掉'],
-  },
 
-  /* ───── 动作面补全（2026-10-21）：习惯 CRUD / 流水改删 / 三个删除入口 ───── */
-  {
-    name: 'habit_createHabit',
-    summary: '新建习惯（名称/图标/色板/节奏/目标时长）',
-    schema: createHabitSchema,
-    sideEffect: '写入一条习惯（habits）。默认值与界面「新建习惯」初值逐字段一致（图标 fitness_center、主色 #2563eb、节奏每日、目标 25 分钟、分类成长）。无领域事件。',
-    idempotency: '非幂等：同名习惯会重复创建。',
-    entityRule: '无实体引用；新建前建议先 listHabits 查重。schedule 只接受「每日」「工作日」「每周N次」（N=1-7）。',
-    examples: ['帮我加一个每天跑步的习惯，目标 30 分钟', '新建「工作日读书」习惯，每周 5 次'],
-  },
-  {
-    name: 'habit_updateHabit',
-    summary: '编辑习惯（名称/图标/色板/节奏/目标时长/专注联动）',
-    schema: updateHabitSchema,
-    sideEffect: '更新习惯字段（habits）。历史打卡记录不受影响。无领域事件。',
-    idempotency: '幂等：同一组字段重复提交结果一致。',
-    entityRule: `${RESOLVE_FIRST} habitId 必填。打卡请用 habit_checkin（日志的确定性 id 与幂等都在那边），不在此内联。`,
-    examples: ['把「跑步」的目标时长改成 40 分钟', '早起习惯改成每周 5 次'],
-  },
+  /* ───── 动作面补全（2026-10-21）：流水改删 / 三个删除入口 ───── */
+
   {
     name: 'fin_updateTransaction',
     summary: '编辑流水（金额/类型/日期/账本/状态/关联）',
@@ -384,12 +345,12 @@ export const READ_TOOL_SKILLS: ToolSkillMeta[] = [
   },
   {
     name: 'listHabits',
-    summary: '列习惯',
+    summary: '读取有界历史习惯记录（功能已下线）',
     schema: listHabitsSchema,
     sideEffect: '只读。',
     idempotency: '纯读，天然幂等。',
-    entityRule: '无入参。',
-    examples: ['我有哪些习惯'],
+    entityRule: '无入参，上限 50 条；仅供历史核对，不提供创建、编辑或打卡入口。',
+    examples: ['查看以前的习惯记录'],
     readOnly: true,
   },
   {

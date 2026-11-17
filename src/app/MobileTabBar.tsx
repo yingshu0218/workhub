@@ -1,5 +1,6 @@
 import { NavLink, useLocation } from 'react-router-dom'
 import { Icon } from '@/design-system/Icon'
+import { moduleForPath, moduleThemeStyle } from '@/shared/moduleTheme'
 
 /**
  * 移动端底部导航（<768px 显示；桌面端侧栏不变，见 AppLayout 的 `md:flex`）。
@@ -16,7 +17,7 @@ export const MOBILE_TABS = [
  {to:'/timeline',icon:'timeline',label:'时间线',matches:['/timeline','/activities','/operations','/interactions']},
  {to:'/crm',icon:'group',label:'联系人',matches:['/crm']},
  {to:'/graph',icon:'hub',label:'图谱',matches:['/graph']},
- {to:'/more',icon:'menu_book',label:'更多',matches:['/more','/todo','/finance','/notes','/projects','/habits','/profile','/trophies','/settings','/module-config','/inspiration','/trash','/record','/records']},
+ {to:'/more',icon:'menu_book',label:'更多',matches:['/more','/todo','/finance','/notes','/projects','/profile','/settings','/module-config','/inspiration','/trash','/record','/records']},
 ] as const
 
 /**
@@ -45,11 +46,12 @@ export default function MobileTabBar() {
               key={tab.to}
               to={tab.to}
               aria-current={active ? 'page' : undefined}
-              className={`app-tab-pill flex h-full flex-1 flex-col items-center justify-center gap-0.5 rounded-2xl ${
-                active ? 'bg-primary text-on-primary' : 'text-outline'
+              style={moduleThemeStyle(moduleForPath(active ? pathname : tab.to))}
+              className={`module-theme app-tab-pill flex h-full flex-1 flex-col items-center justify-center gap-0.5 rounded-2xl ${
+                active ? 'is-active bg-primary text-on-primary' : 'text-outline'
               }`}
             >
-              <Icon name={tab.icon} size={18} />
+              <Icon name={tab.icon} size={18} className="module-nav-icon" />
               <span className="text-[0.7143rem] font-semibold tracking-[0.4px]">{tab.label}</span>
             </NavLink>
           )

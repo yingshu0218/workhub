@@ -7,7 +7,7 @@
 
 ## 1. 项目是什么
 
-完全个人使用的助手，以事件与联系人为核心，外部 Agent 自然语言录入为主要入口；收支、待办、笔记、习惯与成长体系作为业务基础。
+完全个人使用的助手，以事件与联系人为核心，外部 Agent 自然语言录入为主要入口；收支、待办、笔记与长期事项作为业务基础。习惯、打卡与奖杯已退役，只保留历史数据读取、导出及回收站维护，禁止恢复新建入口。
 自托管 VPS 是 Web / Agent / 未来 Android 的事实权威，生产与原生共用服务端命令和有界增量镜像。
 断网仅已验证会话的只读缓存与未提交草稿；旧库、旧队列保留核对，不自动推送。当前交付与验证只认 PROGRESS。
 
@@ -115,7 +115,7 @@ PB_BIN=<0.40.2> npm run test:clients  # 显式构建双缓存进程harness，仅
 
 ## 8. 接入 Agent（本项目自带的桥）
 
-当前 **61 个业务工具**（`tools/list` 另含 `confirm_preview`，共62条），schema唯一源仍是 `src/agent/skillSource.ts`。
+当前 **57 个业务工具**（`tools/list` 另含 `confirm_preview`，共58条），schema唯一源仍是 `src/agent/skillSource.ts`。`listHabits` 仅供读取历史记录，4个习惯写工具已退役。
 远程 Agent 直连 `https://<站点>/relay/mcp`，标准 MCP over HTTP、`Authorization: Bearer <独立凭据>`；不需要仓库、本机进程或在线网页。
 
 - 主路径：拥有者登录 → 设置「Agent 接入」→ 按客户端名称及最小能力签发独立凭据，只显示一次；服务端仅保存散列。可单独撤销，恢复世代也使旧凭据失效。

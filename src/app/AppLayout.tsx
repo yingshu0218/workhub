@@ -8,9 +8,10 @@ import { isServerFirstWeb } from '@/platform/env'
 import { registerShortcut } from '@/shared/shortcuts'
 import CommandPalette from './CommandPalette'
 import MobileTabBar from './MobileTabBar'
-import TrophyUnlockToast from './TrophyUnlockToast'
 import { ToastProvider } from '@/design-system/Toast'
 import { usePresence } from '@/shared/usePresence'
+import { moduleForPath, moduleThemeStyle } from '@/shared/moduleTheme'
+import { useModuleTheme } from '@/shared/useModuleTheme'
 import QuickCapture from '@/modules/notes/QuickCapturePanel'
 import { DEFAULT_WORKSPACE_SUB, useIdentity } from '@/modules/identity'
 import {
@@ -35,8 +36,6 @@ const NAV_ITEMS = [
   { to: '/projects', icon: 'folder', label: '事项', childPrefixed: true },
   { to: '/timeline', icon: 'timeline', label: '时间线' },
   { to: '/graph', icon: 'hub', label: '关系图谱' },
-  { to: '/habits', icon: 'check_circle', label: '打卡习惯' },
-  { to: '/trophies', icon: 'emoji_events', label: '成就奖杯' },
   { to: '/inspiration', icon: 'bolt', label: '灵感闪现' },
 ]
 
@@ -74,9 +73,7 @@ const TITLES: Record<string, string> = {
   '/crm/:id/timeline': '客户时间线',
   '/finance': '收支',
   '/notes': '笔记',
-  '/habits': '打卡习惯',
-  '/trophies': '成就奖杯',
-  '/profile': '个人主页',
+  '/profile': '账号偏好',
   '/inspiration': '灵感闪现',
   '/settings': '系统设置',
   '/trash': '回收站',
@@ -129,6 +126,7 @@ function SyncBadge() {
 
 function AppLayoutInner({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation()
+  useModuleTheme(pathname)
   const navigate = useNavigate()
   // /crm/:id/timeline 与 /module-config/... 为动态段路由，TITLES 精确匹配不到，先按前缀识别
   // 首页刻意不显示页面级标题：仪表盘自己已有问候标题，再挂一个「Focus Synchronizer」
@@ -285,12 +283,14 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
                   key={item.to}
                   to={item.to}
                   end={isFirst}
+                  data-module={moduleForPath(item.to)}
+                  style={moduleThemeStyle(moduleForPath(item.to))}
                   title={iconOnly ? item.label : undefined}
                   className={() => {
                     // NavLink 默认前缀匹配会把「待办事项」在 /module-config 等路径下误判为选中
                     // （Issue #128：色块高亮一直存在），统一改用 isNavItemActive 做精确/受控段判定
                     return [
-                      'app-nav-link flex items-center gap-3 rounded-lg px-3 py-2 text-[0.9643rem] transition-all',
+                      'module-theme app-nav-link flex items-center gap-3 rounded-lg px-3 py-2 text-[0.9643rem] transition-all',
                       iconOnly ? 'justify-center px-0' : '',
                       isActive ? 'is-active' : '',
                       featured === 'workbench'
@@ -309,7 +309,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
                       .join(' ')
                   }}
                 >
-                  <Icon name={item.icon} />
+                  <Icon name={item.icon} className="module-nav-icon" />
                   {!iconOnly && item.label}
                 </NavLink>
               )
@@ -325,9 +325,10 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
           <div className={`border-t border-outline-variant/40 ${railOpen ? 'p-3' : 'px-2 py-3'}`}>
             <NavLink
               to="/trash"
+              style={moduleThemeStyle('trash')}
               title={collapsed && !railOpen ? '回收站' : '恢复最近删除的客户、流水、待办、笔记等'}
               className={() =>
-                `app-nav-link mb-1 flex items-center gap-3 rounded-lg px-3 py-2 text-[0.9643rem] ${
+                `module-theme app-nav-link mb-1 flex items-center gap-3 rounded-lg px-3 py-2 text-[0.9643rem] ${
                   collapsed && !railOpen ? 'justify-center px-0' : ''
                 } ${
                   isNavItemActive(pathname, '/trash')
@@ -336,15 +337,16 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
                 }`
               }
             >
-              <Icon name="settings_backup_restore" />
+              <Icon name="settings_backup_restore" className="module-nav-icon" />
               {!(collapsed && !railOpen) && '回收站'}
             </NavLink>
 
             <NavLink
               to="/module-config"
+              style={moduleThemeStyle('settings')}
               title={collapsed && !railOpen ? '功能配置' : '各业务模块的规则配置（与系统设置的界面偏好分开）'}
               className={() =>
-                `app-nav-link mb-1 flex items-center gap-3 rounded-lg px-3 py-2 text-[0.9643rem] ${
+                `module-theme app-nav-link mb-1 flex items-center gap-3 rounded-lg px-3 py-2 text-[0.9643rem] ${
                   collapsed && !railOpen ? 'justify-center px-0' : ''
                 } ${
                   // 功能配置含子路由（/module-config/:moduleId/:itemId），按段判定才正确高亮
@@ -354,15 +356,16 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
                 }`
               }
             >
-              <Icon name="tune" />
+              <Icon name="tune" className="module-nav-icon" />
               {!(collapsed && !railOpen) && '功能配置'}
             </NavLink>
 
             <NavLink
               to="/settings"
+              style={moduleThemeStyle('settings')}
               title={collapsed && !railOpen ? '系统设置' : '外观、排版、通知、同步、数据导出等应用级偏好'}
               className={() =>
-                `app-nav-link mb-2 flex items-center gap-3 rounded-lg px-3 py-2 text-[0.9643rem] ${
+                `module-theme app-nav-link mb-2 flex items-center gap-3 rounded-lg px-3 py-2 text-[0.9643rem] ${
                   collapsed && !railOpen ? 'justify-center px-0' : ''
                 } ${
                   isNavItemActive(pathname, '/settings')
@@ -371,18 +374,19 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
                 }`
               }
             >
-              <Icon name="settings" />
+              <Icon name="settings" className="module-nav-icon" />
               {!(collapsed && !railOpen) && '系统设置'}
             </NavLink>
 
             {/* 账号 / 工作区切换 */}
             <div className="relative" ref={wsRef}>
               <button
-                className={`app-nav-link flex w-full items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-surface-hover ${
+                className={`module-theme app-nav-link flex w-full items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-surface-hover ${
                   collapsed && !railOpen ? 'justify-center px-0' : ''
                 } ${pathname === '/profile' ? 'is-active bg-primary-fixed' : ''}`}
-                onClick={() => CAN_SWITCH_WORKSPACE && setWsOpen((o) => !o)}
-                title={collapsed && !railOpen ? `${identity.name} · 个人空间` : undefined}
+                onClick={() => CAN_SWITCH_WORKSPACE ? setWsOpen((o) => !o) : navigate('/profile')}
+                title="账号偏好设置"
+                style={moduleThemeStyle('profile')}
               >
                 <Avatar name={identity.name} size={32} />
                 {!(collapsed && !railOpen) && (
@@ -485,15 +489,14 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
             <SyncBadge />
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto px-4 py-4 md:px-8 md:py-6">{children}</main>
+        <main className="app-module-canvas flex-1 overflow-y-auto px-4 py-4 md:px-8 md:py-6">{children}</main>
         {/* 底部导航（<768px）。刻意放在**流内**而非 fixed：内容区天然不被遮挡，
             不需要「给底栏留 padding」的补偿，也不与弹层抢 z-index。 */}
         <MobileTabBar />
       </div>
 
-      {/* 全局弹层：⌘K 命令面板 + 奖杯解锁（任何页面解锁都能弹） */}
+      {/* 全局搜索可从任一页面唤起。 */}
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
-      <TrophyUnlockToast />
     </div>
   )
 }

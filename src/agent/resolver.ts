@@ -132,7 +132,7 @@ async function buildPool(type: ResolvableType): Promise<ResolveCandidate[]> {
     }
     case 'habit': {
       const rows = alive((await storage.list<Habit>('habits')).slice(0, MAX_SCAN))
-      return rows.map((h) => ({ id: h.id, type, label: h.name, sub: h.category || undefined }))
+      return rows.map((h) => ({ id: h.id, type, label: h.name, sub: '历史习惯记录（功能已下线）' }))
     }
     case 'note': {
       const rows = alive((await storage.list<Note>('notes')).slice(0, MAX_SCAN))

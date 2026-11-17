@@ -13,7 +13,7 @@
  * 用法：node scripts/gen-skills.mjs
  */
 import { build } from 'esbuild'
-import { mkdir, writeFile, rm } from 'node:fs/promises'
+import { mkdir, writeFile, rm, readdir, readFile } from 'node:fs/promises'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import path from 'node:path'
 
@@ -155,6 +155,13 @@ async function main() {
   // 注入运行期同一份实现（src/agent/jsonSchema.ts，随 skillSource 一起被 esbuild 打包）
   zodToJsonSchema = meta.toolJsonSchema
   await mkdir(outDir, { recursive: true })
+  // 退役工具不能继续留在自动生成目录里误导离线 Agent；只清理由本脚本署名的旧产物。
+  const expected = new Set(meta.ALL_TOOL_SKILLS.map(t => `${t.name}.md`))
+  for (const name of await readdir(outDir)) {
+    if (name === 'README.md' || !name.endsWith('.md') || expected.has(name)) continue
+    const file = path.join(outDir, name)
+    if ((await readFile(file, 'utf8')).includes('_本文件由 `scripts/gen-skills.mjs`')) await rm(file)
+  }
   const tools = []
   for (const t of meta.ALL_TOOL_SKILLS) {
     const inputSchema = zodToJsonSchema(t.name, t.schema)

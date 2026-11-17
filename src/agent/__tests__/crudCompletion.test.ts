@@ -4,7 +4,7 @@
  * 与 `functional.sweep.test.ts` 的分工：
  * - 遍历测试证明「每个工具都能调通」，但它只验证返回 ok 与少量读回读；
  * - 本文件锁住**容易被改坏且看不出来**的语义：
- *   ① `habit_createHabit` 的默认值必须与 UI 初值逐字段一致（改了默认值 = 界面上新建的习惯变了样）；
+ *   ① 习惯建改旧入口退役后不能再写入；
  *   ② `fin_updateTransaction` **不得重发 `transaction:created`**（重发会让奖杯/EXP 多算一次）；
  *   ③ 删除类工具的 `sideEffects` 计数必须**先统计后删除**（顺序写反会恒为 0，Agent 会跟用户说「无副作用」）；
  *   ④ 级联真的发生了（附件/里程碑被软删，而不是只删了主记录）。
@@ -13,7 +13,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import 'fake-indexeddb/auto'
 import { db } from '@/db/db'
 import { eventBus, type AppEvent } from '@/shared/eventBus'
-import { habitRepo, customerRepo, todoRepo, projectRepo, transactionRepo } from '@/repositories'
+import { customerRepo, todoRepo, projectRepo, transactionRepo } from '@/repositories'
 import {
   habit_createHabit,
   habit_updateHabit,
@@ -211,66 +211,21 @@ beforeEach(async () => {
   await db.ledgers.put({ id: 'l1', name: 'fixture', currency: 'CNY', openingBalance: 0, createdAt: 1, updatedAt: 1, rev: 1, deleted: 0 } as never)
 })
 
-describe('habit_createHabit / habit_updateHabit', () => {
-  it('默认值与 UI「新建习惯」初值逐字段一致', async () => {
-    const r = await habit_createHabit({ name: '晨跑 30 分钟' })
-    expect(r.ok).toBe(true)
-    const id = (r.data as { habitId: string }).habitId
-    const habit = await habitRepo.get(id)
-
-    // 这组值是 HabitFormDrawer 的初值 —— 改这里等于改了「界面新建」的默认外观
-    expect(habit).toMatchObject({
-      name: '晨跑 30 分钟',
-      icon: 'fitness_center',
-      color: '#2563eb',
-      category: '成长',
-      schedule: '每日',
-      targetMinutes: 25,
-      motivationNote: '',
-      crossModuleSync: false,
-    })
-  })
-
-  it('显式传值覆盖默认；不 emit 任何领域事件', async () => {
+describe('习惯建改旧入口退役', () => {
+  it('直接调用旧导出同样拒绝，既有习惯不变且没有事件', async () => {
+    const prior = newHabit('h1')
+    await db.habits.put(prior)
     const cap = capture()
-    const r = await habit_createHabit({
-      name: '读书',
-      icon: 'menu_book',
-      schedule: '每周3次',
-      targetMinutes: 40,
-      crossModuleSync: true,
-    })
+    for (const result of [
+      await habit_createHabit({ name: '晨跑 30 分钟' }),
+      await habit_updateHabit({ habitId: 'h1', schedule: '工作日' }),
+    ]) {
+      expect(result.ok).toBe(false)
+      expect(result.error).toContain('FEATURE_RETIRED')
+    }
     cap.restore()
-
-    const id = (r.data as { habitId: string }).habitId
-    const habit = await habitRepo.get(id)
-    expect(habit).toMatchObject({
-      icon: 'menu_book',
-      schedule: '每周3次',
-      targetMinutes: 40,
-      crossModuleSync: true,
-    })
+    expect(await db.habits.toArray()).toEqual([prior])
     expect(cap.events).toHaveLength(0)
-  })
-
-  it('部分更新（只改节奏）不动其它字段', async () => {
-    await habitRepo.put(newHabit('h1', { name: '晨跑', targetMinutes: 30, icon: 'brain' }))
-    const r = await habit_updateHabit({ habitId: 'h1', schedule: '工作日' })
-    expect(r.ok).toBe(true)
-
-    const habit = await habitRepo.get('h1')
-    expect(habit).toMatchObject({
-      name: '晨跑',
-      icon: 'brain',
-      targetMinutes: 30,
-      schedule: '工作日',
-    })
-  })
-
-  it('习惯不存在 → 可操作错误（不静默成功）', async () => {
-    const r = await habit_updateHabit({ habitId: 'nope', targetMinutes: 10 })
-    expect(r.ok).toBe(false)
-    expect(r.error).toContain('习惯不存在')
   })
 })
 
@@ -480,8 +435,6 @@ describe('note_deleteNote', () => {
 
 describe('契约完整性：新工具三处注册齐备', () => {
   const NEW_TOOLS = [
-    'habit_createHabit',
-    'habit_updateHabit',
     'fin_updateTransaction',
     'fin_deleteTransaction',
     'note_deleteNote',
@@ -495,11 +448,10 @@ describe('契约完整性：新工具三处注册齐备', () => {
     expect(TOOL_DOMAIN[name]).toBeTruthy()
   })
 
-  it('删除类一律 high（不可逆必须二次确认），创建习惯为 low', () => {
+  it('删除类一律 high（不可逆必须二次确认）', () => {
     for (const name of ['fin_deleteTransaction', 'note_deleteNote', 'crm_deleteCustomer', 'project_deleteProject']) {
       expect(TOOL_RISK[name]).toBe('high')
     }
-    expect(TOOL_RISK['habit_createHabit']).toBe('low')
     expect(TOOL_RISK['fin_updateTransaction']).toBe('medium')
   })
 })

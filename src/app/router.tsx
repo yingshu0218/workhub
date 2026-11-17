@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect } from 'react'
-import { createBrowserRouter, RouterProvider, Outlet, useLocation } from 'react-router-dom'
+import { createBrowserRouter, RouterProvider, Outlet, useLocation, Navigate } from 'react-router-dom'
 import AppLayout from './AppLayout'
 import AuthorizePage from './AuthorizePage'
 import ErrorBoundary from './ErrorBoundary'
@@ -26,9 +26,7 @@ const MorePage = lazy(() => import('./MorePage'))
 const PersonalRecordPage = lazy(() => import('@/modules/activities/RecordPage'))
 const NotesPage = lazy(() => import('@/modules/notes/NotesPage'))
 const NoteEditorPage = lazy(() => import('@/modules/notes/NoteEditorPage'))
-const HabitsPage = lazy(() => import('@/modules/habits/HabitsPage'))
-const TrophiesPage = lazy(() => import('@/modules/trophies/TrophiesPage'))
-const ProfilePage = lazy(() => import('@/modules/trophies/ProfilePage'))
+const ProfilePage = lazy(() => import('@/modules/identity/ProfilePage'))
 const SettingsPage = lazy(() => import('@/modules/settings/SettingsPage'))
 const TrashPage = lazy(() => import('@/modules/trash/TrashPage'))
 const ModuleConfigPage = lazy(() => import('@/modules/moduleConfig/ModuleConfigPage'))
@@ -121,8 +119,9 @@ const router = createBrowserRouter([
       { path: '/finance', element: <FinancePage /> },
       { path: '/notes', element: <NotesPage /> },
       { path: '/notes/:id', element: <NoteEditorPage /> },
-      { path: '/habits', element: <HabitsPage /> },
-      { path: '/trophies', element: <TrophiesPage /> },
+      // 旧书签只返回工作台，不加载退役页面或触发历史数据写入。
+      { path: '/habits/*', element: <Navigate to="/" replace /> },
+      { path: '/trophies/*', element: <Navigate to="/" replace /> },
       { path: '/profile', element: <ProfilePage /> },
       { path: '/inspiration', element: <InspirationPage /> },
       { path: '/settings', element: <SettingsPage /> },

@@ -5,7 +5,7 @@ import { useFocusStore, FOCUS_TOTAL_SEC } from '@/stores/focus'
 import { Button, Card, Chip, inputCls } from '@/design-system/ui'
 import { MatchCombobox } from '@/design-system/MatchCombobox'
 import { useToast } from '@/design-system/Toast'
-import { checkinHabit, uncheckHabit, newId, quickNoteRepo } from '@/repositories'
+import { newId, quickNoteRepo } from '@/repositories'
 import { toggleTodoDone } from '@/modules/todo/toggle'
 import {
   isDueToday,
@@ -20,7 +20,7 @@ import {
 import { todoBodyPreview } from '@/modules/todo/title'
 import { isHighPriority, todoPriorityFullLabel } from '@/modules/todo/priority'
 import { useCallback, useRef, useState } from 'react'
-import type { Todo, Customer, Ledger, Habit, HabitLog, QuickNote, Note } from '@/db/types'
+import type { Todo, Customer, Ledger, QuickNote, Note } from '@/db/types'
 import dayjs from 'dayjs'
 import { convertQuickNote } from '@/modules/notes/quickCapture'
 
@@ -150,7 +150,7 @@ export function FocusCard() {
                 {focus.todoTitle ?? '自由专注'}
               </div>
               <div className="mb-3 text-[0.8571rem] text-on-surface-variant">
-                完成后自动打卡「深度专注」习惯
+                完成后记录本次专注时长
               </div>
               {/* 关联引用小卡（对齐原型 01）：客户 / 财务账本 */}
               {(refCustomer || refLedger) && (
@@ -217,8 +217,6 @@ export function FocusCard() {
     </Card>
   )
 }
-
-/** 每日习惯闭环（预览版：打卡交互，P5 实装热力图） */
 
 /** 空态占位：统一「图标 + 主文案 + 副文案」三层，避免各卡各写一套 */
 function EmptyState({ icon, title, hint }: { icon: string; title: string; hint?: string }) {
@@ -419,142 +417,6 @@ export function TodayTodosCard() {
         label={`进入待办事项中心查看全部（${openCount}）`}
         onClick={() => (location.href = '/todo')}
       />
-    </Card>
-  )
-}
-
-/** 习惯连击天数（与 Sidebar/待办口径一致：今日未打卡则从昨日回溯） */
-function habitStreak(logs: HabitLog[], habitId: string, todayStr: string): number {
-  const dates = new Set(logs.filter((l) => l.habitId === habitId).map((l) => l.date))
-  let n = 0
-  let cursor = dates.has(todayStr) ? dayjs() : dayjs().subtract(1, 'day')
-  while (dates.has(cursor.format('YYYY-MM-DD'))) {
-    n++
-    cursor = cursor.subtract(1, 'day')
-  }
-  return n
-}
-
-/**
- * 每日习惯闭环（对齐原型 01）
- *
- * Issue #134 视觉重构：旧版是一列「图标 + 名称 + 排期」的等权列表，
- * 与原型差距在于**成组语义**——原型把习惯切成「已完成（打勾 + 完成时间 + 连击）」与
- * 「未完成」两组，同一组内才有比较价值；完成时间/证据文案给出「今天已经做了什么」的回顾感。
- * 卡片头改为「N / M 完成」进度胶囊 + 顶部进度条，让「闭环」在未展开时也能一眼看见。
- */
-export function HabitLoopCard() {
-  const habits = useCollection<Habit>('habits')
-  const logs = useCollection<HabitLog>('habitLogs')
-  const navigate = useNavigate()
-  const todayStr = dayjs().format('YYYY-MM-DD')
-
-  async function toggle(habitId: string) {
-    const existing = logs.find((l) => l.habitId === habitId && l.date === todayStr)
-    // 走领域命令单点收口（§9.6.1）：软删也统一按确定性 habitLogId 派生 id，
-    // 消除「按 existing.id 删」与「按确定性 id 删」两套语义
-    if (existing) {
-      await uncheckHabit(habitId, todayStr)
-    } else {
-      await checkinHabit(habitId, todayStr)
-    }
-  }
-
-  const doneLogs = new Map(
-    logs.filter((l) => l.date === todayStr).map((l) => [l.habitId, l] as const),
-  )
-  const doneCount = habits.filter((h) => doneLogs.has(h.id)).length
-  const pct = habits.length === 0 ? 0 : Math.round((doneCount / habits.length) * 100)
-  // 已完成组在前（回顾），未完成组在后（待办），与「先看成果再看缺口」的阅读顺序一致
-  const ordered = [...habits].sort(
-    (a, b) => Number(doneLogs.has(b.id)) - Number(doneLogs.has(a.id)),
-  )
-
-  function renderRow(h: Habit) {
-    const log = doneLogs.get(h.id)
-    const done = Boolean(log)
-    const streak = habitStreak(logs, h.id, todayStr)
-    return (
-      <li
-        key={h.id}
-        className={`flex items-start gap-3 rounded-lg border px-3 py-2.5 transition-colors ${
-          done
-            ? 'border-transparent bg-success/8'
-            : 'border-outline-variant/40 bg-surface-container-lowest'
-        }`}
-      >
-        <button
-          onClick={() => void toggle(h.id)}
-          className="mt-0.5 shrink-0"
-          title={done ? '取消打卡' : '打卡'}
-        >
-          <Icon
-            name={done ? 'check_box' : 'check_box_outline_blank'}
-            size={22}
-            fill={done}
-            className={done ? 'text-success' : 'text-outline'}
-          />
-        </button>
-        <span
-          className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-white"
-          style={{ background: h.color }}
-        >
-          <Icon name={h.icon} size={16} />
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="text-[0.9643rem] font-medium">{h.name}</div>
-          {/* 已打卡显示完成时间（回顾），未打卡显示排期与目标（计划） */}
-          <div className={`truncate text-[0.7857rem] ${done ? 'text-success' : 'text-outline'}`}>
-            {done
-              ? `已于 ${dayjs(log!.completedAt).format('HH:mm')} 完成 · ${h.motivationNote || '保持节奏'}`
-              : `${h.schedule} · 计划 ${h.targetMinutes} 分钟`}
-          </div>
-        </div>
-        {streak > 0 && (
-          <Chip tone={streak >= 21 ? 'green' : 'amber'} icon="local_fire_department">
-            {streak} 天连胜
-          </Chip>
-        )}
-      </li>
-    )
-  }
-
-  return (
-    <Card className="flex flex-col p-5">
-      <div className="mb-1 flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className="text-[1.0714rem] font-semibold">每日习惯闭环</h2>
-        </div>
-        {habits.length > 0 && (
-          <div className="shrink-0 text-right">
-            {/* key 随完成数变化 → 打卡时读数重挂淡入一次 */}
-            <div
-              key={`habit-${doneCount}`}
-              className="anim-enter text-[1.2857rem] font-bold tabular-nums text-success"
-            >
-              {doneCount}
-              <span className="text-[0.9286rem] font-medium text-outline"> / {habits.length}</span>
-            </div>
-            <div className="text-[0.7857rem] text-outline">已完成</div>
-          </div>
-        )}
-      </div>
-
-      {/* 顶部进度条：闭环进度在卡片收起/扫视时也可见 */}
-      <div className="mb-3 mt-2 h-1.5 w-full overflow-hidden rounded-full bg-surface-container">
-        <div
-          className="anim-fill h-full rounded-full bg-success"
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-
-      {habits.length === 0 ? (
-        <EmptyState icon="event_repeat" title="还没有习惯" hint="去打卡·习惯新建一个微习惯 →" />
-      ) : (
-        <ul className="min-h-0 flex-1 space-y-2 overflow-y-auto">{ordered.map(renderRow)}</ul>
-      )}
-
-      <CardExitLink label="习惯统计洞察" onClick={() => navigate('/habits')} />
     </Card>
   )
 }

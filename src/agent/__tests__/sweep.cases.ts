@@ -234,23 +234,6 @@ export async function runToolSweep(mcp: McpClient, deps: SweepDeps = {}): Promis
     ctx.todoId = d.todoId
   })
 
-  // 习惯域已补 `habit_createHabit`（2026-10-21）→ 不再依赖「本地预置 / 线上已有习惯」：
-  // 本地与线上用同一句自造，顺带把 create/update 两个新工具覆盖掉。
-  // （旧实现靠 deps.records 注入固定 id、线上挑第一个已有习惯，缺习惯时只能标跳过。）
-  await kase('habit_createHabit', { name: `晨跑-${RUN_ID}`, targetMinutes: 30 }, (r) => {
-    const d = r.data as { habitId?: string }
-    need(d?.habitId, '未返回 habitId')
-    ctx.habitId = d.habitId
-  })
-
-  await kase('habit_updateHabit', () => ({ habitId: g('habitId'), schedule: '工作日' }), async () => {
-    const h = await invoke('listHabits', {})
-    const d = h.data as ReadEnvelope<{ id: string; schedule?: string }>
-    const row = d.items?.find((i) => i.id === g('habitId'))
-    need(row, '改后 listHabits 未查到该习惯')
-    need(row?.schedule === '工作日', `节奏期望「工作日」，实际 ${String(row?.schedule)}`)
-  })
-
   // —— 写工具 ——
   await kase(
     'fin_recordTransaction',
@@ -319,21 +302,6 @@ export async function runToolSweep(mcp: McpClient, deps: SweepDeps = {}): Promis
     }
   })
 
-  // 打卡（含幂等复测）。习惯由本用例自造 → 无条件执行，不再有「环境缺习惯就跳过」的分支。
-  {
-    // 从「未打卡」态出发：否则首次打卡返回 created=false，看起来像缺陷，实际是用例前提没对齐
-    const day = new Date().toLocaleDateString('sv-SE')
-    await invoke('habit_checkin', { habitId: ctx.habitId, date: day, undo: true })
-    await kase('habit_checkin', () => ({ habitId: g('habitId'), date: day }), (r) => {
-      const d = r.data as { created?: boolean }
-      need(d?.created === true, `首次打卡期望 created=true，实际 ${String(d?.created)}`)
-    })
-    await kase('habit_checkin', () => ({ habitId: g('habitId'), date: day }), (r) => {
-      const d = r.data as { created?: boolean }
-      need(d?.created === false, `重复打卡期望 created=false（幂等），实际 ${String(d?.created)}`)
-    })
-  }
-
   // —— 读工具 ——
   await kase('resolveEntity', () => ({ query: g('customerName'), type: 'customer' }), (r) => {
     const d = r.data as { status?: string; id?: string }
@@ -376,8 +344,7 @@ export async function runToolSweep(mcp: McpClient, deps: SweepDeps = {}): Promis
   await kase('listHabits', {}, (r) => {
     const d = r.data as ReadEnvelope<{ id: string }>
     need(Array.isArray(d.items), 'listHabits 未返回 items 数组')
-    // 习惯已由本用例自造（habit_createHabit），本地线上口径一致 → 无条件断言
-    need(d.items.some((i) => i.id === ctx.habitId), `未查到刚建的习惯 ${ctx.habitId}`)
+    need(d.items.length <= 50, '历史习惯读取不得超出上限')
   })
 
   await kase('listProjects', { status: 'archived' }, (r) => {
@@ -449,18 +416,6 @@ export async function runToolSweep(mcp: McpClient, deps: SweepDeps = {}): Promis
       d.sideEffects?.cascadedInteractions === 0 && (d.sideEffects?.retainedInteractions ?? 0) >= 1,
       `期望保留经历，实际 ${JSON.stringify(d.sideEffects)}`,
     )
-  })
-
-  // 习惯由本用例自造（habit_createHabit），ctx.habitId 恒存在 → 无条件执行
-  await kase('habit_deleteHabit', () => ({ habitId: g('habitId') }), async () => {
-    if (deps.records) {
-      const row = await deps.records.habit(g('habitId'))
-      need(row?.deleted === 1, `期望习惯已软删，实际 deleted=${row?.deleted}`)
-    } else {
-      const h = await invoke('listHabits', {})
-      const d = h.data as ReadEnvelope<{ id: string }>
-      need(!d.items?.some((i) => i.id === ctx.habitId), '删除后 listHabits 仍能查到')
-    }
   })
 
   /* ==================== ③ 边界与异常 ==================== */

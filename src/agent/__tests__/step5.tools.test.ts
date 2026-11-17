@@ -3,7 +3,7 @@
  *
  * 覆盖三块：
  *  A. checkinHabit / uncheckHabit 收口 —— 幂等、仅实际新建才 emit、事务 commit 后 emit
- *  B. habit_checkin 工具 —— 走收口函数、目标态幂等、取消不 emit、习惯不存在可操作错误
+ *  B. habit_checkin 旧工具 —— 退役后拒绝打卡/取消，历史日志不变、不 emit
  *  C. 读工具 —— 投影白名单（不含 Blob/relations 全量/markdown）、条数上限截断、只走活记录
  */
 import { describe, it, expect, beforeEach } from 'vitest'
@@ -120,47 +120,27 @@ describe('A. checkinHabit / uncheckHabit 收口（§9.6.1）', () => {
   })
 })
 
-describe('B. habit_checkin 工具', () => {
-  it('打卡走收口函数，返回 checked/created，仅实际新建才 emit', async () => {
-    await habitRepo.put(newHabit('h1'))
-    const cap = capture()
-    const r1 = await habit_checkin({ habitId: 'h1', date: TODAY })
-    const r2 = await habit_checkin({ habitId: 'h1', date: TODAY })
-    cap.restore()
-
-    expect(r1.ok).toBe(true)
-    expect(r1.data).toMatchObject({ habitId: 'h1', date: TODAY, checked: true, created: true })
-    expect(r2.data).toMatchObject({ checked: true, created: false })
-    expect(cap.events).toHaveLength(1)
-  })
-
-  it('undo:true 取消打卡且不 emit', async () => {
+describe('B. habit_checkin 旧工具退役', () => {
+  it('打卡与取消都拒绝，历史日志和事件不变', async () => {
     await habitRepo.put(newHabit('h1'))
     await checkinHabit('h1', TODAY)
+    const prior = await db.habitLogs.toArray()
     const cap = capture()
-    const r = await habit_checkin({ habitId: 'h1', date: TODAY, undo: true })
+    for (const undo of [false, true]) {
+      const result = await habit_checkin({ habitId: 'h1', date: TODAY, undo })
+      expect(result.ok).toBe(false)
+      expect(result.error).toContain('FEATURE_RETIRED')
+    }
     cap.restore()
-
-    expect(r.ok).toBe(true)
-    expect(r.data).toMatchObject({ checked: false })
+    expect(await db.habitLogs.toArray()).toEqual(prior)
     expect(cap.events).toHaveLength(0)
-    expect((await db.habitLogs.get(habitLogId('h1', TODAY)))!.deleted).toBe(1)
   })
 
-  it('习惯不存在 → 可操作错误，不静默落库', async () => {
-    const r = await habit_checkin({ habitId: 'nope', date: TODAY })
-    expect(r.ok).toBe(false)
-    expect(r.error).toContain('习惯不存在')
+  it.each([false, true])('旧 habit 白名单=%s 不能重新启用打卡', async (enabled) => {
+    const result = await dispatchAgentTool('habit_checkin', { habitId: 'nope', date: TODAY }, { habit: enabled })
+    expect(result.ok).toBe(false)
+    expect(result.error).toContain('FEATURE_RETIRED')
     expect(await db.habitLogs.count()).toBe(0)
-  })
-
-  it('经白名单闸门分发（habit 域）', async () => {
-    await habitRepo.put(newHabit('h1'))
-    const denied = await dispatchAgentTool('habit_checkin', { habitId: 'h1', date: TODAY }, { habit: false })
-    expect(denied.ok).toBe(false)
-    expect(denied.error).toContain('不在能力白名单内')
-    const allowed = await dispatchAgentTool('habit_checkin', { habitId: 'h1', date: TODAY }, { habit: true })
-    expect(allowed.ok).toBe(true)
   })
 })
 

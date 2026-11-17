@@ -13,7 +13,7 @@ interface ErrorBoundaryState {
 /**
  * 页面级错误边界（审计 Phase 6 P2 追加项）：
  * 包裹 AppLayout 的页面出口，单模块渲染崩溃只降级当前页面，
- * 侧栏 / 顶栏 / 全局弹层（⌘K、奖杯弹窗）不受影响，不再整树白屏。
+ * 侧栏 / 顶栏 / 全局搜索不受影响，不再整树白屏。
  */
 export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   state: ErrorBoundaryState = { error: null }

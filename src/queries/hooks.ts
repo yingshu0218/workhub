@@ -116,32 +116,6 @@ export function useTodayFocusMinutes(): number {
   )
 }
 
-/** 最佳习惯连击天数（全部习惯中的最大连续打卡） */
-export function useBestHabitStreak(): number {
-  return (
-    useLiveQuery(async () => {
-      const logs = await db.habitLogs.filter((l) => !l.deleted).toArray()
-      const byHabit = new Map<string, Set<string>>()
-      logs.forEach((l) => {
-        if (!byHabit.has(l.habitId)) byHabit.set(l.habitId, new Set())
-        byHabit.get(l.habitId)!.add(l.date)
-      })
-      let best = 0
-      const todayStr = dayjs().format('YYYY-MM-DD')
-      byHabit.forEach((dates) => {
-        let n = 0
-        let cursor = dates.has(todayStr) ? dayjs() : dayjs().subtract(1, 'day')
-        while (dates.has(cursor.format('YYYY-MM-DD'))) {
-          n++
-          cursor = cursor.subtract(1, 'day')
-        }
-        best = Math.max(best, n)
-      })
-      return best
-    }, []) ?? 0
-  )
-}
-
 /**
  * 订阅全局设置（singleton）。
  * 写后由 settingsRepo 广播 settings:changed，Dexie liveQuery 自动重取，各消费端实时生效。

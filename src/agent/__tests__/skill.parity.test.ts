@@ -51,6 +51,9 @@ describe('生成产物与 skill 源一致（防文档漂移）', () => {
     }
     expect(files.has('README.md')).toBe(true)
     expect(files.has('mcp-tools.json')).toBe(true)
+    expect([...files].filter(name => name.endsWith('.md') && name !== 'README.md').sort()).toEqual(
+      ALL_TOOL_SKILLS.map(tool => `${tool.name}.md`).sort(),
+    )
   })
 
   it('mcp-tools.json 工具集与 skill 源一致，且带 annotations.risk/domain', () => {

@@ -4,6 +4,14 @@ import { Icon } from '@/design-system/Icon'
 import { usePersonalQuery, type Value } from '@/queries/personal'
 import EntityPicker from './EntityPicker'
 import { FeedList } from './FeedList'
+import { moduleThemeStyle, type ModuleThemeId } from '@/shared/moduleTheme'
+
+const FEED_LEGEND: { module: ModuleThemeId; label: string; icon: string }[] = [
+  { module: 'timeline', label: '经历', icon: 'timeline' },
+  { module: 'crm', label: '联系沟通', icon: 'group' },
+  { module: 'todo', label: '承诺变化', icon: 'check_circle' },
+  { module: 'finance', label: '收支', icon: 'account_balance_wallet' },
+]
 export default function TimelinePage() {
   const { id } = useParams(),
     [params, setParams] = useSearchParams()
@@ -80,6 +88,14 @@ export default function TimelinePage() {
           </label>
         </Card>
         <section className="min-w-0 space-y-4" aria-label="时间线记录">
+          <ul className="flex flex-wrap gap-x-5 gap-y-2 text-xs" aria-label="事件类型配色">
+            {FEED_LEGEND.map(({ module, label, icon }) => (
+              <li key={module} className="module-theme inline-flex items-center gap-1.5 text-primary" style={moduleThemeStyle(module)}>
+                <Icon name={icon} size={14} />
+                {label}
+              </li>
+            ))}
+          </ul>
           {focus ? (
             <Card className="border-primary p-4" aria-label="定位的事件">
               <h2 className="mb-3 font-semibold">定位的事件 · 独立于下方筛选范围</h2>

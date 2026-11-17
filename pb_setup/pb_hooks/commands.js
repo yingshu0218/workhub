@@ -90,6 +90,7 @@ exports.apply = (app,e,c) => {
         const key = w.table + '/' + w.id
         const prev = get(w.table, w.id)
         before[key] = prev || null
+        core.validateRetiredFeatureWrite(w, prev)
         const purged = app.findRecordsByFilter('deletion_registry', 'tableName = {:table} && recordId = {:id}', '', 1, 0, { table: w.table, id: w.id })[0]
         if (purged) core.fail('PERMANENTLY_DELETED', key)
         if(w.table==='activities')for(const identity of core.activityDeletionIdentities(w.id,w.value?.sourceTable==='interactions'?w.value.sourceId:undefined,s=>$security.sha256(s)))if(app.findRecordsByFilter('deletion_registry','tableName={:table} && recordId={:id}','',1,0,{table:identity.table,id:identity.id}).length)core.fail('PERMANENTLY_DELETED','旧沟通来源已清理：'+identity.id)
@@ -197,7 +198,6 @@ exports.apply = (app,e,c) => {
         if (!next || next.deleted) continue
         if (w.table === 'transactions' && !prev) notifications.push({type:'transaction:created',payload:{transactionId:w.id}})
         if (w.table === 'activities' && !prev) for(const link of c.writes)if(link.table==='links' && link.value?.fromType==='activities' && link.value.fromId===w.id && link.value.toType==='customers')notifications.push({type:'customer:contacted',payload:{customerId:link.value.toId}})
-        if (w.table === 'habitLogs' && (!prev || prev.deleted)) notifications.push({type:'habit:checked',payload:{habitId:next.habitId,date:next.date}})
       }
       for (const ev of notifications) {
         const notification = new Record(app.findCollectionByNameOrId('agent_events'))
@@ -293,8 +293,10 @@ exports.preview = e => {
       if (previous) {
         if(previous.getString('status')==='cancelled')core.fail('CANCELLED','预览已撤回')
         if (previous.getString('fingerprint') !== fp || previous.getString('planFingerprint') !== planFp) core.fail('REQUEST_REUSED', '请求已绑定另一份预览计划')
+        if(previous.getString('status')!=='committed')for(const w of c.writes)core.validateRetiredFeatureWrite(w,rowOf(find(app,w.table,w.id)))
         result = core.decodePbJson(previous.get('plan')); return
       }
+      for(const w of c.writes)core.validateRetiredFeatureWrite(w,rowOf(find(app,w.table,w.id)))
       for (const r of c.reads) {
         const current = rowOf(find(app, r.table, r.id))
         if ((current ? Number(current.rev || 0) : null) !== r.rev) core.fail('VERSION_CONFLICT', r.table + '/' + r.id)

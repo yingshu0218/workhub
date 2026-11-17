@@ -10,13 +10,12 @@
  *   WORKHUB_ONLINE_URL=ws://192.0.2.10:9001/relay WORKHUB_ONLINE_TOKEN=<token> \
  *   npx vitest run src/agent/__tests__/demoSeed.online.test.ts
  *
- * 覆盖不到的：**习惯 / 习惯打卡 / 待办清单** —— habit 与 todoList 没有对应的 agentOps 工具，
- * 无法经 MCP 创建，改由桥侧脚本直接写入浏览器本地库（打卡仍走 `habit_checkin` 正规路径）。
+ * 习惯打卡与奖杯功能已下线，本脚本不再播种相关记录。
  *
  * 数据会先落浏览器 IndexedDB，再由同步引擎推到线上 PocketBase。
  */
 import { describe, it, beforeAll } from 'vitest'
-import { installWebSocketGlobal, McpClient, type ReadEnvelope } from './e2e.harness'
+import { installWebSocketGlobal, McpClient } from './e2e.harness'
 import { makeInvoker } from './sweep.cases'
 
 const ONLINE_URL = process.env.WORKHUB_ONLINE_URL ?? ''
@@ -250,28 +249,6 @@ describe.skipIf(!ONLINE)('演示数据播种（线上）', () => {
       )
     }
     log.push('流水 12 笔（收入 5 / 支出 7；含待对账 5 笔）')
-
-    /* ==================== 10. 习惯打卡（习惯由桥侧写入本地库，此处走正规打卡路径） ==================== */
-    const hb = await call('listHabits', {})
-    const habits = (hb.data as ReadEnvelope<{ id: string; name: string }>).items ?? []
-    if (!habits.length) {
-      log.push('⚠️ 未发现习惯，跳过打卡（习惯需先由桥侧脚本写入浏览器本地库）')
-    } else {
-      let total = 0
-      for (const h of habits) {
-        // 每个习惯给不同的连续区间，制造「长连续 / 隔日 / 稀疏」三种热力图形态
-        const everyOther = h.name.includes('健身')
-        const span = h.name.includes('写作') ? 13 : h.name.includes('阅读') ? 9 : 6
-        const sparse = h.name.includes('复盘')
-        for (let d = span; d >= 0; d--) {
-          if (everyOther && d % 2 === 1) continue
-          if (sparse && d % 3 !== 0) continue
-          const r = await call('habit_checkin', { habitId: h.id, date: day(-d) })
-          if (r.ok) total++
-        }
-      }
-      log.push(`习惯打卡 ${total} 次（覆盖最近 14 天）`)
-    }
 
     console.log('\n===== 演示数据播种完成 =====\n' + log.map((l) => '  · ' + l).join('\n'))
   }, 900_000)

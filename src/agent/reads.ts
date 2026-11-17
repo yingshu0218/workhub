@@ -134,7 +134,7 @@ export const listLinksSchema = z
 export const searchEntitiesSchema = z.object({
   q: z.string().trim().min(1, '请提供搜索关键词'),
   types: z
-    .array(z.enum(['activity', 'customer', 'todo', 'transaction', 'note', 'habit', 'project']))
+    .array(z.enum(['activity', 'customer', 'todo', 'transaction', 'note', 'project']))
     .optional(),
 })
 
@@ -295,7 +295,7 @@ export async function listLedgers(input: unknown): Promise<ReadResult> {
   return envelope(rows.map(projectLedger), READ_LIMITS.listLedgers)
 }
 
-/** listHabits：习惯清单（打卡前置） */
+/** listHabits：有界历史习惯记录，不再用于打卡或编辑。 */
 export async function listHabits(input: unknown): Promise<ReadResult> {
   void input
   const rows = alive(await storage.list<Habit>('habits'))
@@ -311,13 +311,12 @@ export async function listHabits(input: unknown): Promise<ReadResult> {
  */
 export async function searchEntities(input: unknown): Promise<ReadResult> {
   const d = searchEntitiesSchema.parse(input)
-  const [customers, projects, todos, transactions, notes, habits, activities] = await Promise.all([
+  const [customers, projects, todos, transactions, notes, activities] = await Promise.all([
     storage.list<Customer>('customers'),
     storage.list<Project>('projects'),
     storage.list<Todo>('todos'),
     storage.list<Transaction>('transactions'),
     storage.list<Note>('notes'),
-    storage.list<Habit>('habits'),
     storage.list<Activity>('activities'),
   ])
   // 黑名单「全局搜索屏蔽」（缺陷 D15）：Agent 读工具复用同一份 ⌘K 索引 ——
@@ -331,7 +330,6 @@ export async function searchEntities(input: unknown): Promise<ReadResult> {
     todos: alive(todos),
     transactions: alive(transactions),
     notes: alive(notes as unknown as Note[]).map((n) => ({ id: n.id, title: n.title, tags: n.tags })),
-    habits: alive(habits),
   })
   const groups = searchAll(index, d.q)
   const allowed = d.types ? new Set<SearchEntityType>(d.types) : undefined

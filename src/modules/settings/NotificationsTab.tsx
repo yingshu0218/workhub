@@ -10,7 +10,7 @@ import type { Settings } from '@/db/types'
  */
 /**
  * 已接通的开关：只有「任务逾期预警」在 `modules/todo/TodoPage.tsx` 被真实读取
- * （`settings.notifications.todoDueWarning`）。其余 7 项全仓零消费方 ——
+ * （`settings.notifications.todoDueWarning`）。其余项全仓零消费方 ——
  * 开关照旧可存偏好，但必须禁用，否则界面上「看起来能用」就是在骗人。
  */
 const WIRED_KEYS = new Set<string>(['todoDueWarning'])
@@ -40,7 +40,7 @@ export function NotificationsTab({
                 {
                   key: 'soundAlerts',
                   title: '声音提示 (Sound Alerts)',
-                  desc: '解锁奖杯、到期临门等重磅节点短促清晰提示',
+                  desc: '待办到期等重要节点的短促声音提示',
                 },
                 {
                   key: 'dailyBrief',
@@ -51,11 +51,6 @@ export function NotificationsTab({
                   key: 'todoDueWarning',
                   title: '任务逾期预警',
                   desc: '在待办事项临近截止前推送预警，避免项目节点延误',
-                },
-                {
-                  key: 'habitReminder',
-                  title: '打卡习惯晚间提醒',
-                  desc: '入睡前温和提示今日自律习惯（阅读、代码复盘、健身）待打卡',
                 },
                 {
                   key: 'monthEndReconcile',

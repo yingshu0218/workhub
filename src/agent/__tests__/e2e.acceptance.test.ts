@@ -495,7 +495,7 @@ describe('P1 第 7 步 E2E 主干验收（§9.8）', () => {
     expect((await db.todos.get(tid))!.deleted).toBe(1)
   }, 60_000)
 
-  it('③-b habit_checkin 幂等：重复调用 created=false 且不重复 emit', async () => {
+  it('③-b 已下线 habit_checkin 经真实 MCP 重试仍拒绝且不产生记录', async () => {
     const habitId = 'habit-e2e'
     await db.habits.put({
       id: habitId,
@@ -516,11 +516,11 @@ describe('P1 第 7 步 E2E 主干验收（§9.8）', () => {
     captured = []
     const first = await mcp.callTool('habit_checkin', { habitId, date: '2026-09-10' })
     const second = await mcp.callTool('habit_checkin', { habitId, date: '2026-09-10' })
-    expect(first.ok, first.text).toBe(true)
-    expect(second.ok, second.text).toBe(true)
-    expect((first.data as { created: boolean }).created).toBe(true)
-    expect((second.data as { created: boolean }).created).toBe(false)
-    expect(first.data).toMatchObject({ habitId, date: '2026-09-10', checked: true })
-    expect(captured.filter((e) => e.event === 'habit:checked')).toHaveLength(1)
+    expect(first.ok, first.text).toBe(false)
+    expect(second.ok, second.text).toBe(false)
+    expect(first.text).toContain('FEATURE_RETIRED')
+    expect(second.text).toContain('FEATURE_RETIRED')
+    expect(await db.habitLogs.count()).toBe(0)
+    expect(captured.filter((e) => e.event === 'habit:checked')).toHaveLength(0)
   }, 30_000)
 })

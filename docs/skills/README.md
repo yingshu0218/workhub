@@ -16,7 +16,7 @@
 - **relay 不是安全边界**：真正的防线是 agentOps 的 zod 校验 + 风险分级 + confirmToken + 白名单；
 - relay 是**通道、不持有数据**：权威数据在浏览器 IndexedDB，agentOps 在页面进程内执行。
 
-## 工具总览（61 个）
+## 工具总览（57 个）
 
 | 工具 | 域 | 风险 | 能力 |
 |---|---|---|---|
@@ -29,7 +29,6 @@
 | [`link_unlink`](./link_unlink.md) | link | medium | 解除原子间关联（幂等） |
 | [`todo_createTodo`](./todo_createTodo.md) | todo | low | 新建待办（正文首行即标题） |
 | [`todo_completeTodo`](./todo_completeTodo.md) | todo | low | 把待办标记为完成（或取消完成） |
-| [`habit_checkin`](./habit_checkin.md) | habit | low | 习惯打卡 / 取消打卡 |
 | [`todo_updateTodo`](./todo_updateTodo.md) | todo | low | 编辑待办（正文/优先级/截止时间/关联） |
 | [`todo_deleteTodo`](./todo_deleteTodo.md) | todo | high | 删除待办（不可逆，顺带解绑流水关联） |
 | [`crm_updateCustomer`](./crm_updateCustomer.md) | crm | medium | 编辑客户档案（姓名/公司/职位/健康分档位/联系方式） |
@@ -38,9 +37,6 @@
 | [`note_createNote`](./note_createNote.md) | note | low | 新建笔记 |
 | [`note_updateNote`](./note_updateNote.md) | note | medium | 编辑笔记（标题/正文/标签/归属） |
 | [`note_createFolder`](./note_createFolder.md) | note | low | 新建笔记文件夹 |
-| [`habit_deleteHabit`](./habit_deleteHabit.md) | habit | high | 删除习惯（不可逆，级联清打卡记录） |
-| [`habit_createHabit`](./habit_createHabit.md) | habit | low | 新建习惯（名称/图标/色板/节奏/目标时长） |
-| [`habit_updateHabit`](./habit_updateHabit.md) | habit | low | 编辑习惯（名称/图标/色板/节奏/目标时长/专注联动） |
 | [`fin_updateTransaction`](./fin_updateTransaction.md) | fin | medium | 编辑流水（金额/类型/日期/账本/状态/关联） |
 | [`fin_deleteTransaction`](./fin_deleteTransaction.md) | fin | high | 删除流水（不可逆，级联清凭证存根） |
 | [`note_deleteNote`](./note_deleteNote.md) | note | high | 删除笔记（不可逆） |
@@ -65,7 +61,7 @@
 | [`listTransactions`](./listTransactions.md) | read | low | 按条件列流水（金额/日期/状态/客户/账本） |
 | [`listTodos`](./listTodos.md) | read | low | 列待办 |
 | [`listLedgers`](./listLedgers.md) | read | low | 列账本 |
-| [`listHabits`](./listHabits.md) | read | low | 列习惯 |
+| [`listHabits`](./listHabits.md) | read | low | 读取有界历史习惯记录（功能已下线） |
 | [`listProjects`](./listProjects.md) | read | low | 列项目（可按状态/挂靠客户过滤） |
 | [`listNotes`](./listNotes.md) | read | low | 列笔记（标题/标签/归属，**不含正文**） |
 | [`listNoteFolders`](./listNoteFolders.md) | read | low | 列笔记文件夹 |

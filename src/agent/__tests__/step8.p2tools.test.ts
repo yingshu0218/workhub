@@ -30,7 +30,6 @@ const NEW_TOOLS = [
   'note_createNote',
   'note_updateNote',
   'note_createFolder',
-  'habit_deleteHabit',
   'listProjects',
   'listNotes',
   'listNoteFolders',
@@ -51,7 +50,6 @@ describe('P2 动作扩面：注册与声明完整', () => {
 
   it('删除类为 high 风险（不可逆，需二次确认 + 副作用清单）', () => {
     expect(TOOL_RISK['todo_deleteTodo']).toBe('high')
-    expect(TOOL_RISK['habit_deleteHabit']).toBe('high')
   })
 
   it('project / note 域独立进白名单：关掉 project 域不影响 note 域工具', () => {
@@ -203,7 +201,7 @@ describe('删除类：软删 + 副作用清单 + 幂等', () => {
     expect(again.error).toContain('不存在')
   })
 
-  it('habit_deleteHabit 级联清理打卡记录并在副作用清单里给出条数', async () => {
+  it('habit_deleteHabit 已退役，不再修改历史记录', async () => {
     const hid = 'hb:1'
     await db.habits.put({
       id: hid,
@@ -233,11 +231,11 @@ describe('删除类：软删 + 副作用清单 + 幂等', () => {
       } as never)
     }
     const r = await dispatchAgentTool('habit_deleteHabit', { habitId: hid })
-    expect(r.ok).toBe(true)
-    expect((r.data as { sideEffects: { cascadedHabitLogs: number } }).sideEffects.cascadedHabitLogs).toBe(2)
-    expect((await db.habits.get(hid))!.deleted).toBe(1)
+    expect(r.ok).toBe(false)
+    expect(r.error).toContain('FEATURE_RETIRED')
+    expect((await db.habits.get(hid))!.deleted).toBe(0)
     const logs = await db.habitLogs.toArray()
-    expect(logs.every((l) => l.deleted === 1)).toBe(true)
+    expect(logs.every((l) => l.deleted === 0)).toBe(true)
   })
 })
 

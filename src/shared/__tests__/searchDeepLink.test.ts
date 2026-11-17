@@ -13,7 +13,7 @@
 import { describe, it, expect } from 'vitest'
 import { buildSearchIndex } from '../search'
 
-const base = { customers: [], projects: [], notes: [], habits: [] }
+const base = { customers: [], projects: [], notes: [] }
 
 function txn(id: string) {
   return {

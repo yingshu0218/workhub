@@ -1,4 +1,5 @@
 import { projectRecord, TABLE_DOMAIN } from '@/commands/personal'
+import { isRetiredHabitTool, RETIRED_FEATURE_MESSAGE } from '@/commands/retiredFeatures'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { PERSONAL_TOOL_MAP } from './personalTools'
 import { stagePlan, requestId as newRequestId } from '@/storage/commandPlan'
@@ -46,8 +47,7 @@ import {
  *   与浏览器桥逐字段一致）；票据签发/核销仍在 relay。
  *
  * ⚠️ 服务端事件边界（方案 §5.4，P4 处理）：写工具 emit 的领域事件在服务端 bundle 里
- * 无消费者（eventBus 空转）——奖杯/EXP 评估仍由各客户端在 pull 收敛后自行触发评估，
- * 即「事件源多一个、评估逻辑不动」的推荐语义。
+ * 无消费者（eventBus 空转）；通知从服务端已提交变更推导，习惯/奖杯退役后不再产生奖励通知。
  *
  * 白名单：initServerExecutor 显式传入（serve.mjs 从 WORKHUB_AI_DOMAINS env 读，
  * **默认全关**，方案 §7.5 拍板）；与浏览器白名单相互独立（两把闸门各管各的执行体）。
@@ -107,6 +107,7 @@ export type ServerReadToolName = keyof typeof SERVER_READ_TOOLS
 
 /** 工具描述（与浏览器桥同口径：域 + 风险级，参数细节在 schema） */
 function describeTool(name: string, risk: string): string {
+  if (name === 'listHabits') return '读取有界历史习惯记录；习惯打卡与成就奖杯功能已下线，只供历史核对。'
   return `${name}（域：${name.split('_')[0]}，风险：${risk}）—— 参数见 inputSchema；实体引用须先 resolveEntity，候选不唯一必须反问用户。写入前先用读工具取得 generation，并在公开 arguments 发送稳定 requestId 与原 generation；网络重试复用二者。具体预览返回 confirmHint，按原提示取票和提交。`
 }
 
@@ -226,11 +227,26 @@ export function initServerExecutor(opts: ServerExecutorOptions): {
     listTools: () => serverToolsList(domains),
     authenticate: async credential => pbAdapter.personal('agents/verify', credential),
     handles: (name: string) =>
-      (Object.hasOwn(SERVER_READ_TOOLS, name) || Object.hasOwn(AGENT_TOOLS, name)) && domainAllowed(name),
+      isRetiredHabitTool(name) || ((Object.hasOwn(SERVER_READ_TOOLS, name) || Object.hasOwn(AGENT_TOOLS, name)) && domainAllowed(name)),
     callTool: async (name, input, meta) => {
       let requestAdapter = meta?.agentKey ? createPocketBaseAdapter({ ...opts.pb, agentKey: meta.agentKey }) : pbAdapter
       const personal = PERSONAL_TOOL_MAP.get(name)
       if (!personal && input && typeof input === 'object') { const clean = { ...(input as Record<string,unknown>) };delete clean.requestId;delete clean.generation;delete clean.confirmToken;input=clean }
+      if (isRetiredHabitTool(name)) {
+        // 已提交回执是历史事实；退役不能让响应丢失的旧客户端误判为尚未执行。
+        // 旧预览和新请求一律拒绝，绝不沿用其待提交计划继续写入。
+        if (meta?.requestId && meta.generation) {
+          try {
+            const prior = await requestAdapter.transport.lookup(meta.requestId, meta.generation, { tool: name, input })
+            if (prior.committed && prior.receipt) {
+              const receipt = prior.receipt
+              const result = receipt.result as ServerOpResult
+              return { ...result, data: { ...result.data, requestId: meta.requestId, operationId: receipt.operationId, generation: meta.generation, retrySafe: true } }
+            }
+          } catch (e) { return { ok: false, error: (e as Error).message } }
+        }
+        return { ok: false, error: RETIRED_FEATURE_MESSAGE }
+      }
       if (personal) {
         // 旧工具已按自身业务域闸门授权其既有关联副作用；复合工具才逐项按部署域收窄。
         requestAdapter=createPocketBaseAdapter({...opts.pb,...(meta?.agentKey?{agentKey:meta.agentKey}:{}),writeDomains:domains})

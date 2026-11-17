@@ -176,6 +176,7 @@ export class AgentBridge {
 
 /** 工具描述（首版由域前缀 + 风险级生成；skill 文档提供完整语义，§五） */
 function describeTool(name: string, risk: string): string {
+  if (name === 'listHabits') return '读取有界历史习惯记录；习惯打卡与成就奖杯功能已下线，只供历史核对。'
   return `${name}（域：${name.split('_')[0]}，风险：${risk}）—— 参数见 inputSchema；实体引用须先 resolveEntity，候选不唯一必须反问用户。`
 }
 

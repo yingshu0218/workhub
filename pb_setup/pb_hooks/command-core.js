@@ -31,9 +31,16 @@ __export(core_exports, {
   minorUnits: () => minorUnits,
   scopeFilter: () => scopeFilter,
   stable: () => stable,
-  validateRecord: () => validateRecord
+  validateRecord: () => validateRecord,
+  validateRetiredFeatureWrite: () => validateRetiredFeatureWrite
 });
 module.exports = __toCommonJS(core_exports);
+
+// src/commands/retiredFeatures.ts
+var RETIRED_FEATURE_MESSAGE = "FEATURE_RETIRED: \u4E60\u60EF\u6253\u5361\u4E0E\u6210\u5C31\u5956\u676F\u529F\u80FD\u5DF2\u4E0B\u7EBF\uFF1B\u5386\u53F2\u8BB0\u5F55\u4EC5\u4F9B\u8BFB\u53D6\u3001\u5BFC\u51FA\u6216\u56DE\u6536\u7AD9\u6062\u590D/\u6E05\u7406\u3002";
+function isRetiredFeatureTable(table) {
+  return ["habits", "habitLogs", "trophies"].includes(table);
+}
 
 // src/commands/scope.ts
 var SCOPE_FIELDS = {
@@ -192,6 +199,19 @@ function checkCommand(c) {
   }
   for (const r of c.reads) if (!BUSINESS_TABLES.includes(r.table)) fail("INVALID_READ", r.table);
   for (const s of c.scans) if (!BUSINESS_TABLES.includes(s.table) || !Array.isArray(s.versions) || s.versions.length > 2e4) fail("INVALID_SCAN", s.table);
+}
+function validateRetiredFeatureWrite(write, prev) {
+  if (!isRetiredFeatureTable(write.table)) return;
+  if (write.kind === "delete" && prev) return;
+  const next = write.value;
+  if (!prev || !next) throw new Error(RETIRED_FEATURE_MESSAGE);
+  const deleting = !prev.deleted && next.deleted === 1;
+  const restoring = prev.deleted === 1 && next.deleted === 0 && Number(next.restoredAt) > 0;
+  if (!deleting && !restoring) throw new Error(RETIRED_FEATURE_MESSAGE);
+  const lifecycle = /* @__PURE__ */ new Set(["rev", "updatedAt", "deleted", "deletedAt", "restoredAt", "trashSnapshot", "tombstonePushed", "synced"]);
+  for (const field of /* @__PURE__ */ new Set([...Object.keys(prev), ...Object.keys(next)])) {
+    if (!lifecycle.has(field) && stable(prev[field]) !== stable(next[field])) throw new Error(RETIRED_FEATURE_MESSAGE);
+  }
 }
 function validateRecord(table, next, prev, get) {
   if ((prev == null ? void 0 : prev.deleted) && !next.deleted && !next.restoredAt) fail("DELETED", "\u8BF7\u4ECE\u56DE\u6536\u7AD9\u663E\u5F0F\u6062\u590D\uFF1A" + next.id);

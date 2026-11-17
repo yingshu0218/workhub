@@ -36,7 +36,7 @@ beforeAll(async () => {
   mcp = await McpClient.open(bridgeUrl)
   await mcp.initialize(relay.token)
 
-  // 习惯域没有「创建习惯」工具（观察项），本地按 UI 同等口径直接落库
+  // 仅用于历史只读验证的退役前记录，不通过已下线写工具播种。
   await db.habits.put({
     id: 'habit-sweep',
     name: '晨跑',

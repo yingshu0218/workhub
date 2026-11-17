@@ -1,7 +1,7 @@
-import { useCollection, useTodayFocusMinutes, useBestHabitStreak } from '@/queries/hooks'
+import { useCollection, useTodayFocusMinutes } from '@/queries/hooks'
 import { Card, PageHeader, Button } from '@/design-system/ui'
 import type { Todo, Customer, Transaction } from '@/db/types'
-import { FocusCard, HabitLoopCard, TodayTodosCard } from './cards'
+import { FocusCard, TodayTodosCard } from './cards'
 import dayjs from 'dayjs'
 import { isDueToday, isTodoOverdue } from '@/modules/todo/domain'
 import { useUserName } from '@/modules/identity'
@@ -104,9 +104,6 @@ export default function DashboardPage() {
   // 今日专注分钟（本地推导）
   const focusMinutes = useTodayFocusMinutes()
 
-  // 最佳习惯连击
-  const bestStreak = useBestHabitStreak()
-
   return (
     <div className="mx-auto max-w-[1200px]">
       <PageHeader
@@ -138,8 +135,8 @@ export default function DashboardPage() {
         ))}
       </nav>
 
-      {/* 指标卡：窄屏 2×2 等分（4 列会把 26px 的数字挤到换行），md 起恢复桌面 4 列 */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+      {/* 窄屏单列保留完整读数，宽屏并列展示三项常用指标。 */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Card className="p-4">
           <div className="text-[0.8571rem] font-medium uppercase tracking-wide text-outline">
             深度专注
@@ -185,18 +182,6 @@ export default function DashboardPage() {
         </Card>
         <Card className="p-4">
           <div className="text-[0.8571rem] font-medium uppercase tracking-wide text-outline">
-            习惯连击
-          </div>
-          <div
-            key={`streak-${bestStreak}`}
-            className="anim-enter mt-1 text-[1.8571rem] font-bold whitespace-nowrap text-warning"
-          >
-            {bestStreak}
-            <span className="text-[0.9286rem] text-outline"> 天</span>
-          </div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-[0.8571rem] font-medium uppercase tracking-wide text-outline">
             累计收款
           </div>
           <div
@@ -210,13 +195,12 @@ export default function DashboardPage() {
       </div>
 
       {/* 延续原首页左 7 / 右 5 布局，记录卡沿用有确认与隔离草稿的新入口。 */}
-      <div className="mt-4 grid grid-cols-1 items-stretch gap-4 md:mt-5 lg:grid-cols-12 lg:grid-rows-[auto_minmax(0,1fr)]">
-        <div className="grid min-h-0 gap-4 lg:col-span-7 lg:row-span-2 lg:grid-rows-[auto_minmax(0,1fr)]">
+      <div className="mt-4 grid grid-cols-1 items-start gap-4 md:mt-5 lg:grid-cols-12">
+        <div className="grid min-h-0 gap-4 lg:col-span-7">
           <FocusCard />
           <TodayTodosCard />
         </div>
-        <div className="grid min-h-0 gap-4 lg:col-span-5 lg:row-span-2 lg:grid-rows-[auto_minmax(0,1fr)]">
-          <HabitLoopCard />
+        <div className="min-w-0 lg:col-span-5">
           <CapturePanel />
         </div>
       </div>

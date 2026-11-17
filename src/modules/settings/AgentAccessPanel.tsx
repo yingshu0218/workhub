@@ -12,7 +12,6 @@ const DOMAINS = [
   ['note', '笔记'],
   ['attachment', '附件'],
   ['link', '关联'],
-  ['habit', '习惯'],
   ['operation', '操作记录'],
   ['source', '来源原话'],
 ]

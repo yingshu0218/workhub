@@ -29,8 +29,8 @@ export function DensityTab({
         <div className="anim-enter space-y-4">
           <Section
             icon="format_color_fill"
-            title="强调色"
-            desc="覆盖主按钮、选中态与链接色的品牌强调色"
+            title="通用强调色"
+            desc="用于登录等通用界面；业务模块的按钮、选中态和链接使用各自主题色"
             badge="实时生效"
           >
             <div className="flex flex-wrap gap-3">

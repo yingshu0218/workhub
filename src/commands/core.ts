@@ -1,4 +1,5 @@
 /** 宿主无关的命令契约；JSVM / Node / 浏览器共用，禁止在这里引入 I/O。 */
+import { isRetiredFeatureTable, RETIRED_FEATURE_MESSAGE } from './retiredFeatures'
 export { scopeFilter } from './scope'
 export { decodePbJson } from './json'
 export { JSON_FIELDS_BY_TABLE } from '@/sync/remoteNormalize'
@@ -54,6 +55,20 @@ export function checkCommand(c: Command): void {
   }
   for (const r of c.reads) if (!BUSINESS_TABLES.includes(r.table)) fail('INVALID_READ', r.table)
   for (const s of c.scans) if (!BUSINESS_TABLES.includes(s.table) || !Array.isArray(s.versions) || s.versions.length > 20000) fail('INVALID_SCAN', s.table)
+}
+/** 历史保全只放行纯生命周期变更；不得把自报 restore/purge 当作重新编辑的通行证。 */
+export function validateRetiredFeatureWrite(write: Write, prev: Row | undefined): void {
+  if (!isRetiredFeatureTable(write.table)) return
+  if (write.kind === 'delete' && prev) return
+  const next = write.value
+  if (!prev || !next) throw new Error(RETIRED_FEATURE_MESSAGE)
+  const deleting = !prev.deleted && next.deleted === 1
+  const restoring = prev.deleted === 1 && next.deleted === 0 && Number(next.restoredAt) > 0
+  if (!deleting && !restoring) throw new Error(RETIRED_FEATURE_MESSAGE)
+  const lifecycle = new Set(['rev', 'updatedAt', 'deleted', 'deletedAt', 'restoredAt', 'trashSnapshot', 'tombstonePushed', 'synced'])
+  for (const field of new Set([...Object.keys(prev), ...Object.keys(next)])) {
+    if (!lifecycle.has(field) && stable(prev[field]) !== stable(next[field])) throw new Error(RETIRED_FEATURE_MESSAGE)
+  }
 }
 /** 在事务内调用；get 返回包含本计划前序变更的权威记录，拒绝悬挂引用。 */
 export function validateRecord(table: string, next: Row, prev: Row | undefined, get: (table: string, id: string) => Row | undefined): void {

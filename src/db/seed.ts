@@ -1,6 +1,6 @@
 import dayjs from 'dayjs'
 import { db, DEFAULT_WORKSPACE_ID } from './db'
-import { addCustomerRelation, habitLogId } from '@/repositories'
+import { addCustomerRelation } from '@/repositories'
 import { buildLinkId } from '@/repositories/linkId'
 import type {
   Workspace,
@@ -10,9 +10,6 @@ import type {
   Todo,
   Note,
   QuickNote,
-  Habit,
-  HabitLog,
-  Trophy,
   Interaction,
   Project,
   ProjectMilestone,
@@ -172,7 +169,6 @@ export async function seedIfEmpty(): Promise<boolean> {
     },
   ]
 
-  const today = dayjs().format('YYYY-MM-DD')
   const todos: Todo[] = [
     {
       id: 'td1',
@@ -336,48 +332,6 @@ export async function seedIfEmpty(): Promise<boolean> {
     },
   ]
 
-  const habits: Habit[] = [
-    {
-      id: 'h1',
-      name: '深度专注',
-      icon: 'psychology',
-      color: '#2563eb',
-      category: '工作',
-      schedule: '每日',
-      targetMinutes: 25,
-      motivationNote: '专注力是自由职业者唯一的护城河',
-      crossModuleSync: true,
-      createdAt: now - 60 * 86400_000,
-      ...meta(),
-    },
-    {
-      id: 'h2',
-      name: '客户跟进',
-      icon: 'handshake',
-      color: '#0f6e56',
-      category: '商务',
-      schedule: '每日',
-      targetMinutes: 15,
-      motivationNote: '每一条线索都值得被认真对待',
-      crossModuleSync: true,
-      createdAt: now - 45 * 86400_000,
-      ...meta(),
-    },
-    {
-      id: 'h3',
-      name: '睡前复盘',
-      icon: 'edit_note',
-      color: '#854f0b',
-      category: '成长',
-      schedule: '每日',
-      targetMinutes: 10,
-      motivationNote: '不总结，就没有积累',
-      crossModuleSync: false,
-      createdAt: now - 30 * 86400_000,
-      ...meta(),
-    },
-  ]
-
   const projects: Project[] = [
     {
       id: 'p1',
@@ -435,41 +389,6 @@ export async function seedIfEmpty(): Promise<boolean> {
     },
   ]
 
-  const trophy: Omit<Trophy, 'id'>[] = [
-    {
-      name: '首笔大额回款',
-      tier: '金',
-      rarity: '8.1%',
-      description: '单笔项目款首次突破 5 位数',
-      icon: 'emoji_events',
-      unlockedAt: now - 86400_000,
-      conditionType: 'transactions_total',
-      conditionValue: 1,
-      ...meta(),
-    },
-    {
-      name: '21 天稳态达成',
-      tier: '白金',
-      rarity: '2.3%',
-      description: '任一习惯连续打卡 21 天',
-      icon: 'military_tech',
-      unlockedAt: now - 3 * 86400_000,
-      conditionType: 'habit_streak',
-      conditionValue: 21,
-      ...meta(),
-    },
-    {
-      name: '笔记开张',
-      tier: '铜',
-      rarity: '43.7%',
-      description: '创建第一篇笔记',
-      icon: 'description',
-      unlockedAt: now - 60 * 86400_000,
-      ...meta(),
-    },
-  ]
-  const trophies: Trophy[] = trophy.map((t, i) => ({ ...t, id: `tr${i + 1}` }))
-
   await db.transaction(
     'rw',
     [
@@ -482,9 +401,6 @@ export async function seedIfEmpty(): Promise<boolean> {
       db.notes,
       db.links,
       db.quickNotes,
-      db.habits,
-      db.habitLogs,
-      db.trophies,
       db.projects,
       db.projectMilestones,
       db.meta,
@@ -499,17 +415,6 @@ export async function seedIfEmpty(): Promise<boolean> {
       await db.notes.bulkPut(notes)
       await db.links.bulkPut(links)
       await db.quickNotes.bulkPut(quickNotes)
-      await db.habits.bulkPut(habits)
-      await db.habitLogs.bulkPut(
-        habits.map((h, i): HabitLog => ({
-          id: habitLogId(h.id, today),
-          habitId: h.id,
-          date: today,
-          completedAt: now - i * 600_000,
-          ...meta(),
-        })),
-      )
-      await db.trophies.bulkPut(trophies)
       await db.projects.bulkPut(projects)
       await db.projectMilestones.bulkPut(milestones)
       await db.meta.put({ key: 'seeded', value: now })

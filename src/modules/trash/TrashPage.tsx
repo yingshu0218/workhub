@@ -21,7 +21,6 @@ type FilterKey =
   | 'todos'
   | 'notes'
   | 'projects'
-  | 'habits'
   | 'other'
 
 const FILTERS: { key: FilterKey; label: string }[] = [
@@ -31,7 +30,6 @@ const FILTERS: { key: FilterKey; label: string }[] = [
   { key: 'todos', label: '待办' },
   { key: 'notes', label: '笔记' },
   { key: 'projects', label: '项目' },
-  { key: 'habits', label: '习惯' },
   { key: 'other', label: '其他' },
 ]
 
@@ -54,9 +52,6 @@ function categoryOf(item: TrashItem): FilterKey {
     case 'projects':
     case 'projectMilestones':
       return 'projects'
-    case 'habits':
-    case 'habitLogs':
-      return 'habits'
     default:
       return 'other'
   }
@@ -344,7 +339,7 @@ export default function TrashPage() {
           title={items.length === 0 ? '回收站是空的' : '没有符合条件的记录'}
           description={
             items.length === 0
-              ? '删除的客户、流水、待办、笔记、项目与习惯会出现在这里'
+              ? '删除的客户、流水、待办、笔记和项目等记录会出现在这里'
               : '换个筛选条件或关键词再试'
           }
         />

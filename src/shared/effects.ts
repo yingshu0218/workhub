@@ -1,16 +1,10 @@
 import { connectionEpoch } from '@/platform/endpoint'
 import { DEFAULT_SETTINGS } from '@/db/types'
 import { eventBus } from './eventBus'
-import { habitRepo, checkinHabit } from '@/repositories'
 import { settingsRepo } from '@/repositories/localAdmin'
-import { installTrophyEngine } from '@/modules/trophies/trophyEngine'
 import { ACCENT_PRESETS, THEME_STYLES, SKIN_STYLES, FONT_STACKS, DARK_PRIMARY_KEEP_PCT, DARK_ON_PRIMARY_KEEP_PCT, type FontPresetId, type SkinStyleId } from './theme'
-import dayjs from 'dayjs'
 
-/**
- * 跨模块联动订阅（开发计划 2.4）
- * 深度专注完成 → 自动打卡「深度专注」习惯（若开启跨模块联动且时长达标）
- */
+/** 设置订阅只安装一次，避免重复监听系统主题与设置广播。 */
 let installed = false
 
 /**
@@ -152,23 +146,6 @@ export function installModuleEffects() {
   if (installed) return () => {}
   installed = true
 
-  const offFocus=eventBus.on('focus:completed', async ({ minutes }) => {
-    try {
-      const habits = await habitRepo.list()
-      if(epoch!==connectionEpoch() || !installed)return
-      const focusHabit = habits.find(
-        (h) => h.crossModuleSync && h.targetMinutes > 0 && h.category === '工作',
-      )
-      if (!focusHabit || minutes < focusHabit.targetMinutes) return
-      const date = dayjs().format('YYYY-MM-DD')
-      // 走领域命令单点收口（§9.6.1）：checkinHabit 内建确定性 id 幂等，
-      // 已存在即 { created: false } 且不 emit（原「存在即跳过」语义等价）
-      await checkinHabit(focusHabit.id, date, { evidence: `深度专注 ${minutes} 分钟` })
-    } catch (err) {
-      console.error('[effects] focus→habit 联动失败', err)
-    }
-  })
-
   // 设置实时生效：启动应用一次 + 监听变更广播 + 跟随系统主题
   const offSettings=eventBus.on('settings:changed', ({ settings }) => applySettingsToDom(settings))
   const epoch=connectionEpoch()
@@ -179,7 +156,10 @@ export function installModuleEffects() {
     .catch((err) => console.error('[effects] 设置应用失败', err))
   watchSystemTheme()
 
-  // 奖杯引擎（幂等安装）：监听 focus:completed / habit:checked + 启动全量检查
-  const offTrophies=installTrophyEngine()
-  return ()=>{installed=false;offFocus();offSettings();offTrophies?.();lastSettings=undefined;if(mediaHandler)window.matchMedia('(prefers-color-scheme: dark)').removeEventListener('change',mediaHandler)}
+  return () => {
+    installed = false
+    offSettings()
+    lastSettings = undefined
+    if (mediaHandler) window.matchMedia('(prefers-color-scheme: dark)').removeEventListener('change', mediaHandler)
+  }
 }

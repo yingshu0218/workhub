@@ -1,3 +1,4 @@
+import { isRetiredHabitTool } from '@/commands/retiredFeatures'
 import dayjs from 'dayjs'
 import { z } from 'zod'
 import type { AiDomain } from '@/db/types'
@@ -284,19 +285,10 @@ export const linkLinkSchema = z.object({
 
 export const linkUnlinkSchema = linkLinkSchema
 
-/** habit_checkin —— 落库 checkinHabit（§9.6.1 收口，幂等：仅实际新建才 emit） */
-export const checkinHabitSchema = z.object({
-  habitId: z.string().min(1, 'habitId 必须由 resolveEntity 消解产出'),
-  /** YYYY-MM-DD；缺省=今天（与 UI「今天」口径同源） */
-  date: z.string().date('打卡日期格式须为 YYYY-MM-DD').optional(),
-  /** 取消打卡（软删，不 emit）；缺省 false = 打卡 */
-  undo: z.boolean().default(false),
-})
-
 /* ─────────────── P2 动作扩面（编辑 / 删除 / 项目 / 笔记） ─────────────── *
  * 方案 §六 P2「多模块全量动作」。取舍原则：
  * - 只加**已有 UI 入口、语义明确**的动作，不发明新的业务语义；
- * - 删除类一律走既有级联 / 软删函数（`deleteCustomerCascade` / `deleteHabitCascade` /
+ * - 删除类一律走既有级联 / 软删函数（`deleteCustomerCascade` /
  *   `repo.softDelete`），不新写删除逻辑；
  * - 这类动作**不新增任何领域事件**（现有 UI 入口同样不发），事件声明表保持窄。
  *
@@ -417,14 +409,8 @@ export const createFolderSchema = z.object({
   name: z.string().trim().min(1, '请填写文件夹名称'),
 })
 
-/** habit_deleteHabit —— 删除习惯（走 deleteHabitCascade，级联清日志） */
-export const deleteHabitSchema = z.object({
-  habitId: z.string().min(1, 'habitId 必须由 resolveEntity 消解产出'),
-})
-
 /* ───────────── 动作面补全（2026-10-21）：补齐 CRUD 闭环 ───────────── *
- * 上一轮扩面后仍有三个「AI 建得出、改不了 / 删不掉」的洞：
- * - 习惯：只能打卡与删除 —— **无法新建**（用户说「加个跑步习惯」AI 只能拒绝）；
+ * 上一轮扩面后仍有「AI 建得出、改不了 / 删不掉」的洞：
  * - 财务：只能记账 —— 记错了改不了、删不掉（UI 两个入口都有）；
  * - 客户 / 笔记 / 项目：只能建、不能删（UI 均有确认弹窗入口）。
  * 取舍仍守原纪律：**只补 UI 已有入口、语义明确**的动作；删除一律走既有级联函数
@@ -433,53 +419,6 @@ export const deleteHabitSchema = z.object({
  * ⚠️ `note_deleteFolder` **刻意不做**：UI 没有删除文件夹入口（只有新建），
  * 为 AI 发明一个 UI 都没有的破坏性动作，属扩大面而非补齐面。
  * ------------------------------------------------------------------- */
-
-/**
- * habit_createHabit —— 新建习惯。
- * 默认值与 `HabitFormDrawer` 初值逐字段对齐（§9.4「工具层口径对齐 UI」）：
- * icon=fitness_center、color=#2563eb、category=成长、schedule=每日、targetMinutes=25。
- */
-export const createHabitSchema = z.object({
-  name: z.string().trim().min(1, '请填写习惯名称'),
-  icon: z.string().optional(),
-  color: z.string().optional(),
-  category: z.string().optional(),
-  /** '每日' | '工作日' | '每周N次'（N=1..7）；与 UI 的 scheduleText() 同口径 */
-  schedule: z
-    .string()
-    .regex(/^(每日|工作日|每周[1-7]次)$/, 'schedule 只能是「每日」「工作日」或「每周N次」（N=1-7）')
-    .optional(),
-  /** 单次目标分钟（UI 缺省 25；负数会被夹到 0） */
-  targetMinutes: z.number().int().min(0).optional(),
-  motivationNote: z.string().optional(),
-  /** 与专注计时联动（UI 同款开关，缺省 false） */
-  crossModuleSync: z.boolean().optional(),
-})
-
-/** habit_updateHabit —— 编辑习惯（打卡走 habit_checkin，不在此内联，避免两处写日志） */
-export const updateHabitSchema = z
-  .object({
-    habitId: z.string().min(1, 'habitId 必须由 resolveEntity 消解产出'),
-    name: z.string().trim().min(1).optional(),
-    icon: z.string().optional(),
-    color: z.string().optional(),
-    category: z.string().optional(),
-    schedule: z
-      .string()
-      .regex(
-        /^(每日|工作日|每周[1-7]次)$/,
-        'schedule 只能是「每日」「工作日」或「每周N次」（N=1-7）',
-      )
-      .optional(),
-    targetMinutes: z.number().int().min(0).optional(),
-    motivationNote: z.string().optional(),
-    crossModuleSync: z.boolean().optional(),
-  })
-  .refine(
-    (v) =>
-      Object.keys(v).some((k) => k !== 'habitId' && (v as Record<string, unknown>)[k] !== undefined),
-    '至少提供一个要修改的字段',
-  )
 
 /**
  * fin_updateTransaction —— 编辑流水。
@@ -556,7 +495,6 @@ export const TOOL_RISK: Record<string, RiskLevel> = {
   'crm_addRelation': 'medium',
   'todo_createTodo': 'low',
   'todo_completeTodo': 'low',
-  'habit_checkin': 'low',
   // ── P2 动作扩面：删除类为 high（不可逆，需二次确认 + 副作用清单） ──
   'todo_updateTodo': 'low',
   'todo_deleteTodo': 'high',
@@ -566,12 +504,8 @@ export const TOOL_RISK: Record<string, RiskLevel> = {
   'note_createNote': 'low',
   'note_updateNote': 'medium',
   'note_createFolder': 'low',
-  'habit_deleteHabit': 'high',
-  // ── 动作面补全：习惯 CRUD 闭环 + 流水改删 + 三个删除入口 ──
-  // 习惯的建/改属个人轻量记录（与 habit_checkin 同为 low），不进中风险预览；
+  // ── 动作面补全：流水改删 + 三个删除入口 ──
   // 流水编辑要改金额/日期（脏统计的源头）故 medium；删除一律 high（不可逆 + 副作用清单）。
-  'habit_createHabit': 'low',
-  'habit_updateHabit': 'low',
   'fin_updateTransaction': 'medium',
   'fin_deleteTransaction': 'high',
   'note_deleteNote': 'high',
@@ -599,9 +533,11 @@ export const TOOL_RISK: Record<string, RiskLevel> = {
  * `SUNK_EVENTS` 列出已下沉到 repositories 复合函数（事务 commit 之后）在函数出口 emit 的事件。
  * 下沉后 agentOps 执行器**不得**再对同一事件二次 emit（否则单次操作发两次事件）。
  * 两张表现在都是 EVENT_DECLARATIONS（tool 绑定 + sunk 标记）的投影——加事件的唯一动作
- * 是在 eventContract 里加一条 domainEvent(…, tool)，这里自动出现。
+ * 是在 eventContract 里加一条 domainEvent(…, tool)，这里自动出现；退役工具不再对外声明事件。
  */
-export const TOOL_EVENTS: Record<string, AgentEventDeclaration['event'][]> = toolEventsMap()
+export const TOOL_EVENTS: Record<string, AgentEventDeclaration['event'][]> = Object.fromEntries(
+  Object.entries(toolEventsMap()).filter(([name]) => !isRetiredHabitTool(name)),
+)
 
 /** 已下沉 repositories 层 emit 的事件（agentOps 不得重复发；见 TOOL_EVENTS 注释与 §2.1 边界） */
 export const SUNK_EVENTS: ReadonlySet<AgentEventDeclaration['event']> = new Set(
@@ -637,8 +573,6 @@ export const TOOL_DOMAIN: Record<string, AiDomain> = {
   todo_completeTodo: 'todo',
   todo_updateTodo: 'todo',
   todo_deleteTodo: 'todo',
-  habit_checkin: 'habit',
-  habit_deleteHabit: 'habit',
   // ── P2 动作扩面 ──
   project_createProject: 'project',
   project_updateProject: 'project',
@@ -646,8 +580,6 @@ export const TOOL_DOMAIN: Record<string, AiDomain> = {
   note_updateNote: 'note',
   note_createFolder: 'note',
   // ── 动作面补全（2026-10-21）──
-  habit_createHabit: 'habit',
-  habit_updateHabit: 'habit',
   fin_updateTransaction: 'fin',
   fin_deleteTransaction: 'fin',
   note_deleteNote: 'note',
@@ -666,14 +598,14 @@ export const TOOL_DOMAIN: Record<string, AiDomain> = {
   listLinks: 'read',
 }
 
-/** 域默认开关（settings.ai.domains 缺省时的兜底；写域默认全开、读域默认开） */
+/** 域默认开关；habit 只保留历史配置键，旧配置也不能重新启用退役写工具。 */
 export const DEFAULT_AI_DOMAINS: Record<AiDomain, boolean> = {
   fin: true,
   crm: true,
   todo: true,
   project: true,
   link: true,
-  habit: true,
+  habit: false,
   note: true,
   read: true,
 }

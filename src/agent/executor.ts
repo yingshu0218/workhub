@@ -1,3 +1,4 @@
+import { isRetiredHabitTool, RETIRED_FEATURE_MESSAGE } from '@/commands/retiredFeatures'
 import { PERSONAL_TOOLS } from './personalTools'
 import { queryPersonal, previewPersonal, commitPersonal, cancelPersonal } from '@/domain/personal'
 import { listInteractionProjection } from '@/repositories/activities'
@@ -11,9 +12,6 @@ import { EVENT_DECLARATIONS } from '@/shared/eventContract'
 import {
   saveInteractionAndTouchCustomer,
   createCustomerWithInit,
-  checkinHabit,
-  uncheckHabit,
-  deleteHabitCascade,
   deleteCustomerCascade,
   deleteTransactionCascade,
   deleteProjectCascade,
@@ -23,7 +21,6 @@ import {
   setTodoList,
   linkAtoms,
   unlinkAtoms,
-  habitRepo,
   deleteNoteCascade,
   todoRepo,
 } from '@/repositories'
@@ -33,8 +30,6 @@ import { normalizeTodoTags, TODO_TAG_MAX_COUNT } from '@/modules/todo/tags'
 import { deleteTodoCascade } from '@/modules/todo/cascade'
 import type {
   Customer,
-  Habit,
-  HabitLog,
   Interaction,
   Note,
   Project,
@@ -65,11 +60,9 @@ type LinkRow = {
 /** 行类型别名（mustExist 泛型绑定用；与 db/types 定义同源，不做二次建模） */
 type ProjectRow = Project
 type NoteRow = Note
-type HabitRow = Habit
 import { resolveEntity, type ResolveResult } from './resolver'
 import { createLedger, recordTransaction } from '@/domain'
 import {
-  checkinHabitSchema,
   linkLinkSchema,
   linkUnlinkSchema,
   recordTransactionSchema,
@@ -90,9 +83,6 @@ import {
   createNoteSchema,
   updateNoteSchema,
   createFolderSchema,
-  deleteHabitSchema,
-  createHabitSchema,
-  updateHabitSchema,
   updateTransactionSchema,
   deleteTransactionSchema,
   deleteNoteSchema,
@@ -446,29 +436,15 @@ export async function fin_createLedger(input: unknown): Promise<AgentOpResult> {
   return ok({ ledgerId: id })
 }
 
-/**
- * habit_checkin：习惯打卡 / 取消（§9.6.1 收口后的领域命令）。
- *
- * 幂等口径：`checkinHabit` 只在**实际新建**时才 emit `habit:checked`（已下沉 repositories，事务 commit 后）；
- * 重复调用返回 `{ created: false }`，外部 Agent 重试安全。`undo: true` 走 `uncheckHabit`（软删、不 emit）。
- */
-export async function habit_checkin(input: unknown): Promise<AgentOpResult> {
-  const parsed = parseOrError(checkinHabitSchema, input)
-  if (!parsed.ok) return parsed
-  const d = parsed.data
-
-  const habit = await storage.get<Habit>('habits', d.habitId)
-  if (!habit || habit.deleted) {
-    return err(`习惯不存在：${d.habitId}，请先 resolveEntity 消解`)
-  }
-  const date = d.date ?? dayjs().format('YYYY-MM-DD')
-  if (d.undo) {
-    await uncheckHabit(d.habitId, date)
-    return ok({ habitId: d.habitId, date, checked: false })
-  }
-  const { created } = await checkinHabit(d.habitId, date)
-  return ok({ habitId: d.habitId, date, checked: true, created })
+/** 保留旧函数名只为兼容直接调用；退役后不再接触存储或发出事件。 */
+async function retiredHabitTool(input: unknown): Promise<AgentOpResult> {
+  void input
+  return err(RETIRED_FEATURE_MESSAGE)
 }
+export const habit_checkin = retiredHabitTool
+export const habit_createHabit = retiredHabitTool
+export const habit_updateHabit = retiredHabitTool
+export const habit_deleteHabit = retiredHabitTool
 
 /* ─────────────── P2 动作扩面：编辑 / 删除 / 项目 / 笔记 ─────────────── *
  * 纪律（与 P1 写工具同源）：
@@ -779,84 +755,11 @@ export async function note_createFolder(input: unknown): Promise<AgentOpResult> 
   return ok({ folderId: id })
 }
 
-/** habit_deleteHabit：删除习惯（走 deleteHabitCascade，级联清日志） */
-export async function habit_deleteHabit(input: unknown): Promise<AgentOpResult> {
-  const parsed = parseOrError(deleteHabitSchema, input)
-  if (!parsed.ok) return parsed
-  const habitId = parsed.data.habitId
-  const found = await mustExist<HabitRow>(tableRef('habits'), habitId, '习惯')
-  if (!found.ok) return err(found.error)
-  const logs = (await storage.list<HabitLog>('habitLogs')).filter(
-    (l) => l.habitId === habitId && !l.deleted,
-  )
-  await deleteHabitCascade(habitId)
-  return ok({
-    habitId,
-    deleted: true,
-    // high 风险：副作用清单（级联影响的打卡记录数）供 Agent 转述用户
-    sideEffects: { cascadedHabitLogs: logs.length },
-  })
-}
-
-/* ─────────── 动作面补全（2026-10-21）：习惯 CRUD / 流水改删 / 三个删除入口 ─────────── *
- * 动机：上一轮扩面后仍有「AI 建得出、改不了 / 删不掉」的洞 —— 习惯只能打卡与删除，
- * 流水只能记不能改删，客户/笔记/项目只能建不能删。UI 这些入口早就有，
+/* ─────────── 动作面补全（2026-10-21）：流水改删 / 三个删除入口 ─────────── *
+ * 动机：流水只能记不能改删，客户/笔记/项目只能建不能删。UI 这些入口早就有，
  * 补齐后 AI 的动作面才真正与 UI 对齐。删除一律走既有级联函数（不新写删除逻辑），
  * 并回传 sideEffects 记录数供 Agent 向用户如实转述（high 风险的硬要求）。
  * ----------------------------------------------------------------------------------- */
-
-/**
- * habit_createHabit：新建习惯。
- *
- * 默认值与 `HabitFormDrawer` 初值逐字段对齐（§9.4「工具层口径对齐 UI」）——
- * 用户在界面上点「新建习惯」什么都不填，落库的就是这套值。
- * 不 emit：习惯创建在 UI 侧同样没有领域事件（事件声明表只声明 `habit:checked`）。
- */
-export async function habit_createHabit(input: unknown): Promise<AgentOpResult> {
-  const parsed = parseOrError(createHabitSchema, input)
-  if (!parsed.ok) return parsed
-  const d = parsed.data
-  const id = newId('hb')
-  await habitRepo.put({
-    id,
-    name: d.name,
-    icon: d.icon ?? 'fitness_center',
-    color: d.color ?? '#2563eb',
-    category: d.category?.trim() || '成长',
-    schedule: d.schedule ?? '每日',
-    targetMinutes: Math.max(0, Math.round(d.targetMinutes ?? 25)),
-    motivationNote: d.motivationNote?.trim() ?? '',
-    crossModuleSync: d.crossModuleSync ?? false,
-    createdAt: Date.now(),
-  })
-  return ok({ habitId: id, created: true })
-}
-
-/**
- * habit_updateHabit：编辑习惯（部分更新）。
- *
- * 打卡**不在此内联** —— 一律走 `habit_checkin`（确定性日志 id / 幂等 / 事件都在那边收口）。
- */
-export async function habit_updateHabit(input: unknown): Promise<AgentOpResult> {
-  const parsed = parseOrError(updateHabitSchema, input)
-  if (!parsed.ok) return parsed
-  const d = parsed.data
-  const found = await mustExist<HabitRow>(tableRef('habits'), d.habitId, '习惯')
-  if (!found.ok) return err(found.error)
-
-  const patch: Partial<Habit> = {}
-  if (d.name !== undefined) patch.name = d.name
-  if (d.icon !== undefined) patch.icon = d.icon
-  if (d.color !== undefined) patch.color = d.color
-  if (d.category !== undefined) patch.category = d.category.trim() || '成长'
-  if (d.schedule !== undefined) patch.schedule = d.schedule
-  if (d.targetMinutes !== undefined) patch.targetMinutes = Math.max(0, Math.round(d.targetMinutes))
-  if (d.motivationNote !== undefined) patch.motivationNote = d.motivationNote.trim()
-  if (d.crossModuleSync !== undefined) patch.crossModuleSync = d.crossModuleSync
-
-  await habitRepo.put({ ...found.record, ...patch })
-  return ok({ habitId: d.habitId, updated: Object.keys(patch) })
-}
 
 /**
  * fin_updateTransaction：编辑流水（金额 / 类型 / 日期 / 账本 / 归属 / 关联）。
@@ -1082,7 +985,7 @@ export function agent_listLedgers(input: unknown): Promise<AgentOpResult> {
   return wrapRead(listLedgersSchema, listLedgers, input)
 }
 
-/** listHabits：习惯清单 */
+/** listHabits：有界历史习惯记录，仅供读取。 */
 export function agent_listHabits(input: unknown): Promise<AgentOpResult> {
   // 2026-10-26 审计：此处原为内联 `z.object({}).strict()`，与 reads.ts 的 listHabitsSchema
   // 内容等价但**不是同一实例** —— 同一契约两份实现，改一处漏一处时 AI 侧校验会静默分叉
@@ -1129,6 +1032,7 @@ export async function dispatchAgentTool(
   input: unknown,
   domains?: Partial<Record<string, boolean>>,
 ): Promise<AgentOpResult> {
+  if (isRetiredHabitTool(name)) return err(RETIRED_FEATURE_MESSAGE)
   const tool = AGENT_TOOLS[name as keyof typeof AGENT_TOOLS]
   // 顺序有意为之：先判「是否注册」再判「是否在白名单内」。
   // 若先判白名单，未注册工具会得到「不在白名单内（域：未知）」这种**误导性**错误，
@@ -1231,7 +1135,6 @@ export const AGENT_TOOLS = {
   'crm_addRelation': { risk: TOOL_RISK['crm_addRelation'], schema: addRelationSchema, run: crm_addRelation },
   'todo_createTodo': { risk: TOOL_RISK['todo_createTodo'], schema: createTodoSchema, run: todo_createTodo },
   'todo_completeTodo': { risk: TOOL_RISK['todo_completeTodo'], schema: completeTodoSchema, run: todo_completeTodo },
-  'habit_checkin': { risk: TOOL_RISK['habit_checkin'], schema: checkinHabitSchema, run: habit_checkin },
   'fin_createLedger': { risk: TOOL_RISK['fin_createLedger'], schema: createLedgerSchema, run: fin_createLedger },
   // ── P2 动作扩面：编辑 / 删除 / 项目 / 笔记 ──
   'todo_updateTodo': { risk: TOOL_RISK['todo_updateTodo'], schema: updateTodoSchema, run: todo_updateTodo },
@@ -1242,10 +1145,7 @@ export const AGENT_TOOLS = {
   'note_createNote': { risk: TOOL_RISK['note_createNote'], schema: createNoteSchema, run: note_createNote },
   'note_updateNote': { risk: TOOL_RISK['note_updateNote'], schema: updateNoteSchema, run: note_updateNote },
   'note_createFolder': { risk: TOOL_RISK['note_createFolder'], schema: createFolderSchema, run: note_createFolder },
-  'habit_deleteHabit': { risk: TOOL_RISK['habit_deleteHabit'], schema: deleteHabitSchema, run: habit_deleteHabit },
-  // ── 动作面补全：习惯 CRUD / 流水改删 / 三个删除入口 ──
-  'habit_createHabit': { risk: TOOL_RISK['habit_createHabit'], schema: createHabitSchema, run: habit_createHabit },
-  'habit_updateHabit': { risk: TOOL_RISK['habit_updateHabit'], schema: updateHabitSchema, run: habit_updateHabit },
+  // ── 动作面补全：流水改删 / 三个删除入口 ──
   'fin_updateTransaction': { risk: TOOL_RISK['fin_updateTransaction'], schema: updateTransactionSchema, run: fin_updateTransaction },
   'fin_deleteTransaction': { risk: TOOL_RISK['fin_deleteTransaction'], schema: deleteTransactionSchema, run: fin_deleteTransaction },
   'note_deleteNote': { risk: TOOL_RISK['note_deleteNote'], schema: deleteNoteSchema, run: note_deleteNote },

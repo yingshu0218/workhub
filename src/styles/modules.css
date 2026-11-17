@@ -1,0 +1,42 @@
+/* 只覆盖强调色，保留用户的明暗模式、表面层级和皮肤形态。 */
+.module-theme {
+  --module-accent: var(--module-light);
+  --color-primary: var(--module-accent);
+  --color-on-primary: #ffffff;
+  --color-primary-container: color-mix(in srgb, var(--module-accent) 88%, #000000);
+  --color-on-primary-container: #ffffff;
+  --color-primary-fixed: color-mix(in srgb, var(--module-accent) 12%, var(--color-surface-container-lowest));
+}
+
+.dark .module-theme {
+  --module-accent: var(--module-dark);
+  --color-on-primary: #111827;
+  --color-primary-container: color-mix(in srgb, var(--module-accent) 88%, #ffffff);
+  --color-on-primary-container: #111827;
+  --color-primary-fixed: color-mix(in srgb, var(--module-accent) 14%, var(--color-surface-container-lowest));
+}
+
+.module-theme .app-header {
+  border-top: 2px solid var(--module-accent);
+}
+
+.app-module-canvas {
+  background: color-mix(in srgb, var(--module-accent) 4%, var(--color-surface));
+}
+
+.module-theme .input:focus {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--module-accent) 16%, transparent);
+}
+
+.module-nav-icon { color: var(--module-accent); }
+.is-active .module-nav-icon { color: inherit; }
+
+.module-theme .card.timeline-event-card {
+  border-inline-start: 3px solid var(--module-accent);
+  background: color-mix(in srgb, var(--module-accent) 3%, var(--color-surface-container-lowest));
+}
+
+.timeline-event-badge {
+  background: var(--color-primary-fixed);
+  color: var(--module-accent);
+}

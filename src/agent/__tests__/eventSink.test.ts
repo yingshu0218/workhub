@@ -229,7 +229,7 @@ describe('下沉后防漂移：agentOps 不得重复 emit 已下沉事件', () =
   it('声明表仍声明三个事件（唯一事实源不因下沉而删条目）', () => {
     expect(TOOL_EVENTS['fin_recordTransaction']).toEqual(['transaction:created'])
     expect(TOOL_EVENTS['crm_addInteraction']).toEqual(['customer:contacted'])
-    expect(TOOL_EVENTS['habit_checkin']).toEqual(['habit:checked'])
+    expect(TOOL_EVENTS['habit_checkin']).toBeUndefined()
   })
 })
 
