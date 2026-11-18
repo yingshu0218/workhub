@@ -117,7 +117,7 @@ describe('AI Agent 桥 · 配对码', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('后台签发配对码：带 Bearer 打 /pair/new，并把码显示出来', async () => {
+  it('旧版共享桥入口明确保持兼容语义：带 Bearer 打 /pair/new，并把兼容码显示出来', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -128,7 +128,7 @@ describe('AI Agent 桥 · 配对码', () => {
     render(
       <AiBridgeSection settings={makeSettings({ bridgeEnabled: true, bridgeToken: 'tok-1' })} save={save} />,
     )
-    await userEvent.click(screen.getByRole('button', { name: '生成配对码' }))
+    await userEvent.click(screen.getByRole('button', { name: '生成旧版共享桥凭据' }))
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
     const [url, init] = fetchMock.mock.calls[0]
@@ -138,7 +138,7 @@ describe('AI Agent 桥 · 配对码', () => {
     await waitFor(() => expect(document.body.textContent).toContain('K7M2QP'))
   })
 
-  it('未配对但已登录：用站点登录态签码并自动兑换，写入 relay 下发的 token', async () => {
+  it('旧版共享桥首次授权：用站点登录态签码并自动兑换，写入 relay 下发的共享兼容 token', async () => {
     // 这是用户要的路径：后台页面在首次配对前没有 relay token，靠 PB 登录态生成接入 token
     localStorage.setItem('workhub.auth.token', 'pb-session-1')
     const fetchMock = vi
@@ -148,7 +148,7 @@ describe('AI Agent 桥 · 配对码', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     render(<AiBridgeSection settings={makeSettings({ bridgeEnabled: true })} save={save} />)
-    await userEvent.click(screen.getByRole('button', { name: '生成接入 token' }))
+    await userEvent.click(screen.getByRole('button', { name: '生成旧版共享桥凭据' }))
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
 
@@ -166,23 +166,23 @@ describe('AI Agent 桥 · 配对码', () => {
     const patch = save.mock.calls.at(-1)?.[0] as Settings
     expect(patch.ai.bridgeToken).toBe('srv-token-2')
     expect(patch.ai.bridgeEnabled).toBe(true)
-    await waitFor(() => expect(document.body.textContent).toContain('已生成接入 token'))
+    await waitFor(() => expect(document.body.textContent).toContain('旧版共享桥兼容凭据'))
   })
 
-  it('未登录且未配对时点生成：不发请求，提示改用启动引导码（不能静默失败）', async () => {
+  it('未登录且未配对时点生成：不发请求，指向命名独立接入主路径', async () => {
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
 
     render(<AiBridgeSection settings={makeSettings({ bridgeEnabled: true })} save={save} />)
-    await userEvent.click(screen.getByRole('button', { name: '生成接入 token' }))
+    await userEvent.click(screen.getByRole('button', { name: '生成旧版共享桥凭据' }))
 
     await waitFor(() =>
-      expect(screen.getByText(/未登录或当前部署未启用登录/)).toBeTruthy(),
+      expect(screen.getAllByText(/新设备请到「设置 → Agent 接入」/).length).toBeGreaterThan(0),
     )
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('一键接入命令走浏览器授权（--login），可复制文本里不出现长期 token', async () => {
+  it('新设备接入命令走命名配对（--pair），可复制文本里不出现长期 token', async () => {
     render(
       <AiBridgeSection
         settings={makeSettings({ bridgeEnabled: true, bridgeToken: 'secret-token-should-not-print' })}
@@ -190,7 +190,7 @@ describe('AI Agent 桥 · 配对码', () => {
       />,
     )
     const cmd = screen.getByText(/npm run agent:setup -- --url/)
-    expect(cmd.textContent).toContain('--login')
+    expect(cmd.textContent).toContain('--pair')
     // 命令是给用户整段复制的：带上 token 就等于把凭证复制进聊天/工单
     expect(cmd.textContent).not.toContain('secret-token-should-not-print')
   })

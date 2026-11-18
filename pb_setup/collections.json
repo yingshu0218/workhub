@@ -2708,11 +2708,30 @@
         "name": "generation",
         "type": "text",
         "required": false
+      },
+      {
+        "name": "pairCodeHash",
+        "type": "text",
+        "required": false,
+        "max": 0,
+        "min": 0,
+        "pattern": ""
+      },
+      {
+        "name": "pairExpiresAt",
+        "type": "number",
+        "required": false
+      },
+      {
+        "name": "pairedAt",
+        "type": "number",
+        "required": false
       }
     ],
     "indexes": [
       "CREATE UNIQUE INDEX idx_agent_token ON agent_credentials(tokenHash)",
-      "CREATE INDEX idx_agent_owner ON agent_credentials(owner)"
+      "CREATE INDEX idx_agent_owner ON agent_credentials(owner)",
+      "CREATE UNIQUE INDEX idx_agent_pair_code_hash ON agent_credentials(pairCodeHash) WHERE pairCodeHash != ''"
     ]
   }
 ]

@@ -101,6 +101,8 @@ declare module '@relay/server.mjs' {
       url: URL,
     ) => boolean | Promise<boolean>
     issueAgentCredential?: (req: import('node:http').IncomingMessage, details: {name:string}) => Promise<{token:string}>
+    /** Redeem a PB-backed one-time pairing code; the handler must not fall back to the shared relay token. */
+    redeemAgentCredential?: (req: import('node:http').IncomingMessage, details: {code:string}) => Promise<{token:string;credentialId:string;name?:string;pairedAt?:number}>
     serverExecutor?: {
       listTools: () => Array<{ name: string; description?: string; inputSchema?: unknown }>
       callTool: (name: string, args: unknown, meta?: unknown) => Promise<{ ok: boolean; data?: unknown; error?: string }>

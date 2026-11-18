@@ -35,7 +35,7 @@ import { WsConnection } from './ws-server.mjs'
  * 创建可嵌入的 relay 实例。
  *
  * @param {object} opts
- * @param {string} [opts.token]            接入 token（缺省随机生成并打印）
+ * @param {string} [opts.token]            兼容桥运行期秘密（缺省随机生成；绝不输出明文）
  * @param {boolean} [opts.autoIssueConfirm] dev 便利：预览响应自动附一次性 confirmToken（自动联调用，勿用于生产）
  * @param {string} [opts.path]             relay 挂载路径，默认 `/relay`（同源反代/挂载用）
  * @param {(m:string)=>void} [opts.log]    日志出口
@@ -44,6 +44,8 @@ import { WsConnection } from './ws-server.mjs'
  *   默认只有持 relay token 才能签；传入本回调后，宿主可以用 PocketBase users token
  *   授权后台页面直接签码 / 确认设备授权 —— 这是「首次配对前没有 token」的出口。
  *   ⚠️ 回调必须自己做校验（serve.mjs 用 PB auth-refresh），relay 不 import 业务代码。
+ * @param {(req: import('node:http').IncomingMessage, details: {code: string}) => Promise<{token: string, credentialId: string, name?: string}>} [opts.redeemAgentCredential]
+ *   宿主注入：短码兑换独立 Agent 凭据；该路径没有共享 token 回退。
  * @param {{ listTools: ()=>Array, callTool: (name:string, args:unknown)=>Promise<{ok:boolean,data?:object,error?:string}>, handles: (name:string)=>boolean }} [opts.serverExecutor]
  *   内置服务端执行器（agentOps 服务端化 P2，只读）：命中 `handles(name)` 的工具在 relay
  *   进程内直接执行（直读 PB 中心），不经浏览器。路由规则：
@@ -61,6 +63,7 @@ export function createRelay({
   authorizeMint = null,
   serverExecutor = null,
   issueAgentCredential = null,
+  redeemAgentCredential = null,
 } = {}) {
   /** 当前已连出的浏览器连接（首版单浏览器配对；多标签页取最近一条） */
   let browserConn = null
@@ -425,6 +428,7 @@ export function createRelay({
   /** 去掉 0/O/1/I/B 等易混字符：配对码是**人手抄/嘴念**的，歧义字符等于可用性事故 */
   const PAIR_ALPHABET = 'ACDEFGHJKLMNPQRSTUVWXYZ23456789'
   const MAX_BODY = 1 << 20
+  const MAX_PAIR_BODY = 2048
   /** 一次性配对码：code → 过期时间。刻意不落库 —— 重启即全体失效，符合「短期凭证」语义 */
   const pairCodes = new Map()
   /** 兑换限速：ip → { count, resetAt }，防枚举爆破（6 位码 + 5 分钟 + 每分钟 10 次） */
@@ -454,13 +458,13 @@ export function createRelay({
     res.end(text)
   }
 
-  function readBody(req) {
+  function readBody(req, maxBytes = MAX_BODY) {
     return new Promise((resolve, reject) => {
       let size = 0
       const chunks = []
       req.on('data', (c) => {
         size += c.length
-        if (size > MAX_BODY) {
+        if (size > maxBytes) {
           reject(new Error('请求体过大'))
           req.destroy()
           return
@@ -624,6 +628,59 @@ export function createRelay({
     return sendJson(res, 200, { token, url: mcpUrlOf(req, url), protocolVersion: MCP_PROTOCOL_VERSION })
   }
 
+  /** `POST <path>/agent/pair/redeem`：兑换 PB 持久化的独立凭据短码，不使用共享 token。 */
+  async function handleAgentPairRedeem(req, res, url) {
+    if (req.method !== 'POST') return sendJson(res, 405, { error: '只接受 POST' })
+    res.setHeader('Cache-Control', 'no-store')
+    const ip = req.socket.remoteAddress ?? 'unknown'
+    if (!allowPairAttempt(`agent-redeem:${ip}`)) return sendJson(res, 429, { error: '配对尝试过于频繁，请稍后再试' })
+    // 不能只因为宿主注入了 PB 兑换回调就消费短码：没有独立凭据验证执行器时，
+    // 兑换得到的 token 无法通过本 Relay 的认证；先失败可避免留下已签发但不能使用的凭据。
+    if (!redeemAgentCredential || !serverExecutor?.authenticate) {
+      return sendJson(res, 503, { error: '当前部署未启用独立凭据执行器，暂不支持安全配对' })
+    }
+    let code = ''
+    try {
+      const body = JSON.parse((await readBody(req, MAX_PAIR_BODY)) || '{}')
+      code = typeof body?.code === 'string' ? body.code.toUpperCase().replace(/[\s-]/g, '') : ''
+    } catch {
+      return sendJson(res, 401, { error: '配对码无效、已过期或已兑换' })
+    }
+    if (!code || code.length > 64) return sendJson(res, 401, { error: '配对码无效、已过期或已兑换' })
+    let result
+    try {
+      result = await redeemAgentCredential(req, { code })
+    } catch (error) {
+      if (error?.code === 'INVALID_PAIR_CODE' || error?.status === 401 || error?.status === 400) {
+        return sendJson(res, 401, { error: '配对码无效、已过期或已兑换' })
+      }
+      log(`[relay] 独立配对服务不可用：${error?.message ?? 'unknown error'}`)
+      return sendJson(res, 503, { error: '配对服务暂不可用。若兑换结果未知，请在后台检查状态；已兑换凭据需撤销后重新配对' })
+    }
+    if (typeof result?.token !== 'string' || !result.token.trim() || typeof result?.credentialId !== 'string') {
+      log('[relay] 独立配对响应缺少凭据')
+      return sendJson(res, 503, { error: '配对服务响应异常。若兑换结果未知，请在后台检查状态；已兑换凭据需撤销后重新配对' })
+    }
+    log('[relay] 独立 Agent 配对码已兑换并签发凭据')
+    return sendJson(res, 200, {
+      token: result.token,
+      credentialId: result.credentialId,
+      name: result.name,
+      url: mcpUrlOf(req, url),
+      protocolVersion: MCP_PROTOCOL_VERSION,
+    })
+  }
+
+  /** 公开且不含凭据的能力探测，供后台在展示一次性码前避免不支持的 dev/preview 假成功。 */
+  function handleAgentPairStatus(req, res) {
+    res.setHeader('Cache-Control', 'no-store')
+    if (req.method !== 'GET') return sendJson(res, 405, { error: '只接受 GET' })
+    return sendJson(res, 200, {
+      pairingSupported: Boolean(redeemAgentCredential && serverExecutor?.authenticate),
+      deviceAuthorizationSupported: Boolean(issueAgentCredential && serverExecutor?.authenticate),
+    })
+  }
+
   /** `POST <path>/device/code`：CLI 取设备码与用户码（无需鉴权，批准才需要登录） */
   function handleDeviceCode(req, res, url) {
     if (req.method !== 'POST') return sendJson(res, 405, { error: '只接受 POST' })
@@ -645,6 +702,9 @@ export function createRelay({
   /** `POST <path>/device/approve|deny`：**必须持站点登录态**（后台页面替用户点确认） */
   async function handleDeviceDecision(req, res, url, decision) {
     if (req.method !== 'POST') return sendJson(res, 405, { error: '只接受 POST' })
+    if (decision === 'approved' && (!issueAgentCredential || !serverExecutor?.authenticate)) {
+      return sendJson(res, 503, { error: '当前部署未启用独立凭据执行器，暂不支持设备授权' })
+    }
     // 校验登录态会出站打 PB：同样限速，避免拿乱码 token 刷这个端点
     const ip = req.socket.remoteAddress ?? 'unknown'
     if (!allowPairAttempt(`approve:${ip}`)) return sendJson(res, 429, { error: '尝试过于频繁，请稍后再试' })
@@ -710,12 +770,21 @@ export function createRelay({
       return sendJson(res, 403, { error: 'access_denied', error_description: '用户拒绝了本次授权' })
     }
 
-    // approved：一次性兑现，随后删除（与配对码同一语义）
+    if (!serverExecutor?.authenticate) {
+      return sendJson(res, 503, { error: '当前部署未启用独立凭据执行器，不能兑现设备授权' })
+    }
+
+    // approved：只下发明确签发的独立凭据。绝不回退到共享 relay token。
+    if (!rec.credential?.token) {
+      devices.delete(deviceCode)
+      userCodeIndex.delete(rec.userCode)
+      return sendJson(res, 503, { error: '独立凭据已不可用，请重新发起授权' })
+    }
     devices.delete(deviceCode)
     userCodeIndex.delete(rec.userCode)
-    log('[relay] 设备授权已兑换，长期 token 已下发（授权码已作废）')
+    log('[relay] 设备授权已兑换，独立凭据已下发（授权码已作废）')
     return sendJson(res, 200, {
-      access_token: rec.credential?.token || token,
+      access_token: rec.credential.token,
       token_type: 'Bearer',
       url: mcpUrlOf(req, url),
       expires_in: 0,
@@ -806,6 +875,14 @@ export function createRelay({
     }
     if (p === `${path}/pair`) {
       safe(() => handlePairRedeem(req, res, url))
+      return true
+    }
+    if (p === `${path}/agent/pair/redeem`) {
+      safe(() => handleAgentPairRedeem(req, res, url))
+      return true
+    }
+    if (p === `${path}/agent/pair/status`) {
+      safe(() => handleAgentPairStatus(req, res))
       return true
     }
     if (p === `${path}/pair/new`) {

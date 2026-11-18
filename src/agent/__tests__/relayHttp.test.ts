@@ -18,10 +18,12 @@ import type { AddressInfo } from 'node:net'
 import { createRelay } from '@relay/server.mjs'
 
 const TOKEN = 'test-token-abcdefghijklmnop'
+const PAIR_CODE = 'A'.repeat(33)
 
 let server: Server
 let relay: ReturnType<typeof createRelay>
 let base = ''
+let pairRedeemed = false
 
 beforeAll(async () => {
   relay = createRelay({
@@ -30,12 +32,29 @@ beforeAll(async () => {
     // 站点登录态鉴权通道：模拟 serve.mjs 用 PocketBase users token 校验后台页面。
     // 这里只认固定的 admin-session，用来验证「页面首次配对前没有 relay token 也能签码」。
     authorizeMint: (req) => req.headers.authorization === 'Bearer admin-session',
+    issueAgentCredential: async () => ({ token: 'wh_device_independent_credential' }),
+    redeemAgentCredential: async (_req, { code }) => {
+      if (code !== PAIR_CODE || pairRedeemed) {
+        throw Object.assign(new Error('invalid'), { status: 401, code: 'INVALID_PAIR_CODE' })
+      }
+      pairRedeemed = true
+      return { token: 'wh_pair_independent_credential', credentialId: 'credPair01', name: 'CLI laptop' }
+    },
     // 服务端执行器：让 tools/list 在「浏览器不在线」时也有工具可列，
     // 从而验证的是**传输**而不是浏览器前置条件
     serverExecutor: {
       listTools: () => [{ name: 'demo_read', description: '演示只读工具' }],
       callTool: async () => ({ ok: true, data: { ok: 1 } }),
       handles: (n) => n === 'demo_read',
+      authenticate: async (credential) => {
+        const allowed = credential.kind === 'shared-transition' ||
+          (credential.kind === 'agent' && [
+            'wh_device_independent_credential',
+            'wh_pair_independent_credential',
+          ].includes(credential.token))
+        if (!allowed) throw new Error('invalid credential')
+        return { clientId: 'test-agent', capabilities: ['demo_read:read'] }
+      },
     },
   })
   server = createServer((req, res) => {
@@ -193,6 +212,33 @@ describe('一次性配对码：长期 token 不出聊天记录', () => {
     expect(expiresAt - Date.now()).toBeLessThanOrEqual(5 * 60 * 1000)
   })
 
+  it('独立配对入口只兑换宿主签发的凭据，不回退到共享 token', async () => {
+    const code = PAIR_CODE
+    const r = await post('/agent/pair/redeem', { code })
+    expect(r.status).toBe(200)
+    expect(r.headers.get('cache-control')).toBe('no-store')
+    const body = (await r.json()) as { token: string; credentialId: string; name: string }
+    expect(body.token).toBe('wh_pair_independent_credential')
+    expect(body.credentialId).toBe('credPair01')
+    expect(body.name).toBe('CLI laptop')
+    const initialized = await post(
+      '/mcp',
+      { jsonrpc: '2.0', id: 7, method: 'initialize', params: { protocolVersion: '2024-11-05' } },
+      { authorization: `Bearer ${body.token}` },
+    )
+    expect(initialized.status).toBe(200)
+    const replay = await post('/agent/pair/redeem', { code })
+    expect(replay.status).toBe(401)
+    expect(((await replay.json()) as { error: string }).error).toBe('配对码无效、已过期或已兑换')
+  })
+
+  it('能力探测明确报告当前Relay已启用独立凭据', async () => {
+    const response = await fetch(`${base}/agent/pair/status`, { cache: 'no-store' })
+    expect(response.status).toBe(200)
+    expect(response.headers.get('cache-control')).toBe('no-store')
+    expect(await response.json()).toEqual({ pairingSupported: true, deviceAuthorizationSupported: true })
+  })
+
   /**
    * 引导码（`ttlMs: 0`）：**不限期**、仍是一次性。
    *
@@ -233,6 +279,59 @@ describe('一次性配对码：长期 token 不出聊天记录', () => {
   })
 })
 
+describe('无独立凭据执行器时 fail closed', () => {
+  it('有 PB callbacks 但无 serverExecutor 时不兑换短码、不批准设备码', async () => {
+    let redeemCalls = 0
+    let issueCalls = 0
+    const unsupported = createRelay({
+      token: TOKEN,
+      log: () => {},
+      authorizeMint: () => true,
+      redeemAgentCredential: async () => {
+        redeemCalls++
+        return { token: 'must-not-be-issued', credentialId: 'shouldNotExist' }
+      },
+      issueAgentCredential: async () => {
+        issueCalls++
+        return { token: 'must-not-be-issued' }
+      },
+    })
+    const unsupportedServer = createServer((req, res) => {
+      if (unsupported.handleHttp(req, res)) return
+      res.writeHead(404).end()
+    })
+    await new Promise<void>((resolve) => unsupportedServer.listen(0, '127.0.0.1', resolve))
+    const address = unsupportedServer.address() as AddressInfo
+    const root = `http://127.0.0.1:${address.port}/relay`
+    const send = (endpoint: string, body?: unknown, headers: Record<string, string> = {}) =>
+      fetch(`${root}${endpoint}`, {
+        method: body === undefined ? 'GET' : 'POST',
+        headers: { 'content-type': 'application/json', ...headers },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      })
+    try {
+      const status = await send('/agent/pair/status')
+      expect(await status.json()).toEqual({ pairingSupported: false, deviceAuthorizationSupported: false })
+
+      const redeem = await send('/agent/pair/redeem', { code: PAIR_CODE })
+      expect(redeem.status).toBe(503)
+      expect(redeemCalls).toBe(0)
+
+      const issued = await send('/device/code', {})
+      const { device_code, user_code } = await issued.json() as { device_code: string; user_code: string }
+      const approval = await send('/device/approve', { user_code }, { authorization: 'Bearer admin-session' })
+      expect(approval.status).toBe(503)
+      expect(issueCalls).toBe(0)
+      const poll = await send('/device/token', { device_code })
+      expect(poll.status).toBe(400)
+      expect(((await poll.json()) as { error: string }).error).toBe('authorization_pending')
+    } finally {
+      unsupported.close()
+      await new Promise<void>((resolve) => unsupportedServer.close(() => resolve()))
+    }
+  })
+})
+
 describe('设备授权（一条命令 + 浏览器点确认）', () => {
   const adminBearer = { authorization: 'Bearer admin-session' }
 
@@ -263,7 +362,7 @@ describe('设备授权（一条命令 + 浏览器点确认）', () => {
     expect(j.error).toBe('authorization_pending')
   })
 
-  it('批准必须持站点登录态；批准后轮询才拿到 token，且只能拿一次', async () => {
+  it('批准必须持站点登录态；批准后轮询只拿独立凭据，且只能拿一次', async () => {
     const { device_code, user_code } = (await (await post('/device/code', {})).json()) as {
       device_code: string
       user_code: string
@@ -278,7 +377,7 @@ describe('设备授权（一条命令 + 浏览器点确认）', () => {
     const first = await post('/device/token', { device_code })
     expect(first.status).toBe(200)
     const tokenBody = (await first.json()) as { access_token: string; token_type: string; url: string }
-    expect(tokenBody.access_token).toBe(TOKEN)
+    expect(tokenBody.access_token).toBe('wh_device_independent_credential')
     expect(tokenBody.token_type).toBe('Bearer')
     expect(tokenBody.url).toContain('/relay/mcp')
 

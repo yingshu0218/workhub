@@ -12,8 +12,10 @@
  * 集成用例用临时 HOME + 临时项目根（`WORKHUB_PROJECT_ROOT`），不碰真实环境。
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { spawnSync } from 'node:child_process'
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs'
+import { spawn, spawnSync } from 'node:child_process'
+import { createServer } from 'node:http'
+import { createHash } from 'node:crypto'
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import {
@@ -258,10 +260,18 @@ describe('参数解析', () => {
   })
 
   it('正常写法不报警（`-- --url …`）', () => {
-    const o = parseArgs(['--url', 'wss://x/relay', '--token', 'abc'], {})
+    const o = parseArgs(['--url', 'wss://x/relay'], {})
     expect(o.url).toBe('wss://x/relay')
-    expect(o.token).toBe('abc')
+    expect(o.token).toBe('')
     expect(o.swallowedByNpm).toBe(false)
+  })
+
+  it('拒绝把长期 token 放在命令行参数中', () => {
+    expect(() => parseArgs(['--url', 'wss://x/relay', '--token', 'secret'], {})).toThrow(/不接受命令行 token/)
+  })
+
+  it('--pair 是独立凭据主路径', () => {
+    expect(parseArgs(['--url', 'wss://x/relay', '--pair'], {}).pair).toBe(true)
   })
 
   it('--login 可单独开启（设备授权模式，不需要预先有 token）', () => {
@@ -286,10 +296,10 @@ describe('集成：真实写入 / 幂等 / 回退（临时 HOME + 临时项目�
   const run = (extra: string[] = []) =>
     spawnSync(
       process.execPath,
-      [SETUP, '--transport', 'local', '--port', '9001', '--token', 'test-token-abcdefghijklmnop', ...extra],
+      [SETUP, '--transport', 'local', '--port', '9001', ...extra],
       {
         cwd: REPO_ROOT,
-        env: { ...process.env, HOME: home, WORKHUB_PROJECT_ROOT: proj },
+        env: { ...process.env, WORKHUB_AGENT_HOME: home, WORKHUB_RELAY_TOKEN: 'test-token-abcdefghijklmnop', WORKHUB_PROJECT_ROOT: proj },
         encoding: 'utf8',
       },
     )
@@ -458,18 +468,150 @@ describe('集成：真实写入 / 幂等 / 回退（临时 HOME + 临时项目�
     expect(existsSync(path.join(home, '.codebuddy', 'mcp.json'))).toBe(false)
   })
 
+  it('--pair 在同一设备上按 credentialId 隔离凭据，第二个 --only 不覆盖第一个客户端', async () => {
+    const tokenA = 'independent-token-A-never-print-this'
+    const tokenB = 'independent-token-B-never-print-this'
+    const receivedCodes: string[] = []
+    const server = createServer((req, res) => {
+      let body = ''
+      req.setEncoding('utf8')
+      req.on('data', (chunk) => { body += chunk })
+      req.on('end', () => {
+        const parsed = JSON.parse(body) as { code?: string }
+        receivedCodes.push(String(parsed.code || ''))
+        const paired = parsed.code === 'PAIR-CODE-A'
+          ? { token: tokenA, credentialId: 'credA123', name: 'Codex laptop' }
+          : { token: tokenB, credentialId: 'credB456', name: 'Hermes laptop' }
+        res.setHeader('content-type', 'application/json')
+        res.setHeader('cache-control', 'no-store')
+        res.end(JSON.stringify(paired))
+      })
+    })
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    const address = server.address()
+    if (!address || typeof address === 'string') throw new Error('test relay did not bind a port')
+    try {
+      const pair = async (client: 'codex' | 'hermes', code: string) => {
+        const child = spawn(
+          process.execPath,
+          [SETUP, '--url', `ws://127.0.0.1:${address.port}/relay`, '--pair', '--only', client, '--skills', 'none'],
+          {
+            cwd: REPO_ROOT,
+            env: { ...process.env, WORKHUB_AGENT_HOME: home, WORKHUB_PROJECT_ROOT: proj },
+            stdio: ['pipe', 'pipe', 'pipe'],
+          },
+        )
+        let stdout = ''
+        let stderr = ''
+        child.stdout.setEncoding('utf8').on('data', (chunk) => { stdout += chunk })
+        child.stderr.setEncoding('utf8').on('data', (chunk) => { stderr += chunk })
+        const result = await new Promise<{ status: number | null }>((resolve, reject) => {
+          child.once('error', reject)
+          child.once('close', (status) => resolve({ status }))
+          child.stdin.end(`${code}\n`)
+        })
+        return { ...result, output: stdout + stderr }
+      }
+
+      const first = await pair('codex', 'PAIR-CODE-A')
+      expect(first.status).toBe(0)
+      expect(first.output).not.toContain(tokenA)
+      expect(first.output).not.toContain('PAIR-CODE-A')
+      const credentialA = path.join(home, '.workhub', 'agents', 'credA123.json')
+      expect(JSON.parse(readFileSync(credentialA, 'utf8')).token).toBe(tokenA)
+      expect(statSync(credentialA).mode & 0o777).toBe(0o600)
+      expect(statSync(path.join(home, '.workhub')).mode & 0o777).toBe(0o700)
+      expect(statSync(path.dirname(credentialA)).mode & 0o777).toBe(0o700)
+      const codex = readFileSync(path.join(home, '.codex', 'config.toml'), 'utf8')
+      expect(codex).toContain(`WORKHUB_RELAY_CRED_FILE = "${credentialA}"`)
+      expect(codex).not.toContain(tokenA)
+
+      const second = await pair('hermes', 'PAIR-CODE-B')
+      expect(second.status).toBe(0)
+      expect(second.output).not.toContain(tokenB)
+      expect(second.output).not.toContain('PAIR-CODE-B')
+      const credentialB = path.join(home, '.workhub', 'agents', 'credB456.json')
+      expect(JSON.parse(readFileSync(credentialA, 'utf8')).token).toBe(tokenA)
+      expect(JSON.parse(readFileSync(credentialB, 'utf8')).token).toBe(tokenB)
+      const codexAfterSecondPair = readFileSync(path.join(home, '.codex', 'config.toml'), 'utf8')
+      expect(codexAfterSecondPair).toContain(`WORKHUB_RELAY_CRED_FILE = "${credentialA}"`)
+      expect(codexAfterSecondPair).not.toContain(credentialB)
+      const hermes = readFileSync(path.join(home, '.hermes', 'config.yaml'), 'utf8')
+      expect(hermes).toContain(`WORKHUB_RELAY_CRED_FILE: "${credentialB}"`)
+      expect(hermes).not.toContain(tokenB)
+
+      // 选中独立身份后，继承的旧共享 URL/token 不能让安装器重配时覆盖该文件。
+      const hash = (file: string) => createHash('sha256').update(readFileSync(file)).digest('hex')
+      const credentialAHash = hash(credentialA)
+      const reconfigureA = spawnSync(
+        process.execPath,
+        [SETUP, '--credential-id', 'credA123', '--only', 'codex', '--skills', 'none'],
+        {
+          cwd: REPO_ROOT,
+          env: {
+            ...process.env,
+            WORKHUB_AGENT_HOME: home,
+            WORKHUB_PROJECT_ROOT: proj,
+            WORKHUB_RELAY_URL: 'ws://127.0.0.1:9/relay',
+            WORKHUB_RELAY_TOKEN: 'legacy-shared-token-must-not-replace-A',
+          },
+          encoding: 'utf8',
+        },
+      )
+      expect(reconfigureA.status).toBe(0)
+      expect(hash(credentialA)).toBe(credentialAHash)
+      expect(JSON.parse(readFileSync(credentialA, 'utf8'))).toEqual({
+        url: `ws://127.0.0.1:${address.port}/relay`,
+        token: tokenA,
+        note: '由 npm run agent:setup 写入；token 轮换后请重跑本命令',
+      })
+      expect(reconfigureA.stdout + reconfigureA.stderr).not.toContain('legacy-shared-token-must-not-replace-A')
+      expect(readFileSync(path.join(home, '.codex', 'config.toml'), 'utf8')).toContain(
+        `WORKHUB_RELAY_CRED_FILE = "${credentialA}"`,
+      )
+
+      // 选择缺失/损坏的独立文件时，命令行 URL 与 legacy token 都不能兜底成功。
+      for (const [id, fileContent] of [['missing123', null], ['broken123', '{not-json']] as const) {
+        const badPath = path.join(home, '.workhub', 'agents', `${id}.json`)
+        if (fileContent !== null) writeFileSync(badPath, fileContent)
+        const selectedBad = spawnSync(
+          process.execPath,
+          [SETUP, '--credential-id', id, '--url', 'wss://wrong.example/relay', '--only', 'codex', '--skills', 'none'],
+          {
+            cwd: REPO_ROOT,
+            env: {
+              ...process.env,
+              WORKHUB_AGENT_HOME: home,
+              WORKHUB_PROJECT_ROOT: proj,
+              WORKHUB_RELAY_TOKEN: 'legacy-shared-token-must-not-rescue-selected-file',
+            },
+            encoding: 'utf8',
+          },
+        )
+        expect(selectedBad.status).not.toBe(0)
+        expect(selectedBad.stdout + selectedBad.stderr).toContain('不会回退到共享环境变量')
+        expect(selectedBad.stdout + selectedBad.stderr).not.toContain('legacy-shared-token-must-not-rescue-selected-file')
+      }
+      expect(receivedCodes).toEqual(['PAIR-CODE-A', 'PAIR-CODE-B'])
+      expect(existsSync(path.join(home, '.workhub', 'relay.json'))).toBe(false)
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+    }
+  })
+
   /**
    * 「一条指令」的取值标准：**整段复制给任意 Agent 也不算泄密，且不依赖本机**。
    * 三条都必须锁住：无长期 token（只有一次性码）、无本机路径、不写任何文件。
    */
-  it('--print-prompt 输出的是「远程直连」指令：MCP over HTTP + 一次性码，零长期凭证、零本机路径', () => {
+  it('--print-prompt 输出由后台签发配对码的说明，不生成共享配对码或长期凭据', () => {
     const r = run(['--print-prompt'])
     expect(r.status).toBe(0)
-    // 长期 token 绝不出现（本用例的 token 就在命令行里，最容易漏出去）
+    // 长期 token 绝不出现
     expect(r.stdout).not.toContain('test-token-abcdefghijklmnop')
     // 连的是服务器端点，不是本机 shim
     expect(r.stdout).toContain('/relay/mcp')
-    expect(r.stdout).toContain('/relay/pair')
+    expect(r.stdout).toContain('--pair')
+    expect(r.stdout).not.toContain('/relay/pair/new')
     // 不再出现仓库路径（上一版就是因为这个被判定为「让它连本地」）
     expect(r.stdout).not.toContain(REPO_ROOT)
     // 只打印，不落盘

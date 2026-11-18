@@ -118,8 +118,10 @@ PB_BIN=<0.40.2> npm run test:clients  # 显式构建双缓存进程harness，仅
 当前 **57 个业务工具**（`tools/list` 另含 `confirm_preview`，共58条），schema唯一源仍是 `src/agent/skillSource.ts`。`listHabits` 仅供读取历史记录，4个习惯写工具已退役。
 远程 Agent 直连 `https://<站点>/relay/mcp`，标准 MCP over HTTP、`Authorization: Bearer <独立凭据>`；不需要仓库、本机进程或在线网页。
 
-- 主路径：拥有者登录 → 设置「Agent 接入」→ 按客户端名称及最小能力签发独立凭据，只显示一次；服务端仅保存散列。可单独撤销，恢复世代也使旧凭据失效。
-- 设备授权可用 `npm run agent:setup -- --url wss://<站点>/relay --login`，**身份取决于宿主能力，不能仅凭命令名认定独立授权**：当前 `scripts/serve.mjs` 注入 `issueAgentCredential` 时签发独立身份；未注入的旧宿主只返回共享relay token，受升级世代绑定的7天过渡限制，不能当独立可撤销凭据。长期最小能力主路径仍是上条设置页逐Agent签发。CLI持有device_code并轮询，页面只提交user_code；长期凭据不经页面，落在 `~/.workhub/relay.json`，不放到可复制命令或Agent配置。
+- 主路径：拥有者登录 → 设置「Agent 接入」→ 按客户端名称生成限时、一次性的配对码。可把短码交给预期接入的 Agent 兑换；服务端只存配对码和长期凭据的散列，凭据可按接入名称单独撤销，恢复世代也会使旧凭据失效。
+- 远程 Agent 无需仓库或本机进程：向 `https://<站点>/relay/agent/pair/redeem` 发送 `POST` JSON `{"code":"<短码>"}`，安全保存响应中的 `token`，再以响应的 `url` 和 `Authorization: Bearer <token>` 连接 MCP。短码可交给目标 Agent；长期 token 不得打印、写入日志或回显到对话。CLI 路径在终端隐藏输入短码。
+- 可选仓库安装器：已有本仓库副本时运行 `npm run agent:setup -- --url wss://<站点>/relay --pair --only codex`，自动兑换并把凭据按 `credentialId` 独立保存到 `~/.workhub/agents/<credentialId>.json`（目录 0700、文件 0600），该客户端配置只引用对应凭据文件；Codex 与 Hermes 等目标须分别配对才能分别撤销。旧 `~/.workhub/relay.json` 仅供既有共享配置兼容。
+- 设备授权是可选的独立凭据入口：`npm run agent:setup -- --url wss://<站点>/relay --login` 只有在宿主启用了独立凭据执行器时才会签发独立身份；未启用时在兑换前失败关闭，不回退为共享 relay token。CLI 持有 device_code 并轮询，页面只提交 user_code。Vite dev/preview 若没有该执行器，会明确显示独立配对不受支持；生产 `scripts/serve.mjs` 注入执行器。
 - 页面及原生客户端用拥有者登录态走同一命令；Agent预览仍绑定原客户端，网页不能代另一Agent确认或撤回。
 - 旧浏览器桥/共享token是兼容路径，当前设置不再展示旧桥入口。共享秘密来源固定为 `WORKHUB_RELAY_TOKEN` → `<dataDir>/relay-token`（0600）→ 首次生成，不允许构建期随机或页面自造；升级世代绑定的7天过渡到期/恢复后不能重开。
 - **禁止用空串/缺失token表示共享身份**：外部HTTP/WS/stdio先拒绝空白凭据；仅实际匹配共享秘密后构造显式内部身份。此P0边界由真实协议回归固定。

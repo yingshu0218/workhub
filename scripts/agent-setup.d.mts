@@ -6,7 +6,7 @@
  * 这里**只声明测试用得到的导出**，不追求覆盖脚本全部内部实现。
  */
 
-/** 凭据文件绝对路径（~/.workhub/relay.json） */
+/** 兼容旧版共享凭据的默认文件路径；配对凭据按 ID 存到 .workhub/agents/<id>.json */
 export declare const CRED_FILE: string
 /** 项目级写入根目录（默认仓库根，`WORKHUB_PROJECT_ROOT` 可覆盖） */
 export declare const PROJECT_ROOT: string
@@ -67,6 +67,9 @@ export interface CliOptions {
   check: boolean
   /** 浏览器设备授权：拿站点登录态换 token，不需要预先持有 relay token */
   login: boolean
+  /** 隐藏读取短码并兑换为本机独立凭据 */
+  pair: boolean
+  credentialId: string
   uninstall: boolean
   help: boolean
   printPrompt: boolean
@@ -85,8 +88,8 @@ export interface CliOptions {
 /** `env` 可注入（测试用）：npm 会把裸 `--url` / `--dry-run` 吞成 `npm_config_*` */
 export declare function parseArgs(argv: string[], env?: Record<string, string | undefined>): CliOptions
 
-/** 渲染「一条指令」：远程 Agent 直连服务器，只带一次性配对码，**不含长期 token / 本机路径** */
-export declare function renderPrompt(opts?: { code?: string; site?: string }): string
+/** 渲染无配对码、无长期凭据的接入说明 */
+export declare function renderPrompt(opts?: { site?: string }): string
 
 /** 由凭据里的 wss:// 反推站点地址（仅用于提示「去哪个页面启用桥」） */
 export declare function siteFromCred(cred: { url?: string } | null | undefined): string
@@ -96,3 +99,9 @@ export declare function httpBaseFromRelayUrl(url: string): string
 
 /** 设备授权：请求 device/code → 打开授权页 → 轮询到 token */
 export declare function deviceLogin(relayUrl: string): Promise<{ url: string; token: string }>
+
+/** 隐藏读取一次性配对码；支持 TTY 隐藏输入与无回显的管道输入 */
+export declare function readPairCode(input?: NodeJS.ReadStream, output?: NodeJS.WriteStream): Promise<string>
+
+/** 向 Relay 兑换配对码；结果不确定时错误带 pairOutcomeUnknown=true */
+export declare function redeemPairCode(relayUrl: string, code: string): Promise<{ url: string; token: string; credentialId: string; name: string }>

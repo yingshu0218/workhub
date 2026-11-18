@@ -197,9 +197,15 @@ const relay = createRelay({
   path: relayPath,
   serverExecutor,
   issueAgentCredential: async (req, details) => {
-    const response=await fetch(process.env.WORKHUB_PB_URL.replace(/\/$/,'')+'/api/workhub/agents', {method:'POST',headers:{'Content-Type':'application/json',Authorization:bearerOf(req)},body:JSON.stringify({action:'issue',name:details.name,capabilities:['activity','crm','project','todo','fin','note','attachment','link','habit','operation','source'].flatMap(d=>[d+':read',d+':write'])}),signal:AbortSignal.timeout(5000)})
+    const response=await fetch(pbBase+'/api/workhub/agents', {method:'POST',headers:{'Content-Type':'application/json',Authorization:bearerOf(req)},body:JSON.stringify({action:'issue',name:details.name,capabilities:['activity','crm','project','todo','fin','note','attachment','link','habit','operation','source'].flatMap(d=>[d+':read',d+':write'])}),signal:AbortSignal.timeout(5000)})
     if(!response.ok)throw new Error('credential issuance failed')
     return response.json()
+  },
+  redeemAgentCredential: async (_req, details) => {
+    const response=await fetch(pbBase+'/api/workhub/agents/redeem-pair', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:details.code}),signal:AbortSignal.timeout(5000)})
+    const body=await response.json().catch(()=>({}))
+    if(!response.ok){const error=new Error(body.error||'pair redemption failed');error.status=response.status;error.code=body.code;throw error}
+    return body
   },
   /**
    * 后台页面在**首次配对前**还没有 relay token，若签码只认 relay token，
@@ -339,15 +345,7 @@ server.listen(port, host, () => {
   process.stderr.write(`[serve] 站点已监听 http://${host}:${port}（静态目录 dist/）\n`)
   process.stderr.write(`[serve] Relay 同源内嵌于 ${relayPath}（无需 Nginx/Docker/额外进程）\n`)
   process.stderr.write(`[serve] 接入 token 来源：${tokenSource}\n`)
-  // 启动即签发一枚**引导配对码**（不过期，兑换即作废）—— 这是「页面首次拿到 token」的唯一入口。
-  // 为什么要这一步：页面没有 token 就调不了 /pair/new（签码要持 token），会死锁；
-  // 而把长期 token 打进日志，等于让任何能看容器日志的人都拿到接入凭据。
-  // 引导码一次性、用完即消失，暴露面与打印 token 相当但危害小得多。
-  // 不给 5 分钟 TTL：部署完过一会儿再看日志是很正常的，过期就要重启容器，纯属自找麻烦。
-  const boot = relay.mintPairCode(0)
-  process.stderr.write(`[serve] 首次配对码：${boot.code}（一次性，配对成功后自动作废）\n`)
-  process.stderr.write('[serve] 配对方式：打开站点 → 设置 → AI Agent 桥 → 填配对码 → 配对\n')
-  process.stderr.write(`[serve] 浏览器侧：「AI Agent 桥」地址留空即用当前站点\n`)
+  process.stderr.write('[serve] 首次接入：登录后台后在「设置 → Agent 接入」生成独立一次性配对码\n')
   if (autoIssueConfirm) process.stderr.write('[serve] ⚠️ AUTO_CONFIRM 已开启（勿用于生产）\n')
 })
 

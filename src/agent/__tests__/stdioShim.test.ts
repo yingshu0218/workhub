@@ -17,7 +17,9 @@
  *   ④ relay 不可达时排队请求被回以可操作错误，不是静默排队到天荒地老。
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { spawn, type ChildProcess } from 'node:child_process'
+import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { startRelay, NodeWebSocket, REPO_ROOT, type RelayProcess } from './e2e.harness'
 
@@ -147,6 +149,50 @@ describe('shim：stdio ⇄ relay 传输适配', () => {
     })
     expect(init.serverInfo.name).toBe('workhub-agentops-relay')
     expect(init.protocolVersion).toBe('2024-11-05')
+  })
+
+  it('显式独立凭据文件覆盖继承的旧共享环境变量，并自动注入 MCP initialize', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'workhub-shim-credential-'))
+    const file = path.join(dir, 'credential.json')
+    const inheritedSharedToken = 'legacy-shared-token-must-not-win'
+    writeFileSync(file, JSON.stringify({ url: `ws://127.0.0.1:${relay.port}`, token: relay.token }), { mode: 0o600 })
+    const independent = new StdioMcpClient({
+      WORKHUB_RELAY_CRED_FILE: file,
+      WORKHUB_RELAY_URL: 'ws://127.0.0.1:1/legacy-relay',
+      WORKHUB_RELAY_TOKEN: inheritedSharedToken,
+      WORKHUB_RELAY_DEBUG: '1',
+    })
+    try {
+      const result = await independent.rpc<{ serverInfo: { name: string } }>('initialize', {
+        protocolVersion: '2024-11-05',
+        capabilities: {},
+      })
+      expect(result.serverInfo.name).toBe('workhub-agentops-relay')
+      expect(independent.stderr).not.toContain(relay.token)
+      expect(independent.stderr).not.toContain(inheritedSharedToken)
+      expect(independent.stderr).toContain('[redacted]')
+    } finally {
+      independent.kill()
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('显式凭据文件缺失时不回退到旧 URL/token 环境变量', () => {
+    const missingFile = path.join(tmpdir(), `workhub-missing-credential-${Date.now()}.json`)
+    const inheritedSharedToken = 'legacy-shared-token-must-not-win'
+    const result = spawnSync(process.execPath, [SHIM, '--verify'], {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        WORKHUB_RELAY_CRED_FILE: missingFile,
+        WORKHUB_RELAY_URL: 'ws://127.0.0.1:1/legacy-relay',
+        WORKHUB_RELAY_TOKEN: inheritedSharedToken,
+      },
+    })
+    expect(result.status).toBe(2)
+    expect(result.stderr).toContain('未找到 relay 地址')
+    expect(result.stderr).not.toContain(inheritedSharedToken)
+    expect(result.stderr).not.toContain('legacy-relay')
   })
 
   it('② tools/list 双向穿透：浏览器侧工具 + relay 内置 confirm_preview 都在', async () => {

@@ -55,14 +55,14 @@ export function AiBridgeSection({
   const [copied, setCopied] = useState(false)
   const [copiedCmd, setCopiedCmd] = useState(false)
   const [copiedConfig, setCopiedConfig] = useState(false)
-  /** 配对码兑换状态 —— 页面拿到 relay token 的唯一入口 */
+  /** 旧版共享桥配对状态，仅为既有兼容入口保留 */
   const [pairCode, setPairCode] = useState('')
   const [pairState, setPairState] = useState<{ busy: boolean; error: string; ok: string }>({
     busy: false,
     error: '',
     ok: '',
   })
-  /** 本页签发给 Agent / 第二台设备的一次性配对码（5 分钟有效） */
+  /** 旧版共享桥的一次性兼容码；新 Agent 不走此路径 */
   const [issued, setIssued] = useState<{ code: string; minutes: number } | null>(null)
   const [issueBusy, setIssueBusy] = useState(false)
   /** 桥实际连出的 relay 基址（留空 = 当前站点同源 /relay，与实际连接口径同源，不另算一份） */
@@ -70,14 +70,8 @@ export function AiBridgeSection({
 
   useEffect(() => agentBridge.onStatus(setStatus), [])
 
-  /**
-   * 给外部 Agent 的「一条命令」接入（Issue #154）。
-   *
-   * 2026-11-08 起主路径是 `--login`（设备授权）：命令只带站点地址，跑起来会打印并打开
-   * `/authorize` 页面，用户用站点账号点「授权」后，CLI 自己在后台轮询拿到 token 并写入
-   * `~/.workhub/relay.json` —— 终端与可复制的文本里都不出现长期 token。
-   */
-  const agentSetupCmd = `npm run agent:setup -- --url ${bridgeBase} --login`
+  /** 新设备应去独立命名的「Agent 接入」区签码；此卡仅保留旧版共享桥语义。 */
+  const agentSetupCmd = `npm run agent:setup -- --url ${bridgeBase} --pair`
   const mcpConfig = JSON.stringify(
     {
       mcpServers: {
@@ -87,9 +81,8 @@ export function AiBridgeSection({
             '<项目路径>/relay/mcp-stdio-shim.mjs',
             '--url',
             bridgeBase,
-            '--token',
-            ai.bridgeToken ?? '',
           ],
+          env: { WORKHUB_RELAY_CRED_FILE: '<本机独立凭据文件路径>' },
         },
       },
     },
@@ -162,7 +155,7 @@ export function AiBridgeSection({
     if (!authToken) {
       setPairState({
         busy: false,
-        error: '未登录或当前部署未启用登录，无法在页面生成；请用启动日志里的引导码首次配对',
+        error: '旧版共享桥需要已登录站点；新设备请到「设置 → Agent 接入」生成命名配对码。',
         ok: '',
       })
       return
@@ -200,7 +193,7 @@ export function AiBridgeSection({
       setPairState({
         busy: false,
         error: '',
-        ok: '已生成接入 token，复制到 MCP 客户端的 Authorization: Bearer 即可',
+        ok: '已签发旧版共享桥兼容凭据。新设备请用「设置 → Agent 接入」建立可单独撤销的接入。',
       })
     } catch (e) {
       setPairState({ busy: false, error: e instanceof Error ? e.message : String(e), ok: '' })
@@ -240,10 +233,9 @@ export function AiBridgeSection({
             <Icon name="smart_toy" size={18} />
           </div>
           <div className="flex-1">
-            <h3 className="text-[1.0357rem] font-semibold">AI Agent 桥</h3>
+            <h3 className="text-[1.0357rem] font-semibold">旧版 AI 浏览器桥（共享凭据兼容）</h3>
             <p className="mt-0.5 text-[0.8214rem] text-on-surface-variant">
-              让外部 Agent（Claude Desktop / Cursor / CLI 等）经 relay 用标准 MCP 调用本应用的记账、CRM 等能力。
-              relay 已内嵌在本项目（与站点同源），无需单独启动。
+              仅供既有浏览器桥客户端兼容使用，共享凭据不支持按 Agent 单独撤销。新设备或 Agent 请使用「设置 → Agent 接入」按名称生成独立配对码。
             </p>
           </div>
           <span className={`text-[0.8571rem] font-medium ${stateColor[status.state]}`}>{stateText[status.state]}</span>
@@ -251,9 +243,9 @@ export function AiBridgeSection({
 
         <div className="flex items-center justify-between gap-3 rounded-lg border border-outline-variant/60 px-4 py-3">
           <div className="min-w-0">
-            <div className="text-[0.9286rem] font-medium">启用 AI 桥</div>
+            <div className="text-[0.9286rem] font-medium">启用旧版浏览器桥</div>
             <div className="mt-0.5 text-[0.8214rem] text-on-surface-variant">
-              关闭时桥不启动，Agent 无法连接；开启后本页会主动连出 relay（不开放入站端口）
+              此开关只控制本页的旧版浏览器桥连接，不影响服务端独立 Agent 凭据
             </div>
           </div>
           <button
@@ -305,7 +297,7 @@ export function AiBridgeSection({
               )}
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <Button size="sm" variant="ghost" onClick={() => void issueCode()}>
-                  {issueBusy ? '生成中…' : ai.bridgeToken ? '生成配对码' : '生成接入 token'}
+                  {issueBusy ? '生成中…' : '生成旧版共享桥凭据'}
                 </Button>
                 {issued && (
                   <span className="font-mono text-[0.9286rem] tracking-wider text-primary">
@@ -317,14 +309,12 @@ export function AiBridgeSection({
                 )}
               </div>
               <p className="mt-1 text-[0.7857rem] text-outline">
-                本页已登录时可直接「生成接入 token」——用登录态向 relay 换长期 token，<b>无需先配对</b>；
-                再复制到 MCP 客户端的 <code>Authorization: Bearer</code>。已接入后同一按钮改为签发
-                5 分钟一次性码，给 Agent 或第二台设备兑换。启动日志里的引导码仅作兜底。
+                这是旧共享凭据兼容入口，不能按接入名称撤销。新设备请到「设置 → Agent 接入」生成一次性命名配对码；那里签发的 token 会保存到目标设备的独立凭据文件。
               </p>
             </div>
             <div>
               <div className="mb-1 text-[0.8214rem] font-medium text-on-surface-variant">
-                接入 token（仅存本地，不进同步）
+                旧版共享桥 token（仅存本地，不进同步）
               </div>
               <div className="flex items-center gap-2">
                 <input
@@ -341,16 +331,14 @@ export function AiBridgeSection({
                 </Button>
               </div>
               <p className="mt-1 text-[0.7857rem] text-outline">
-                这串就是 relay 的接入 token：填进 MCP 客户端的 <code>Authorization: Bearer</code> 即可
-                （也可以把配对码交给 Agent，让它自己换）。它由 relay 启动时从{' '}
-                <code>WORKHUB_RELAY_TOKEN</code> 或数据卷读取，重建镜像不会变。
+                这串只用于旧版共享桥兼容；新建 Agent 接入请走按名称签发的独立凭据，并在管理列表单独撤销。
               </p>
             </div>
             {status.error && <p className="text-[0.8214rem] text-error">{status.error}</p>}
             <div>
               <div className="mb-1 flex items-center justify-between gap-2">
                 <div className="text-[0.8214rem] font-medium text-on-surface-variant">
-                  Agent 侧接入（复制即用）
+                  新设备接入命令（需先在后台签码）
                 </div>
                 <Button
                   size="sm"
@@ -373,16 +361,13 @@ export function AiBridgeSection({
                 {agentSetupCmd}
               </pre>
               <p className="mt-1 text-[0.7857rem] text-outline">
-                推荐用这条命令（在仓库根目录执行）：运行后会打印并打开<b>授权页</b>，
-                用你当前的站点账号点「授权」即可；
-                随后自动写入各 Agent 工具（Codex / Hermes / opencode / Claude Code / Cursor …）的配置，
-                并把凭据集中存到 <code>~/.workhub/relay.json</code> ——
-                token 因此不落进任何可入库的配置文件。跑完<b>重启 Agent 工具</b>即可。详见{' '}
+                先到「设置 → Agent 接入」生成命名配对码，再在目标设备执行这条命令并按隐藏提示输入短码。
+                每次兑换会写入独立凭据文件；可加 <code>--only codex</code> 只更新一个客户端，否则会配置本机检测到的客户端。跑完<b>重启 Agent 工具</b>即可。详见{' '}
                 <code>docs/一键接入-Agent说明.md</code>。
               </p>
               <details className="mt-2">
                 <summary className="cursor-pointer text-[0.7857rem] text-on-surface-variant">
-                  手动配置（不想跑脚本时）·{' '}
+                  手动配置模板（仅适用于已安全保存凭据的客户端）·{' '}
                   <button
                     type="button"
                     className="underline"
@@ -404,11 +389,7 @@ export function AiBridgeSection({
                   {mcpConfig}
                 </pre>
                 <p className="mt-1 text-[0.7857rem] text-outline">
-                  标准 MCP 只有 stdio / Streamable HTTP 两种传输，<b>没有「连裸 ws://」这条</b>，
-                  所以 Agent 侧要用本项目的 stdio 桥（
-                  <code>relay/mcp-stdio-shim.mjs</code>）把 JSON-RPC 帧搬到 relay：把{' '}
-                  <code>&lt;项目路径&gt;</code> 换成实际路径后粘进 Agent 的 MCP 配置。
-                  该配置含明文 token，<b>不要提交到仓库</b>。
+                  模板只包含本机凭据文件路径，不包含 token。把占位路径替换为已配对设备的凭据文件；不要把 bearer token 写进项目配置或聊天记录。
                 </p>
               </details>
             </div>

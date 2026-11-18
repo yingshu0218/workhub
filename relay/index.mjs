@@ -17,7 +17,7 @@
  *   node relay/index.mjs --dev                # 预览响应自动附 confirmToken（仅本地联调/自动化，勿用于生产）
  *   WORKHUB_RELAY_PORT=9000 node relay/index.mjs
  *   WORKHUB_RELAY_HOST=0.0.0.0 WORKHUB_RELAY_TOKEN=<≥16位> node relay/index.mjs --public
- *   WORKHUB_RELAY_TOKEN=xxx node relay/index.mjs   # 固定 token（缺省随机生成并打印）
+ *   WORKHUB_RELAY_TOKEN=xxx node relay/index.mjs   # 固定 token（缺省随机生成；日志不输出明文）
  *   WORKHUB_RELAY_DEBUG=1 node relay/index.mjs      # 打印浏览器往返回包（排查「有回包但客户端收不到」）
  */
 import { createServer } from 'node:http'
@@ -66,8 +66,8 @@ server.once('error', (e) => {
 server.listen(port, rawHost, () => {
   const actual = server.address().port
   log(`[relay] WebSocket 已监听 ws://${rawHost}:${actual}${relay.path}`)
-  log(`[relay] 接入 token：${relay.token}`)
-  log(`[relay] 浏览器侧：启用「AI 桥」并填入上述地址与 token`)
+  log('[relay] 兼容桥凭据已就绪（明文不会写入日志）')
+  log('[relay] 浏览器侧：启用旧版 AI 桥并使用本地凭据配置')
   log(`[relay] MCP 协议版本：${relay.protocolVersion}（标准 tools/list + tools/call）`)
   if (wantDev) log('[relay] dev 模式：预览响应会自动附带 confirmToken（仅本地联调用，勿用于生产）')
   if (wantStdio) relay.attachStdio()

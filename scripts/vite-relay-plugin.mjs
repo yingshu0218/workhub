@@ -44,6 +44,22 @@ export function relayPlugin(opts = {}) {
       return false
     }
   }
+  const redeemAgentCredential = async (_req, { code }) => {
+    const res = await fetch(`${pbBase}/api/workhub/agents/redeem-pair`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ code }),
+      signal: AbortSignal.timeout(5000),
+    })
+    const body = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      const error = new Error(body.error || 'pair redemption failed')
+      error.status = res.status
+      error.code = body.code
+      throw error
+    }
+    return body
+  }
   let relay = null
   /** @type {import('vite').ViteDevServer['httpServer'] | null} */
   let httpServer = null
@@ -63,7 +79,7 @@ export function relayPlugin(opts = {}) {
     name: 'workhub-relay',
     apply: 'serve',
     configureServer(server) {
-      relay = createRelay({ token: opts.token ?? process.env.WORKHUB_RELAY_TOKEN, autoIssueConfirm, path, authorizeMint, log: (m) => server.config.logger.info(m) })
+      relay = createRelay({ token: opts.token ?? process.env.WORKHUB_RELAY_TOKEN, autoIssueConfirm, path, authorizeMint, redeemAgentCredential, log: (m) => server.config.logger.info(m) })
       httpServer = server.httpServer
       if (!httpServer) return
       httpServer.on('upgrade', upgradeHandler)
@@ -71,7 +87,6 @@ export function relayPlugin(opts = {}) {
       // 否则「本地能连、线上不能连」这类传输差异只会在部署后才暴露
       server.middlewares.use((req, res, next) => (relay?.handleHttp(req, res) ? undefined : next()))
       server.config.logger.info(`[relay] 已内嵌于 dev server：${path}（同源，无需额外端口/进程）`)
-      server.config.logger.info(`[relay] 接入 token：${relay.token}`)
       server.config.logger.info(`[relay] 浏览器侧：「AI Agent 桥」地址留空即用当前站点（推荐），或填 ws://<本机>${path}`)
     },
     closeBundle() {
@@ -79,13 +94,12 @@ export function relayPlugin(opts = {}) {
     },
     configurePreviewServer(server) {
       // `npm run preview` 同样内嵌，便于本地验证生产构建（同源 /relay）
-      relay = createRelay({ token: opts.token ?? process.env.WORKHUB_RELAY_TOKEN, autoIssueConfirm, path, authorizeMint, log: (m) => server.config.logger.info(m) })
+      relay = createRelay({ token: opts.token ?? process.env.WORKHUB_RELAY_TOKEN, autoIssueConfirm, path, authorizeMint, redeemAgentCredential, log: (m) => server.config.logger.info(m) })
       httpServer = server.httpServer
       if (!httpServer) return
       httpServer.on('upgrade', upgradeHandler)
       server.middlewares.use((req, res, next) => (relay?.handleHttp(req, res) ? undefined : next()))
       server.config.logger.info(`[relay] 已内嵌于 preview server：${path}`)
-      server.config.logger.info(`[relay] 接入 token：${relay.token}`)
     },
   }
 }

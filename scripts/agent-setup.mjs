@@ -4,7 +4,7 @@
  *
  * ## 它解决什么
  *
- * 本项目通过 MCP 对外暴露 27 个业务工具（客户 / 流水 / 待办 / 笔记 / 习惯 / 账本…），
+ * 本项目通过 MCP 对外暴露个人工作台工具，
  * 但每换一个 Agent 工具都要手搓一遍配置：MCP 条目的位置与格式各不相同、项目规则要重讲一遍、
  * 工具说明要重新投喂。本脚本把这三件事合并成一条命令：
  *
@@ -23,8 +23,7 @@
  * 1. **通用探测，不写死厂商**：`TARGETS` 是一张表，新增工具只加一行；只处理**探测到已安装**的。
  * 2. **幂等 + 合并写入**：JSON 走键合并；TOML/YAML/Markdown 走带标记的「托管块」，
  *    只替换我们写过的那一段，用户自己的内容一个字节不动。连续跑两次结果完全一致。
- * 3. **token 只有一个落点**：`~/.workhub/relay.json`。**任何入库文件里都不出现 token** ——
- *    项目级配置（opencode.json / .mcp.json）是可以提交的，往里面写密码等于泄密。
+ * 3. **token 只有一个落点**：权限受限的凭据文件。MCP 配置只引用凭据文件路径，绝不包含 token。
  * 4. **改前必留备份**：任何被修改的已有文件先复制成 `<file>.bak-workhub`（只留最近一份，不刷屏）。
  * 5. **不硬编码环境地址**：本项目处于开发/测试阶段，站点地址会变；远程地址必须显式提供。
  *
@@ -32,19 +31,20 @@
  *
  *   npm run agent:setup                          # 探测 + 写入（默认从已有凭据复用地址）
  *   npm run agent:setup -- --transport local     # 指向本地 relay（默认端口 9001）
- *   npm run agent:setup -- --url wss://<域名>/relay --token <token>
+ *   npm run agent:setup -- --url wss://<域名>/relay --pair
  *   npm run agent:setup -- --dry-run             # 只打印将要做什么，不落盘
  *   npm run agent:setup -- --only codex,hermes   # 只配指定目标
  *   npm run agent:setup -- --check               # 连通性自检（起 shim 走真实 MCP 握手）
- *   npm run agent:setup -- --skills full         # 额外投放 27 个逐工具技能（通常不需要，见下）
+ *   npm run agent:setup -- --skills full         # 额外投放逐工具技能（通常不需要，见下）
  *   npm run agent:setup -- --uninstall           # 移除本脚本写入的全部内容
  *
- * `--skills full` 为什么通常不需要：MCP 的 `tools/list` 本身就会把 27 个工具的
- * 名称 / 描述 / schema 交给 Agent。再写成 27 份技能是**重复投喂**，只会抬高每次请求的固定成本。
+ * `--skills full` 为什么通常不需要：MCP 的 `tools/list` 本身就会把工具的
+ * 名称 / 描述 / schema 交给 Agent。再写成逐工具技能是**重复投喂**，只会抬高每次请求的固定成本。
  * 默认只投放一份元技能（讲清「中风险确认流程 / 消解优先 / 读限幅」这些 MCP schema 表达不了的事）。
  */
-import { readFileSync, writeFileSync, existsSync, mkdirSync, copyFileSync, rmSync, readdirSync, statSync } from 'node:fs'
+import { readFileSync, writeFileSync, existsSync, mkdirSync, copyFileSync, rmSync, readdirSync, statSync, chmodSync, renameSync, unlinkSync } from 'node:fs'
 import { spawnSync, spawn } from 'node:child_process'
+import { randomBytes } from 'node:crypto'
 import { homedir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -52,7 +52,8 @@ import { fileURLToPath } from 'node:url'
 /* ================================ 常量 ================================ */
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const HOME = homedir()
+/** 可独立隔离用户级 Agent 配置；不改写或复用 HOME/CODEX_HOME 环境变量。 */
+const AGENT_HOME = path.resolve(process.env.WORKHUB_AGENT_HOME || homedir())
 /**
  * 项目级写入的根目录。默认就是仓库根；可用 `WORKHUB_PROJECT_ROOT` 覆盖
  * （用途：测试时把项目级产物落到临时目录，不污染真实仓库；也兼容仓库被搬走/软链的场景）。
@@ -60,8 +61,10 @@ const HOME = homedir()
 const PROJECT_ROOT = process.env.WORKHUB_PROJECT_ROOT
   ? path.resolve(process.env.WORKHUB_PROJECT_ROOT)
   : REPO_ROOT
-/** 凭据文件：token 与 relay 地址的**唯一落点**（不入库、不散落在各工具配置里） */
-export const CRED_FILE = path.join(HOME, '.workhub', 'relay.json')
+/** 旧版共享凭据文件；新的配对流程会切到 .workhub/agents/<credentialId>.json。 */
+export const CRED_FILE = process.env.WORKHUB_RELAY_CRED_FILE
+  ? path.resolve(process.env.WORKHUB_RELAY_CRED_FILE)
+  : path.join(AGENT_HOME, '.workhub', 'relay.json')
 /** 桥在 MCP 里的服务器名（各工具配置里的 key） */
 export const SERVER_NAME = 'workhub'
 
@@ -75,13 +78,17 @@ export const SERVER_NAME = 'workhub'
  */
 let activeCredFile = CRED_FILE
 
-/** 按 --env 切换凭据文件；未指定时保持默认 relay.json（向后兼容，现有配置零影响） */
+/** 按 --env 切换旧版环境凭据文件；新配对的 credential-id 路径不受影响。 */
 function applyEnv(envName) {
   if (!envName) return
   if (!/^[A-Za-z0-9_-]+$/.test(envName)) {
     throw new Error(`--env 只接受字母、数字、下划线与连字符，收到：${envName}`)
   }
-  activeCredFile = path.join(HOME, '.workhub', `relay.${envName}.json`)
+  activeCredFile = path.join(AGENT_HOME, '.workhub', `relay.${envName}.json`)
+}
+function credentialPathForId(id) {
+  if (!/^[A-Za-z0-9_-]{1,80}$/.test(String(id))) throw new Error('credential-id 格式非法')
+  return path.join(AGENT_HOME, '.workhub', 'agents', `${id}.json`)
 }
 /** 托管块标记：只替换标记之间的内容，用户自己的配置不动 */
 const MARK = 'workhub-agent-setup'
@@ -97,23 +104,23 @@ const usage = () => `寻鸽工作台 · Agent 一键接入
 用法：npm run agent:setup -- [选项]
 
 接入（推荐：把这一段原样复制给任意 Agent）
-  --print-prompt             打印「一条指令」：让**远程** Agent 直连服务器（含一枚 5 分钟
-                             一次性配对码，长期 token 不出现）
+  --pair                     在终端隐藏输入后台生成的一次性配对码，兑换后安全保存独立凭据
+  --print-prompt             打印不含配对码或长期 token 的接入说明
 
 选址（不设默认地址：站点地址随环境变化，写死等于埋隐性依赖）
   --transport local          指向本地 relay（默认 ws://127.0.0.1:9001/relay）
   --port <n>                 配合 --transport local 指定端口（dev 通常 5173，serve 默认 9001）
   --url <ws(s)://…/relay>    显式指定 relay 地址（远程部署用这个）
-  --login                    浏览器授权（推荐）：打印并打开授权页，登录后点「授权」，
-                             自动把 token 写入凭据文件，再继续写入各 Agent 配置
-  --token <token>            指定接入 token（缺省复用已有凭据）
+  --login                    兼容设备授权：登录后写入独立凭据；个人接入优先使用后台配对码
+  WORKHUB_RELAY_TOKEN        兼容已有凭据的环境变量，不要把 token 放在命令行参数中
+  --credential-id <id>       选择已有的独立配对凭据（可与 --url、--check、--only 合用）
   --env <name>               把凭据存到 ~/.workhub/relay.<name>.json，且**不改 MCP 配置**
                              （用途：去测试站验收桥，不动正式站那套配置；
                                配 --check 即「用该环境凭据自检」）
 
 写入范围
   --only <id,id>             只处理指定目标
-  --skills meta|full|none    技能投放粒度（默认 meta；full 另投 27 个逐工具技能，通常不需要）
+  --skills meta|full|none    技能投放粒度（默认 meta；full 另投逐工具技能，通常不需要）
   --opencode-schema auto|v1|v2  opencode 的 mcp 结构版本（auto = 探测已有配置）
   --node <path>              写进配置的 node 可执行文件（缺省自动挑最耐久的那个）
 
@@ -136,10 +143,10 @@ const c = {
   bold: (s) => `\x1b[1m${s}\x1b[0m`,
 }
 
-const expand = (p) => (p.startsWith('~/') ? path.join(HOME, p.slice(2)) : p)
-/** 展示用短路径：仓库内显示仓库相对路径（仓库本身也在 HOME 下，所以必须先判仓库） */
+const expand = (p) => (p.startsWith('~/') ? path.join(AGENT_HOME, p.slice(2)) : p)
+/** 展示用短路径：仓库内显示仓库相对路径（仓库本身也在用户目录下，所以必须先判仓库） */
 const rel = (p) =>
-  p.startsWith(REPO_ROOT) ? `${path.basename(REPO_ROOT)}/${p.slice(REPO_ROOT.length + 1)}` : p.startsWith(HOME) ? `~${p.slice(HOME.length)}` : p
+  p.startsWith(REPO_ROOT) ? `${path.basename(REPO_ROOT)}/${p.slice(REPO_ROOT.length + 1)}` : p.startsWith(AGENT_HOME) ? `~${p.slice(AGENT_HOME.length)}` : p
 
 function readJson(file) {
   try {
@@ -236,7 +243,7 @@ function stripManagedBlock(text, style) {
  */
 function pickNodePath() {
   const candidates = [
-    path.join(HOME, '.local/bin/node'), // 用户自维护的稳定入口（通常是指向某处的符号链接）
+    path.join(AGENT_HOME, '.local/bin/node'), // 用户自维护的稳定入口（通常是指向某处的符号链接）
     '/opt/homebrew/bin/node',
     '/usr/local/bin/node',
   ]
@@ -253,7 +260,12 @@ let NODE_BIN = ''
  * 统一加给所有工具属于「顺手改别人的配置」，一旦哪家不认这个键就是整条 MCP 加载失败。
  */
 function stdioServerDef({ type } = {}) {
-  return { ...(type ? { type } : {}), command: NODE_BIN || pickNodePath(), args: [SHIM] }
+  return {
+    ...(type ? { type } : {}),
+    command: NODE_BIN || pickNodePath(),
+    args: [SHIM],
+    env: { WORKHUB_RELAY_CRED_FILE: activeCredFile },
+  }
 }
 
 /** Claude Code / Cursor / Gemini / WorkBuddy / CodeBuddy：`{ "mcpServers": { "<name>": {...} } }` */
@@ -307,7 +319,13 @@ function writeMcpOpencode(file, { uninstall, opencodeSchema }) {
 function renderCodexBlock() {
   const def = stdioServerDef()
   const args = def.args.map((a) => JSON.stringify(a)).join(', ')
-  return [`[mcp_servers.${SERVER_NAME}]`, `command = ${JSON.stringify(def.command)}`, `args = [${args}]`].join('\n')
+  return [
+    `[mcp_servers.${SERVER_NAME}]`,
+    `command = ${JSON.stringify(def.command)}`,
+    `args = [${args}]`,
+    `[mcp_servers.${SERVER_NAME}.env]`,
+    `WORKHUB_RELAY_CRED_FILE = ${JSON.stringify(activeCredFile)}`,
+  ].join('\n')
 }
 
 /** Hermes：`~/.hermes/config.yaml` 的 `mcp_servers:`（YAML）。注意键名是 `mcp_servers`，**不是** `mcpServers` */
@@ -319,6 +337,8 @@ function renderHermesEntry(indent) {
     `${pad}  command: ${JSON.stringify(def.command)}`,
     `${pad}  args:`,
     ...def.args.map((a) => `${pad}    - ${JSON.stringify(a)}`),
+      `${pad}  env:`,
+      `${pad}    WORKHUB_RELAY_CRED_FILE: ${JSON.stringify(activeCredFile)}`,
   ].join('\n')
 }
 
@@ -516,26 +536,20 @@ function renderMetaSkill() {
   const toolListPath = path.relative(REPO_ROOT, SKILLS_SRC) + '/README.md'
   return `---
 name: ${SKILL_NAME}
-description: 通过 MCP 桥操作「寻鸽工作台」的业务数据（客户/流水/待办/笔记/习惯）。用于记账、建档、跟进、打卡等真实落库操作前，先确认中风险确认流程与实体消解纪律。
+description: 通过 MCP 操作「寻鸽工作台」的个人数据。用于记账、建档、跟进等真实落库操作前，先确认中风险确认流程与实体消解纪律。
 ---
 
 # 寻鸽工作台 · Agent 桥
 
-本项目的 27 个业务工具通过 MCP 暴露。工具的**名称 / 参数 / schema** 由 MCP 的 \`tools/list\` 自动下发，
+本项目的业务工具通过 MCP 暴露。工具的**名称 / 参数 / schema** 由 MCP 的 \`tools/list\` 自动下发，
 不需要在这里复述；完整人读版见 \`${toolListPath}\`。
 
 这份技能只讲 **MCP schema 里表达不了、但不知道就会做错**的四件事。
 
-## 1. 前置条件：桥必须在线（不是配置错误）
+## 1. 前置条件：独立凭据与服务端可用
 
-relay 只是通道，**真正的执行发生在浏览器页面里**。必须有一个人打开站点并在
-「设置 → AI Agent 桥」启用桥，否则：
-
-- \`tools/list\` 返回 \`-32001 工具清单不可用：寻鸽工作台未连接 relay\`；
-- \`tools/call\` 返回「应用未连接」。
-
-**这两种情况都不要反复重试、也不要改参数** —— 数据不在服务端，去把页面打开才是解法。
-业务数据始终存在浏览器的 IndexedDB 里，relay 不持有一份副本。
+Agent 使用拥有者在「设置 → Agent 接入」签发并单独命名的凭据。Relay 会逐请求校验凭据、能力、部署域和恢复世代；
+调用失败时先检查站点服务状态与后台授权状态，不要把旧共享桥或浏览器会话当成此凭据的替代品。
 
 ## 2. 中风险操作：必须走「预览 → 转述 → 取票 → 重试」四步
 
@@ -553,7 +567,7 @@ relay 只是通道，**真正的执行发生在浏览器页面里**。必须有�
 
 ## 3. 实体消解：不许猜 id
 
-凡是引用「客户 / 项目 / 待办 / 账本 / 习惯 / 笔记 / 文件夹」的地方：
+凡是引用「客户 / 项目 / 待办 / 账本 / 笔记 / 文件夹」的地方：
 
 1. 先调 \`resolveEntity\` 把用户的口语说法（「王五」「深蓝科技」）解析成候选；
 2. **候选不唯一时必须反问用户**，不要挑第一个；
@@ -690,77 +704,24 @@ export async function deviceLogin(relayUrl) {
 }
 
 /**
- * 向站点签发一枚**一次性配对码**。
- *
- * 为什么是「签发」而不是「把 token 打印出来」：这段文本要被整段复制给任意 Agent，
- * 一旦写着长期 token，聊天记录、剪贴板、工单、截图全都成了凭证副本。
- * 短码 5 分钟、只能换一次 —— 泄露的代价被压到「5 分钟内被人抢先兑换」，
- * 而兑换者拿到的 token 还能在站点侧轮换掉。
+ * 输出不含短码和长期凭据的接入说明。配对码只能由拥有者在后台按名称签发，
+ * 不能再由持有旧共享凭据的 Agent 代为扩发。
  */
-async function mintPairCode(cred) {
-  const site = siteFromCred(cred)
-  if (!site) throw new Error('凭据里没有站点地址')
-  const url = `${site}/relay/pair/new`
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { authorization: `Bearer ${cred.token}` },
-    signal: AbortSignal.timeout(10_000),
-  })
-  if (!res.ok) {
-    const hint =
-      res.status === 404
-        ? '（站点镜像还没有 HTTP 端点：需要先部署带 /relay/mcp 的版本）'
-        : res.status === 401
-          ? '（凭据里的 token 与该站点不一致，先重跑一次配对）'
-          : ''
-    throw new Error(`${url} 返回 ${res.status}${hint}`)
-  }
-  const j = await res.json()
-  if (!j?.code) throw new Error('站点响应里没有 code')
-  return j.code
-}
-
-/**
- * 生成「一条指令」：整段复制给任意 Agent，它自己就能连上**服务器上的**工作台。
- *
- * 三个硬约束（改这段文字前先读一遍）：
- * 1. **不出现长期 token**：只放一枚 5 分钟一次性配对码，Agent 自己用它换 token；
- * 2. **不出现本机路径**：Agent 连的是 `https://<站点>/relay/mcp`（标准 MCP over HTTP），
- *    不需要本仓库、不需要 node、不需要 shim —— 这正是「远程接入」与「本地接入」的分界；
- * 3. **不给 wss://**：裸 WebSocket 不是 MCP 标准传输，写进配置只会得到 426/连不上。
- */
-function renderPrompt({ code = '', site = 'https://<你的站点>' } = {}) {
+function renderPrompt({ site = 'https://<你的站点>' } = {}) {
+  const relay = `${site}/relay`
   const mcpUrl = `${site}/relay/mcp`
-  const pairUrl = `${site}/relay/pair`
-  const codeShown = code || '<在此填一次性配对码>'
-  const cfgHttp = JSON.stringify({
-    mcpServers: {
-      [SERVER_NAME]: { type: 'streamableHttp', url: mcpUrl, headers: { Authorization: 'Bearer <上一步拿到的 token>' } },
-    },
-  })
   return [
-    '【任务】把「寻鸽工作台」挂进你自己的工具列表。它是标准 MCP over HTTP，',
-    '不需要任何本地文件、本地进程或本仓库 —— 数据在服务器上，你只需要连它。',
+    '【接入寻鸽工作台】',
+    '拥有者先登录站点，进入「设置 → Agent 接入」，填写设备或 Agent 名称并生成一次性配对码。',
+    '在要连接的设备上运行下方命令，再在终端隐藏输入处粘贴配对码：',
+    `  npm run agent:setup -- --url ${relay} --pair`,
+    '脚本只把独立 token 保存到该设备的本地凭据文件，并更新本机已检测到的 MCP 客户端配置。',
     '',
-    '【三步，照做，不要发挥】',
-    '1) 用一次性配对码换接入 token（码 5 分钟内有效、只能换一次）：',
-    `   curl -sS -X POST ${pairUrl} -H 'content-type: application/json' -d '{"code":"${codeShown}"}'`,
-    '   返回 {"token":"…"}。**这个 token 只写进你自己的配置或密钥存储，不要贴回聊天**。',
-    '2) 把 workhub 加进你的 MCP 配置（键名 mcpServers），url 用下面这个：',
-    `   ${mcpUrl}`,
-    '   并带上请求头 Authorization: Bearer <token>。多数工具的写法形如：',
-    `   ${cfgHttp}`,
-    '   （有的工具用 "type":"http" 而不是 "streamableHttp"，按你自己的文档来，url 与头不变。）',
-    '3) 重载/重启你自己，再列一次工具：应看到 38 个（37 个业务工具 + confirm_preview）。',
+    `标准 MCP HTTP 地址：${mcpUrl}`,
+    '脚本未识别的客户端不会被自动修改：请在该设备上安全兑换并保存 token，再按该客户端文档配置 Authorization: Bearer。',
+    '确认连接后，在客户端重新加载 MCP 并调用 tools/list 检查当前工具清单。',
     '',
-    '【纪律】',
-    '1. 不要把 url 改成 wss:// —— 裸 WebSocket 不是 MCP 标准传输，客户端会按 HTTP POST 发、被拒。',
-    '2. 若列工具时报「工具清单不可用：寻鸽工作台未连接 relay」，那不是配置错误、也别改参数：',
-    `   是服务器上那个浏览器页面没打开或没启用「设置 → AI Agent 桥」。让用户去开 ${site} 启用桥。`,
-    '3. 中风险写操作（记账、改客户等）第一次只回预览：先把预览转述用户并取得确认，',
-    '   再调 confirm_preview 取一次性票据（票据绑定参数指纹，改参数就必须重新预览）。',
-    '4. 业务数据在服务器的浏览器 IndexedDB 里，relay 只转发、不持有副本：',
-    '   桥离线时任何重试都不会成功，唯一解法是让用户打开页面。',
+    '中风险写操作先回预览，取得用户确认后再调用 confirm_preview。',
   ].join('\n')
 }
 
@@ -774,7 +735,7 @@ function parseArgs(argv, env = process.env) {
     return i >= 0 && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[i + 1] : fallback
   }
   /**
-   * npm 会把脚本入口后的**裸** `--url` / `--token` 当成自己的配置项取走
+   * npm 会把脚本入口后的**裸** `--url` 当成自己的配置项取走
    * （正确写法是 `npm run agent:setup -- --url …`）。此时脚本一个参数都收不到，
    * 于是静默复用旧凭据 —— 现象是「它没识别出我给的地址」，实际是根本没传进来。
    * 这里把 npm 转手的值取回来，并让调用方**显式告警**（不许静默采用）。
@@ -782,11 +743,9 @@ function parseArgs(argv, env = process.env) {
   const isWsUrl = (s) => /^wss?:\/\//i.test(s)
   const fromNpm = (name) => env[`npm_config_${name}`] || ''
   const cliUrl = get('--url', '')
-  const cliToken = get('--token', '')
   // npm 会把 `--url` 记成 `url=true` 这种布尔配置，同时把真地址当**位置参数**传给脚本。
-  // 所以两边都要认，但都要形似：地址必须 wss?:// 开头，token 不能是 'true' 这类占位。
+  // 所以两边都要认，但都要形似：地址必须 wss?:// 开头。
   const npmUrl = cliUrl || !isWsUrl(fromNpm('url')) ? '' : fromNpm('url')
-  const npmToken = cliToken || fromNpm('token') === 'true' ? '' : fromNpm('token')
   const positionalUrl = cliUrl || npmUrl ? '' : argv.find((a) => isWsUrl(a)) || ''
   const url = cliUrl || npmUrl || positionalUrl
   /**
@@ -796,21 +755,26 @@ function parseArgs(argv, env = process.env) {
    */
   const npmFlag = (name) => ['true', '1'].includes(env[`npm_config_${name.replace(/^--/, '').replace(/-/g, '_')}`])
   const flag = (name) => argv.includes(name) || npmFlag(name)
+  if (argv.includes('--token') || fromNpm('token')) {
+    throw new Error('不接受命令行 token。请使用后台配对码 --pair；旧凭据请放入受保护的凭据文件或 WORKHUB_RELAY_TOKEN 环境变量。')
+  }
   return {
     dryRun: flag('--dry-run'),
     check: flag('--check'),
     login: flag('--login'),
+    pair: flag('--pair'),
     uninstall: flag('--uninstall'),
     help: flag('--help') || flag('-h'),
     printPrompt: flag('--print-prompt'),
     only: (get('--only', '') || '').split(',').map((s) => s.trim()).filter(Boolean),
     transport: get('--transport', ''),
     url,
-    token: cliToken || npmToken,
+    token: '',
     /** 有值 = 地址/凭证不是 `--url`/`--token` 传进来的，是 npm 转手的（多半是 npm 吞了裸参数） */
-    swallowedByNpm: url !== cliUrl || (Boolean(npmToken) && !cliToken),
+    swallowedByNpm: url !== cliUrl,
     port: get('--port', '9001'),
     env: get('--env', ''),
+    credentialId: get('--credential-id', ''),
     skills: get('--skills', 'meta'),
     opencodeSchema: get('--opencode-schema', 'auto'),
     node: get('--node', ''),
@@ -820,37 +784,175 @@ function parseArgs(argv, env = process.env) {
 /** 解析出要写进凭据文件的 {url, token}；返回 null 表示本次不需要写凭据 */
 function resolveCredentialForWrite(opts) {
   const existing = readJson(activeCredFile) ?? {}
+  const suppliedToken = opts.token || process.env.WORKHUB_RELAY_TOKEN || ''
+  // 选择独立凭据编号时，文件中的 URL+token 是一个不可拆开的身份。
+  // 旧 WORKHUB_RELAY_TOKEN 只服务未选择编号的 legacy/default 流程，不能在重配时
+  // 悄悄把独立身份替换成共享身份；缺失/损坏文件也不能被环境变量“修复”为成功。
+  if (opts.credentialId && !opts.pair) {
+    let selected
+    try {
+      selected = JSON.parse(readFileSync(activeCredFile, 'utf8'))
+    } catch {
+      throw new Error(`无法读取已选择的独立凭据文件 ${activeCredFile}；不会回退到共享环境变量。`)
+    }
+    if (
+      !selected || typeof selected.url !== 'string' || !selected.url.trim() ||
+      typeof selected.token !== 'string' || !selected.token.trim() ||
+      !/^wss?:\/\//i.test(selected.url)
+    ) {
+      throw new Error(`已选择的独立凭据文件 ${activeCredFile} 缺少有效 URL 或 token；不会回退到共享环境变量。`)
+    }
+    if (opts.url && opts.url.replace(/\/+$/, '') !== selected.url.replace(/\/+$/, '')) {
+      throw new Error('--credential-id 的站点地址已绑定在凭据文件中；请使用该文件对应的地址。')
+    }
+    return { url: selected.url, token: selected.token }
+  }
   if (opts.transport === 'local' || opts.url.startsWith('ws://')) {
     const url = opts.url || `ws://127.0.0.1:${opts.port}/relay`
-    return { url, token: opts.token || existing.token || '' }
+    return { url, token: suppliedToken || existing.token || '' }
   }
-  if (opts.url) return { url: opts.url, token: opts.token || existing.token || '' }
-  if (opts.token && existing.url) return { url: existing.url, token: opts.token }
+  if (opts.url) return { url: opts.url, token: suppliedToken || existing.token || '' }
+  if (suppliedToken && existing.url) return { url: existing.url, token: suppliedToken }
   // 什么都没给：复用已有凭据（这就是「一条命令」能重复跑的原因）
-  if (existing.url) return { url: existing.url, token: opts.token || existing.token || '' }
+  if (existing.url) return { url: existing.url, token: suppliedToken || existing.token || '' }
   return null
 }
 
 function writeCredential(cred) {
   const missing = []
   if (!cred.url) missing.push('url')
-  if (!cred.token) missing.push('token（`npm run dev` 启动时会打印）')
+  if (!cred.token) missing.push('token（请先完成一次性配对或设备授权）')
   const payload = { url: cred.url, token: cred.token, note: '由 npm run agent:setup 写入；token 轮换后请重跑本命令' }
-  const r = writeIfChanged(activeCredFile, `${JSON.stringify(payload, null, 2)}\n`)
-  return { ...r, missing }
+  const next = `${JSON.stringify(payload, null, 2)}\n`
+  let previous = null
+  try {
+    previous = readFileSync(activeCredFile, 'utf8')
+  } catch {
+    /* 凭据文件尚不存在 */
+  }
+  if (previous === next) return { changed: false, file: activeCredFile, missing }
+  if (!DRY_RUN) {
+    const dir = path.dirname(activeCredFile)
+    const privateRoot = path.join(AGENT_HOME, '.workhub')
+    if (dir === privateRoot || dir.startsWith(privateRoot + path.sep)) {
+      mkdirSync(privateRoot, { recursive: true, mode: 0o700 })
+      chmodSync(privateRoot, 0o700)
+    }
+    mkdirSync(dir, { recursive: true, mode: 0o700 })
+    chmodSync(dir, 0o700)
+    const temp = `${activeCredFile}.tmp-${process.pid}-${randomBytes(8).toString('hex')}`
+    try {
+      writeFileSync(temp, next, { encoding: 'utf8', flag: 'wx', mode: 0o600 })
+      chmodSync(temp, 0o600)
+      renameSync(temp, activeCredFile)
+      chmodSync(activeCredFile, 0o600)
+    } catch (error) {
+      try { unlinkSync(temp) } catch { /* temp 已被 rename 或清理 */ }
+      throw error
+    }
+  }
+  return { changed: true, file: activeCredFile, missing }
 }
 
 /**
  * 连通性自检：显式把本次解析出的地址与 token 传给 shim ——
  * 否则 `--url/--token` 覆盖项会被自检忽略，验的就不再是「刚才写下去的那份凭据」。
  */
-function runCheck(resolvedCred) {
+function runCheck(_resolvedCred) {
   process.stdout.write(c.bold('连通性自检\n'))
   const args = [SHIM, '--verify']
-  if (resolvedCred?.url) args.push('--url', resolvedCred.url)
-  if (resolvedCred?.token) args.push('--token', resolvedCred.token)
-  const r = spawnSync(process.execPath, args, { stdio: 'inherit' })
+  const env = { ...process.env, WORKHUB_RELAY_CRED_FILE: activeCredFile }
+  // 自检从权限受限的凭据文件读取，绝不把 bearer token 放进子进程 argv。
+  // 保留继承环境，让 shim 在显式文件路径下自行证明 URL+token 成对优先且不回退。
+  const r = spawnSync(process.execPath, args, { stdio: 'inherit', env })
   process.exitCode = r.status ?? 1
+}
+
+/** 从终端隐藏读入一次性码；管道模式不回显，也不把码放入进程参数。 */
+export function readPairCode(input = process.stdin, output = process.stderr) {
+  output.write('粘贴后台生成的一次性配对码（输入隐藏）：')
+  if (!input.isTTY || typeof input.setRawMode !== 'function') {
+    return new Promise((resolve, reject) => {
+      let value = ''
+      let settled = false
+      const finish = (error) => {
+        if (settled) return
+        settled = true
+        input.removeListener('data', onData)
+        input.removeListener('end', onEnd)
+        output.write('\n')
+        if (error) reject(error)
+        else resolve(value.split(/\r?\n/, 1)[0].trim())
+      }
+      const onData = (chunk) => {
+        value += String(chunk)
+        if (value.length > 256) finish(new Error('配对码输入过长'))
+        else if (/[\r\n]/.test(value)) finish()
+      }
+      const onEnd = () => finish()
+      input.setEncoding?.('utf8')
+      input.on('data', onData)
+      input.once('end', onEnd)
+      input.resume()
+    })
+  }
+  return new Promise((resolve, reject) => {
+    let value = ''
+    const wasRaw = input.isRaw
+    const finish = (error) => {
+      input.removeListener('data', onData)
+      input.setRawMode(wasRaw)
+      input.pause()
+      output.write('\n')
+      if (error) reject(error)
+      else resolve(value.trim())
+    }
+    const onData = (chunk) => {
+      for (const char of String(chunk)) {
+        if (char === '\u0003') return finish(new Error('已取消配对'))
+        if (char === '\r' || char === '\n') return finish()
+        if (char === '\u007f' || char === '\b') value = value.slice(0, -1)
+        else if (/[\x20-\x7e]/.test(char) && value.length < 128) value += char
+      }
+    }
+    input.setRawMode(true)
+    input.resume()
+    input.on('data', onData)
+  })
+}
+
+/** 在 Relay 端兑换一次性码。网络错误或非确定响应都标记为结果未知。 */
+export async function redeemPairCode(relayUrl, code) {
+  const base = httpBaseFromRelayUrl(relayUrl)
+  if (!/^https?:\/\//i.test(base)) throw new Error('配对需要有效的 ws(s)://relay 地址')
+  const url = `${base}/agent/pair/redeem`
+  let response
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ code: String(code).trim() }),
+      signal: AbortSignal.timeout(15_000),
+    })
+  } catch (error) {
+    const failure = error instanceof Error ? error : new Error(String(error))
+    failure.pairOutcomeUnknown = true
+    throw failure
+  }
+  const body = await response.json().catch(() => ({}))
+  if (response.status === 401) throw new Error('配对码无效、已过期或已兑换。')
+  if (response.status === 429) throw new Error('配对尝试过于频繁，请稍后再试；该请求未签发凭据。')
+  if (!response.ok || typeof body?.token !== 'string' || !body.token) {
+    const error = new Error(`配对服务返回 HTTP ${response.status || '异常'}。`)
+    error.pairOutcomeUnknown = response.ok || response.status >= 500 || response.status === 0
+    throw error
+  }
+  if (typeof body?.credentialId !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/.test(body.credentialId)) {
+    const error = new Error('配对服务响应缺少有效的凭据编号。')
+    error.pairOutcomeUnknown = true
+    throw error
+  }
+  return { url: relayUrl, token: body.token, credentialId: body.credentialId, name: String(body.name || '') }
 }
 
 async function main() {
@@ -864,27 +966,47 @@ async function main() {
   }
 
   applyEnv(opts.env)
+  if (opts.credentialId) activeCredFile = credentialPathForId(opts.credentialId)
 
-  // 只打印「一条指令」：不读写任何 Agent 配置，文本里只带一枚一次性配对码（不含长期 token）
+  // 只打印接入说明，不通过旧共享 token 接口替用户签发配对码。
   if (opts.printPrompt) {
     const cred = readJson(activeCredFile) ?? {}
-    let code = ''
-    if (cred.url && cred.token) {
-      try {
-        code = await mintPairCode(cred)
-      } catch (e) {
-        // 告警走 stderr：stdout 必须干净（这一段是要被整段复制的）
-        process.stderr.write(`[agent:setup] ⚠️ 签发配对码失败：${e?.message ?? e}\n`)
-      }
-    } else {
-      process.stderr.write('[agent:setup] ⚠️ 本机还没有凭据，先在终端配对一次：npm run agent:setup -- --url wss://… --token …\n')
-    }
-    process.stdout.write(`${renderPrompt({ code, site: siteFromCred(cred) || 'https://<你的站点>' })}\n`)
+    const targetUrl = opts.url || cred.url || ''
+    const site = targetUrl ? siteFromCred({ url: targetUrl }) : 'https://<你的站点>'
+    process.stdout.write(`${renderPrompt({ site })}\n`)
     return
   }
 
+  if (opts.pair && (opts.login || opts.uninstall || opts.credentialId)) {
+    throw new Error('--pair 不能与 --login、--uninstall 或 --credential-id 同时使用')
+  }
+
+  let pairCodeConsumed = false
+  if (opts.pair) {
+    if (DRY_RUN) throw new Error('--pair 会消费一次性配对码，不能与 --dry-run 同时使用')
+    const existing = readJson(activeCredFile) ?? {}
+    const targetUrl = opts.url || existing.url || ''
+    if (!targetUrl) throw new Error('--pair 需要 --url <ws(s)://站点/relay>')
+    const code = await readPairCode()
+    if (!code) throw new Error('没有读到配对码；请重新运行命令并输入后台显示的短码。')
+    let paired
+    try {
+      paired = await redeemPairCode(targetUrl, code)
+      pairCodeConsumed = true
+    } catch (error) {
+      if (error?.pairOutcomeUnknown) {
+        throw new Error('配对结果未知，短码可能已被服务器兑换。请在后台检查该接入；若显示已兑换或无法确认，请撤销此接入后重新生成配对码。')
+      }
+      throw error
+    }
+    activeCredFile = credentialPathForId(paired.credentialId)
+    opts.credentialId = paired.credentialId
+    opts.url = paired.url
+    opts.token = paired.token
+  }
+
   /**
-   * --login：先完成设备授权，再把拿到的 token 当成 --token 继续走既有写配置流程。
+   * --login：兼容设备授权，批准后只在进程内持有 token，再安全写入凭据文件。
    * 地址优先用 --url；没给就复用已有凭据里的地址（复用会导致「换站点却还在连旧站」的歧义，
    * 所以只在不带 --url 时兜底，并在输出里明确写出实际目标）。
    */
@@ -912,8 +1034,8 @@ async function main() {
   // 参数被 npm 转手 = 用户漏写了 `--`。必须说出来：静默采用会让人以为「命令没识别出地址」
   if (opts.swallowedByNpm) {
     process.stdout.write(
-      c.yellow('⚠️  --url / --token 是 npm 转手进来的：你的命令少了 `--` 分隔符。\n') +
-        '   已按 npm_config_* 采用；正确写法是 `npm run agent:setup -- --url … --token …`。\n\n',
+      c.yellow('⚠️  --url 是 npm 转手进来的：你的命令少了 `--` 分隔符。\n') +
+        '   已按 npm_config_* 采用；正确写法是 `npm run agent:setup -- --url … --pair`。\n\n',
     )
   }
 
@@ -931,15 +1053,26 @@ async function main() {
       process.stdout.write(
         c.red('❌ 不知道 relay 地址。\n') +
           `   本地：  npm run agent:setup -- --transport local --port <端口>\n` +
-          `   远程：  npm run agent:setup -- --url ws://<host>:<port>/relay --token <token>\n` +
-          `   （本项目不设默认地址：站点地址会随环境变化，写死等于埋隐性依赖）\n\n`,
+          `   远程：  npm run agent:setup -- --url wss://<站点>/relay --pair\n` +
+          `   （先由拥有者在后台生成命名配对码；token 不放在命令行）\n\n`,
       )
       process.exitCode = 2
       return
     }
     resolvedCred = cred
-    const r = writeCredential(cred)
+    let r
+    try {
+      r = writeCredential(cred)
+    } catch (error) {
+      if (pairCodeConsumed) {
+        throw new Error(`服务器已兑换配对码，但凭据文件写入失败。请检查 ${activeCredFile} 是否已安全保存；若无法连接，请在后台撤销这条可能已签发的接入，再生成新码。`)
+      }
+      throw error
+    }
     if (r.changed) changes.push(`写入凭据 ${rel(activeCredFile)} → ${cred.url}`)
+    if (pairCodeConsumed) {
+      process.stdout.write(`${prefix}配对码已由服务器兑换；凭据编号 ${opts.credentialId}，本机文件 ${rel(activeCredFile)}。这不代表 Agent 已连接。\n`)
+    }
     if (r.missing.length) {
       process.stdout.write(
         c.yellow(`⚠️  凭据缺少 ${r.missing.join(' / ')}，Agent 侧会连不上。\n`) +
@@ -1106,8 +1239,7 @@ async function main() {
   if (!opts.uninstall) {
     process.stdout.write(
       `\n${prefix}${c.bold('下一步')}\n` +
-        `${prefix}  1. 打开站点（npm run dev / 部署地址）→ 设置 → AI Agent 桥 → 启用；\n` +
-        `${prefix}     桥离线时任何工具都拿不到（数据在浏览器里，relay 只是通道）。\n` +
+        `${prefix}  1. 若尚未配对，请拥有者在「设置 → Agent 接入」生成命名配对码，再运行 --pair。\n` +
         `${prefix}  2. 重启你的 Agent 工具，让它重新读取配置。\n` +
         `${prefix}  3. 自检：npm run agent:setup -- --check\n`,
     )
@@ -1124,8 +1256,8 @@ function detectOpencodeSchema() {
   const candidates = [
     path.join(PROJECT_ROOT, 'opencode.json'),
     path.join(PROJECT_ROOT, 'opencode.jsonc'),
-    path.join(HOME, '.config/opencode/opencode.json'),
-    path.join(HOME, '.config/opencode/opencode.jsonc'),
+    path.join(AGENT_HOME, '.config/opencode/opencode.json'),
+    path.join(AGENT_HOME, '.config/opencode/opencode.jsonc'),
   ]
   for (const f of candidates) {
     if (!existsSync(f)) continue

@@ -27,9 +27,10 @@
  *
  * ## 凭据来源（优先级从高到低）
  *
- * 1. 命令行 `--url` / `--token`
+ * 1. 命令行 `--url`（不接受 bearer token 参数）
  * 2. 环境变量 `WORKHUB_RELAY_URL` / `WORKHUB_RELAY_TOKEN`
- * 3. `~/.workhub/relay.json` → `{ "url": "...", "token": "..." }`（由 `npm run agent:setup` 写入）
+ * 3. `WORKHUB_RELAY_CRED_FILE` 指向的文件；新配对的各客户端配置会按 credentialId 指向独立文件。
+ * 4. 兼容旧版 `~/.workhub/relay.json` → `{ "url": "...", "token": "..." }`
  *
  * **刻意不在代码里写死默认地址**：本项目处于开发/测试阶段，站点地址与 token 都会变，
  * 写死等于给所有人埋一个「指向临时环境」的隐性依赖。缺地址就报可操作错误。
@@ -38,7 +39,7 @@
  *
  *   node relay/mcp-stdio-shim.mjs                       # 供 Agent 以 stdio 拉起（MCP 服务器）
  *   node relay/mcp-stdio-shim.mjs --verify              # 连通性自检：连 relay、列工具、打印到 stderr
- *   node relay/mcp-stdio-shim.mjs --url ws://127.0.0.1:9001/relay --token xxx
+ *   node relay/mcp-stdio-shim.mjs --url ws://127.0.0.1:9001/relay
  *   WORKHUB_RELAY_DEBUG=1 node relay/mcp-stdio-shim.mjs # 打印往来报文（排查用）
  */
 import { connect as netConnect } from 'node:net'
@@ -51,7 +52,8 @@ import { fileURLToPath } from 'node:url'
 
 /** 凭据文件位置（由 scripts/agent-setup.mjs 写入；token 集中一处，轮换只改这里） */
 export const CRED_FILE =
-  process.env.WORKHUB_RELAY_CRED_FILE || path.join(homedir(), '.workhub', 'relay.json')
+  process.env.WORKHUB_RELAY_CRED_FILE ||
+  path.join(path.resolve(process.env.WORKHUB_AGENT_HOME || homedir()), '.workhub', 'relay.json')
 /** 协议版本：与 relay 一致 */
 const PROTOCOL_VERSION = '2024-11-05'
 /** 排队上限：超出即拒绝，避免 Agent 侧异常时把内存吃满 */
@@ -248,14 +250,22 @@ export class MiniWsClient {
  * @returns {{url:string, token:string}}
  */
 export function resolveRelayCredential(cli = {}) {
+  const explicitCredentialFile = Boolean(process.env.WORKHUB_RELAY_CRED_FILE)
   let fromFile = {}
   try {
     fromFile = JSON.parse(readFileSync(CRED_FILE, 'utf8'))
   } catch {
     // 文件不存在 / 不是 JSON：都按「没配过」处理，不炸
   }
-  const url = cli.url || process.env.WORKHUB_RELAY_URL || fromFile.url || ''
-  const token = cli.token || process.env.WORKHUB_RELAY_TOKEN || fromFile.token || ''
+  // 配对文件把 Relay 地址与 token 作为一对绑定凭据。显式选了该文件后，
+  // 不能让旧 env 把 token 换成共享身份，也不能把这枚 token 发去另一个 Relay。
+  // CLI 的 --url 仍是显式的一次性覆盖；无显式文件时继续兼容旧 env/file。
+  const url = cli.url || (explicitCredentialFile
+    ? fromFile.url || ''
+    : process.env.WORKHUB_RELAY_URL || fromFile.url || '')
+  const token = cli.token || (explicitCredentialFile
+    ? fromFile.token || ''
+    : process.env.WORKHUB_RELAY_TOKEN || fromFile.token || '')
   if (!url) {
     const reason =
       `未找到 relay 地址。请先运行 \`npm run agent:setup\` 写入凭据文件 ${CRED_FILE}，` +
@@ -265,7 +275,7 @@ export function resolveRelayCredential(cli = {}) {
     throw err
   }
   if (!token) {
-    const reason = `未找到 relay token（${CRED_FILE} 里没有 token，环境变量也未提供）—— token 由 relay 启动时生成/指定，见 \`npm run dev\` 控制台输出`
+    const reason = `未找到 relay token（${CRED_FILE} 里没有 token，环境变量也未提供）—— 请在站点后台为此设备生成配对码并运行 agent:setup --pair`
     const err = new Error(reason)
     err.code = 'NO_RELAY_TOKEN'
     throw err
@@ -324,6 +334,22 @@ export function createStdioBridge({ url, token, input = process.stdin, output = 
     })
   }
 
+  function debugMessage(text) {
+    // MCP initialize carries the bearer token. Debug mode is useful for payload diagnosis,
+    // but credentials must stay out of stderr and copied logs.
+    return token ? text.split(token).join('[redacted]') : text
+  }
+
+  function withStoredCredential(raw) {
+    try {
+      const message = JSON.parse(raw)
+      if (message?.method !== 'initialize' || !message.params || typeof message.params !== 'object') return raw
+      return JSON.stringify({ ...message, params: { ...message.params, accessToken: token } })
+    } catch {
+      return raw
+    }
+  }
+
   /**
    * 把排队的请求逐条回以错误。
    * @param {string} logLine 给**人看**的短标签（进 stderr）
@@ -352,7 +378,7 @@ export function createStdioBridge({ url, token, input = process.stdin, output = 
     try {
       client = new MiniWsClient(url)
       client.onmessage = (text) => {
-        if (process.env.WORKHUB_RELAY_DEBUG) log(`← ${text.slice(0, 200)}`)
+        if (process.env.WORKHUB_RELAY_DEBUG) log(`← ${debugMessage(text).slice(0, 200)}`)
         output.write(`${text}\n`)
       }
       client.onerror = (e) => log(`连接错误：${e?.message ?? e}`)
@@ -369,8 +395,8 @@ export function createStdioBridge({ url, token, input = process.stdin, output = 
       log(`已连上 relay：${url}`)
       // flush：把等待期间的请求按序送达（Agent 常在启动瞬间就发 initialize）
       while (queue.length) {
-        const raw = queue.shift()
-        if (process.env.WORKHUB_RELAY_DEBUG) log(`→ ${raw.slice(0, 200)}`)
+        const raw = withStoredCredential(queue.shift())
+        if (process.env.WORKHUB_RELAY_DEBUG) log(`→ ${debugMessage(raw).slice(0, 200)}`)
         client.sendText(raw)
       }
     } catch (e) {
@@ -403,8 +429,9 @@ export function createStdioBridge({ url, token, input = process.stdin, output = 
       buf = buf.slice(idx + 1)
       if (!line) continue
       if (ws && !ws.closed) {
-        if (process.env.WORKHUB_RELAY_DEBUG) log(`→ ${line.slice(0, 200)}`)
-        ws.sendText(line)
+        const outbound = withStoredCredential(line)
+        if (process.env.WORKHUB_RELAY_DEBUG) log(`→ ${debugMessage(outbound).slice(0, 200)}`)
+        ws.sendText(outbound)
       } else {
         if (queue.length >= MAX_QUEUE) {
           relayUnreachableError(line)
@@ -499,8 +526,12 @@ if (isMain) {
   const args = process.argv.slice(2)
   const wantVerify = args.includes('--verify')
   let cred
+  if (args.includes('--token')) {
+    log('❌ 不接受命令行 token；请使用安全凭据文件或 WORKHUB_RELAY_TOKEN 环境变量')
+    process.exit(2)
+  }
   try {
-    cred = resolveRelayCredential({ url: argOf(args, '--url', ''), token: argOf(args, '--token', '') })
+    cred = resolveRelayCredential({ url: argOf(args, '--url', '') })
   } catch (e) {
     log(`❌ ${e.message}`)
     process.exit(2)

@@ -1,4 +1,34 @@
 const core=require(__hooks+'/personal-core.js'),commands=require(__hooks+'/commands.js'),auth=require(__hooks+'/personal-auth.js'),scopes=require(__hooks+'/command-core.js')
+const AGENT_PAIR_ALPHABET='ACDEFGHJKLMNPQRSTUVWXYZ23456789',AGENT_PAIR_LENGTH=33,AGENT_PAIR_TTL_MS=10*60*1000
+function allowAgentPairRedeem(app,sourceIp){
+  // JSVM 模块级 Map 不保证跨请求 VM/并发共享。PB app.store 的 setFunc 原子更新一个有界的按来源 IP 桶表，
+  // 不读取可伪造的 X-Forwarded-For，也不改写部署方现有的全局 rateLimits 设置。
+  const key='workhub:agent-pair-redeem:rate:v1',now=Date.now(),ip=String(sourceIp||'unknown').slice(0,80);let allowed=false
+  app.store().setFunc(key,old=>{
+    let parsed=null
+    try{parsed=typeof old==='string'?JSON.parse(old):old}catch(_){}
+    const buckets=Object.create(null)
+    if(parsed&&typeof parsed==='object')for(const oldIp of Object.keys(parsed)){
+      const bucket=parsed[oldIp]
+      if(bucket&&Number.isFinite(bucket.resetAt)&&Number.isFinite(bucket.count)&&now<bucket.resetAt)buckets[oldIp]=bucket
+    }
+    if(!Object.prototype.hasOwnProperty.call(buckets,ip)){
+      const keys=Object.keys(buckets)
+      if(keys.length>=4096){let oldest=keys[0];for(const candidate of keys)if(buckets[candidate].resetAt<buckets[oldest].resetAt)oldest=candidate;delete buckets[oldest]}
+      buckets[ip]={count:0,resetAt:now+60_000}
+    }
+    const bucket=buckets[ip]
+    bucket.count++
+    allowed=bucket.count<=30
+    return JSON.stringify(buckets)
+  })
+  return allowed
+}
+function agentCredentialView(r,now,currentGeneration){
+  const revokedAt=r.getFloat('revokedAt'),pairHash=r.getString('pairCodeHash'),pairExpiresAt=r.getFloat('pairExpiresAt'),expiresAt=r.getFloat('expiresAt')
+  const status=revokedAt?'revoked':r.getString('generation')!==currentGeneration?'stale':pairHash?(pairExpiresAt>now?'pending':'expired'):(expiresAt&&expiresAt<now?'expired':'active')
+  return {id:r.id,name:r.getString('name'),capabilities:commands.json(r.get('capabilities'))||[],createdAt:r.getFloat('createdAt'),revokedAt,expiresAt,pairExpiresAt,pairedAt:r.getFloat('pairedAt'),status}
+}
 // 列表直接投影 SQLite 列，避免为一页结果跨 JSVM 复制上万份原话/正文与完整 Record。
 const shapes={
   activities:{id:'',rev:0,deleted:0,title:'',summary:'',occurredAt:0,occurredUntil:0,timePrecision:'',timeZone:'',recordedAt:0,category:'',tags:'[]',sourceOperationId:'',sourceTable:'',sourceId:''},
@@ -234,17 +264,72 @@ exports.commit=e=>{
   }catch(err){return commands.error(e,err)}
 }
 exports.agents=e=>{
-  try{const principal=auth.principal($app,e);if(principal.clientId!=='owner')throw new Error('FORBIDDEN: 凭据管理只允许拥有者会话')
+  try{e.response.header().set('Cache-Control','no-store');const principal=auth.principal($app,e);if(principal.clientId!=='owner')throw new Error('FORBIDDEN: 凭据管理只允许拥有者会话')
     const d=e.requestInfo().body
-    if(d.action==='list')return e.json(200,{items:$app.findRecordsByFilter('agent_credentials','owner={:owner}','',100,0,{owner:e.auth.id}).map(r=>({id:r.id,name:r.getString('name'),capabilities:commands.json(r.get('capabilities')),createdAt:r.getFloat('createdAt'),revokedAt:r.getFloat('revokedAt'),expiresAt:r.getFloat('expiresAt')}))})
+    if(d.action==='list'){
+      const rawLimit=Number(d.limit??100),rawOffset=Number(d.offset??0)
+      if(!Number.isInteger(rawLimit)||rawLimit<1||rawLimit>100||!Number.isInteger(rawOffset)||rawOffset<0||rawOffset>1_000_000)throw new Error('INVALID_PAGINATION: limit 1-100，offset 0-1000000')
+      const currentGeneration=commands.stateOf($app).getString('generation'),rows=$app.findRecordsByFilter('agent_credentials','owner={:owner}','-createdAt,id',rawLimit+1,rawOffset,{owner:e.auth.id}),now=Date.now(),items=rows.slice(0,rawLimit).map(r=>agentCredentialView(r,now,currentGeneration)),truncated=rows.length>rawLimit
+      return e.json(200,{items,truncated,nextOffset:truncated?rawOffset+items.length:null})
+    }
     if(d.action==='issue'){
       if(typeof d.name!=='string'||!d.name.trim()||d.name.length>80||!Array.isArray(d.capabilities)||!d.capabilities.length||d.capabilities.some(c=>!auth.capabilities.includes(c)))throw new Error('INVALID_CREDENTIAL: 名称或能力非法')
       const token='wh_'+$security.randomString(48),r=new Record($app.findCollectionByNameOrId('agent_credentials'));r.set('owner',e.auth.id);r.set('generation',commands.stateOf($app).getString('generation'));r.set('name',d.name);r.set('capabilities',[...new Set(d.capabilities)]);r.set('tokenHash',$security.sha256(token));r.set('createdAt',Date.now());r.set('expiresAt',d.expiresAt || 0);$app.save(r)
       return e.json(200,{id:r.id,name:d.name,token,capabilities:d.capabilities,note:'凭据只显示一次；服务端仅保存散列'})
     }
-    if(d.action==='revoke'){const r=$app.findRecordById('agent_credentials',d.id);if(r.getString('owner')!==e.auth.id)throw new Error('FORBIDDEN: 凭据');r.set('revokedAt',Date.now());$app.save(r);return e.json(200,{revoked:true,id:r.id})}
-    throw new Error('INVALID_ACTION: issue/list/revoke')
+    if(d.action==='preparePair'){
+      if(typeof d.name!=='string'||!d.name.trim()||d.name.trim().length>80||!Array.isArray(d.capabilities)||!d.capabilities.length||d.capabilities.length>auth.capabilities.length||d.capabilities.some(c=>!auth.capabilities.includes(c)))throw new Error('INVALID_CREDENTIAL: 名称或能力非法')
+      const name=d.name.trim(),capabilities=[...new Set(d.capabilities)],now=Date.now(),code=$security.randomStringWithAlphabet(AGENT_PAIR_LENGTH,AGENT_PAIR_ALPHABET),expiresAt=now+AGENT_PAIR_TTL_MS;let pairId=''
+      $app.runInTransaction(app=>{
+        const state=commands.stateOf(app),r=new Record(app.findCollectionByNameOrId('agent_credentials'))
+        r.set('owner',e.auth.id);r.set('generation',state.getString('generation'));r.set('name',name);r.set('capabilities',capabilities);r.set('tokenHash',$security.sha256('pending:'+ $security.randomString(48)));r.set('pairCodeHash',$security.sha256(code));r.set('pairExpiresAt',expiresAt);r.set('pairedAt',0);r.set('createdAt',now);r.set('expiresAt',0);app.save(r)
+        pairId=r.id
+      })
+      return e.json(200,{id:pairId,code,expiresAt,ttlSeconds:AGENT_PAIR_TTL_MS/1000,note:'短码仅显示一次；服务端只保存 SHA-256，兑换后即失效'})
+    }
+    if(d.action==='revoke'){
+      let revokedId=''
+      $app.runInTransaction(app=>{const r=app.findRecordById('agent_credentials',d.id);if(r.getString('owner')!==e.auth.id)throw new Error('FORBIDDEN: 凭据');r.set('revokedAt',r.getFloat('revokedAt')||Date.now());r.set('pairCodeHash','');r.set('pairExpiresAt',0);app.save(r);revokedId=r.id})
+      return e.json(200,{revoked:true,id:revokedId})
+    }
+    throw new Error('INVALID_ACTION: issue/list/preparePair/revoke')
   }catch(err){return commands.error(e,err)}
+}
+exports.redeemPair=e=>{
+  e.response.header().set('Cache-Control','no-store')
+  const invalid=()=>e.json(401,{code:'INVALID_PAIR_CODE',error:'配对码无效、已过期或已兑换'})
+  try{
+    if(!allowAgentPairRedeem($app,e.remoteIP()))return e.json(429,{code:'PAIR_RATE_LIMITED',error:'配对尝试过于频繁，请稍后重试'})
+    const body=e.requestInfo().body||{},code=String(body.code||'').toUpperCase().replace(/[\s-]/g,'')
+    if(code.length!==AGENT_PAIR_LENGTH||[...code].some(char=>!AGENT_PAIR_ALPHABET.includes(char)))return invalid()
+    const codeHash=$security.sha256(code);let result=null
+    $app.runInTransaction(app=>{
+      // runInTransaction 默认延迟取得 SQLite 写锁。先用无字段变化的参数化 UPDATE 取得写锁，
+      // 再查 Record；否则先读到旧 pending 后等待锁再 save，可能覆盖已消费/撤销状态。
+      app.db().newQuery('UPDATE agent_credentials SET pairExpiresAt=pairExpiresAt WHERE pairCodeHash={:hash} AND revokedAt=0').bind({hash:codeHash}).execute()
+      // 等待锁完成后再取当前时间、按 expiry 重新查码，防止锁内等待使已过期短码被兑换。
+      const now=Date.now(),rows=app.findRecordsByFilter('agent_credentials','pairCodeHash={:hash} && pairExpiresAt>{:now} && revokedAt=0','',1,0,{hash:codeHash,now}),row=rows[0]
+      if(!row)return
+      const state=commands.stateOf(app)
+      if(row.getString('owner')!==state.getString('ownerId')||row.getString('generation')!==state.getString('generation'))return
+      const pairExpiresAt=row.getFloat('pairExpiresAt')
+      // 密码学上独立于短码的秘密：pending 行绝不能把配对码本身当成可用 Agent bearer。
+      const token='wh_'+$security.randomString(48)
+      row.set('tokenHash',$security.sha256(token));row.set('pairCodeHash','');row.set('pairExpiresAt',0);row.set('pairedAt',now);row.set('expiresAt',0);app.save(row)
+      // 写锁已在候选查询前取得；仍在实际 consume 写入之后再检查一次，
+      // 若极短 TTL 恰在本事务处理期间耗尽，则抛错回滚，不签出凭据。
+      const pairedAt=Date.now()
+      if(pairExpiresAt<=pairedAt)throw new Error('PAIR_CODE_EXPIRED')
+      row.set('pairedAt',pairedAt)
+      app.save(row)
+      result={token,credentialId:row.id,name:row.getString('name'),pairedAt}
+    })
+    return result?e.json(200,result):invalid()
+  }catch(err){
+    if(String(err&&err.message||err).includes('PAIR_CODE_EXPIRED'))return invalid()
+    // 不把数据库/事务故障伪装成「短码错误」；Relay 会给出结果未知的撤销恢复指引。
+    return e.json(503,{code:'PAIR_SERVICE_UNAVAILABLE',error:'配对服务暂不可用'})
+  }
 }
 exports.verify=e=>{
   try{const d=e.requestInfo().body
