@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Icon } from '@/design-system/Icon'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useCollection } from '@/queries/hooks'
-import { deleteNoteCascade, noteRepo, saveNoteWithMentions } from '@/repositories'
+import { deleteNoteCascade, noteRepo, saveNoteWithMentionsAndRevision } from '@/repositories'
 import type { Note } from '@/db/types'
 import type { Customer, Ledger, Todo, Project } from '@/db/types'
 import { Button, Card, ConfirmDialog, EmptyState } from '@/design-system/ui'
@@ -19,6 +19,11 @@ import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
 import { markdown } from '@codemirror/lang-markdown'
 import { defaultHighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import { registerShortcut } from '@/shared/shortcuts'
+import { queryPersonal } from '@/domain/personal'
+import { pendingCommandFor, recoverPendingCommand } from '@/storage/serverFirst'
+import { payloadIntent, stable } from '@/storage/commandPlan'
+import type { Command } from '@/commands/core'
+import { clientSession } from '@/storage/clientSession'
 import { useBacklinks, useNoteRecord } from './hooks'
 import { useNoteMentions, mentionViewOf } from './mentionLinks'
 import { filterBlacklisted, useIntimacyConfig } from '@/modules/crm/intimacy'
@@ -43,6 +48,15 @@ import {
   type MentionType,
   type SaveState,
 } from './NoteEditorPieces'
+import {
+  NoteAutosaveController,
+  clearNoteDraft,
+  readNoteDraft,
+  type NoteAutosaveState,
+  type NoteDraftRecord,
+  type NoteDraftScope,
+  type NoteEditSnapshot,
+} from './noteAutosave'
 
 
 interface MentionItem {
@@ -192,6 +206,123 @@ const MD_ACTIONS: MdAction[] = [
 /** 分组边界（在哪些动作前插入分隔线）：标题组、列表组、代码组 */
 const MD_GROUP_BREAKS = new Set(['h1', 'ul', 'codeblock'])
 
+interface AuthoritativeNote {
+  title: string
+  tags: string[]
+  revision: number
+  generation?: string
+  markdown: string
+  truncated: boolean
+}
+
+/** 冲突时绕过本地笔记镜像，按有界正文分页读取服务端当前对象。 */
+export async function readAuthoritativeNote(noteId: string): Promise<AuthoritativeNote> {
+  const body: string[] = []
+  let offset = 0
+  let record: Record<string, unknown> | undefined
+  let generation: string | undefined
+  let revision: number | undefined
+  let truncated = false
+  for (let page = 0; page < 25; page += 1) {
+    const input: Record<string, unknown> = {
+      table: 'notes',
+      id: noteId,
+      fields: ['markdown'],
+      bodyOffset: offset,
+      bodyLimit: 4000,
+      limit: 1,
+    }
+    if (offset > 0) {
+      if (!generation || revision === undefined) {
+        throw new Error('无法固定服务器正文版本，请保留草稿后重试。')
+      }
+      input.generation = generation
+      input.revision = revision
+    }
+    const result = await queryPersonal('get_record', input)
+    if (result.cached) throw new Error('当前无法联网读取服务器版本，请保留草稿后再试。')
+    const item = (result.items as Record<string, unknown>[] | undefined)?.[0]
+    if (!item) throw new Error('服务器没有返回这篇笔记。')
+    record = item
+    const details = item.details as Record<
+      string,
+      { text?: string; nextOffset?: number | null; revision?: number }
+    >
+    const chunk = details?.markdown
+    if (!chunk || typeof chunk.text !== 'string') throw new Error('服务器未返回笔记正文。')
+    const pageRevision = Number(chunk.revision ?? item.revision)
+    if (page === 0) {
+      generation = typeof result.generation === 'string' ? result.generation : undefined
+      revision = Number.isSafeInteger(pageRevision) && pageRevision >= 0 ? pageRevision : undefined
+    } else if (result.generation !== generation || pageRevision !== revision) {
+      throw new Error('服务器正文版本在续读时发生变化，请保留草稿后重试。')
+    }
+    body.push(chunk.text)
+    if (chunk.nextOffset == null) break
+    offset = chunk.nextOffset
+    if (page === 24) truncated = true
+  }
+  if (!record) throw new Error('服务器没有返回这篇笔记。')
+  return {
+    title: String(record.title || ''),
+    tags: Array.isArray(record.tags) ? record.tags.filter((tag): tag is string => typeof tag === 'string') : [],
+    revision: revision ?? Number(record.revision || 0),
+    generation,
+    markdown: body.join(''),
+    truncated,
+  }
+}
+
+function originalPendingNote(
+  command: Command,
+  noteId: string,
+  session: ReturnType<typeof clientSession>,
+): { snapshot: NoteEditSnapshot; baseRev: number } | null {
+  if (
+    command.protocol !== 1 ||
+    typeof command.requestId !== 'string' ||
+    !command.requestId ||
+    !session ||
+    command.generation !== session.generation ||
+    stable(command.intent) !== stable(payloadIntent(command.writes))
+  ) {
+    return null
+  }
+  const writes = command.writes.filter((item) => item.table === 'notes' && item.id === noteId)
+  const reads = command.reads.filter((item) => item.table === 'notes' && item.id === noteId)
+  if (writes.length !== 1 || reads.length !== 1) return null
+  const write = writes[0]
+  const row = write.value
+  const baseRev = reads[0].rev === null ? 0 : reads[0].rev
+  const tags = Array.isArray(row?.tags) ? row.tags : null
+  if (
+    write.kind !== 'put' ||
+    !row ||
+    row.id !== noteId ||
+    !Number.isSafeInteger(baseRev) ||
+    baseRev < 0 ||
+    row.rev !== baseRev + 1 ||
+    typeof row.title !== 'string' ||
+    typeof row.markdown !== 'string' ||
+    !tags ||
+    !tags.every((tag) => typeof tag === 'string')
+  ) {
+    return null
+  }
+  return {
+    baseRev,
+    snapshot: { title: row.title, markdown: row.markdown, tags: [...tags] as string[] },
+  }
+}
+
+function sameNoteSnapshot(left: NoteEditSnapshot, right: NoteEditSnapshot): boolean {
+  return (
+    left.title === right.title &&
+    left.markdown === right.markdown &&
+    JSON.stringify(left.tags) === JSON.stringify(right.tags)
+  )
+}
+
 /** 笔记查看/编辑页（对齐原型 12-team-notes 右侧工作区），路由 /notes/:id（?edit=1 进编辑，缺省只读查看） */
 export default function NoteEditorPage() {
   const { id } = useParams<{ id: string }>()
@@ -255,6 +386,7 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
   const setSearchParams = useSearchParams()[1]
   // 查看态/编辑态：查看态隐藏编辑工具、渲染 markdown 成品；点「编辑」切换
   const [editing, setEditing] = useState(() => initialEditing)
+  const draftScopeRef = useRef<NoteDraftScope>({ sessionKey: clientSession()?.key })
 
   function enterEdit() {
     setEditing(true)
@@ -299,12 +431,42 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
   const mentionLinks = useNoteMentions(note.id)
   const mentionViews = useMemo(() => mentionLinks.map(mentionViewOf), [mentionLinks])
 
+  // 刷新后若原未知请求旁有更晚草稿，编辑态需直接显示它；否则核对后队列可能保存 B2，
+  // 但标题/CodeMirror refs 仍停留在 B1，下一次只改标题就会把 B1 正文写回服务器。
+  const [editorBootstrap] = useState(() => {
+    const draft = readNoteDraft(note.id, draftScopeRef.current)
+    const pending = pendingCommandFor('notes', note.id)
+    const noteSnapshot: NoteEditSnapshot = {
+      title: note.title,
+      markdown: note.markdown,
+      tags: [...note.tags],
+    }
+    if (draft && !pending && sameNoteSnapshot(draft, noteSnapshot)) {
+      clearNoteDraft(note.id, draftScopeRef.current, draft)
+      return { snapshot: noteSnapshot, recoveryDraft: null }
+    }
+    const original = pending
+      ? originalPendingNote(pending, note.id, clientSession())
+      : null
+    const visibleLaterDraft =
+      initialEditing && draft && original && !sameNoteSnapshot(draft, original.snapshot)
+        ? draft
+        : null
+    return { snapshot: visibleLaterDraft ?? noteSnapshot, recoveryDraft: draft }
+  })
   // 本地编辑态（以旧记录为基底，保存时展开旧记录仅覆盖所属字段）
-  const [title, setTitle] = useState(() => note.title)
-  const [mdText, setMdText] = useState(() => note.markdown)
-  const [tags, setTags] = useState<string[]>(() => note.tags)
+  const [title, setTitle] = useState(() => editorBootstrap.snapshot.title)
+  const [mdText, setMdText] = useState(() => editorBootstrap.snapshot.markdown)
+  const [tags, setTags] = useState<string[]>(() => [...editorBootstrap.snapshot.tags])
   const [tagInput, setTagInput] = useState('')
   const [saveState, setSaveState] = useState<SaveState>('saved')
+  const [saveError, setSaveError] = useState('')
+  const [canRetryOriginal, setCanRetryOriginal] = useState(false)
+  const [conflictNote, setConflictNote] = useState<AuthoritativeNote | null>(null)
+  const [restoreSignal, setRestoreSignal] = useState(0)
+  const [recoveryDraft, setRecoveryDraft] = useState<NoteDraftRecord | null>(
+    () => editorBootstrap.recoveryDraft,
+  )
   const [mention, setMention] = useState<{
     from: number
     query: string
@@ -318,12 +480,16 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
   const [hoverCard, setHoverCard] = useState<HoverCardState>(null)
   // 删除确认弹窗（应用风格，替代 window.confirm）
   const [confirmDelete, setConfirmDelete] = useState<{ open: boolean; title: string } | null>(null)
+  const [deleteError, setDeleteError] = useState('')
+  const deleteInProgressRef = useRef(false)
   // 右栏实时预览开关（Issue #158 二轮）：开关在顶部工具条；关=右栏不渲染、编辑栏居中，开=双栏
   // 从 localStorage 惰性初始化，默认开
   const [previewOn, setPreviewOn] = useState(readPreviewPref)
 
   const noteRef = useRef(note)
   noteRef.current = note
+  const autosaveInitialNoteRef = useRef(note)
+  autosaveInitialNoteRef.current = note
   const titleRef = useRef(title)
   titleRef.current = title
   const mdRef = useRef(mdText)
@@ -336,9 +502,10 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
   const mentionInputRef = useRef<HTMLInputElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
-  const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const syncingEditorRef = useRef(false)
+  const autosaveRef = useRef<NoteAutosaveController | null>(null)
+  const pendingRestoreRef = useRef<NoteDraftRecord | null>(null)
   const handleMentionNavRef = useRef<(key: string) => boolean>(() => false)
-  const dirtyRef = useRef(false)
 
   // ===== 预览开关（Issue #158）：切换右栏显隐，并持久化到 localStorage =====
   function togglePreview() {
@@ -369,50 +536,135 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
     })
   }, [])
 
-  // ===== 自动保存：停顿 800ms 防抖 noteRepo.put =====
+  // ===== 自动保存：单篇串行保存；输入快照在本地隔离草稿与队列中各自有明确版本 =====
   const scheduleSaveRef = useRef<() => void>(() => {})
   function scheduleSave() {
-    dirtyRef.current = true
-    setSaveState('dirty')
-    clearTimeout(timerRef.current)
-    timerRef.current = setTimeout(() => void flushSave(), 800)
+    const snapshot: NoteEditSnapshot = {
+      title: titleRef.current,
+      markdown: mdRef.current,
+      tags: [...tagsRef.current],
+    }
+    autosaveRef.current?.edit(snapshot)
   }
   scheduleSaveRef.current = scheduleSave
 
-  async function flushSave() {
-    clearTimeout(timerRef.current)
-    const base = noteRef.current
-    if (!dirtyRef.current || !base) return
-    dirtyRef.current = false
-    setSaveState('saving')
-    // 删除竞态防复活（审计 P2-4）：put 前复查最新记录，若已被软删则放弃写入
-    const latest = await noteRepo.get(base.id)
-    if (!latest) {
-      setSaveState('saved')
-      return
-    }
-    await saveNoteWithMentions({
-      ...latest,
-      title: titleRef.current.trim() || '未命名笔记',
-      markdown: mdRef.current,
-      tags: tagsRef.current,
-    })
-    // 保存徽章防虚报（审计 P2-5）：await 期间可能有新输入，复查 dirty 再定态
-    setSaveState(dirtyRef.current ? 'dirty' : 'saved')
-  }
-
-  // 卸载前兜底：有未保存改动立即落库（fire-and-forget）
   useEffect(() => {
-    return () => {
-      if (dirtyRef.current) void flushSave()
-      clearTimeout(timerRef.current)
+    const initialNote = autosaveInitialNoteRef.current
+    const noteId = initialNote.id
+    const sessionKey = draftScopeRef.current.sessionKey
+    const controller = new NoteAutosaveController(noteId, initialNote, {
+      async save(snapshot, expectedRev) {
+        // 读镜像只用于取得其余字段；rev 固定取编辑器基线或本队列的确切回执。
+        const latest = await noteRepo.get(noteId)
+        if (!latest || latest.deleted) throw new Error('DELETED: 笔记已删除，本端草稿已保留。')
+        const saved = await saveNoteWithMentionsAndRevision({
+          ...latest,
+          rev: expectedRev,
+          title: snapshot.title.trim() || '未命名笔记',
+          markdown: snapshot.markdown,
+          tags: snapshot.tags,
+        })
+        if (noteRef.current.id === noteId && clientSession()?.key === sessionKey) {
+          noteRef.current = saved
+        }
+        return saved
+      },
+      reload: () => noteRepo.get(noteId),
+      readConflict: () => readAuthoritativeNote(noteId),
+      async recoverOriginal(retryOriginal, pending) {
+        const command = pendingCommandFor('notes', noteId)
+        if (!command) return false
+        const write = command.writes.find(
+          (item) => item.table === 'notes' && item.id === noteId && item.value,
+        )
+        const read = command.reads.find((item) => item.table === 'notes' && item.id === noteId)
+        const row = write?.value
+        const expectedReadMatches =
+          pending.baseRev === 0 ? read?.rev === null || read?.rev === 0 : read?.rev === pending.baseRev
+        const tags = Array.isArray(row?.tags) ? row.tags.filter((tag): tag is string => typeof tag === 'string') : []
+        if (
+          !row ||
+          stable(command.intent) !== stable(payloadIntent(command.writes)) ||
+          !expectedReadMatches ||
+          row.rev !== pending.baseRev + 1 ||
+          row.title !== (pending.snapshot.title.trim() || '未命名笔记') ||
+          row.markdown !== pending.snapshot.markdown ||
+          JSON.stringify(tags) !== JSON.stringify(pending.snapshot.tags)
+        ) {
+          throw new Error('REQUEST_REUSED: 未知请求计划与当前待确认快照不一致，草稿已保留。')
+        }
+        const session = clientSession()
+        if (!session || session.key !== sessionKey || command.generation !== session.generation) {
+          throw new Error('SESSION_CHANGED: 原请求属于其他身份或数据世代，草稿已保留。')
+        }
+        const committed = await recoverPendingCommand('notes', noteId, retryOriginal)
+        return committed
+          ? { requestId: command.requestId, generation: command.generation, revision: Number(row.rev) }
+          : false
+      },
+      hasPendingRequest: () => !!pendingCommandFor('notes', noteId),
+      onStatus(state: NoteAutosaveState, message?: string, retryOriginal?: boolean) {
+        if (noteRef.current.id !== noteId || clientSession()?.key !== sessionKey) return
+        setSaveState(state)
+        setSaveError(message || '')
+        setCanRetryOriginal(!!retryOriginal)
+        if (state === 'saved') setRecoveryDraft(null)
+      },
+      onEditorSnapshot(snapshot) {
+        if (noteRef.current.id !== noteId || clientSession()?.key !== sessionKey) return
+        const nextTags = [...snapshot.tags]
+        titleRef.current = snapshot.title
+        setTitle(snapshot.title)
+        mdRef.current = snapshot.markdown
+        setMdText(snapshot.markdown)
+        tagsRef.current = nextTags
+        setTags(nextTags)
+        const view = viewRef.current
+        if (view && view.state.doc.toString() !== snapshot.markdown) {
+          // EditorView updates normally enqueue autosave through updateListener. This sync only
+          // aligns the visible snapshot with the already-confirmed request and must not write it again.
+          syncingEditorRef.current = true
+          try {
+            view.dispatch({
+              changes: { from: 0, to: view.state.doc.length, insert: snapshot.markdown },
+            })
+          } finally {
+            syncingEditorRef.current = false
+          }
+        }
+      },
+      onConflict(value) {
+        if (noteRef.current.id !== noteId || clientSession()?.key !== sessionKey) return
+        setConflictNote(value as AuthoritativeNote)
+      },
+    })
+    autosaveRef.current = controller
+    const pending = pendingCommandFor('notes', noteId)
+    if (pending) {
+      const original = originalPendingNote(pending, noteId, clientSession())
+      if (original) {
+        controller.restoreUnknownRequest(
+          original.snapshot,
+          original.baseRev,
+          readNoteDraft(noteId, { sessionKey }),
+        )
+      } else {
+        controller.blockForUnverifiablePending(
+          '发现一条未核对的笔记保存请求，但本地命令信息或数据世代无法验证；请导出草稿并在重新加载后人工比较。',
+        )
+      }
     }
-  })
+    return () => {
+      if (autosaveRef.current === controller) autosaveRef.current = null
+      // 离页时只发起一次尽力保存；编辑快照已先同步写入隔离草稿，浏览器不承诺等待异步网络。
+      controller.dispose()
+    }
+  }, [note.id])
 
-  // 刷新/关闭页面/切后台时兜底 flush（审计 P2-3：不丢尾部输入）
+  // 卸载前尽力 flush；草稿同步保存在 localStorage，网络回执不作为关闭页的保证。
   useEffect(() => {
     const flush = () => {
-      if (dirtyRef.current) void flushSave()
+      void autosaveRef.current?.flush()
     }
     const onVisibility = () => {
       if (document.visibilityState === 'hidden') flush()
@@ -424,6 +676,49 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
       document.removeEventListener('visibilitychange', onVisibility)
     }
   }, [])
+
+  function restoreRecoveryDraft() {
+    if (!recoveryDraft) return
+    if (!autosaveRef.current?.restoreDraft(recoveryDraft)) return
+    pendingRestoreRef.current = recoveryDraft
+    setRecoveryDraft(null)
+    if (editing) setRestoreSignal((value) => value + 1)
+    else enterEdit()
+  }
+
+  function discardRecoveryDraft() {
+    if (!recoveryDraft) return
+    if (saveState === 'unknown') {
+      if (!autosaveRef.current?.discardPendingRecoveryDraft()) {
+        setSaveError('无法安全丢弃本端草稿；请先核对原请求，草稿仍保留。')
+        return
+      }
+    } else if (!clearNoteDraft(note.id, draftScopeRef.current, recoveryDraft)) {
+      setSaveError('无法清除本端草稿；草稿仍保留。')
+      return
+    }
+    setRecoveryDraft(null)
+  }
+
+  function exportUnsubmittedDraft() {
+    const draft = readNoteDraft(note.id, draftScopeRef.current) ?? recoveryDraft
+    downloadText(
+      JSON.stringify(
+        {
+          noteId: note.id,
+          baseRev: draft?.baseRev ?? autosaveRef.current?.baseRevision,
+          title: draft?.title ?? titleRef.current,
+          markdown: draft?.markdown ?? mdRef.current,
+          tags: draft?.tags ?? tagsRef.current,
+          submitted: false,
+        },
+        null,
+        2,
+      ),
+      'application/json;charset=utf-8',
+      '未提交笔记草稿.json',
+    )
+  }
 
   // ===== @提及浮层 =====
   function closeMention() {
@@ -623,7 +918,7 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
               const text = u.state.doc.toString()
               mdRef.current = text
               setMdText(text)
-              scheduleSaveRef.current()
+              if (!syncingEditorRef.current) scheduleSaveRef.current()
             }
             if (!u.docChanged && !u.selectionSet) return
             const pos = u.state.selection.main.head
@@ -658,6 +953,22 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
       viewRef.current = null
     }
   }, [editing])
+
+  // 恢复草稿只在用户明确选择后进入编辑器；CodeMirror 仍由其 updateListener 驱动同一保存队列。
+  useEffect(() => {
+    const draft = pendingRestoreRef.current
+    const view = viewRef.current
+    if (!editing || !draft || !view) return
+    pendingRestoreRef.current = null
+    titleRef.current = draft.title
+    setTitle(draft.title)
+    mdRef.current = draft.markdown
+    setMdText(draft.markdown)
+    tagsRef.current = [...draft.tags]
+    setTags([...draft.tags])
+    if (view.state.doc.toString() === draft.markdown) scheduleSaveRef.current()
+    else view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: draft.markdown } })
+  }, [editing, restoreSignal])
 
   // 浮层打开时自动聚焦筛选输入框（键盘可直接输入模糊匹配词）
   const mentionOpen = mention !== null
@@ -741,15 +1052,35 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
 
   // ===== 删除（软删 + 跳回列表，应用风格确认弹窗） =====
   function handleDelete() {
+    setDeleteError('')
     setConfirmDelete({ open: true, title: noteRef.current.title })
   }
 
   async function doDelete() {
-    clearTimeout(timerRef.current)
-    dirtyRef.current = false
-    await deleteNoteCascade(noteRef.current.id)
-    setConfirmDelete(null)
-    navigate('/notes')
+    if (deleteInProgressRef.current) return
+    deleteInProgressRef.current = true
+    try {
+      // 先排空本端保存队列，再提交级联删除；未确认的文本/未知回执存在时不让旧请求与删除交错。
+      const saved = await (autosaveRef.current?.flush() ?? Promise.resolve(true))
+      if (!saved) return
+      autosaveRef.current?.invalidate()
+      try {
+        await deleteNoteCascade(noteRef.current.id)
+      } catch (error) {
+        // 事务失败时笔记仍可编辑；重新打开队列，避免后续输入被失效控制器静默丢弃。
+        autosaveRef.current?.resumeAfterFailedDelete()
+        setDeleteError(`删除失败，笔记仍保留：${error instanceof Error ? error.message : String(error)}`)
+        return
+      }
+      clearNoteDraft(noteRef.current.id, draftScopeRef.current)
+      setDeleteError('')
+      setConfirmDelete(null)
+      navigate('/notes')
+    } catch (error) {
+      setDeleteError(`删除前未能确认保存状态：${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      deleteInProgressRef.current = false
+    }
   }
 
   const html = useMemo(() => renderMarkdown(mdText), [mdText])
@@ -823,6 +1154,87 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
           </>
         )}
       </div>
+
+      {recoveryDraft && (
+        <div
+          role="status"
+          className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-primary/20 bg-primary-container/35 px-3 py-2 text-[0.8571rem] text-on-surface"
+        >
+          <span>发现一份未确认的本端草稿（基于 rev {recoveryDraft.baseRev}），服务器内容未被它覆盖。</span>
+          <span className="flex items-center gap-2">
+            <Button size="sm" onClick={restoreRecoveryDraft}>
+              恢复草稿并编辑
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={discardRecoveryDraft}
+            >
+              丢弃草稿
+            </Button>
+          </span>
+        </div>
+      )}
+
+      {saveError && ['failed', 'unknown', 'conflict'].includes(saveState) && (
+        <div
+          role="alert"
+          className={`mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2 text-[0.8571rem] ${
+            saveState === 'unknown'
+              ? 'border-warning/30 bg-warning-container/50 text-on-surface'
+              : 'border-danger/30 bg-danger-container/40 text-on-surface'
+          }`}
+        >
+          <span>{saveError}</span>
+          <span className="flex items-center gap-2">
+            {saveState === 'failed' && (
+              <Button size="sm" onClick={() => void autosaveRef.current?.retryFailed()}>
+                重试保存
+              </Button>
+            )}
+            {saveState === 'unknown' && (
+              <>
+                <Button size="sm" onClick={() => void autosaveRef.current?.checkUnknown(false)}>
+                  核对原请求
+                </Button>
+                {canRetryOriginal && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => void autosaveRef.current?.checkUnknown(true)}
+                  >
+                    重试原请求
+                  </Button>
+                )}
+              </>
+            )}
+            <Button size="sm" variant="ghost" icon="download" onClick={exportUnsubmittedDraft}>
+              导出本端草稿
+            </Button>
+          </span>
+        </div>
+      )}
+
+      {conflictNote && saveState === 'conflict' && (
+        <Card className="mb-3 max-h-72 overflow-auto border border-danger/20 bg-surface-container-low p-3">
+          <div className="mb-1 flex flex-wrap items-baseline gap-x-2">
+            <strong className="text-[0.9286rem]">服务器当前版本 · rev {conflictNote.revision}</strong>
+            {conflictNote.truncated && (
+              <span className="text-[0.7857rem] text-warning">正文超过有界读取上限，当前仅展示前段。</span>
+            )}
+          </div>
+          <p className="mb-2 text-[0.8571rem] font-semibold">{conflictNote.title || '未命名笔记'}</p>
+          <pre className="whitespace-pre-wrap break-words text-[0.8571rem] text-on-surface-variant">
+            {conflictNote.markdown}
+          </pre>
+          {conflictNote.tags.length > 0 && (
+            <p className="mt-2 text-[0.7857rem] text-outline">标签：{conflictNote.tags.join('、')}</p>
+          )}
+          <p className="mt-2 text-[0.7857rem] text-outline">
+            编辑器内仍是本端草稿。请比较后手动合并；它不会自动覆盖服务器版本。
+          </p>
+        </Card>
+      )}
 
       {/* 标签行：编辑态可增删（彩色 Chip + 逗号分隔输入），查看态只读展示 */}
       <div className="flex shrink-0 flex-wrap items-center gap-1.5 pb-3">
@@ -1194,11 +1606,24 @@ function NoteEditor({ note, initialEditing }: { note: Note; initialEditing: bool
       <ConfirmDialog
         open={!!confirmDelete?.open}
         title={`删除笔记「${confirmDelete?.title ?? ''}」`}
-        message="删除后可在回收站恢复（30 天内）。"
+        message={
+          <>
+            <p>删除后可在回收站恢复（30 天内）。</p>
+            {deleteError && (
+              <p role="alert" className="mt-2 text-danger">
+                {deleteError}
+              </p>
+            )}
+          </>
+        }
         confirmText="删除"
         danger
         onConfirm={() => void doDelete()}
-        onCancel={() => setConfirmDelete(null)}
+        onCancel={() => {
+          if (deleteInProgressRef.current) return
+          setConfirmDelete(null)
+          setDeleteError('')
+        }}
       />
     </div>
   )

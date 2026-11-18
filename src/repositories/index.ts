@@ -83,12 +83,12 @@ export {
  * v15 迁 links，笔记行不再持有。UI（编辑器自动保存 / 速记 / 新建）与 agentOps
  * （note_createNote）都经此，禁止各写一份。
  */
-export async function saveNoteWithMentions(
+async function saveNoteWithMentionsRevision(
   note: PutInput<Note>,
   folderId?: string | null,
-): Promise<string> {
+): Promise<Note> {
   const now = Date.now()
-  await storage.transaction(
+  const saved = await storage.transaction(
     ['notes', 'links', 'customers', 'todos', 'ledgers', 'projects', 'noteFolders', 'syncQueue'],
     async (tx) => {
       const prev = await tx.get<Note>('notes', note.id)
@@ -96,14 +96,15 @@ export async function saveNoteWithMentions(
       if (prev?.deleted) throw new Error('DELETED: 请从回收站显式恢复笔记')
       const reviving = prev?.deleted === 1
       const restoredAt = reviving ? now : (note.restoredAt ?? prev?.restoredAt)
-      await tx.put('notes', {
+      const next: Note = {
         ...note,
         updatedAt: now,
         rev: (prev?.rev ?? 0) + 1,
         deleted: 0 as const,
         deletedAt: undefined,
         ...(restoredAt ? { restoredAt } : {}),
-      } as Note)
+      } as Note
+      await tx.put('notes', next)
       await tx.enqueue('notes', note.id, 'upsert', now)
       await syncMentionLinks(
         tx,
@@ -121,10 +122,26 @@ export async function saveNoteWithMentions(
           now,
         )
       }
+      return next
     },
   )
   storage.requestSync()
-  return note.id
+  return saved
+}
+
+export async function saveNoteWithMentions(
+  note: PutInput<Note>,
+  folderId?: string | null,
+): Promise<string> {
+  return (await saveNoteWithMentionsRevision(note, folderId)).id
+}
+
+/** 编辑器串行队列需使用本次已确认回执的 rev，不能从旧渲染快照推算下一版。 */
+export async function saveNoteWithMentionsAndRevision(
+  note: PutInput<Note>,
+  folderId?: string | null,
+): Promise<Note> {
+  return saveNoteWithMentionsRevision(note, folderId)
 }
 
 /**

@@ -7,9 +7,10 @@ import { todoPriorityFullLabel } from '@/modules/todo/priority'
 import { resolveHealthScoreDisplay } from '@/modules/crm/healthScore'
 import type { useIntimacyConfig } from '@/modules/crm/intimacy'
 import { resolveIntimacyLevel } from '@/modules/crm/intimacy'
+import type { NoteAutosaveState } from './noteAutosave'
 
 /** 保存态（主文件与 SaveBadge 共用；定义在此 = 单一事实源，主文件反向导入） */
-export type SaveState = 'saved' | 'dirty' | 'saving'
+export type SaveState = NoteAutosaveState
 
 /** 提及类型（等同 NoteMention 的 type 联合） */
 export type MentionType = NoteMention['type']
@@ -173,6 +174,24 @@ export function SaveBadge({ state, at }: { state: SaveState; at: number }) {
     return (
       <Chip tone="gray" icon="edit">
         编辑中…
+      </Chip>
+    )
+  if (state === 'failed')
+    return (
+      <Chip tone="red" icon="warning">
+        保存失败
+      </Chip>
+    )
+  if (state === 'unknown')
+    return (
+      <Chip tone="amber" icon="sync">
+        结果待核对
+      </Chip>
+    )
+  if (state === 'conflict')
+    return (
+      <Chip tone="red" icon="warning">
+        版本冲突
       </Chip>
     )
   return (
