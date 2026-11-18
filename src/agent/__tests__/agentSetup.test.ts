@@ -36,25 +36,9 @@ import {
 } from '../../../scripts/agent-setup.mjs'
 
 const SETUP = path.join(REPO_ROOT, 'scripts', 'agent-setup.mjs')
-
-function gitText(ref: string): string {
-  const result = spawnSync('git', ['show', ref], { cwd: REPO_ROOT, encoding: 'utf8' })
-  if (result.status !== 0) throw new Error(`git show 失败：${ref} ${result.stderr}`)
-  return result.stdout
-}
-
-function legacyToolSkill(ref: string, toolName: string): string {
-  const snapshot = JSON.parse(gitText(`${ref}:docs/skills/mcp-tools.json`)) as {
-    tools: { name: string; description?: string }[]
-  }
-  const tool = snapshot.tools.find((entry) => entry.name === toolName)
-  if (!tool) throw new Error(`${ref} 不含工具 ${toolName}`)
-  const slug = toolName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-  const description = (tool.description ?? '').replace(/\s+/g, ' ').replace(/"/g, '\\"').trim()
-  const body = gitText(`${ref}:docs/skills/${toolName}.md`)
-  const stripped = body.replace(/^#\s+`?[^`\n]+`?\n+/, '')
-  return `---\nname: ${slug}\ndescription: "MCP 工具 ${toolName}：${description}"\n---\n\n# \`${toolName}\`\n\n${stripped.trim()}\n`
-}
+const LEGACY_SKILL_FIXTURES = path.join(__dirname, 'fixtures', 'legacy-generated-skills')
+const legacyHighRiskSkill = () => readFileSync(path.join(LEGACY_SKILL_FIXTURES, 'legacy-history-crm-deletecustomer.txt'), 'utf8')
+const legacyRetiredHabitSkill = () => readFileSync(path.join(LEGACY_SKILL_FIXTURES, 'legacy-history-habit-checkin.txt'), 'utf8')
 
 function runSkillsOnly(home: string, project: string, args: string[] = []) {
   return spawnSync(process.execPath, [SETUP, '--skills-only', ...args], {
@@ -250,8 +234,8 @@ describe('skills：slug 合规 + 与生成源同源', () => {
   })
 
   it('识别精确旧生成摘要，覆盖旧高风险页并清理已退役习惯写页', () => {
-    const oldHighRisk = legacyToolSkill('HEAD', 'crm_deleteCustomer')
-    const oldRetired = legacyToolSkill('5c39db3', 'habit_checkin')
+    const oldHighRisk = legacyHighRiskSkill()
+    const oldRetired = legacyRetiredHabitSkill()
     expect(isManagedToolSkillContent(oldHighRisk)).toBe(true)
     expect(isManagedToolSkillContent(oldRetired)).toBe(true)
 
@@ -589,13 +573,31 @@ describe('集成：真实写入 / 幂等 / 回退（临时 HOME + 临时项目�
     const customFile = path.join(proj, '.claude', 'skills', 'custom-workflow', 'SKILL.md')
     mkdirSync(path.dirname(retiredFile), { recursive: true })
     mkdirSync(path.dirname(customFile), { recursive: true })
-    writeFileSync(retiredFile, legacyToolSkill('5c39db3', 'habit_checkin'))
+    writeFileSync(retiredFile, legacyRetiredHabitSkill())
     writeFileSync(customFile, '# 自定义工作流\n')
 
     const result = run(['--only', 'claude'])
     expect(result.status).toBe(0)
     expect(existsSync(retiredFile)).toBe(false)
     expect(readFileSync(customFile, 'utf8')).toBe('# 自定义工作流\n')
+  })
+
+  it('卸载时移除两份已核验的旧工具页并保留自定义技能', () => {
+    const oldHighRiskFile = path.join(proj, '.claude', 'skills', 'crm-deletecustomer', 'SKILL.md')
+    const oldRetiredFile = path.join(proj, '.claude', 'skills', 'habit-checkin', 'SKILL.md')
+    const customFile = path.join(proj, '.claude', 'skills', 'custom-workflow', 'SKILL.md')
+    mkdirSync(path.dirname(oldHighRiskFile), { recursive: true })
+    mkdirSync(path.dirname(oldRetiredFile), { recursive: true })
+    mkdirSync(path.dirname(customFile), { recursive: true })
+    writeFileSync(oldHighRiskFile, legacyHighRiskSkill())
+    writeFileSync(oldRetiredFile, legacyRetiredHabitSkill())
+    writeFileSync(customFile, '# 我的技能\n')
+
+    const result = run(['--only', 'claude', '--skills', 'full', '--uninstall'])
+    expect(result.status).toBe(0)
+    expect(existsSync(oldHighRiskFile)).toBe(false)
+    expect(existsSync(oldRetiredFile)).toBe(false)
+    expect(readFileSync(customFile, 'utf8')).toBe('# 我的技能\n')
   })
 
   it('规则壳不吞用户内容：已有 CLAUDE.md 时只追加托管块，卸载后用户内容留着', () => {
