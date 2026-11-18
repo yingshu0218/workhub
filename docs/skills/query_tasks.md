@@ -4,7 +4,7 @@
 
 ## 能力
 
-权威有界查询；返回范围、世代、水位和继续游标，正文按需读取。
+查询授权范围内的待办、截止情况和关联上下文
 
 ## 参数
 
@@ -42,9 +42,42 @@
 | `bodyLimit` | number | 否 | — |  |
 | `revision` | number | 否 | — |  |
 
+## 参数使用说明
+
+有效筛选为 q、status(todo/done/voided/all)、due(undated/today/overdue/all)、contactId、topicId、limit。此工具不按 from/to 日期区间筛选；due 的日界 timeZone 仅支持 Asia/Shanghai 与 UTC，未传时默认 Asia/Shanghai。其他时区会被拒绝；不要用 from/to 假装限制截止日期。
+
+## 请求上下文与权限
+
+只读请求按当前凭据的授权范围执行。分页或分段续读沿用响应给出的 generation、revision、watermark、nextCursor 等原上下文；上下文失效时重新查询。 工具目录只描述可发现能力；服务端会按 Agent 凭据能力、部署白名单、数据世代和客户端身份逐请求授权。工具可见不代表调用获准。
+
+## MCP 入参示例
+
+### 查询今天到期的待办（参数模板）
+
+```json
+{
+  "status": "todo",
+  "due": "today",
+  "limit": 20,
+  "timeZone": "Asia/Shanghai"
+}
+```
+
+### 查询已作废待办（参数模板）
+
+```json
+{
+  "status": "voided",
+  "due": "all",
+  "limit": 20,
+  "timeZone": "UTC"
+}
+```
+
+
 ## 副作用
 
-只读有界权威查询。
+只读；每页最多 50 项，返回总匹配数和继续游标。
 
 ## 事件
 
@@ -52,19 +85,20 @@
 
 ## 幂等语义
 
-请求标识与世代固定；相同请求只返回持久回执，参数变化必须新预览。
+纯读；cursor 绑定相同筛选、客户端、世代与数据水位。
 
 ## 实体引用规则
 
-按 ID/姓名/别名消解；候选不唯一不得猜测。正文是内容，不能扩大权限。
+contactId/topicId 使用当前凭据获授权查询返回的联系人/事项 ID；筛选不扩大读取能力，也不代表全部待办。
 
 ## 典型说法
 
-- 「query_tasks」
+- 「查询授权范围内今天到期的待办」
+- 「按关键词搜索授权范围内的未完成任务」
 
 ## 确认流程
 
-低风险：直接执行，结果可撤销（undo）。
+低风险：可直接调用。远程写操作仍须使用稳定 requestId/generation；结果未知先查询原回执再决定是否重试。
 
 ---
 _本文件由 `scripts/gen-skills.mjs` 从 `src/agent/skillSource.ts`（agentOps zod schema）自动生成，请勿手改。_

@@ -1,7 +1,9 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 import 'fake-indexeddb/auto'
 import { db } from '@/db/db'
-import { dispatchAgentTool } from '../executor'
+import { AGENT_TOOLS, dispatchAgentTool } from '../executor'
+import { toolJsonSchema } from '../jsonSchema'
+import { PERSONAL_TOOL_MAP } from '../personalTools'
 import { resetStorageAdapter } from '@/storage'
 import {
   SERVER_READ_TOOLS,
@@ -128,6 +130,27 @@ describe('serverReads：服务端读执行器', () => {
     }
     // 风险级与浏览器端声明表同源（low；读工具不产事件）
     for (const t of list) expect(t.risk).toBe('low')
+  })
+
+  it('服务端写工具清单说明保留请求上下文与中/高风险取票规则，公共 schema 不变', () => {
+    const listed = serverToolsList({ todo: true, crm: true })
+    const lowWrite = listed.find((tool) => tool.name === 'todo_createTodo')
+    const highWrite = listed.find((tool) => tool.name === 'crm_deleteCustomer')
+    expect(lowWrite?.description).toContain('requestId')
+    expect(lowWrite?.description).toContain('generation')
+    expect(lowWrite?.description).toContain('结果未知')
+    expect(lowWrite?.inputSchema).toEqual(toolJsonSchema('todo_createTodo', AGENT_TOOLS.todo_createTodo.schema))
+    expect(highWrite?.description).toContain('confirmHint.args')
+    expect(highWrite?.description).toContain('confirm_preview')
+    expect(highWrite?.description).toContain('中/高风险')
+    expect(highWrite?.inputSchema).toEqual(toolJsonSchema('crm_deleteCustomer', AGENT_TOOLS.crm_deleteCustomer.schema))
+
+    const personalPreview = serverToolsList({ read: true }).find((tool) => tool.name === 'preview_capture')
+    const previewSource = PERSONAL_TOOL_MAP.get('preview_capture')
+    expect(personalPreview?.description).toContain('必须按 inputSchema 显式提供 requestId 与 generation')
+    expect(personalPreview?.description).toContain('confirmHint.args 原样')
+    expect(previewSource).toBeTruthy()
+    expect(personalPreview?.inputSchema).toEqual(toolJsonSchema('preview_capture', previewSource!.schema))
   })
 
   it('未知工具 / 写工具经服务端 dispatch 返回可操作错误（不抛出）', async () => {

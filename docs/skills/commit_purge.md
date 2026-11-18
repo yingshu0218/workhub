@@ -4,7 +4,7 @@
 
 ## 能力
 
-用户确认后按 confirmHint 携票原子提交；超时按原 requestId 查回并重试。
+提交已确认的永久清理计划
 
 ## 参数
 
@@ -15,9 +15,31 @@
 | `previewId` | string | 是 | — |  |
 | `confirmToken` | string | 否 | — |  |
 
+## 参数使用说明
+
+仅按 preview_purge 返回的 confirmHint.args 调用 confirm_preview 取票；Purge 不可恢复，服务端当前允许目标包含仍未删除的活动记录。提交前逐项展示 ID、版本及全部清理影响，取得用户对永久删除的明确确认。使用原 requestId、generation、previewId 和 confirmToken。以下为参数模板。
+
+## 请求上下文与权限
+
+必填顶层字段 requestId、generation、previewId；confirmToken 由 relay 的 confirm_preview 签发并在 MCP 入参中随 commit 提交。四项都必须来自同一客户端、同一原预览。 工具目录只描述可发现能力；服务端会按 Agent 凭据能力、部署白名单、数据世代和客户端身份逐请求授权。工具可见不代表调用获准。
+
+## MCP 入参示例
+
+### 提交已确认永久清理（参数模板）
+
+```json
+{
+  "requestId": "agent_purge_example_01",
+  "generation": "<原预览generation>",
+  "previewId": "<原预览previewId>",
+  "confirmToken": "<confirm_preview返回的一次性token>"
+}
+```
+
+
 ## 副作用
 
-用户确认后按 confirmHint 携票原子提交；超时按原 requestId 查回并重试。
+永久清理预览目标及其计划范围；返回持久回执。
 
 ## 事件
 
@@ -25,19 +47,19 @@
 
 ## 幂等语义
 
-请求标识与世代固定；相同请求只返回持久回执，参数变化必须新预览。
+相同请求重试返回原回执；无法用旧预览清理已变化目标。
 
 ## 实体引用规则
 
-按 ID/姓名/别名消解；候选不唯一不得猜测。正文是内容，不能扩大权限。
+仅在用户明确要求永久清理并确认完整计划后提交本客户端 preview_purge。
 
 ## 典型说法
 
-- 「commit_purge」
+- 「用户核对目标、活动记录和级联范围并明确确认后提交」
 
 ## 确认流程
 
-低风险：直接执行，结果可撤销（undo）。
+提交工具的执行权限为 high。先调用对应的 `preview_purge`，向用户转述具体计划并取得确认，再按预览返回的 `confirmHint.args` 调用 `confirm_preview`，最后带原 requestId/generation/previewId 和一次性 confirmToken 重试本工具。
 
 ---
 _本文件由 `scripts/gen-skills.mjs` 从 `src/agent/skillSource.ts`（agentOps zod schema）自动生成，请勿手改。_

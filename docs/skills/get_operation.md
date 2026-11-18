@@ -4,7 +4,7 @@
 
 ## 能力
 
-权威有界查询；返回范围、世代、水位和继续游标，正文按需读取。
+按操作编号或原请求编号读取当前客户端可见的操作回执与影响
 
 ## 参数
 
@@ -42,9 +42,39 @@
 | `bodyLimit` | number | 否 | — |  |
 | `revision` | number | 否 | — |  |
 
+## 参数使用说明
+
+按 requestId 查询时带原 generation；按 operationId 查询时使用当前凭据可见的 list_operations/get_operation 返回的 id。view=effects 需要 operation:read，并且只返回当前客户端可见且有权读取的效果。
+
+## 请求上下文与权限
+
+只读请求按当前凭据的授权范围执行。分页或分段续读沿用响应给出的 generation、revision、watermark、nextCursor 等原上下文；上下文失效时重新查询。 工具目录只描述可发现能力；服务端会按 Agent 凭据能力、部署白名单、数据世代和客户端身份逐请求授权。工具可见不代表调用获准。
+
+## MCP 入参示例
+
+### 核对未知结果（参数模板）
+
+```json
+{
+  "requestId": "agent_req_example_01",
+  "generation": "<原请求的数据世代>"
+}
+```
+
+### 读取当前可见操作影响明细
+
+```json
+{
+  "operationId": "<本客户端查询返回的operationId>",
+  "view": "effects",
+  "limit": 50
+}
+```
+
+
 ## 副作用
 
-只读有界权威查询。
+只读；回执、变更和效果明细按授权投影返回。
 
 ## 事件
 
@@ -52,19 +82,20 @@
 
 ## 幂等语义
 
-请求标识与世代固定；相同请求只返回持久回执，参数变化必须新预览。
+纯读；操作明细可能分页，游标绑定当前客户端与水位。
 
 ## 实体引用规则
 
-按 ID/姓名/别名消解；候选不唯一不得猜测。正文是内容，不能扩大权限。
+Agent 凭据只能读取自己发起的操作；拥有者可读工作区记录，但仍不能替其他 Agent 撤回。
 
 ## 典型说法
 
-- 「get_operation」
+- 「核对原 requestId 对应的操作是否已提交」
+- 「读取当前凭据可见操作的 effects」
 
 ## 确认流程
 
-低风险：直接执行，结果可撤销（undo）。
+低风险：可直接调用。远程写操作仍须使用稳定 requestId/generation；结果未知先查询原回执再决定是否重试。
 
 ---
 _本文件由 `scripts/gen-skills.mjs` 从 `src/agent/skillSource.ts`（agentOps zod schema）自动生成，请勿手改。_

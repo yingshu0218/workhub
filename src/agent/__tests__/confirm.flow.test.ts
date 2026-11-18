@@ -128,6 +128,9 @@ describe('relay 侧取票与防重放（ConfirmTokenStore + preview 绑定）', 
     // preview 落地时记下 (tool,args)，取票时消费
     expect(src).toContain('rememberPreview(argsHash(p.track.name, p.track.args))')
     expect(src).toContain('consumePreview(key)')
+    expect(src).toContain('中/高风险操作确认取票')
+    expect(src).toContain('confirmHint.args 原样')
+    expect(src).toContain("required: ['tool', 'args']")
   })
 })
 

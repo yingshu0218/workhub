@@ -15,6 +15,12 @@ import { ALL_TOOL_SKILLS, WRITE_TOOL_SKILLS, READ_TOOL_SKILLS, TOOL_RISK, TOOL_D
 import { buildToolsList } from '../bridge'
 
 const docsDir = path.resolve(__dirname, '../../../docs/skills')
+const relaySource = readFileSync(path.resolve(__dirname, '../../../relay/mcp-relay.mjs'), 'utf8')
+const protocolVersion = /^export const MCP_PROTOCOL_VERSION = '([^']+)'/m.exec(relaySource)?.[1]
+const supportedProtocolSource = /^export const SUPPORTED_PROTOCOL_VERSIONS = (\[[^\]]+\])/m.exec(relaySource)?.[1]
+const supportedProtocolVersions = supportedProtocolSource
+  ? JSON.parse(supportedProtocolSource.replace(/'/g, '"')) as string[]
+  : undefined
 
 describe('工具集同源（实现 ↔ skill 生成源）', () => {
   it('skill 源与 executor 注册表工具名一一对应（无孤儿）', () => {
@@ -59,9 +65,13 @@ describe('生成产物与 skill 源一致（防文档漂移）', () => {
   it('mcp-tools.json 工具集与 skill 源一致，且带 annotations.risk/domain', () => {
     const snapshot = JSON.parse(readFileSync(path.join(docsDir, 'mcp-tools.json'), 'utf8')) as {
       toolCount: number
+      protocolVersion: string
+      supportedProtocolVersions: string[]
       tools: { name: string; inputSchema: unknown; annotations: { risk: string; domain: string; readOnly: boolean } }[]
     }
     expect(snapshot.toolCount).toBe(ALL_TOOL_SKILLS.length)
+    expect(snapshot.protocolVersion).toBe(protocolVersion)
+    expect(snapshot.supportedProtocolVersions).toEqual(supportedProtocolVersions)
     expect(snapshot.tools.map((t) => t.name).sort()).toEqual(ALL_TOOL_SKILLS.map((t) => t.name).sort())
     for (const t of snapshot.tools) {
       expect(t.annotations.risk).toBe(TOOL_RISK[t.name])
@@ -105,5 +115,42 @@ describe('生成产物与 skill 源一致（防文档漂移）', () => {
     expect(listTodos, 'tools/list 里没有 listTodos').toBeTruthy()
     const required = (listTodos?.inputSchema as { required?: string[] }).required ?? []
     expect(required).not.toContain('priority')
+  })
+
+  it('所有生成的 MCP 入参示例都能通过对应 zod schema', () => {
+    for (const tool of ALL_TOOL_SKILLS) {
+      for (const example of tool.inputExamples ?? []) {
+        const parsed = tool.schema.safeParse(example.args)
+        expect(parsed.success, `${tool.name} 示例「${example.label}」不符合公开 schema`).toBe(true)
+      }
+    }
+  })
+
+  it('生成文档呈现风险确认上下文和关键授权限制', () => {
+    const readme = readFileSync(path.join(docsDir, 'README.md'), 'utf8')
+    expect(readme).toContain(`${ALL_TOOL_SKILLS.length} 个业务工具`)
+    expect(readme).toContain('不能调用 `searchEntities`')
+    expect(readme).toContain('需要已有 `habit:read`')
+
+    for (const tool of ALL_TOOL_SKILLS.filter((item) => TOOL_RISK[item.name] === 'high')) {
+      const doc = readFileSync(path.join(docsDir, `${tool.name}.md`), 'utf8')
+      expect(doc, `${tool.name} 高风险页未说明确认票流程`).toContain('confirmHint.args')
+      expect(doc, `${tool.name} 高风险页未说明 confirm_preview`).toContain('confirm_preview')
+    }
+
+    const search = readFileSync(path.join(docsDir, 'searchEntities.md'), 'utf8')
+    expect(search).toContain('独立配对 Agent 当前不能调用')
+    const habits = readFileSync(path.join(docsDir, 'listHabits.md'), 'utf8')
+    expect(habits).toContain('habit:read')
+    expect(habits).toContain('不再提供该能力的签发选项')
+  })
+
+  it('文档中的结构化 MCP 入参示例与元数据完全一致', () => {
+    for (const tool of ALL_TOOL_SKILLS) {
+      const doc = readFileSync(path.join(docsDir, `${tool.name}.md`), 'utf8')
+      for (const example of tool.inputExamples ?? []) {
+        expect(doc, `${tool.name} 缺少「${example.label}」示例`).toContain(JSON.stringify(example.args, null, 2))
+      }
+    }
   })
 })

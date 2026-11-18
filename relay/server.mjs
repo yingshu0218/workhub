@@ -206,13 +206,13 @@ export function createRelay({
         {
           name: CONFIRM_TOOL,
           description:
-            '中风险操作确认取票（relay 内置）：完成「预览 → 向用户转述 → 用户确认」后，以与预览相同的参数调用本工具取得一次性 confirmToken，再重试原工具。',
+            '中/高风险操作确认取票（relay 内置）：先预览并向用户说明影响，取得用户明确确认后，按预览实际返回的 confirmHint.args 原样调用本工具取得一次性 confirmToken，再以原参数重试工具；不要重建或修改 hint。',
           risk: 'low',
           domain: 'read',
           inputSchema: {
             type: 'object',
             properties: {
-              tool: { type: 'string', description: '要执行的中风险工具名' },
+              tool: { type: 'string', description: '要执行的中/高风险工具名' },
               requestId: { type: 'string' }, generation: { type: 'string' },
               planFingerprint: { type: 'string' },
               args: { type: 'object', description: '与该次预览完全一致的入参' },

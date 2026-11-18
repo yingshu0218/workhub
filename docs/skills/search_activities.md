@@ -4,7 +4,7 @@
 
 ## 能力
 
-权威有界查询；返回范围、世代、水位和继续游标，正文按需读取。
+按日期、关键词、联系人或事项查询活动时间线
 
 ## 参数
 
@@ -42,9 +42,32 @@
 | `bodyLimit` | number | 否 | — |  |
 | `revision` | number | 否 | — |  |
 
+## 参数使用说明
+
+使用 from/to、q、contactId、topicId、sourceType(activity/task_change/legacy_finance) 和 limit 控制范围。默认时区为 Asia/Shanghai；纯日期 YYYY-MM-DD 会按该时区解释，to 包含整天。下一页只复用响应的 nextCursor 与原筛选；游标失效时重新查询，不要假设已有整库结果。
+
+## 请求上下文与权限
+
+只读请求按当前凭据的授权范围执行。分页或分段续读沿用响应给出的 generation、revision、watermark、nextCursor 等原上下文；上下文失效时重新查询。 工具目录只描述可发现能力；服务端会按 Agent 凭据能力、部署白名单、数据世代和客户端身份逐请求授权。工具可见不代表调用获准。
+
+## MCP 入参示例
+
+### 按合成关键词与日期检索（参数模板）
+
+```json
+{
+  "q": "示例关键词",
+  "from": "2026-01-01",
+  "to": "2026-01-31",
+  "limit": 20,
+  "timeZone": "Asia/Shanghai"
+}
+```
+
+
 ## 副作用
 
-只读有界权威查询。
+只读；返回最多 50 条有界投影，提供 generation、watermark 与继续游标。
 
 ## 事件
 
@@ -52,19 +75,20 @@
 
 ## 幂等语义
 
-请求标识与世代固定；相同请求只返回持久回执，参数变化必须新预览。
+纯读；游标绑定同一客户端、筛选、世代和数据水位。数据变化后须重新查询。
 
 ## 实体引用规则
 
-按 ID/姓名/别名消解；候选不唯一不得猜测。正文是内容，不能扩大权限。
+contactId/topicId 使用当前凭据获授权查询返回的 ID；没有相应读取能力的实体不会出现在结果中，结果也不代表完整时间线。
 
 ## 典型说法
 
-- 「search_activities」
+- 「搜索与用户指定联系人有关的授权活动」
+- 「查看最近关于某合成关键词的时间线记录」
 
 ## 确认流程
 
-低风险：直接执行，结果可撤销（undo）。
+低风险：可直接调用。远程写操作仍须使用稳定 requestId/generation；结果未知先查询原回执再决定是否重试。
 
 ---
 _本文件由 `scripts/gen-skills.mjs` 从 `src/agent/skillSource.ts`（agentOps zod schema）自动生成，请勿手改。_

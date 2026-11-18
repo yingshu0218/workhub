@@ -10,6 +10,7 @@ import { createPocketBaseAdapter } from '@/storage/pocketbase'
 import { setStorageAdapter } from '@/storage'
 import { dispatchAgentTool, AGENT_TOOLS } from './executor'
 import { TOOL_RISK, TOOL_DOMAIN, resolveEntitySchema } from './schema'
+import { TOOL_SUMMARIES } from './skillSource'
 import { toolJsonSchema } from './jsonSchema'
 import { needsPreview, previewEnvelope } from './confirmFlow'
 import { resolveEntity, type ResolveResult } from './resolver'
@@ -107,8 +108,16 @@ export type ServerReadToolName = keyof typeof SERVER_READ_TOOLS
 
 /** 工具描述（与浏览器桥同口径：域 + 风险级，参数细节在 schema） */
 function describeTool(name: string, risk: string): string {
-  if (name === 'listHabits') return '读取有界历史习惯记录；习惯打卡与成就奖杯功能已下线，只供历史核对。'
-  return `${name}（域：${name.split('_')[0]}，风险：${risk}）—— 参数见 inputSchema；实体引用须先 resolveEntity，候选不唯一必须反问用户。写入前先用读工具取得 generation，并在公开 arguments 发送稳定 requestId 与原 generation；网络重试复用二者。具体预览返回 confirmHint，按原提示取票和提交。`
+  if (name === 'listHabits') return '只读历史习惯记录；需要已有 habit:read 能力。习惯写入和奖杯能力已退役，当前后台配对界面不提供 habit:read 的签发选项。'
+  const summary = TOOL_SUMMARIES[name] ?? `${name}（域：${TOOL_DOMAIN[name] ?? 'unknown'}，风险：${risk}）`
+  if (name === 'searchEntities') return `${summary}。独立配对 Agent 当前没有该工具的服务端读取授权，请用 resolve_contacts、resolve_topics、query_tasks、search_activities 或 listNotes 等定域查询。工具可见不代表可执行。`
+  const isPersonalCommand = name === 'cancel_operation' || name.startsWith('preview_') || name.startsWith('commit_')
+  const writeContext = isPersonalCommand
+    ? '个人 preview_*、commit_* 和 cancel_operation 必须按 inputSchema 显式提供 requestId 与 generation。preview_* 只保存待确认计划；commit_* 前先调用对应 preview_*，向用户说明实际计划并取得确认，再把该预览的 confirmHint.args 原样传给 confirm_preview，最后以相同 requestId/generation、previewId 和一次性 confirmToken 调用 commit_*。cancel_operation 只接受发起该操作的同一客户端原上下文。'
+    : Object.hasOwn(AGENT_TOOLS, name)
+      ? '写入上下文：旧式写工具首次调用需要稳定 requestId 和原 generation；中/高风险首次预览若缺失可由服务补齐并返回实际值，之后必须沿用，低风险直写须在首次调用前提供。结果未知时以同客户端、同参数、同 requestId/generation 查询回执或重试。中/高风险按预览实际返回的 confirmHint.args 原样调用 confirm_preview，取得用户明确确认后再以原参数和 confirmToken 重试；不要重建 hint。'
+      : ''
+  return `${summary}（风险：${risk}）；参数见 inputSchema。${writeContext ? `${writeContext} ` : ''}工具清单仅用于发现，服务端仍会按凭据能力、部署白名单、数据世代和客户端身份逐请求授权。`
 }
 
 /** 公开参数可被普通 MCP 客户端提交；旧 _meta 仅保留兼容，不再是完成提交的前提。 */

@@ -60,6 +60,12 @@ npm run agent:setup -- --url wss://<站点>/relay --credential-id <credentialId>
 
 「旧版 AI 浏览器桥（共享凭据兼容）」仅保留给现有浏览器桥客户端。它的共享凭据不能按 Agent 单独撤销，不能作为新设备主路径。旧的 `/relay/pair`、`/relay/pair/new` 接口只承担兼容语义；新的后台命名配对使用 `/relay/agent/pair/redeem`，不会回退到共享 token 或 owner 会话。
 
+### 工具发现与执行权限
+
+`tools/list` 和随仓库生成的 `docs/skills/` 是工具目录，不是授权结果。服务端每次请求仍按该 Agent 的独立能力、部署白名单、数据世代和客户端身份检查；看到某个工具不代表它可以执行。遇到 `FORBIDDEN` 时请让拥有者在「设置 → Agent 接入」调整该客户端的能力，不要用其它参数或工具绕过。
+
+独立 Agent 当前不能执行兼容工具 `searchEntities`（即使参数带 `types` 也会拒绝）。按数据域改用 `resolve_contacts`、`resolve_topics`、`query_tasks`、`search_activities`、`query_finance` 或 `listNotes` 等具名查询。习惯工具只读历史数据；读取 `listHabits` 需要已有 `habit:read`，当前配对界面不再提供该能力，习惯写入/打卡已退役。
+
 ## 常用命令
 
 ```bash
@@ -67,8 +73,15 @@ npm run agent:setup -- --url wss://<站点>/relay --pair --only codex
 npm run agent:setup -- --credential-id <id> --only codex --check
 npm run agent:setup -- --print-prompt       # 打印不含短码与长期凭据的说明
 npm run agent:setup -- --dry-run            # 预览非兑换配置写入
+npm run agent:setup -- --skills-only --only codex,hermes,claude,opencode,workbuddy,codebuddy
 npm run agent:setup -- --uninstall          # 移除本脚本托管的配置与当前所选凭据
 npm run agent:setup -- --help
 ```
+
+`--skills-only` 只刷新项目里的技能说明，不读取或修改 MCP 配置、凭据；Codex 与 Hermes 共用 `.agents/skills`。脚本只更新带本项目署名或匹配已核验旧模板的技能，用户自定义文件会保留。单目标卸载也不会删除另一目标共用的技能目录。
+
+若之前启用过逐工具技能，使用 `--skills-only --skills full --only codex,hermes` 可刷新这两类客户端的完整工具页；已核验属于本项目的四个退役习惯写页会在技能刷新时清理。
+
+`--check` **不是只读检查**：命令会先写入/更新所选凭据与 MCP 客户端配置，再通过本机 stdio shim 做握手和 `tools/list`。只想核验现有连接时，在已经配置的 MCP 客户端里刷新连接并调用 `tools/list`；这不会重写本机配置。不要将 bearer token 放入命令行。
 
 不要使用 `--token` 命令行参数；脚本拒绝该参数。测试或隔离环境可设置任务专用 `WORKHUB_AGENT_HOME` 和 `WORKHUB_PROJECT_ROOT`，无需改写 `HOME` 或真实客户端配置。

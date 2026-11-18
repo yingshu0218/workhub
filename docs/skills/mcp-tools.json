@@ -2,6 +2,10 @@
   "generatedBy": "scripts/gen-skills.mjs",
   "source": "src/agent/skillSource.ts",
   "protocolVersion": "2024-11-05",
+  "supportedProtocolVersions": [
+    "2024-11-05",
+    "2025-03-26"
+  ],
   "toolCount": 57,
   "tools": [
     {
@@ -1404,7 +1408,7 @@
     },
     {
       "name": "cancel_operation",
-      "description": "撤回本人待确认预览并清理草稿来源；已提交操作需另行预览撤销。",
+      "description": "撤回当前客户端自己的待确认操作",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1429,7 +1433,7 @@
     },
     {
       "name": "preview_capture",
-      "description": "保存整组具体预览，包含生成 ID、日期、版本、影响与计划指纹；不提交业务事实。",
+      "description": "预览新增活动及其联系人、事项、待办和收支的整组录入计划",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1797,7 +1801,7 @@
     },
     {
       "name": "commit_capture",
-      "description": "用户确认后按 confirmHint 携票原子提交；超时按原 requestId 查回并重试。",
+      "description": "提交已确认的活动录入计划",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1829,7 +1833,7 @@
     },
     {
       "name": "preview_amend",
-      "description": "保存整组具体预览，包含生成 ID、日期、版本、影响与计划指纹；不提交业务事实。",
+      "description": "预览对一组既有记录的修正计划",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1911,7 +1915,7 @@
     },
     {
       "name": "commit_amend",
-      "description": "用户确认后按 confirmHint 携票原子提交；超时按原 requestId 查回并重试。",
+      "description": "提交已确认的整组记录修改",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1943,7 +1947,7 @@
     },
     {
       "name": "preview_undo",
-      "description": "保存整组具体预览，包含生成 ID、日期、版本、影响与计划指纹；不提交业务事实。",
+      "description": "预览撤销一项已提交操作会恢复或重做的变化",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1986,7 +1990,7 @@
     },
     {
       "name": "commit_undo",
-      "description": "用户确认后按 confirmHint 携票原子提交；超时按原 requestId 查回并重试。",
+      "description": "提交已确认的操作撤销计划",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -2018,7 +2022,7 @@
     },
     {
       "name": "preview_merge",
-      "description": "保存整组具体预览，包含生成 ID、日期、版本、影响与计划指纹；不提交业务事实。",
+      "description": "预览合并两个联系人及其关联迁移；当前不支持合并项目/事项",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -2067,7 +2071,7 @@
     },
     {
       "name": "commit_merge",
-      "description": "用户确认后按 confirmHint 携票原子提交；超时按原 requestId 查回并重试。",
+      "description": "提交已确认的联系人合并计划",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -2099,7 +2103,7 @@
     },
     {
       "name": "preview_delete",
-      "description": "保存整组具体预览，包含生成 ID、日期、版本、影响与计划指纹；不提交业务事实。",
+      "description": "预览删除指定记录及其级联、解绑影响",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -2164,7 +2168,7 @@
     },
     {
       "name": "commit_delete",
-      "description": "用户确认后按 confirmHint 携票原子提交；超时按原 requestId 查回并重试。",
+      "description": "提交已确认的删除计划",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -2196,7 +2200,7 @@
     },
     {
       "name": "preview_purge",
-      "description": "保存整组具体预览，包含生成 ID、日期、版本、影响与计划指纹；不提交业务事实。",
+      "description": "预览永久清理指定记录及其级联影响；目标可包含活动记录",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -2261,7 +2265,7 @@
     },
     {
       "name": "commit_purge",
-      "description": "用户确认后按 confirmHint 携票原子提交；超时按原 requestId 查回并重试。",
+      "description": "提交已确认的永久清理计划",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -2327,7 +2331,7 @@
     },
     {
       "name": "searchEntities",
-      "description": "全局搜索（客户/项目/待办/笔记/账本/习惯）",
+      "description": "兼容全局搜索（活动/客户/待办/流水/笔记/项目）；独立配对 Agent 当前不能调用，请使用按域查询工具",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -2617,7 +2621,7 @@
     },
     {
       "name": "resolve_contacts",
-      "description": "权威有界查询；返回范围、世代、水位和继续游标，正文按需读取。",
+      "description": "在获授权的联系人范围内按姓名、别名或精确身份线索消解联系人",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -2783,7 +2787,7 @@
     },
     {
       "name": "resolve_topics",
-      "description": "权威有界查询；返回范围、世代、水位和继续游标，正文按需读取。",
+      "description": "在获授权的事项范围内按名称或别名消解项目/事项",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -2949,7 +2953,7 @@
     },
     {
       "name": "search_activities",
-      "description": "权威有界查询；返回范围、世代、水位和继续游标，正文按需读取。",
+      "description": "按日期、关键词、联系人或事项查询活动时间线",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -3115,7 +3119,7 @@
     },
     {
       "name": "get_activity",
-      "description": "权威有界查询；返回范围、世代、水位和继续游标，正文按需读取。",
+      "description": "读取一条活动详情、允许读取的正文片段与关联摘要",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -3281,7 +3285,7 @@
     },
     {
       "name": "get_operation",
-      "description": "权威有界查询；返回范围、世代、水位和继续游标，正文按需读取。",
+      "description": "按操作编号或原请求编号读取当前客户端可见的操作回执与影响",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -3447,7 +3451,7 @@
     },
     {
       "name": "list_operations",
-      "description": "权威有界查询；返回范围、世代、水位和继续游标，正文按需读取。",
+      "description": "列出当前凭据可见的个人助手操作与状态",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -3613,7 +3617,7 @@
     },
     {
       "name": "get_contact_context",
-      "description": "权威有界查询；返回范围、世代、水位和继续游标，正文按需读取。",
+      "description": "读取一个联系人的获授权上下文、近期活动、承诺和收支摘要",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -3779,7 +3783,7 @@
     },
     {
       "name": "query_tasks",
-      "description": "权威有界查询；返回范围、世代、水位和继续游标，正文按需读取。",
+      "description": "查询授权范围内的待办、截止情况和关联上下文",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -3945,7 +3949,7 @@
     },
     {
       "name": "query_finance",
-      "description": "权威有界查询；返回范围、世代、水位和继续游标，正文按需读取。",
+      "description": "按账本、收支类型、状态、日期或关联对象查询并汇总授权收支",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -4111,7 +4115,7 @@
     },
     {
       "name": "get_record",
-      "description": "权威有界查询；返回范围、世代、水位和继续游标，正文按需读取。",
+      "description": "读取授权记录详情、特定正文片段、关联或审计历史",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -4277,7 +4281,7 @@
     },
     {
       "name": "query_graph",
-      "description": "权威有界查询；返回范围、世代、水位和继续游标，正文按需读取。",
+      "description": "从授权记录出发查询一至两层实体关联图",
       "inputSchema": {
         "type": "object",
         "properties": {

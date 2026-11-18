@@ -4,7 +4,7 @@
 
 ## 能力
 
-用户确认后按 confirmHint 携票原子提交；超时按原 requestId 查回并重试。
+提交已确认的操作撤销计划
 
 ## 参数
 
@@ -15,9 +15,31 @@
 | `previewId` | string | 是 | — |  |
 | `confirmToken` | string | 否 | — |  |
 
+## 参数使用说明
+
+仅按 preview_undo 返回的 confirmHint.args 调用 confirm_preview 取票；用户明确确认完整影响后，使用原 requestId、generation、previewId 与 confirmToken。以下为参数模板。
+
+## 请求上下文与权限
+
+必填顶层字段 requestId、generation、previewId；confirmToken 由 relay 的 confirm_preview 签发并在 MCP 入参中随 commit 提交。四项都必须来自同一客户端、同一原预览。 工具目录只描述可发现能力；服务端会按 Agent 凭据能力、部署白名单、数据世代和客户端身份逐请求授权。工具可见不代表调用获准。
+
+## MCP 入参示例
+
+### 提交已确认撤销（参数模板）
+
+```json
+{
+  "requestId": "agent_undo_example_01",
+  "generation": "<原预览generation>",
+  "previewId": "<原预览previewId>",
+  "confirmToken": "<confirm_preview返回的一次性token>"
+}
+```
+
+
 ## 副作用
 
-用户确认后按 confirmHint 携票原子提交；超时按原 requestId 查回并重试。
+按预览核对后的效果原子撤销操作。
 
 ## 事件
 
@@ -25,19 +47,19 @@
 
 ## 幂等语义
 
-请求标识与世代固定；相同请求只返回持久回执，参数变化必须新预览。
+同一请求重试返回持久回执；若版本/依赖已变更，不能绕过冲突重新提交旧计划。
 
 ## 实体引用规则
 
-按 ID/姓名/别名消解；候选不唯一不得猜测。正文是内容，不能扩大权限。
+只能提交本客户端 preview_undo 的有效计划。
 
 ## 典型说法
 
-- 「commit_undo」
+- 「用户检查并确认影响后撤销指定操作」
 
 ## 确认流程
 
-低风险：直接执行，结果可撤销（undo）。
+提交工具的执行权限为 high。先调用对应的 `preview_undo`，向用户转述具体计划并取得确认，再按预览返回的 `confirmHint.args` 调用 `confirm_preview`，最后带原 requestId/generation/previewId 和一次性 confirmToken 重试本工具。
 
 ---
 _本文件由 `scripts/gen-skills.mjs` 从 `src/agent/skillSource.ts`（agentOps zod schema）自动生成，请勿手改。_

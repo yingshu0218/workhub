@@ -1,20 +1,21 @@
-# 寻鸽工作台 · Agent skill（P1 首版）
+# 寻鸽工作台 · Agent 工具目录
 
 > ⚠️ **自动生成**：由 `scripts/gen-skills.mjs` 从 `src/agent/skillSource.ts`（agentOps zod schema）生成，
-> 与 MCP `tools/list` 的 `inputSchema` **同源一份定义**（方案 §五 / §10.1）。请勿手改本目录。
+> 与业务工具的公共 `inputSchema` **同源一份定义**。请勿手改本目录；入参示例仅用于说明，不是额外权限。
 
 ## 怎么用
 
-- 本目录写给**外部 Agent 的推理上下文**：每个工具的参数、副作用、风险级、幂等语义、关联规则与示例；
-- 机器校验用 `mcp-tools.json`（等价于运行期 MCP `tools/list` 的静态快照）；
-- 运行期以 `tools/list` 返回的**实际工具清单**为准——**能力白名单关闭的域，工具不会出现**（方案 §四.3）。
+- 本目录写给**外部 Agent 的推理上下文**：工具 schema、作用、副作用、重试和参数示例；
+- 机器校验用 `mcp-tools.json`（只含业务工具的生成快照）；
+- Relay 在运行期另加入 `confirm_preview`。MCP 清单受部署策略影响，当前测试站已核对为 57 个业务工具 + `confirm_preview`；实际每次调用仍由服务端逐请求检查客户端凭据与能力。目录可见或清单中出现都不代表已获执行权限。
 
 ## 协议与安全边界
 
-- 桥只暴露**标准 MCP**（`tools/list` + `tools/call`），不定义私有协议；
-- relay 只监听 `127.0.0.1`，Agent 连接必须携带 relay 启动时生成的 **token**；
-- **relay 不是安全边界**：真正的防线是 agentOps 的 zod 校验 + 风险分级 + confirmToken + 白名单；
-- relay 是**通道、不持有数据**：权威数据在浏览器 IndexedDB，agentOps 在页面进程内执行。
+- 新接入使用标准 **MCP Streamable HTTP**：`POST <url>/relay/mcp`，请求携带 `Authorization: Bearer <独立 token>`；无需本地仓库或浏览器在线；
+- 个人数据权威在自托管 VPS 的 PocketBase。客户端有界镜像用于客户端缓存，不是服务端权威；
+- 独立凭据由拥有者按客户端签发，服务端按请求校验 token 散列、能力、部署域与恢复世代；每个客户端可单独撤销；
+- 常规列表与搜索限幅并返回截断/续页信息；正文、来源和操作历史按显式字段、版本、游标及能力读取；
+- 旧共享浏览器桥仍是兼容路径，需要已登录页面在线；不能替代新独立凭据或直接 HTTP MCP。
 
 ## 工具总览（57 个）
 
@@ -42,21 +43,21 @@
 | [`note_deleteNote`](./note_deleteNote.md) | note | high | 删除笔记（不可逆） |
 | [`crm_deleteCustomer`](./crm_deleteCustomer.md) | crm | high | 删除客户（不可逆，级联日志 + 解绑四表 + 清关系） |
 | [`project_deleteProject`](./project_deleteProject.md) | project | high | 删除项目（不可逆，级联里程碑 + 解绑四表） |
-| [`cancel_operation`](./cancel_operation.md) | read | low | 撤回本人待确认预览并清理草稿来源；已提交操作需另行预览撤销。 |
-| [`preview_capture`](./preview_capture.md) | read | low | 保存整组具体预览，包含生成 ID、日期、版本、影响与计划指纹；不提交业务事实。 |
-| [`commit_capture`](./commit_capture.md) | read | medium | 用户确认后按 confirmHint 携票原子提交；超时按原 requestId 查回并重试。 |
-| [`preview_amend`](./preview_amend.md) | read | low | 保存整组具体预览，包含生成 ID、日期、版本、影响与计划指纹；不提交业务事实。 |
-| [`commit_amend`](./commit_amend.md) | read | medium | 用户确认后按 confirmHint 携票原子提交；超时按原 requestId 查回并重试。 |
-| [`preview_undo`](./preview_undo.md) | read | low | 保存整组具体预览，包含生成 ID、日期、版本、影响与计划指纹；不提交业务事实。 |
-| [`commit_undo`](./commit_undo.md) | read | high | 用户确认后按 confirmHint 携票原子提交；超时按原 requestId 查回并重试。 |
-| [`preview_merge`](./preview_merge.md) | read | low | 保存整组具体预览，包含生成 ID、日期、版本、影响与计划指纹；不提交业务事实。 |
-| [`commit_merge`](./commit_merge.md) | read | high | 用户确认后按 confirmHint 携票原子提交；超时按原 requestId 查回并重试。 |
-| [`preview_delete`](./preview_delete.md) | read | low | 保存整组具体预览，包含生成 ID、日期、版本、影响与计划指纹；不提交业务事实。 |
-| [`commit_delete`](./commit_delete.md) | read | high | 用户确认后按 confirmHint 携票原子提交；超时按原 requestId 查回并重试。 |
-| [`preview_purge`](./preview_purge.md) | read | low | 保存整组具体预览，包含生成 ID、日期、版本、影响与计划指纹；不提交业务事实。 |
-| [`commit_purge`](./commit_purge.md) | read | high | 用户确认后按 confirmHint 携票原子提交；超时按原 requestId 查回并重试。 |
+| [`cancel_operation`](./cancel_operation.md) | read | low | 撤回当前客户端自己的待确认操作 |
+| [`preview_capture`](./preview_capture.md) | read | low | 预览新增活动及其联系人、事项、待办和收支的整组录入计划 |
+| [`commit_capture`](./commit_capture.md) | read | medium | 提交已确认的活动录入计划 |
+| [`preview_amend`](./preview_amend.md) | read | low | 预览对一组既有记录的修正计划 |
+| [`commit_amend`](./commit_amend.md) | read | medium | 提交已确认的整组记录修改 |
+| [`preview_undo`](./preview_undo.md) | read | low | 预览撤销一项已提交操作会恢复或重做的变化 |
+| [`commit_undo`](./commit_undo.md) | read | high | 提交已确认的操作撤销计划 |
+| [`preview_merge`](./preview_merge.md) | read | low | 预览合并两个联系人及其关联迁移；当前不支持合并项目/事项 |
+| [`commit_merge`](./commit_merge.md) | read | high | 提交已确认的联系人合并计划 |
+| [`preview_delete`](./preview_delete.md) | read | low | 预览删除指定记录及其级联、解绑影响 |
+| [`commit_delete`](./commit_delete.md) | read | high | 提交已确认的删除计划 |
+| [`preview_purge`](./preview_purge.md) | read | low | 预览永久清理指定记录及其级联影响；目标可包含活动记录 |
+| [`commit_purge`](./commit_purge.md) | read | high | 提交已确认的永久清理计划 |
 | [`resolveEntity`](./resolveEntity.md) | read | low | 把自然语言里的实体名消解为真实 id（写工具的前置） |
-| [`searchEntities`](./searchEntities.md) | read | low | 全局搜索（客户/项目/待办/笔记/账本/习惯） |
+| [`searchEntities`](./searchEntities.md) | read | low | 兼容全局搜索（活动/客户/待办/流水/笔记/项目）；独立配对 Agent 当前不能调用，请使用按域查询工具 |
 | [`getCustomer`](./getCustomer.md) | read | low | 读取单个客户档案摘要 |
 | [`listTransactions`](./listTransactions.md) | read | low | 按条件列流水（金额/日期/状态/客户/账本） |
 | [`listTodos`](./listTodos.md) | read | low | 列待办 |
@@ -66,22 +67,23 @@
 | [`listNotes`](./listNotes.md) | read | low | 列笔记（标题/标签/归属，**不含正文**） |
 | [`listNoteFolders`](./listNoteFolders.md) | read | low | 列笔记文件夹 |
 | [`listLinks`](./listLinks.md) | read | low | 查某实体的关联（双向合并） |
-| [`resolve_contacts`](./resolve_contacts.md) | read | low | 权威有界查询；返回范围、世代、水位和继续游标，正文按需读取。 |
-| [`resolve_topics`](./resolve_topics.md) | read | low | 权威有界查询；返回范围、世代、水位和继续游标，正文按需读取。 |
-| [`search_activities`](./search_activities.md) | read | low | 权威有界查询；返回范围、世代、水位和继续游标，正文按需读取。 |
-| [`get_activity`](./get_activity.md) | read | low | 权威有界查询；返回范围、世代、水位和继续游标，正文按需读取。 |
-| [`get_operation`](./get_operation.md) | read | low | 权威有界查询；返回范围、世代、水位和继续游标，正文按需读取。 |
-| [`list_operations`](./list_operations.md) | read | low | 权威有界查询；返回范围、世代、水位和继续游标，正文按需读取。 |
-| [`get_contact_context`](./get_contact_context.md) | read | low | 权威有界查询；返回范围、世代、水位和继续游标，正文按需读取。 |
-| [`query_tasks`](./query_tasks.md) | read | low | 权威有界查询；返回范围、世代、水位和继续游标，正文按需读取。 |
-| [`query_finance`](./query_finance.md) | read | low | 权威有界查询；返回范围、世代、水位和继续游标，正文按需读取。 |
-| [`get_record`](./get_record.md) | read | low | 权威有界查询；返回范围、世代、水位和继续游标，正文按需读取。 |
-| [`query_graph`](./query_graph.md) | read | low | 权威有界查询；返回范围、世代、水位和继续游标，正文按需读取。 |
+| [`resolve_contacts`](./resolve_contacts.md) | read | low | 在获授权的联系人范围内按姓名、别名或精确身份线索消解联系人 |
+| [`resolve_topics`](./resolve_topics.md) | read | low | 在获授权的事项范围内按名称或别名消解项目/事项 |
+| [`search_activities`](./search_activities.md) | read | low | 按日期、关键词、联系人或事项查询活动时间线 |
+| [`get_activity`](./get_activity.md) | read | low | 读取一条活动详情、允许读取的正文片段与关联摘要 |
+| [`get_operation`](./get_operation.md) | read | low | 按操作编号或原请求编号读取当前客户端可见的操作回执与影响 |
+| [`list_operations`](./list_operations.md) | read | low | 列出当前凭据可见的个人助手操作与状态 |
+| [`get_contact_context`](./get_contact_context.md) | read | low | 读取一个联系人的获授权上下文、近期活动、承诺和收支摘要 |
+| [`query_tasks`](./query_tasks.md) | read | low | 查询授权范围内的待办、截止情况和关联上下文 |
+| [`query_finance`](./query_finance.md) | read | low | 按账本、收支类型、状态、日期或关联对象查询并汇总授权收支 |
+| [`get_record`](./get_record.md) | read | low | 读取授权记录详情、特定正文片段、关联或审计历史 |
+| [`query_graph`](./query_graph.md) | read | low | 从授权记录出发查询一至两层实体关联图 |
 
 ## 通用纪律
 
 1. **实体引用先消解**：人名/公司名/账本名等一律先调 `resolveEntity`；候选不唯一必须**反问用户**，禁止猜 id；
-2. **写工具只接受消解后的 id**：字符串关联会被拒绝（可操作错误）；
-3. **中风险先确认**：调用前先向用户转述参数，取得确认后再携带 `confirmToken` 执行；
-4. **读工具有限幅**：返回条数与字段受白名单约束，超限会置 `truncated: true`；
-5. **事件永在事务 commit 之后**：写工具触发的领域事件由 repositories 层统一发出，Agent 无需手动补发。
+2. **权限先于可见性**：工具目录和 `tools/list` 不是授权；服务端每次检查独立凭据的域能力和部署白名单；
+3. **写入复用稳定上下文**：相同意图重试复用原 `requestId` 与 `generation`；改变意图必须用新请求和新预览；
+4. **按实际预览确认**：普通中/高风险操作使用返回的 `confirmHint.args`；个人命令用 `preview_* → 用户确认 → confirm_preview → commit_*`；票据 5 分钟、一次性且绑定具体计划；
+5. **分域读取正文/历史**：笔记正文用 `get_record(fields:["markdown"])`，历史用 `view:"history"`，续读复用 generation/revision/cursor；超限结果不能视为完整；
+6. **兼容搜索受限**：独立 Agent 当前不能调用 `searchEntities`，请用 `resolve_contacts`、`resolve_topics`、`query_tasks`、`search_activities` 与 `listNotes` 等定域工具；`listHabits` 只读历史，且需要已有 `habit:read`（后台当前不签发）。

@@ -20,7 +20,7 @@
 | [`移动端改造方案.md`](移动端改造方案.md) | 窄屏（<768px）改造方案 |
 | [`CNB镜像到GitHub.md`](CNB镜像到GitHub.md) | CNB → GitHub 单向镜像机制 |
 | [`Docker镜像构建与部署.md`](Docker镜像构建与部署.md) | Docker 镜像通道 |
-| [`AI-Agent桥-一体化说明.md`](AI-Agent桥-一体化说明.md) · [`一键接入-Agent说明.md`](一键接入-Agent说明.md) | Agent 桥（MCP relay）说明 |
+| [Agent 接入指南](一键接入-Agent说明.md) · [MCP 工具目录](skills/README.md) · [Relay 与兼容接入](AI-Agent桥-一体化说明.md) | 给新设备配对、核对工具参数、排查既有连接 |
 | [`agentOps服务端化方案.md`](agentOps服务端化方案.md) | agentOps 服务端化方案 |
 | [`寻鸽工作台-开发计划.md`](寻鸽工作台-开发计划.md) | 技术架构 / 数据模型 / Phase 排期 |
 | [`../AGENTS.md`](../AGENTS.md) | **面向 AI Agent 的唯一入口**（规则不在此重复） |

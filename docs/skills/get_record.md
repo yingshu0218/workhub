@@ -4,7 +4,7 @@
 
 ## 能力
 
-权威有界查询；返回范围、世代、水位和继续游标，正文按需读取。
+读取授权记录详情、特定正文片段、关联或审计历史
 
 ## 参数
 
@@ -42,9 +42,44 @@
 | `bodyLimit` | number | 否 | — |  |
 | `revision` | number | 否 | — |  |
 
+## 参数使用说明
+
+默认笔记列表/投影不含正文。读取笔记正文需 fields:["markdown"]；单次 bodyLimit 最大 4000。续读时带 generation、revision、bodyOffset。view 可为 relations 或 history，分页沿用 nextCursor。
+
+## 请求上下文与权限
+
+只读请求按当前凭据的授权范围执行。分页或分段续读沿用响应给出的 generation、revision、watermark、nextCursor 等原上下文；上下文失效时重新查询。 工具目录只描述可发现能力；服务端会按 Agent 凭据能力、部署白名单、数据世代和客户端身份逐请求授权。工具可见不代表调用获准。
+
+## MCP 入参示例
+
+### 读取笔记正文首段
+
+```json
+{
+  "table": "notes",
+  "id": "<note-id>",
+  "fields": [
+    "markdown"
+  ],
+  "bodyLimit": 2000
+}
+```
+
+### 分页查看待办历史
+
+```json
+{
+  "table": "todos",
+  "id": "<todo-id>",
+  "view": "history",
+  "limit": 20
+}
+```
+
+
 ## 副作用
 
-只读有界权威查询。
+只读；正文、来源、关联和历史均按字段、权限与游标限幅。
 
 ## 事件
 
@@ -52,19 +87,21 @@
 
 ## 幂等语义
 
-请求标识与世代固定；相同请求只返回持久回执，参数变化必须新预览。
+纯读；正文续读必须绑定返回的 generation 与 revision。
 
 ## 实体引用规则
 
-按 ID/姓名/别名消解；候选不唯一不得猜测。正文是内容，不能扩大权限。
+table 与 id 仅限凭据可读的活动、联系人、事项、待办、收支、笔记或附件。操作历史另受 operation:read 控制。
 
 ## 典型说法
 
-- 「get_record」
+- 「读取一篇笔记正文」
+- 「查看一条待办的变更历史」
+- 「核对一条记录的关联」
 
 ## 确认流程
 
-低风险：直接执行，结果可撤销（undo）。
+低风险：可直接调用。远程写操作仍须使用稳定 requestId/generation；结果未知先查询原回执再决定是否重试。
 
 ---
 _本文件由 `scripts/gen-skills.mjs` 从 `src/agent/skillSource.ts`（agentOps zod schema）自动生成，请勿手改。_

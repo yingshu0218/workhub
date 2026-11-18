@@ -59,6 +59,10 @@ export declare function renderToolSkill(
 /** 从 docs/skills/mcp-tools.json 收集全部逐工具技能 */
 export declare function collectToolSkills(): { slug: string; content: string }[]
 
+/** 判断技能正文是否与本脚本生成的已核验格式/摘要一致 */
+export declare function isManagedMetaSkillContent(content: string): boolean
+export declare function isManagedToolSkillContent(content: string): boolean
+
 /** 挑一个耐久的 node 可执行文件路径 */
 export declare function pickNodePath(): string
 
@@ -71,6 +75,8 @@ export interface CliOptions {
   pair: boolean
   credentialId: string
   uninstall: boolean
+  /** 只刷新项目技能，不读写 MCP 配置或凭据 */
+  skillsOnly: boolean
   help: boolean
   printPrompt: boolean
   only: string[]
