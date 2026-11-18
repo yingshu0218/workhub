@@ -28,6 +28,8 @@ export interface PocketBaseAdapterOptions {
   fetchImpl?: typeof fetch
   token?: () => string | null
   agentKey?: string
+  /** Relay 为当前已验证 Agent 提供的能力；仅用于构造 note:read 的文件夹成员有界查询。 */
+  agentCapabilities?: string[]
   /** 执行器部署白名单只进一步收窄写能力，不赋予凭据新能力。 */
   writeDomains?: Record<string, boolean>
 }
@@ -41,9 +43,12 @@ interface PbListResult {
 export function createPocketBaseAdapter(opts: PocketBaseAdapterOptions): StorageAdapter & { transport: CommandTransport; queryFinance(input: unknown): Promise<Record<string, unknown>>; personal(path: string, input: unknown, headers?: Record<string, string>): Promise<Record<string, unknown>> } {
   const fetchImpl = opts.fetchImpl ?? ((...a: Parameters<typeof fetch>) => fetch(...a))
   const base = opts.baseUrl.replace(/\/$/, '')
+  const hasAgentKey = opts.agentKey !== undefined
+  if (hasAgentKey && !opts.agentKey?.trim()) throw new Error('[pb-adapter] Agent 凭据不能为空')
   let token: string | null = null
 
-  const hasCreds = !!(opts.account && opts.password)
+  // Agent 请求使用 credential hash 直接经 PB hooks 建立有限 principal，不能借用 owner JWT。
+  const hasCreds = !hasAgentKey && !!(opts.account && opts.password)
 
   async function auth(): Promise<void> {
     const res = await fetchImpl(`${base}/api/collections/users/auth-with-password`, {
@@ -65,21 +70,22 @@ export function createPocketBaseAdapter(opts: PocketBaseAdapterOptions): Storage
     init?: { method?: string; body?: unknown; headers?: Record<string, string> },
     retry = true,
   ): Promise<Response> {
-    if (opts.token) token = opts.token()
+    if (!hasAgentKey && opts.token) token = opts.token()
     if (!token && hasCreds) await auth()
     const res = await fetchImpl(`${base}${path}`, {
       signal: AbortSignal.timeout(15000),
       method: init?.method ?? 'GET',
       headers: {
         ...(init?.body !== undefined && !(init.body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}),
-        ...(token ? { Authorization: token } : undefined),
-        ...(opts.agentKey ? { 'X-Workhub-Agent-Key': opts.agentKey } : {}),
+        ...(!hasAgentKey && token ? { Authorization: token } : undefined),
+        ...(hasAgentKey ? { 'X-Workhub-Agent-Key': opts.agentKey! } : {}),
         ...(opts.writeDomains ? { 'X-Workhub-Write-Domains': JSON.stringify(opts.writeDomains) } : {}),
         ...init?.headers,
       },
       ...(init?.body !== undefined ? { body: init.body instanceof FormData ? init.body : JSON.stringify(init.body) } : {}),
     })
     if (res.status === 401 && retry) {
+      if (hasAgentKey) throw new Error('[pb-adapter] Agent 凭据被拒绝（HTTP 401）；不会以拥有者身份重试')
       if (!hasCreds) {
         throw new Error(
           `[pb-adapter] 请求被拒（HTTP 401）：集合规则未公开且未配置服务端凭据（WORKHUB_PB_ACCOUNT/PASSWORD）`,
@@ -92,8 +98,34 @@ export function createPocketBaseAdapter(opts: PocketBaseAdapterOptions): Storage
     return res
   }
 
+  /**
+   * Agent key 不是 PocketBase users JWT，不能借标准 records API 读整张表。
+   * 通过 PB 内部按能力校验的 scoped 路由读取当前有效记录；每表最多 1000 条，超限报错，
+   * 不分页拼成镜像。Relay 公网入口会拒绝外部直传 Agent key，此路由只供本机执行器使用。
+   */
+  async function scopedAgentRows(table: TableName, id?: string): Promise<Record<string, unknown>[]> {
+    const where: Record<string, string | number> = { deleted: 0 }
+    // listNotes 通过 v16 member links 取目录名；note:read 只获这些 note→noteFolders 关系，
+    // 不需要 link:read，也不会让同一凭据枚举客户、财务或其它 link。
+    if (table === 'links' && opts.agentCapabilities?.includes('note:read') &&
+      !opts.agentCapabilities.includes('link:read') && !opts.agentCapabilities.includes('*')) {
+      where.fromType = 'notes'
+      where.toType = 'noteFolders'
+      where.kind = 'member'
+    }
+    const scope: Record<string, unknown> = { where }
+    if (id !== undefined) scope.ids = [id]
+    const res = await api('/api/workhub/scoped', { method: 'POST', body: { table, scope } })
+    const data = await res.json() as { items?: Record<string, unknown>[]; error?: string }
+    if (!res.ok) throw new Error(data.error || `[pb-adapter] Agent 范围读取 ${table} 失败（HTTP ${res.status}）`)
+    const items = Array.isArray(data.items) ? data.items : []
+    if (items.length > 1000) throw new Error(`LIMIT_EXCEEDED: Agent 范围读取 ${table} 超过一千条`)
+    return items.map((item) => ({ ...item, localId: item.localId || item.id }))
+  }
+
   /** 分页拉全表（含软删行——与 Dexie list 语义对齐，过滤 deleted 是调用方职责） */
   async function listRemote(table: TableName): Promise<Record<string, unknown>[]> {
+    if (hasAgentKey) return scopedAgentRows(table)
     const collection = pbCollection(table)
     const out: Record<string, unknown>[] = []
     for (let page = 1; page <= 500; page++) {
@@ -132,6 +164,10 @@ export function createPocketBaseAdapter(opts: PocketBaseAdapterOptions): Storage
   }
 
   async function apiGet(table: TableName, id: string): Promise<(Record<string, unknown> & SyncMeta) | undefined> {
+    if (hasAgentKey) {
+      const first = (await scopedAgentRows(table, id))[0]
+      return first ? normalize(table, first) ?? undefined : undefined
+    }
     // 按 localId 精确过滤（与 push 侧 upsert 判存同口径；业务 id 含冒号，须经 filter 转义）
     const params = new URLSearchParams({
       filter: `localId='${escapePbFilterValue(id)}'`,

@@ -15,10 +15,9 @@ function rowOf(r) {
 }
 function stateOf(app) { return app.findFirstRecordByFilter('command_state', 'id != ""') }
 function owner(app, e) {
-  if (!e.auth || e.auth.collection().name !== 'users') core.fail('UNAUTHORIZED', '需要个人账号身份')
-  const identity = app.findRecordById('users', e.auth.id)
+  const principal=require(__hooks+'/personal-auth.js').principal(app,e)
   const state = stateOf(app)
-  if (!state.getString('ownerId') || identity.id !== state.getString('ownerId')) core.fail('FORBIDDEN', '仅拥有者可以访问业务命令')
+  if (!state.getString('ownerId') || principal.owner !== state.getString('ownerId')) core.fail('FORBIDDEN', '仅当前工作区身份可以访问业务命令')
   return state
 }
 function op(app, ownerId, requestId) {
@@ -31,14 +30,14 @@ function error(e, err) {
   const status = code === 'UNAUTHORIZED' ? 401 : code === 'FORBIDDEN' ? 403 : /CONFLICT|DELETED|GENERATION|RECOVERY|REUSED|INITIALIZED/.test(code) ? 409 : 400
   return e.json(status, { code, error: message })
 }
-exports.state = e => { try { const s = owner($app, e);require(__hooks+'/personal-auth.js').principal($app,e); return e.json(200, { generation: s.getString('generation'), protocol: 1 }) } catch (err) { return error(e, err) } }
+exports.state = e => { try { const s = owner($app, e); return e.json(200, { generation: s.getString('generation'), protocol: 1 }) } catch (err) { return error(e, err) } }
 exports.operation = e => {
   try {
+    const currentActor=require(__hooks+'/personal-auth.js').principal($app,e)
     const state = owner($app, e)
     const body = e.requestInfo().body
     if (body.generation !== state.getString('generation')) core.fail('RECOVERY_REVIEW_REQUIRED', '恢复后请核对旧请求，不能自动重放')
-    const currentActor=require(__hooks+'/personal-auth.js').principal($app,e)
-    const existing = op($app, e.auth.id, body.requestId)
+    const existing = op($app, currentActor.owner, body.requestId)
     if(existing && existing.getString('clientId') && existing.getString('clientId')!==currentActor.clientId)core.fail('FORBIDDEN','操作属于另一客户端')
     if (!existing) return e.json(200, { committed: false })
     if (body.intent !== undefined && existing.getString('fingerprint') !== fingerprint(body)) core.fail('REQUEST_REUSED', '相同请求标识带有不同参数')
@@ -50,10 +49,10 @@ exports.apply = (app,e,c) => {
   core.checkCommand(c)
   const fp=fingerprint(c),planFp=$security.sha256(core.stable({writes:c.writes,reads:c.reads,scans:c.scans}))
   let receipt
+      const currentActor=require(__hooks+'/personal-auth.js').principal(app,e)
       const state = owner(app, e)
       if (state.getString('generation') !== c.generation) core.fail('RECOVERY_REVIEW_REQUIRED', '数据世代已改变，先核对恢复点后的操作')
-      const existing = op(app, e.auth.id, c.requestId)
-      const currentActor=require(__hooks+'/personal-auth.js').principal(app,e)
+      const existing = op(app, currentActor.owner, c.requestId)
       if(existing && existing.getString('clientId') && existing.getString('clientId')!==currentActor.clientId)core.fail('FORBIDDEN','操作属于另一客户端')
       for(const w of c.writes)if(!require(__hooks+'/personal-auth.js').can(currentActor,w.table,true))core.fail('FORBIDDEN','缺少写能力：'+w.table)
       if (existing) {
@@ -61,7 +60,7 @@ exports.apply = (app,e,c) => {
         if (existing.getString('fingerprint') !== fp || existing.getString('planFingerprint') !== planFp) core.fail('REQUEST_REUSED', '同一请求标识不同参数')
         if (existing.getString('status') === 'committed') { receipt = require(__hooks+'/personal-auth.js').receipt(currentActor,core.decodePbJson(existing.get('result'))); return receipt }
       }
-      const authorization=require(__hooks + '/personal-auth.js');const actor=authorization.principal(app,e)
+      const authorization=require(__hooks + '/personal-auth.js');const actor=currentActor
       for(const w of c.writes){
         if(!authorization.can(actor,w.table,true))core.fail('FORBIDDEN','缺少写能力：'+w.table)
         if(w.table==='interactions'){
@@ -127,11 +126,11 @@ exports.apply = (app,e,c) => {
         }
       }
       const operation = existing || new Record(app.findCollectionByNameOrId('operations'))
-      if (!existing && c.operationId) { if(c.operationId !== $security.sha256(e.auth.id + '/' + c.requestId).slice(0,15))core.fail('INVALID_OPERATION_ID','操作身份');operation.set('id',c.operationId) }
+      if (!existing && c.operationId) { if(c.operationId !== $security.sha256(actor.owner + '/' + c.requestId).slice(0,15))core.fail('INVALID_OPERATION_ID','操作身份');operation.set('id',c.operationId) }
       const principal = require(__hooks + '/personal-auth.js').principal(app,e)
       if(existing && existing.getString('clientId') && existing.getString('clientId')!==principal.clientId)core.fail('FORBIDDEN','操作属于另一客户端')
       operation.set('clientId',principal.clientId);operation.set('kind',c.kind || 'legacy');operation.set('updatedAt',Date.now())
-      operation.set('owner', e.auth.id); operation.set('requestId', c.requestId); operation.set('fingerprint', fp)
+      operation.set('owner', principal.owner); operation.set('requestId', c.requestId); operation.set('fingerprint', fp)
       operation.set('planFingerprint', planFp); operation.set('generation', c.generation); operation.set('status', 'committed'); operation.set('committedAt', Date.now())
       const sequence = state.getInt('sequence') + 1
       state.set('sequence', sequence); app.save(state)
@@ -176,7 +175,7 @@ exports.apply = (app,e,c) => {
           }
           if (w.table === 'attachments' && next.stagedFileId) {
             const staged = app.findRecordById('attachment_staging', next.stagedFileId)
-            if (staged.getString('owner') !== e.auth.id || staged.getInt('expiresAt') < Date.now()) core.fail('INVALID_ATTACHMENT_STAGE', w.id)
+            if (staged.getString('owner') !== principal.owner || staged.getInt('expiresAt') < Date.now()) core.fail('INVALID_ATTACHMENT_STAGE', w.id)
             target.set('file', $filesystem.fileFromPath(app.dataDir() + '/storage/' + staged.baseFilesPath() + '/' + staged.getString('file')))
           } else if (w.table === 'attachments' && !current) core.fail('ATTACHMENT_NOT_STAGED', w.id)
           target.set('localId', w.id); target.set('tombstonePushed', next.deleted ? 1 : 0)
@@ -236,11 +235,13 @@ exports.initialize = e => {
 exports.stageAttachment = e => {
   try {
     owner($app, e)
+    const principal=require(__hooks+'/personal-auth.js').principal($app,e)
+    if(!require(__hooks+'/personal-auth.js').can(principal,'attachments',true))core.fail('FORBIDDEN','缺少附件写能力')
     if ($app.countRecords('attachment_staging') >= 128) core.fail('STAGING_LIMIT', '暂存附件已达上限，请等待清理后重试')
     const files = e.findUploadedFiles('file')
     if (files.length !== 1) core.fail('INVALID_ATTACHMENT', '请选择单个文件')
     const record = new Record($app.findCollectionByNameOrId('attachment_staging'))
-    record.set('owner', e.auth.id); record.set('file', files[0]); record.set('expiresAt', Date.now() + 86400000)
+    record.set('owner', principal.owner); record.set('file', files[0]); record.set('expiresAt', Date.now() + 86400000)
     $app.save(record)
     return e.json(200, { stageId: record.id })
   } catch (err) { return error(e, err) }
@@ -248,6 +249,8 @@ exports.stageAttachment = e => {
 exports.finance = e => {
   try {
     const state = owner($app, e)
+    const principal=require(__hooks+'/personal-auth.js').principal($app,e)
+    if(!require(__hooks+'/personal-auth.js').can(principal,'transactions'))core.fail('FORBIDDEN','缺少财务读取能力')
     const d = e.requestInfo().body
     if (d.generation && d.generation !== state.getString('generation')) core.fail('RECOVERY_REVIEW_REQUIRED', '请重新查询')
     let result
@@ -283,11 +286,11 @@ exports.preview = e => {
     const c = e.requestInfo().body; core.checkCommand(c)
     let result
     $app.runInTransaction(app => {
+      const previewActor=require(__hooks+'/personal-auth.js').principal(app,e)
       const state = owner(app, e)
       if (state.getString('generation') !== c.generation) core.fail('RECOVERY_REVIEW_REQUIRED', '先核对恢复点')
-      const previewActor=require(__hooks+'/personal-auth.js').principal(app,e)
       for(const w of c.writes)if(!require(__hooks+'/personal-auth.js').can(previewActor,w.table,true) || !require(__hooks+'/personal-auth.js').can(previewActor,w.table))core.fail('FORBIDDEN',w.table)
-      const previous = op(app, e.auth.id, c.requestId)
+      const previous = op(app, previewActor.owner, c.requestId)
       if(previous && previous.getString('clientId') && previous.getString('clientId')!==previewActor.clientId)core.fail('FORBIDDEN','客户端归属')
       const fp = fingerprint(c), planFp = $security.sha256(core.stable({writes:c.writes,reads:c.reads,scans:c.scans}))
       if (previous) {
@@ -302,7 +305,7 @@ exports.preview = e => {
         if ((current ? Number(current.rev || 0) : null) !== r.rev) core.fail('VERSION_CONFLICT', r.table + '/' + r.id)
       }
       const record = new Record(app.findCollectionByNameOrId('operations'))
-      record.set('owner',e.auth.id);record.set('requestId',c.requestId);record.set('fingerprint',fp);record.set('planFingerprint',planFp);record.set('generation',c.generation)
+      record.set('owner',previewActor.owner);record.set('requestId',c.requestId);record.set('fingerprint',fp);record.set('planFingerprint',planFp);record.set('generation',c.generation)
       record.set('status','awaiting_confirmation');record.set('clientId',previewActor.clientId);record.set('updatedAt',Date.now());record.set('plan',c);app.save(record);state.set('sequence',state.getInt('sequence')+1);app.save(state);result=c
     })
     return e.json(200,result)

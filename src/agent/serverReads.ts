@@ -199,6 +199,7 @@ export function initServerExecutor(opts: ServerExecutorOptions): {
   authenticate: (credential: {kind:'agent';token:string}|{kind:'shared-transition'}) => Promise<Record<string, unknown>>
 } {
   const pbAdapter = createPocketBaseAdapter(opts.pb)
+  const agentAuthAdapter = createPocketBaseAdapter({ baseUrl: opts.pb.baseUrl })
   const context = new AsyncLocalStorage<{ adapter: StorageAdapter; events: { type: keyof AppEvent; payload: unknown; occurredAt: number }[] }>()
   setStorageAdapter({
     commandMode: true,
@@ -225,11 +226,18 @@ export function initServerExecutor(opts: ServerExecutorOptions): {
 
   return {
     listTools: () => serverToolsList(domains),
-    authenticate: async credential => pbAdapter.personal('agents/verify', credential),
+    authenticate: async credential => credential.kind === 'agent'
+      ? agentAuthAdapter.personal('agents/verify', credential)
+      : pbAdapter.personal('agents/verify', credential),
     handles: (name: string) =>
       isRetiredHabitTool(name) || ((Object.hasOwn(SERVER_READ_TOOLS, name) || Object.hasOwn(AGENT_TOOLS, name)) && domainAllowed(name)),
     callTool: async (name, input, meta) => {
-      let requestAdapter = meta?.agentKey ? createPocketBaseAdapter({ ...opts.pb, agentKey: meta.agentKey }) : pbAdapter
+      if(meta?.clientId && meta.clientId!=='shared-transition' && !meta.agentKey)
+        return {ok:false,error:'UNAUTHORIZED: 独立 Agent 请求缺少 PB 权威校验凭据'}
+      // PB 环境是部署白名单权威；这个请求头只用于进一步收窄，独立 Agent 与共享过渡都携带它。
+      let requestAdapter = meta?.agentKey
+        ? createPocketBaseAdapter({ ...opts.pb, agentKey: meta.agentKey, agentCapabilities: meta.capabilities, writeDomains: domains })
+        : createPocketBaseAdapter({ ...opts.pb, writeDomains: domains })
       const personal = PERSONAL_TOOL_MAP.get(name)
       if (!personal && input && typeof input === 'object') { const clean = { ...(input as Record<string,unknown>) };delete clean.requestId;delete clean.generation;delete clean.confirmToken;input=clean }
       if (isRetiredHabitTool(name)) {
@@ -281,7 +289,9 @@ export function initServerExecutor(opts: ServerExecutorOptions): {
         }
       }
       const isRead = Object.hasOwn(SERVER_READ_TOOLS, name)
-      const capabilities = meta?.capabilities || ['*']
+      const capabilities = Array.isArray(meta?.capabilities)
+        ? meta.capabilities
+        : meta?.clientId && meta.clientId!=='shared-transition' ? [] : ['*']
       const readable: Record<string,string> = { getCustomer:'crm',listTransactions:'fin',listTodos:'todo',listLedgers:'fin',listHabits:'habit',listProjects:'project',listNotes:'note',listNoteFolders:'note',listLinks:'link' }
       if (isRead && !capabilities.includes('*')) {
         const domain = readable[name] || (name === 'resolveEntity' ? ({ customer:'crm',project:'project',todo:'todo',ledger:'fin',habit:'habit',note:'note',noteFolder:'note' } as Record<string,string>)[String((input as Record<string,unknown>)?.type)] : '')

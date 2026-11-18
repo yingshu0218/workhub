@@ -53,6 +53,10 @@ var SCOPE_FIELDS = {
   projectMilestones: ["projectId", "deleted"],
   transactions: ["ledgerId", "type", "status", "deleted"],
   interactions: ["customerId", "projectId", "deleted"],
+  ledgers: ["localId", "name", "deleted"],
+  todoLists: ["localId", "name", "deleted"],
+  noteFolders: ["localId", "name", "deleted"],
+  attachments: ["localId", "name", "mime", "deleted"],
   operation_effects: ["operationId", "tableName", "recordId", "action"],
   operations: ["owner", "clientId", "requestId", "status", "kind"]
 };

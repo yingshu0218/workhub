@@ -54,6 +54,29 @@ async function refreshToken(token: string): Promise<boolean> {
 }
 
 type Phase = 'unavailable' | 'checking' | 'open' | 'login' | 'change' | 'setup'
+type ChangeCompletion = 'reauth' | 'marker' | 'session'
+type ChangeCompletionError = Error & { status?: number; completionStage?: Exclude<ChangeCompletion, 'reauth'> }
+
+function httpError(message: string, status: number): Error & { status: number } {
+  return Object.assign(new Error(message), { status })
+}
+
+function errorStatus(error: unknown): number | undefined {
+  return error instanceof Error && 'status' in error && typeof error.status === 'number'
+    ? error.status
+    : undefined
+}
+
+function completionStage(error: unknown): Exclude<ChangeCompletion, 'reauth'> | undefined {
+  return error instanceof Error && 'completionStage' in error &&
+    (error.completionStage === 'marker' || error.completionStage === 'session')
+    ? error.completionStage
+    : undefined
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
 
 /** 与服务端 `scripts/setupRoutes.mjs#parseSetupInput` 同口径（客户端先拦，省一次往返） */
 const IDENTITY_PATTERN = /^[A-Za-z0-9_][A-Za-z0-9_.-]*$/
@@ -63,16 +86,61 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const [cacheKey,setCacheKey] = useState('')
   const [server,setServer] = useState(endpointBase())
   const [needsServer,setNeedsServer] = useState(!endpointBase() && isServerFirstWeb())
-  async function openSession() {
+  const [changeCompletion,setChangeCompletion] = useState<ChangeCompletion | null>(null)
+  const openSession = useCallback(async () => {
     if(isServerFirstWeb()){
-      const res=await endpointFetch('/api/workhub/client-state',{headers:{Authorization:getAuthToken()}})
-      const state=await res.json() as {owner:string;generation:string;schema:number;syncProtocol:number}
-      if(!res.ok || state.syncProtocol!==1)throw new Error('UPGRADE_REQUIRED: 服务器尚不支持当前客户端协议')
+      let res: Response
+      try {
+        res=await endpointFetch('/api/workhub/client-state',{headers:{Authorization:getAuthToken()}})
+      } catch {
+        throw new Error('工作台服务暂时不可用，请检查连接后重试')
+      }
+      if(!res.ok){
+        if(res.status===401||res.status===403)
+          throw httpError(`登录状态已失效或无权访问工作台（HTTP ${res.status}），请重新登录`,res.status)
+        if(res.status>=500)
+          throw httpError(`工作台服务暂时不可用（HTTP ${res.status}），请重试`,res.status)
+        throw httpError(`读取工作台状态失败（HTTP ${res.status}）`,res.status)
+      }
+      let state: {owner:string;generation:string;schema:number;syncProtocol:number}
+      try {
+        state=await res.json() as {owner:string;generation:string;schema:number;syncProtocol:number}
+      } catch {
+        throw new Error('服务器返回的工作台状态无效，请重试')
+      }
+      if(state.syncProtocol!==1)throw new Error('UPGRADE_REQUIRED: 服务器尚不支持当前客户端协议')
       saveAuthSession(getAuthToken(),getAuthIdentity(),state.owner)
       const session=activateClientSession(state.owner,state.generation,state.schema);setCacheKey(session.key)
     }
     setPhase('open')
-  }
+  }, [])
+  const finishPasswordChange = useCallback(async (startAt: Exclude<ChangeCompletion, 'reauth'>) => {
+    let stage = startAt
+    try {
+      if(stage==='marker'){
+        const token=getAuthToken()
+        if(!token)throw httpError('登录状态已失效',401)
+        const marker=await endpointFetch('/relay/admin-initialized',{
+          method:'POST',
+          headers:{Authorization:token},
+        })
+        if(!marker.ok){
+          let detail=''
+          try { detail=String((await marker.json() as {error?:unknown}).error || '') } catch { /* no body */ }
+          throw httpError(`写入密码初始化标记失败（HTTP ${marker.status}）${detail?`：${detail}`:''}`,marker.status)
+        }
+        stage='session'
+        setChangeCompletion(stage)
+      }
+      await openSession()
+      setChangeCompletion(null)
+    } catch (error) {
+      setChangeCompletion(stage)
+      const failure=error instanceof Error ? error as ChangeCompletionError : new Error(String(error)) as ChangeCompletionError
+      failure.completionStage=stage
+      throw failure
+    }
+  }, [openSession])
   useEffect(()=>{const fault=()=>{suspendClientSession();setPhase('unavailable')};const off=onConnectionChange(()=>{queueMicrotask(()=>{if(!clientSession() || clientSession()?.server!==endpointBase()){if(clientSession())suspendClientSession();setPhase('checking');setRetry(n=>n+1)}})});window.addEventListener('workhub:auth-fault',fault);return()=>{off();window.removeEventListener('workhub:auth-fault',fault)}},[])
   const [phase, setPhase] = useState<Phase>('checking')
   const [identity, setIdentity] = useState('')
@@ -143,12 +211,17 @@ export function AuthGate({ children }: { children: ReactNode }) {
         return
       }
       if (!cancelled) setPhase('login')
-      } catch { if (!cancelled) setPhase('unavailable') }
+      } catch (err) {
+        if (!cancelled) {
+          setError(errorMessage(err))
+          setPhase('unavailable')
+        }
+      }
     })()
     return () => {
       cancelled = true
     }
-  }, [retry,needsServer])
+  }, [retry,needsServer,openSession])
 
   const submitLogin = useCallback(
     async (e: React.FormEvent) => {
@@ -172,6 +245,28 @@ export function AuthGate({ children }: { children: ReactNode }) {
         }
         saveAuthSession(body.token,identity.trim(),body.record?.id || '')
 
+        // PATCH 已成功而自动重认证失败时，后续用新密码登录只完成剩余步骤，不再次改密。
+        if(changeCompletion==='reauth'){
+          setPassword('')
+          setChangeCompletion('marker')
+          try {
+            await finishPasswordChange('marker')
+          } catch (completionError) {
+            const status=errorStatus(completionError)
+            if(status===401||status===403){
+              clearAuth()
+              setChangeCompletion('reauth')
+              setPhase('login')
+              setError(`密码已更改，但新会话尚未完成初始化（${errorMessage(completionError)}）。请使用新密码重新登录。`)
+            }else{
+              const failedStage=completionStage(completionError)||'marker'
+              setPhase('change')
+              setError(`密码已更改，但${failedStage==='session'?'工作台状态验证':'初始化标记'}尚未完成（${errorMessage(completionError)}）。私人数据仍保持关闭；请点击“重试完成设置”。`)
+            }
+          }
+          return
+        }
+
         // 初始密码还没被替换掉 → 强制先改密（初始值是 compose 默认值，公开可知）
         const statusResponse=await endpointFetch('/relay/auth-status', { cache: 'no-store' })
         if(!statusResponse.ok)throw new Error('认证状态不可用，请重试')
@@ -184,11 +279,10 @@ export function AuthGate({ children }: { children: ReactNode }) {
         setBusy(false)
       }
     },
-    [busy, identity, password],
+    [busy, changeCompletion, finishPasswordChange, identity, openSession, password],
   )
 
-  const submitChange = useCallback(
-    async (e: React.FormEvent) => {
+  async function submitChange(e: React.FormEvent) {
       e.preventDefault()
       if (busy) return
       setError('')
@@ -209,6 +303,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
         const token = getAuthToken()
         const userId = getAuthOwner()
         if (!token || !userId) throw new Error('登录态已失效，请重新登录')
+        const loginIdentity = getAuthIdentity() || identity.trim()
         const res = await endpointFetch(`/api/collections/users/records/${userId}`, {
           method: 'PATCH',
           headers: { 'content-type': 'application/json', Authorization: token },
@@ -218,23 +313,98 @@ export function AuthGate({ children }: { children: ReactNode }) {
           const b = (await res.json().catch(() => ({}))) as { message?: string }
           throw new Error(b.message || `修改密码失败（HTTP ${res.status}）`)
         }
-        // 密码已经换掉，初始密码自此失效；再落标记让下次不再要求改密
-        await endpointFetch('/relay/admin-initialized', {
-          method: 'POST',
-          headers: { Authorization: token },
-        }).catch(() => undefined)
+        // PATCH 成功后旧 token 可能立刻失效。此后只用新密码重认证取得的 token。
+        setChangeCompletion('reauth')
         setPassword('')
         setNewPw('')
         setConfirmPw('')
-        await openSession()
+
+        let auth: { token?: string; record?: { id?: string }; message?: string }
+        try {
+          if (!loginIdentity) throw new Error('当前登录账号不可用')
+          const login = await endpointFetch('/api/collections/users/auth-with-password', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ identity: toIdentity(loginIdentity), password: newPw }),
+          })
+          auth = await login.json().catch(() => ({})) as {
+            token?: string
+            record?: { id?: string }
+            message?: string
+          }
+          if (!login.ok || !auth.token) {
+            throw httpError(auth.message || `新密码登录失败（HTTP ${login.status}）`,login.status)
+          }
+          // 统一保存页面会话，后续初始化标记和 client-state 都只能使用这个新 token。
+          saveAuthSession(auth.token,loginIdentity,auth.record?.id || userId)
+          setChangeCompletion('marker')
+        } catch (err) {
+          clearAuth()
+          setIdentity(loginIdentity)
+          setChangeCompletion('reauth')
+          setPhase('login')
+          const status=errorStatus(err)
+          const reason=status===401||status===403
+            ? '新密码认证被拒绝'
+            : status && status>=500
+              ? '认证服务暂时不可用'
+              : '自动重新登录失败'
+          setError(`密码已更改，但${reason}（${errorMessage(err)}）。请在登录页使用新密码手动登录。`)
+          return
+        }
+
+        setChangeCompletion('marker')
+        try {
+          await finishPasswordChange('marker')
+        } catch (err) {
+          const status=errorStatus(err)
+          if(status===401||status===403){
+            clearAuth()
+            setIdentity(loginIdentity)
+            setPhase('login')
+            setChangeCompletion('reauth')
+            setError(`密码已更改，但新会话未能完成初始化（${errorMessage(err)}）。请在登录页使用新密码重新登录。`)
+          }else{
+            const failedStage=completionStage(err)||'marker'
+            setError(`密码已更改，但${failedStage==='session'?'工作台状态验证':'初始化标记'}尚未完成（${errorMessage(err)}）。私人数据仍保持关闭；请点击“重试完成设置”。`)
+          }
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err))
       } finally {
         setBusy(false)
       }
-    },
-    [busy, confirmPw, newPw, password],
-  )
+  }
+
+  async function retryPasswordCompletion() {
+    if (busy || !changeCompletion) return
+    if(changeCompletion==='reauth'){
+      setPhase('login')
+      setError('密码已更改，请使用新密码重新登录以继续完成设置。')
+      return
+    }
+    setBusy(true)
+    setError('')
+    try {
+      await finishPasswordChange(changeCompletion)
+    } catch (err) {
+      const status=errorStatus(err)
+      if(status===401||status===403){
+        const loginIdentity=getAuthIdentity()||identity.trim()
+        clearAuth()
+        setIdentity(loginIdentity)
+        setPassword('')
+        setPhase('login')
+        setChangeCompletion('reauth')
+        setError(`密码已更改，但新会话未能完成初始化（${errorMessage(err)}）。请在登录页使用新密码重新登录。`)
+      }else{
+        const failedStage=completionStage(err)||changeCompletion
+        setError(`密码已更改，但${failedStage==='session'?'工作台状态验证':'初始化标记'}尚未完成（${errorMessage(err)}）。私人数据仍保持关闭；请点击“重试完成设置”。`)
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
 
   /**
    * 首启初始化：建号 → 直接用新账号登录 → 进应用。
@@ -309,7 +479,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
         setSetupBusy(false)
       }
     },
-    [setupBusy, setupConfirm, setupIdentity, setupPw],
+    [openSession, setupBusy, setupConfirm, setupIdentity, setupPw],
   )
 
   const box = 'w-full max-w-sm rounded-xl border border-outline-variant bg-surface-container-lowest p-6'
@@ -317,7 +487,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const input =
     'mt-1 w-full rounded-lg border border-outline-variant bg-surface px-3 py-2 text-[0.9286rem] text-on-surface'
 
-  if (phase === 'unavailable') return <div role="alert" className="flex min-h-screen flex-col items-center justify-center gap-4 bg-surface"><p>认证服务暂时不可用，请重试</p><Button onClick={() => setRetry(n => n + 1)}>重试</Button></div>
+  if (phase === 'unavailable') return <div role="alert" className="flex min-h-screen flex-col items-center justify-center gap-4 bg-surface"><p>{error || '认证服务暂时不可用，请重试'}</p><Button onClick={() => { setError(''); setRetry(n => n + 1) }}>重试</Button></div>
 
   if(needsServer) return <div className="mx-auto max-w-lg p-6"><h1>连接个人服务器</h1><label>VPS HTTPS 地址<input className={input} value={server} onChange={e=>setServer(e.target.value)} /></label>{error&&<p role="alert">{error}</p>}<Button onClick={()=>{try{setEndpoint(server);setNeedsServer(false);setRetry(n=>n+1)}catch(e){setError(String(e))}}}>连接并登录</Button></div>
 
@@ -433,43 +603,54 @@ export function AuthGate({ children }: { children: ReactNode }) {
             初始密码是公开的默认值，必须换掉后才能进入工作台。改完即失效。
           </p>
 
-          <label className={label}>
-            当前密码
-            <input
-              type="password"
-              className={input}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="current-password"
-              autoFocus
-            />
-          </label>
-          <label className={label}>
-            新密码（至少 8 位）
-            <input
-              type="password"
-              className={input}
-              value={newPw}
-              onChange={(e) => setNewPw(e.target.value)}
-              autoComplete="new-password"
-            />
-          </label>
-          <label className={label}>
-            确认新密码
-            <input
-              type="password"
-              className={input}
-              value={confirmPw}
-              onChange={(e) => setConfirmPw(e.target.value)}
-              autoComplete="new-password"
-            />
-          </label>
+          {changeCompletion ? (
+            <>
+              {error && <p role="alert" className="mt-3 text-[0.8214rem] text-error">{error}</p>}
+              <Button type="button" onClick={retryPasswordCompletion} disabled={busy} className="mt-4 w-full justify-center">
+                {busy ? '验证中…' : '重试完成设置'}
+              </Button>
+            </>
+          ) : (
+            <>
+              <label className={label}>
+                当前密码
+                <input
+                  type="password"
+                  className={input}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
+                  autoFocus
+                />
+              </label>
+              <label className={label}>
+                新密码（至少 8 位）
+                <input
+                  type="password"
+                  className={input}
+                  value={newPw}
+                  onChange={(e) => setNewPw(e.target.value)}
+                  autoComplete="new-password"
+                />
+              </label>
+              <label className={label}>
+                确认新密码
+                <input
+                  type="password"
+                  className={input}
+                  value={confirmPw}
+                  onChange={(e) => setConfirmPw(e.target.value)}
+                  autoComplete="new-password"
+                />
+              </label>
 
-          {error && <p className="mt-3 text-[0.8214rem] text-error">{error}</p>}
+              {error && <p role="alert" className="mt-3 text-[0.8214rem] text-error">{error}</p>}
 
-          <Button type="submit" disabled={busy || !password || !newPw || !confirmPw} className="mt-4 w-full justify-center">
-            {busy ? '提交中…' : '设置并进入'}
-          </Button>
+              <Button type="submit" disabled={busy || !password || !newPw || !confirmPw} className="mt-4 w-full justify-center">
+                {busy ? '提交中…' : '设置并进入'}
+              </Button>
+            </>
+          )}
         </form>
       </div>
     )

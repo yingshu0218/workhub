@@ -36,4 +36,4 @@ routerAdd('GET','/api/workhub/attachments/{id}/file',e=>{
       return e.stream(200,'application/octet-stream',reader)
     }finally{reader.close()}
   }finally{fsys.close()}
-},$apis.requireAuth('users'))
+},e=>require(__hooks+'/personal-auth.js').ownerOrAgent(e))

@@ -69,14 +69,22 @@ try {
   })
   await test('事务内身份、引用、协议校验与旧集合入口封锁',async()=>{
     assert.equal((await api('/api/workhub/commands',{},'')).status,401)
+    assert.equal((await api('/api/workhub/state',undefined,'')).status,401)
+    assert.equal((await api('/api/workhub/state',undefined,'invalid-auth-token')).status,401)
     assert.notEqual((await api('/api/collections/todos/records',{localId:'bypass',title:'bad'})).status,200)
     const c=command([put('interactions','test:orphan',{customerId:'missing',content:'bad',at:1})],[missing('interactions','test:orphan')])
     assert.match((await api('/api/workhub/commands',c)).body.error,/FROZEN_SOURCE/)
     const edge=command([put('links','test:ghost-edge',{fromType:'activities',fromId:'missing',toType:'customers',toId:'missing',kind:'related'})],[missing('links','test:ghost-edge')])
     assert.match((await api('/api/workhub/commands',edge)).body.error,/REFERENCE/)
     const foreign=await api('/api/collections/users/records',{email:'foreign@example.test',password,passwordConfirm:password},superToken)
-    const other=(await api('/api/collections/users/auth-with-password',{identity:'foreign@example.test',password},'')).body.token
-    assert.ok(foreign.body.id);assert.equal((await api('/api/workhub/state',undefined,other)).status,403)
+    const foreignAuth=await api('/api/collections/users/auth-with-password',{identity:'foreign@example.test',password},'')
+    assert.ok(foreign.body.id);assert.equal(foreignAuth.status,200);assert.equal(foreignAuth.body.record?.id,foreign.body.id);assert.ok(foreignAuth.body.token)
+    assert.equal((await api('/api/workhub/state',undefined,foreignAuth.body.token)).status,403)
+    const agent=await api('/api/workhub/agents',{action:'issue',name:'reliability state agent',capabilities:['activity:read']})
+    assert.equal(agent.status,200,JSON.stringify(agent.body))
+    const agentState=await fetch(base+'/api/workhub/state',{headers:{'X-Workhub-Agent-Key':agent.body.token}})
+    assert.equal(agentState.status,200)
+    assert.equal((await api('/api/workhub/client-state',undefined,agent.body.token)).status,401)
   })
   let receipt, original
   await test('A06 A07 并发、丢响应及跨进程重试持久幂等；相同事实新ID正常新增',async()=>{
@@ -132,7 +140,7 @@ try {
   await test('生产服务端 Agent 与 UI 命令端点同源、稳定 requestId、票据重试',async()=>{
     const {initServerExecutor}=await import(join(root,'dist-server/server-executor.mjs'))
     const owner=(await records('users')).find(u=>u.email.startsWith('owner'))
-    const executor=initServerExecutor({pb:{baseUrl:base,account:owner.email,password},domains:{read:true,fin:true,crm:true,todo:true}})
+    const executor=initServerExecutor({pb:{baseUrl:base,account:owner.email,password},domains:{read:true,fin:true,crm:true,todo:true,link:true}})
     const legacyWrite=await executor.callTool('todo_createTodo',{title:'缺少原世代的旧请求'});assert.equal(legacyWrite.ok,false);assert.match(legacyWrite.error,/REQUEST_CONTEXT_REQUIRED/)
     const defaultLedger=await executor.callTool('fin_createLedger',{name:'真实默认账本',currency:'CNY',openingBalance:0,closingCycle:'不封账',isDefault:true},{requestId:'agent_default_ledger',generation});assert.equal(defaultLedger.ok,true,JSON.stringify(defaultLedger));assert.equal((await records('ledgers')).find(r=>r.localId===defaultLedger.data.ledgerId).isDefault,true)
     const input={summary:'真实 Agent',amount:3.14,type:'income',ledgerId:ledger.id,customerIds:[c1.id,c2.id]}

@@ -9,7 +9,18 @@ const shapes={
   links:{id:'',rev:0,deleted:0,fromType:'',fromId:'',toType:'',toId:'',kind:'',meta:'{}'},
   operations:{id:'',owner:'',clientId:'',requestId:'',generation:'',status:'',kind:'',sequence:0,committedAt:0,updatedAt:0,expired:0},
 }
-exports.scoped=e=>{try{const h=host($app,e),d=e.requestInfo().body;if(!h.can(d.table))throw new Error('FORBIDDEN: '+d.table);const items=h.select(d.table,{...d.scope,limit:1001});if(items.length>1000)throw new Error('LIMIT_EXCEEDED: 范围超过一千条');return e.json(200,{items})}catch(err){return commands.error(e,err)}}
+function noteFolderMembershipScope(scope){
+  if(!scope || Object.keys(scope).some(key=>key!=='where'&&key!=='ids'))return false
+  if(scope.ids!==undefined && (!Array.isArray(scope.ids)||scope.ids.length>400||scope.ids.some(id=>typeof id!=='string')))return false
+  const where=scope.where
+  return !!where && Object.keys(where).length===4 && where.deleted===0 && where.fromType==='notes' && where.toType==='noteFolders' && where.kind==='member'
+}
+exports.scoped=e=>{try{const h=host($app,e),d=e.requestInfo().body
+  const noteMembershipRead=d.table==='links'&&h.principal.clientId!=='owner'&&h.principal.capabilities.includes('note:read')&&noteFolderMembershipScope(d.scope)
+  if(!h.can(d.table)&&!noteMembershipRead)throw new Error('FORBIDDEN: '+d.table)
+  if(h.principal.clientId!=='owner'&&['operations','operation_effects'].includes(d.table))throw new Error('FORBIDDEN: 操作回执须经客户端绑定查询')
+  const items=h.select(d.table,{...d.scope,limit:1001});if(items.length>1000)throw new Error('LIMIT_EXCEEDED: 范围超过一千条');return e.json(200,{items})
+}catch(err){return commands.error(e,err)}}
 function host(app,e){
   commands.owner(app,e);const principal=auth.principal(app,e),cache={}
   const get=(table,id)=>{
@@ -21,7 +32,7 @@ function host(app,e){
     return cache[k] || undefined
   }
   const select=(table,q)=>{
-    if(!['activities','customers','projects','projectMilestones','todos','transactions','notes','links','operations','operation_effects'].includes(table))throw new Error('INVALID_QUERY: '+table)
+    if(!['activities','customers','projects','projectMilestones','todos','todoLists','transactions','ledgers','notes','noteFolders','attachments','links','interactions','operations','operation_effects'].includes(table))throw new Error('INVALID_QUERY: '+table)
     if(q.ids && !q.ids.length)return []
     if(q.ids?.length>400 && !q.projection){
       const all=[];for(let at=0;at<q.ids.length;at+=400)all.push(...select(table,{...q,ids:q.ids.slice(at,at+400),offset:0,limit:20001}))
@@ -236,10 +247,10 @@ exports.agents=e=>{
   }catch(err){return commands.error(e,err)}
 }
 exports.verify=e=>{
-  try{commands.owner($app,e);const d=e.requestInfo().body
-    if(d.kind==='shared-transition' && d.token===undefined){const state=commands.stateOf($app);if(state.getString('sharedTokenGeneration')!==state.getString('generation') || !state.getFloat('sharedTokenUntil')||Date.now()>state.getFloat('sharedTokenUntil'))throw new Error('UNAUTHORIZED: 共享 token 过渡期已结束');return e.json(200,{clientId:'shared-transition',capabilities:['*'],transitionUntil:state.getFloat('sharedTokenUntil')})}
+  try{const d=e.requestInfo().body
+    if(d.kind==='shared-transition' && d.token===undefined){commands.owner($app,e);const state=commands.stateOf($app);if(state.getString('sharedTokenGeneration')!==state.getString('generation') || !state.getFloat('sharedTokenUntil')||Date.now()>state.getFloat('sharedTokenUntil'))throw new Error('UNAUTHORIZED: 共享 token 过渡期已结束');return e.json(200,{clientId:'shared-transition',capabilities:['*'],transitionUntil:state.getFloat('sharedTokenUntil')})}
     if(d.kind!==undefined && d.kind!=='agent' || typeof d.token!=='string' || !d.token.trim())throw new Error('UNAUTHORIZED: 需要明确的非空 Agent 凭据')
-    const principal=auth.principal($app,{auth:e.auth,request:{header:{get:name=>name==='X-Workhub-Agent-Key'?d.token:''}}})
+    const principal=auth.agentPrincipal($app,d.token,e)
     return e.json(200,{clientId:principal.clientId,capabilities:principal.capabilities})
   }catch(err){return commands.error(e,err)}
 }

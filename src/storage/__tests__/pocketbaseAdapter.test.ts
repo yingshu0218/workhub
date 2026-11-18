@@ -182,4 +182,76 @@ describe('PocketBaseAdapter（服务端只读）', () => {
     const adapter = createPocketBaseAdapter({ baseUrl: 'http://127.0.0.1:9999', fetchImpl })
     await expect(adapter.list('customers')).rejects.toThrow(/未公开/)
   })
+
+  it('Agent key 遇 401 不登录、不带 owner token，也不重试', async () => {
+    const calls: { url: string; init?: RequestInit }[] = []
+    const token = vi.fn(() => 'owner-session-token')
+    const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      calls.push({ url: String(input), init })
+      return Response.json({ error: 'invalid agent key' }, { status: 401 })
+    }) as unknown as typeof fetch
+    const adapter = createPocketBaseAdapter({
+      baseUrl: 'http://127.0.0.1:9999',
+      account: 'owner@example.test',
+      password: 'old-owner-password',
+      token,
+      agentKey: 'wh_synthetic_agent_key',
+      fetchImpl,
+    })
+
+    await expect(adapter.transport.generation()).rejects.toThrow(/不会以拥有者身份重试/)
+    expect(calls).toHaveLength(1)
+    expect(calls[0]!.url).toMatch(/\/api\/workhub\/state$/)
+    const headers = new Headers(calls[0]!.init?.headers)
+    expect(headers.get('X-Workhub-Agent-Key')).toBe('wh_synthetic_agent_key')
+    expect(headers.has('Authorization')).toBe(false)
+    expect(calls.some((call) => call.url.endsWith('/auth-with-password'))).toBe(false)
+    expect(token).not.toHaveBeenCalled()
+  })
+
+  it('Agent key 只经有界 scoped 路由读授权记录，不访问 PocketBase records 镜像', async () => {
+    const calls: { url: string; init?: RequestInit }[] = []
+    const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      calls.push({ url: String(input), init })
+      return Response.json({ items: [{ id: 'cus-1', name: '合成联系人', tags: ['测试'], rev: 2, deleted: 0 }] })
+    }) as unknown as typeof fetch
+    const adapter = createPocketBaseAdapter({
+      baseUrl: 'http://127.0.0.1:9999', agentKey: 'wh_synthetic_agent_key', fetchImpl,
+    })
+    const rows = await adapter.list('customers') as unknown as Array<Record<string, unknown>>
+
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ id: 'cus-1', name: '合成联系人', tags: ['测试'], rev: 2 })
+    expect(new URL(calls[0]!.url).pathname).toBe('/api/workhub/scoped')
+    expect(JSON.parse(String(calls[0]!.init?.body))).toEqual({ table: 'customers', scope: { where: { deleted: 0 } } })
+    expect(new Headers(calls[0]!.init?.headers).get('X-Workhub-Agent-Key')).toBe('wh_synthetic_agent_key')
+    expect(calls.every((call) => !call.url.includes('/api/collections/customers/records'))).toBe(true)
+  })
+
+  it('note:read 可按限定成员范围读取笔记文件夹链接，不要求 link:read', async () => {
+    const calls: { url: string; init?: RequestInit }[] = []
+    const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      calls.push({ url: String(input), init })
+      return Response.json({ items: [{ id: 'membership-1', fromType: 'notes', toType: 'noteFolders', kind: 'member', deleted: 0 }] })
+    }) as unknown as typeof fetch
+    const adapter = createPocketBaseAdapter({
+      baseUrl: 'http://127.0.0.1:9999',
+      agentKey: 'wh_synthetic_agent_key',
+      agentCapabilities: ['note:read'],
+      fetchImpl,
+    })
+
+    await adapter.list('links')
+
+    expect(JSON.parse(String(calls[0]!.init?.body))).toEqual({
+      table: 'links',
+      scope: { where: { deleted: 0, fromType: 'notes', toType: 'noteFolders', kind: 'member' } },
+    })
+  })
+
+  it('Agent scoped list 超过 1000 条时拒绝，不截断成镜像', async () => {
+    const fetchImpl = (async () => Response.json({ items: Array.from({ length: 1001 }, (_, i) => ({ id: `cus-${i}` })) })) as typeof fetch
+    const adapter = createPocketBaseAdapter({ baseUrl: 'http://127.0.0.1:9999', agentKey: 'wh_synthetic_agent_key', fetchImpl })
+    await expect(adapter.list('customers')).rejects.toThrow(/超过一千条/)
+  })
 })

@@ -234,6 +234,14 @@ async function importCollectionsIfFresh() {
 // ── 反代 ────────────────────────────────────────────────────────────────────
 
 function proxyHttp(req, res, target) {
+  // 独立 Agent 的 raw key 只用于同容器内 Relay→PB 的逐请求校验。
+  // 公网 /api 是 owner 网页入口；若把 key 透传，调用方可绕开 Relay 的一次性确认票。
+  // 以“头是否出现”判断，保证 owner JWT + 空/坏 Agent 头也 fail closed。
+  if (target === PB_TARGET && Object.hasOwn(req.headers, 'x-workhub-agent-key')) {
+    res.writeHead(401, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' })
+    res.end(JSON.stringify({ code: 'UNAUTHORIZED', error: 'Agent 凭据仅允许服务端执行器经内部通道使用' }))
+    return
+  }
   const up = httpRequest(
     { host: target.host, port: target.port, method: req.method, path: req.url, headers: forwardHeaders(req, target) },
     (upRes) => {
@@ -250,6 +258,10 @@ function proxyHttp(req, res, target) {
 }
 
 function proxyUpgrade(req, socket, head, target) {
+  if (target === PB_TARGET && Object.hasOwn(req.headers, 'x-workhub-agent-key')) {
+    socket.end('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\nContent-Length: 0\r\n\r\n')
+    return
+  }
   const up = httpRequest({
     host: target.host,
     port: target.port,
