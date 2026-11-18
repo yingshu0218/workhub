@@ -139,6 +139,11 @@ function Details({
     [title, setTitle] = useState(savedDraft.title ?? String(row.title || '')),
     [summary, setSummary] = useState(savedDraft.summary ?? initialSummary)
   const [baseRevision, setBaseRevision] = useState(savedDraft.revision ?? row.revision)
+  const canCancel =
+    operation &&
+    row.status === 'awaiting_confirmation' &&
+    row.canCancel === true &&
+    String(row.generation || '') === generation
 
   const [tail, setTail] = useState(''),
     [next, setNext] = useState<number | null | undefined>(),
@@ -207,6 +212,7 @@ function Details({
     }
   }
   async function cancel() {
+    if (!canCancel) return
     setBusy(true)
     try {
       await cancelPersonal({ requestId: String(row.requestId), generation })
@@ -228,12 +234,13 @@ function Details({
         {operation ? (
           <>
             <p>
-              {statusLabel(row.status)} · {String(row.initiator || '原发起端')}
+              {row.status === 'expired' ? '已过期' : statusLabel(row.status)} ·{' '}
+              {String(row.initiator || '原发起端')}
             </p>
             {row.status === 'awaiting_confirmation' ? (
               <>
                 <p>请返回原发起端确认这份预览。</p>
-                {row.canCancel ? (
+                {canCancel ? (
                   <Button disabled={busy} onClick={() => void cancel()}>
                     撤回本端预览
                   </Button>

@@ -7,7 +7,7 @@ const shapes={
   customers:{id:'',rev:0,deleted:0,name:'',aliases:'[]',preferredName:'',contactType:'',company:'',lastContactAt:0,tags:'[]',email:'',phone:'',wechat:''},
   projects:{id:'',rev:0,deleted:0,name:'',aliases:'[]',status:''},
   links:{id:'',rev:0,deleted:0,fromType:'',fromId:'',toType:'',toId:'',kind:'',meta:'{}'},
-  operations:{id:'',owner:'',clientId:'',requestId:'',generation:'',status:'',kind:'',sequence:0,committedAt:0,updatedAt:0},
+  operations:{id:'',owner:'',clientId:'',requestId:'',generation:'',status:'',kind:'',sequence:0,committedAt:0,updatedAt:0,expired:0},
 }
 exports.scoped=e=>{try{const h=host($app,e),d=e.requestInfo().body;if(!h.can(d.table))throw new Error('FORBIDDEN: '+d.table);const items=h.select(d.table,{...d.scope,limit:1001});if(items.length>1000)throw new Error('LIMIT_EXCEEDED: 范围超过一千条');return e.json(200,{items})}catch(err){return commands.error(e,err)}}
 function host(app,e){
@@ -39,7 +39,7 @@ function host(app,e){
     const limit=Math.min(20001,Math.max(1,Number(q.limit || 50))),offset=Math.max(0,Number(q.offset || 0))
     if(q.projection && shapes[table]){
       const totals=q.projection==='totals'&&table==='transactions',shape=totals?{currency:'',incomeMinor:0,expenseMinor:0,count:0}:q.projection==='identity'?{id:'',occurredAt:0}:q.projection==='edge'?{fromId:'',toId:''}:shapes[table],fields=Object.keys(shape)
-      const columns=totals?'currency,SUM(CASE WHEN type=\'income\' THEN amountMinor ELSE 0 END) AS incomeMinor,SUM(CASE WHEN type=\'expense\' THEN amountMinor ELSE 0 END) AS expenseMinor,COUNT(*) AS count':fields.map(k=>{if(k==='id')return (table==='operations'?'id':'localId')+' AS id';params['default_'+k]=shape[k];const value='COALESCE("'+k+'",{:default_'+k+'})';return (k==='summary'?'substr('+value+',1,501)':value)+' AS "'+k+'"'}).join(',')
+      const columns=totals?'currency,SUM(CASE WHEN type=\'income\' THEN amountMinor ELSE 0 END) AS incomeMinor,SUM(CASE WHEN type=\'expense\' THEN amountMinor ELSE 0 END) AS expenseMinor,COUNT(*) AS count':fields.map(k=>{if(k==='id')return (table==='operations'?'id':'localId')+' AS id';if(table==='operations'&&k==='expired')return "CASE WHEN json_extract(result,'$.cancellationReason')='expired' THEN 1 ELSE 0 END AS expired";params['default_'+k]=shape[k];const value='COALESCE("'+k+'",{:default_'+k+'})';return (k==='summary'?'substr('+value+',1,501)':value)+' AS "'+k+'"'}).join(',')
       const source=' FROM "'+table+'"'+(terms.length?' WHERE '+terms.join(' AND ').replace(/&&/g,' AND ').replace(/\|\|/g,' OR '):'')
       const sql=q.projection==='grouped'&&table==='activities'?'SELECT DISTINCT toId AS id FROM links WHERE fromType=\'activities\' AND toType=\'transactions\' AND deleted=0 AND fromId IN (SELECT localId'+source+') ORDER BY toId LIMIT '+limit:'SELECT '+columns+source+(totals?' GROUP BY currency ORDER BY currency':' ORDER BY '+sort.split(',').map(k=>'"'+k.replace(/^-/,'')+'" '+(k[0]==='-'?'DESC':'ASC')).join(','))+' LIMIT '+limit+' OFFSET '+offset
       const rows=arrayOf(new DynamicModel(q.projection==='grouped'?{id:''}:shape));app.db().newQuery(sql).bind(params).all(rows)
@@ -73,6 +73,16 @@ function context(app,e,d,name){
   const limit=Math.min(50,Math.max(1,Number(d.limit || 20)))
   const envelope=(items,hasMore,extra={})=>({items,count:items.length,truncated:!!hasMore,nextCursor:hasMore?JSON.stringify({g:generation,w:watermark,k:queryKey,c:h.client,o:offset+items.length,a:asOf}):null,scope,generation,watermark,queryKey,asOf,...extra})
   return {h,offset,limit,envelope}
+}
+function operationOwnedByClient(h,row){
+  return row && row.owner===h.owner && (h.client==='owner' || row.clientId===h.client)
+}
+function canCancelOperation(h,row,generation){
+  // 1794355202 会把迁移前待确认项清为 cancelled；空 clientId 的历史行无法可靠映射到发起端。
+  return !!row && row.owner===h.owner && row.generation===generation && row.status==='awaiting_confirmation' && typeof row.clientId==='string' && row.clientId.length>0 && row.clientId===h.client
+}
+function operationStatus(row){
+  return row.status==='cancelled' && (row.expired===1 || row.result?.cancellationReason==='expired')?'expired':row.status
 }
 function relatedRows(h,table,id){
   return core.personalLinks(h,table,id).map(l=>{const r=core.otherEndpoint(l,table,id),target=h.can(r.table)?h.get(r.table,r.id):null;return target&&!target.deleted?{...core.projectRecord(h,r.table,target),kind:l.kind,evidence:l.meta?.sourceActivityId&&h.can('activities')?{activityId:l.meta.sourceActivityId}:null}:null}).filter(Boolean)
@@ -134,21 +144,28 @@ exports.query=e=>{
       }
       if(name==='get_operation' || name==='list_operations'){
         if(!h.can('operation'))throw new Error('FORBIDDEN: operation')
-        const rows=name==='get_operation'?[d.operationId?h.get('operations',String(d.operationId)):commands.rowOf(commands.op(app,h.owner,String(d.requestId)))].filter(Boolean):h.select('operations',{where:{owner:h.owner,...(h.client!=='owner'?{clientId:h.client}:{}),...(d.status?{status:String(d.status)}:{})},sort:d.status==='awaiting_confirmation'?'-updatedAt,id':'-committedAt,id',projection:'list',limit:limit+1,offset})
+        const generation=commands.stateOf(app).getString('generation')
+        let rows
+        if(name==='get_operation')rows=[d.operationId?h.get('operations',String(d.operationId)):commands.rowOf(commands.op(app,h.owner,String(d.requestId)))].filter(Boolean)
+        else{
+          const expired=d.status==='expired',selected=h.select('operations',{where:{owner:h.owner,...(h.client!=='owner'?{clientId:h.client}:{}),...(d.status?{status:expired?'cancelled':String(d.status)}:{})},sort:d.status==='awaiting_confirmation'||expired?'-updatedAt,id':'-committedAt,id',projection:'list',limit:expired?20001:limit+1,offset:expired?0:offset})
+          if(expired&&selected.length>20000)throw new Error('LIMIT_EXCEEDED: 过期操作超过两万条')
+          rows=expired?selected.filter(r=>r.expired===1).slice(offset,offset+limit+1):selected
+        }
         if(name==='get_operation'&&!rows.length)throw new Error('NOT_FOUND: operation')
         if(name==='get_operation'&&d.view==='effects'){
-          const r=rows[0];if(r.owner!==h.owner || h.client!=='owner' && r.clientId && r.clientId!==h.client)throw new Error('FORBIDDEN: operation')
+          const r=rows[0];if(!operationOwnedByClient(h,r))throw new Error('FORBIDDEN: operation')
           const effects=h.select('operation_effects',{where:{operationId:r.id},sort:'sequence,ordinal',limit:501}).filter(x=>h.can(x.tableName))
           result=envelope(effects.slice(offset,offset+limit).map(x=>({id:x.id,table:x.tableName,recordId:x.recordId,beforeRev:x.beforeRev,afterRev:x.afterRev,action:x.action,redacted:!!x.redacted,path:core.recordPath(x.tableName,x.recordId)})),effects.length>offset+limit);return
         }
-        if(name==='list_operations'){result=envelope(rows.slice(0,limit).map(r=>({id:r.id,path:core.recordPath('operations',r.id),requestId:r.requestId,status:r.status,kind:r.kind,initiator:r.clientId==='owner'?'拥有者网页':'Agent客户端',canCancel:(!r.clientId || r.clientId===h.client),generation:r.generation,watermark:r.sequence,committedAt:r.committedAt,updatedAt:r.updatedAt,detailsQuery:{name:'get_operation',input:{operationId:r.id}}})),rows.length>limit);return}
+        if(name==='list_operations'){result=envelope(rows.slice(0,limit).map(r=>({id:r.id,path:core.recordPath('operations',r.id),requestId:r.requestId,status:operationStatus(r),kind:r.kind,initiator:r.clientId==='owner'?'拥有者网页':'Agent客户端',canCancel:canCancelOperation(h,r,generation),generation:r.generation,watermark:r.sequence,committedAt:r.committedAt,updatedAt:r.updatedAt,detailsQuery:{name:'get_operation',input:{operationId:r.id}}})),rows.length>limit);return}
         result=envelope(rows.slice(0,limit).map(r=>{
-          if(r.owner!==h.owner || h.client!=='owner' && r.clientId && r.clientId!==h.client)throw new Error('FORBIDDEN: operation')
+          if(!operationOwnedByClient(h,r))throw new Error('FORBIDDEN: operation')
           const effects=h.select('operation_effects',{where:{operationId:r.id},sort:'sequence,ordinal',limit:501}).filter(x=>h.can(x.tableName))
           const effectRows=effects.map(x=>({id:x.id,table:x.tableName,recordId:x.recordId,beforeRev:x.beforeRev,afterRev:x.afterRev,action:x.action,redacted:!!x.redacted,path:core.recordPath(x.tableName,x.recordId)}))
-          const receipt=auth.receipt(h.principal,r.result)
+          const receipt=r.status==='committed'?auth.receipt(h.principal,r.result):null
           if(receipt){receipt.changesTruncated=(receipt.changes || []).length>100;receipt.changes=(receipt.changes || []).slice(0,100).map(c=>({table:c.table,id:c.id,redacted:c.redacted || false,record:c.row?core.projectRecord(h,c.table,c.row):null}));receipt.result={committed:true,redacted:effects.some(x=>x.redacted)}}
-          return {id:r.id,path:core.recordPath('operations',r.id),requestId:r.requestId,status:r.status,kind:r.kind,initiator:r.clientId==='owner'?'拥有者网页':'Agent客户端',canCancel:(!r.clientId || r.clientId===h.client),generation:r.generation,watermark:r.sequence,committedAt:r.committedAt,updatedAt:r.updatedAt,receipt,effects:effectRows.slice(0,50),effectsTruncated:effects.length>50,effectsQuery:{name:'get_operation',input:{operationId:r.id,view:'effects'}}}
+          return {id:r.id,path:core.recordPath('operations',r.id),requestId:r.requestId,status:operationStatus(r),kind:r.kind,initiator:r.clientId==='owner'?'拥有者网页':'Agent客户端',canCancel:canCancelOperation(h,r,generation),generation:r.generation,watermark:r.sequence,committedAt:r.committedAt,updatedAt:r.updatedAt,receipt,effects:effectRows.slice(0,50),effectsTruncated:effects.length>50,effectsQuery:{name:'get_operation',input:{operationId:r.id,view:'effects'}}}
         }),rows.length>limit);return
       }
       if(name==='query_graph'){
@@ -229,10 +246,18 @@ exports.verify=e=>{
 exports.cancel=e=>{
   try{const d=e.requestInfo().body;let result
     $app.runInTransaction(app=>{const h=host(app,e),state=commands.stateOf(app);if(d.generation!==state.getString('generation'))throw new Error('RECOVERY_REVIEW_REQUIRED: 世代已改变')
-      const op=commands.op(app,h.owner,d.requestId);if(!op || h.client!=='owner'&&op.getString('clientId')!==h.client)throw new Error('FORBIDDEN: 操作归属')
+      if(typeof d.requestId!=='string'||!/^[A-Za-z0-9:_-]{8,128}$/.test(d.requestId))throw new Error('INVALID_REQUEST_ID: 需要原请求标识')
+      const op=commands.op(app,h.owner,d.requestId);if(!op)throw new Error('NOT_FOUND: operation')
+      if(op.getString('owner')!==h.owner || op.getString('generation')!==d.generation)throw new Error('RECOVERY_REVIEW_REQUIRED: 操作不属于当前世代')
+      if(op.getString('clientId')!==h.client)throw new Error('FORBIDDEN: 只能撤回发起客户端自己的操作')
       if(op.getString('status')==='committed')throw new Error('ALREADY_COMMITTED: 已提交，请使用撤销预览')
-      op.set('status','cancelled');op.set('plan',null);op.set('updatedAt',Date.now());app.save(op);state.set('sequence',state.getInt('sequence')+1);app.save(state);result={id:op.id,status:'cancelled',generation:d.generation,watermark:state.getInt('sequence')}
+      if(op.getString('status')==='cancelled'){
+        if(commands.json(op.get('result'))?.cancellationReason==='expired')throw new Error('PREVIEW_EXPIRED: 待确认预览已过期，请使用新请求')
+        result={id:op.id,status:'cancelled',generation:d.generation,watermark:state.getInt('sequence'),replayed:true};return
+      }
+      if(op.getString('status')!=='awaiting_confirmation')throw new Error('INVALID_OPERATION_STATE: 操作当前不可撤回')
+      op.set('status','cancelled');op.set('plan',null);op.set('updatedAt',Date.now());app.save(op);state.set('sequence',state.getInt('sequence')+1);app.save(state);result={id:op.id,status:'cancelled',generation:d.generation,watermark:state.getInt('sequence'),replayed:false}
     });return e.json(200,result)
-  }catch(err){return commands.error(e,err)}
+  }catch(err){const message=String(err.message || err);if(message.startsWith('PREVIEW_EXPIRED:'))return e.json(409,{code:'PREVIEW_EXPIRED',error:message});return commands.error(e,err)}
 }
-exports.cleanupPending=()=>{$app.runInTransaction(app=>{const rows=app.findRecordsByFilter('operations','status="awaiting_confirmation" && updatedAt < {:cutoff}','',500,0,{cutoff:Date.now()-7*86400000});for(const row of rows){row.set('status','cancelled');row.set('plan',null);row.set('updatedAt',Date.now());app.save(row)}if(rows.length){const state=commands.stateOf(app);state.set('sequence',state.getInt('sequence')+1);app.save(state)}})}
+exports.cleanupPending=()=>{$app.runInTransaction(app=>{const now=Date.now(),rows=app.findRecordsByFilter('operations','status="awaiting_confirmation" && updatedAt < {:cutoff}','',500,0,{cutoff:now-7*86400000});for(const row of rows){row.set('status','cancelled');row.set('plan',null);row.set('result',{cancellationReason:'expired',expiredAt:now});row.set('updatedAt',now);app.save(row)}if(rows.length){const state=commands.stateOf(app);state.set('sequence',state.getInt('sequence')+1);app.save(state)}})}

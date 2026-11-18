@@ -4,7 +4,10 @@
 >
 > **当前口径（2026-11-17）**：产品为完全个人使用的助手；开发验证环境重新建立于用户授权的 `devtest` 独立目录，旧 9001 环境仍已停用。正式站未在本轮修改。历史轮次中的团队、Local-First Web 和旧环境描述不代表当前实现；见 [开发测试环境说明](开发测试环境说明.md)。
 
-**最后更新**：2026-11-17（习惯/奖杯退役、模块与时间线配色；devtest 与 Ego 验收完成）
+**最后更新**：2026-11-18（个人工作台的笔记、预览与 Agent 接入）
+- 预览撤回仅允许原客户端操作。拥有者与两个 Agent 的九种身份组合、撤回与提交竞态，以及记录页按钮均已核验。
+
+**上一轮**：2026-11-17（习惯/奖杯退役、模块与时间线配色；devtest 与 Ego 验收完成）
 - 按用户裁决移除习惯/打卡、成就奖杯与成长展示：导航、首页卡片、页面、搜索结果、通知配置、Agent 授权入口和专注自动联动均已清理；旧 `/habits/*`、`/trophies/*` replace 到工作台。账号偏好迁入 identity，身份设置仍可达；专注计时继续保留。旧功能清单中的习惯/成长能力现为历史记录，不再代表当前产品。
 - 四个习惯写工具从注册/schema/生成技能移除，当前 **57 个业务工具 + confirm_preview = 58 条 MCP 工具**。旧调用返回 `FEATURE_RETIRED`；PB 在权威事务和 preview 中阻止 habits/habitLogs/trophies 新建与业务字段编辑，拒绝旧 pending 计划；已提交回执仍按原请求重放。纯回收站删除/恢复和既有永久清理保留，恢复不再产生打卡通知。历史表、读取、导出、镜像和冻结迁移未删除；新演示库不再播种退役数据。
 - `moduleTheme.ts` 统一导航、页面/浮层与时间线：待办琥珀、收支翠绿、联系人玫红、笔记紫、事项靛蓝、时间线青、图谱青绿、灵感橙，工作台与设置/账号等也有独立配色。时间线保留图标、类别与来源文字（独立收支/经历/承诺变化），未知类别安全回退；明暗色及12套背景主题的文字对比度回归通过。五种皮肤仍保留事件色条。
@@ -118,29 +121,13 @@
 **② 工作区改为单一「个人空间」**：`WORKSPACES` 从两项（`ws-main` 团队协作者 / `ws-personal` 个人空间）收成一项 `{ id: 'ws-main', sub: '个人空间' }`；`DEFAULT_WORKSPACE_SUB` 同步改为「个人空间」。切换器按 `WORKSPACES.length > 1` 判定：只有一项时不显示下拉箭头、点不开面板、也不再许「加入工作区（即将上线）」的愿 —— 单选项的"切换"是假的。等真有多工作区再放出来。
 > **本轮验证**：`npx tsc -b` / `eslint` 干净；`npm run check:all` **全绿 —— 1142 passed / 0 failed / 7 skipped（141 个文件）**（本轮无新增用例：改动是渲染层文案与可见性）。
 
-**上一轮**：2026-11-03（**Web 端改为「服务端唯一真源」：浏览器不再持有第二份真源**）
-**背景（正式站实况）**：镜像部署后服务端 8 个业务集合全 0，浏览器打开却仍是 ¥18.5 万演示数据。根因是 Local-First 下浏览器本地库**本身就是一份真源**，同步只做 LWW 合并、从不删除本地多余行，于是「服务器被清空」在页面上不可见，两端都以为对方错。用户裁决：**Web 版就是服务器上的那一套；离线由桌面端承担，Web 不做离线兜底。**
-**① 写入直达 PB**：新增 `storage/serverFirst.ts`（`createServerFirstAdapter`）—— `put/update/delete` 先打 PocketBase，**服务端成功后才落 Dexie**（Dexie 从此只是镜像）；`enqueue` 变 no-op（没有队列，也就没有「攒着等同步」的窗口）。被 LWW 判为过期或远端是墓碑时**不写镜像**，2s 去抖触发一次对齐，让镜像跟随服务端。
-**② 启动与周期全量对齐**：新增 `sync/convergeFromServer.ts` —— 逐表拉服务端全量，**远端没有的本地行物理删除**；远端有的行**先删本地再 `mergeRemoteRecord`**（必然走「新建」分支 ⇒ 绕开 LWW 的「本地更新则不覆盖」，实现远端必胜）。复用既有归一化，不自写第二套（json 三形态、墓碑、localId 还原、link 派生都在那里）。`attachments` 一并纳入，但**内容没变就跳过重下**（比对 `updatedAt` + 本地是否已有文件）——否则每 60 秒把所有附件重下一遍。
-**③ 只对 Web 生产生效**：`platform/env.ts#isServerFirstWeb()` = `import.meta.env.PROD && !isTauri()`。`main.tsx` 覆盖适配器注册，并跳过 seed / backfillDemoRelations / `autoConfigureSameOriginSync` / `syncEngine.start`；`AuthGate` 放行后动态 import 对齐一次（token 只有登录后才有，启动时对齐必然失败）。**桌面端与 dev 完全不变**。
-**④ 摘掉 Web 的离线壳**：`public/sw.js` 导航从「network-first + 回退缓存 `index.html`」改为**只走网络**，断网返回 503 提示页；缓存名 bump 到 `nexus-static-v3`。旧行为是断网也能打开旧页面、再读本地库 —— 正是这次事故的复现路径。
-**⑤ token 键收口**：新增 `shared/authToken.ts`（`AuthGate` 与服务端直连适配器共用同一份键与读取口），避免存储层反向依赖 React 组件。
-**⑥ 徽章改说人话**：`sync/badge.ts` 增加 `mode: 'server'` 分支 —— Web 生产显示「服务器／无法连接／对齐中」，不再出现「仅本机／待推送 N 条」这种描述不存在对象的文案；`AppLayout` 按 `isServerFirstWeb()` 传 mode。
-**⑥′ 对齐兼作连通性探测（真机验收当场发现并修）**：首版上线后徽章**永远停在「检测连接…」**——因为 server-first 下同步引擎没启动，而连通性一直是由引擎心跳写的。新增 `runConverge()`：对齐前写 `checking`，成功写 `online/synced/lastSyncAt`，失败写 `offline/lastError`；生产三处调用点（`main` / `AuthGate` / 设置页）全部改走它，`convergeFromServer` 保持纯函数供测试。
-**⑦ 设置页换掉旧的同步表单**：server-first 下「云端同步」页签改为一张卡片（数据在服务器上 + 「以服务器为准重新对齐」按钮），隐藏服务器地址/同步账号/全量推送 —— 那套是「本地库 + 手动接中心」的旧模型。
-**⑧ 补齐用例**：新增 `storage/__tests__/serverFirst.test.ts`（8 条）+ `sync/__tests__/convergeFromServer.test.ts`（7 条，含 `runConverge` 的 online/offline 状态上报），锁住「先服务端后镜像／跳过不写镜像／失败抛错不落库／本地专属表不上行／远端必胜／附件未变不重下／未登录抛错／对齐即探测」。⚠️ 两个坑记下来：① 测试里**不能 `vi.mock('@/sync/pocketbaseAdapter')`**（会把同模块其他导出抹成 undefined 拖挂并发用例），改用依赖注入；② **fake-indexeddb 不能可靠往返 Blob**，附件用例用「有 `size` 的对象」这个最小等价形状，实现侧的判据也据此写成鸭子类型（不用 `instanceof Blob`，跨 realm 会假阴性）。
-**⑨ 为「桌面端连服务器」补一条前置修正**（用户 2026-11-03 决定：桌面端要连）：`ServerFirstAdapter` 的 `delete` 不再一律物理删——**活记录**先在服务端落墓碑（`deleted:1` + `updatedAt` + `rev+1`）再删镜像；**墓碑记录**才走物理删（说明墓碑已收敛，对应回收站 30 天清理）。不这么改，脱机设备只要还持有活副本，下次 push「查不到远端」就会 POST 新建，把已删记录复活。同时实测服务端对桌面端 origin 放行：`OPTIONS` 预检回 `access-control-allow-origin: *`、`allow-headers: authorization`，`index.html` 的 `connect-src` 已含 `https:` ⇒ **网络层无障碍，桌面端无需改代码即可接入**。
-**⑩ 同步登录与页面登录同口径**：新增 `shared/authIdentity.ts#toLoginIdentity`（不含 `@` → `<小写>@workhub.local`），`AuthGate` 与 `pocketbaseAdapter.login` 同时改用它。此前同步登录直接发裸用户名，而 PB 的 `identityFields` 只有 email ⇒ **桌面端接服务器时填「用户名」必然 400**（页面能登、同步登不上，最难查的一类形态）。现在三处（页面 / 首启 / 同步）同一套映射。
-> **本轮验证**：`npx tsc -b` 与 `eslint` 干净；新增 15 条用例全过（`serverFirst` 9 条含墓碑/物理删两条分支、`converge` 7 条含 `runConverge` 状态链）+ `authIdentity` 3 条；`npm run check:all` **全绿 —— 1142 passed / 0 failed / 7 skipped（141 个文件）**。
-> **真机验收（2026-11-03 03:0x / 10:4x，正式站 `646a171` → `aaf6189`）**：无头 Chrome 持临时账号打开首页 —— 控制台出现 `[server-first] Web 端启用…` 与 `已与服务端对齐：写入 0 条、清理 0 条`；首屏全空（累计收款 ¥0 / 0 位客户 / 今日待办 0 / 暂存区 0），`18.5` 与「仅本机」字样均不出现；非登录页（token 生效）；徽章显示「服务器」。**写入链路也实测通过**：在页面「随手速记」输入并点「转入待办」后，服务端 `todos` 出现 1 条（`localId = ws-main:td:SxDBLyMaOL`，标题与输入一致）、`quickNotes` 1 条 —— 证明「写直达 PB」真的落到服务器，不只是写了浏览器镜像。验收后已删除该临时账号与 2 条测试记录，服务端恢复为空（`users=1` 仅用户本人账号，其余集合 0）。⚠️ 首轮发现徽章停在「检测连接…」，即上文 ⑥′。
-⚠️ **仍待办**：`docs/多端App改造方案-Tauri.md` 里「桌面端是否要连服务器」还没定（当前按纯本地实现，**本轮不动桌面**）；server-first 只覆盖业务表，`focusSessions`／`trashBatches` 仍是纯本地（设计如此，不参与对齐）。
-
 更早轮次见 [11-17归档](PROGRESS-archive-20261117.md)与[既有归档](PROGRESS-archive-20261111.md)。
 
 ## 一、当前状态总览
 
 | 项 | 状态 |
 |---|---|
+| F1 执行与验收 | 撤回预览已通过九种身份组合和并发核验。 |
 | 个人助手第三版 | ✅ 保留原界面与事件/有界缓存能力；11-17 习惯/奖杯已退役，模块与时间线主题已部署并经 Ego 验收；Android 未交付新包 |
 | 习惯/奖杯与模块主题 | ✅ 功能入口和新增写入退役，历史资料可读/导出/回收站维护；模块与事件类别统一配色，明暗模式及皮肤兼容 |
 | 版本 | 本条同提交的习惯/奖杯退役与模块主题；工作分支 `codex/reliability-20261111`，干净候选 1233+7 门禁及 Web/服务端构建通过；未合并 main、未打 tag |
